@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js" ></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js" ></script>
+
+    <title>YouMine</title>
+    <meta name="description" content="Cross-Web Dope : Gamified Supply Limit & Difficulty.">
+    <meta name="theme-color" content="var(--fluo-color)">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2250%22 fill=%22%23C4C4C4%22/></svg>">
+
+<style>
+    :root {
+        --primary: #00ff1a;
+        --secondary: var(--fluo-color);
+        --background: #1A1716;
+        --surface: #1A1716;
+        --text: #E5E7EB;
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    body {
+        background: var(--background);
+        color: var(--text);
+        line-height: 1.6;
+        min-height: 100vh;
+        background-image: 
+            radial-gradient(circle at 10% 20%, var(--fluo-color) 0%, transparent 40%),
+            radial-gradient(circle at 90% 80%, var(--fluo-color) 0%, transparent 40%);
+        padding: 2rem;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 1rem;
+        position: relative;
+    }
+
+    .header h1 {
+        font-size: 6rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+    }
+
+    .header h2 {
+        color: var(--text);
+        font-size: 1.2rem;
+        opacity: 0.8;
+    }
+
+    .nav-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin: 2rem 0;
+    }
+
+    .btn {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        backdrop-filter: blur(10px);
+    }
+
+    .btn:hover {
+        border-color: var(--primary);
+        transform: translateY(-2px);
+        box-shadow: 0 0 20px rgba(0, 245, 255, 0.2);
+    }
+
+    .btn.primary {
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        border: none;
+        color: var(--background);
+        font-weight: 600;
+    }
+
+    .mining-interface {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-top: 3rem;
+    }
+
+.tap-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center; 
+    justify-content: center; /* Ajouter cette ligne pour centrer verticalement */
+    width: 100%; /* Assurer que l'élément prend toute la largeur */
+}
+
+    #tapDisk {
+        width: 220px;
+        height: 220px;
+        background: var(--surface);
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+        transition: transform 0.3s ease;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #tapDisk::before {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border-radius: 50%;
+        padding: 2px;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        -webkit-mask: 
+            linear-gradient(#fff 0 0) content-box, 
+            linear-gradient(#fff 0 0);
+        mask: 
+            linear-gradient(#fff 0 0) content-box, 
+            linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+    }
+
+    #tapDisk:hover {
+        transform: scale(1.02);
+    }
+
+    .tap-pulse {
+        position: absolute;
+        inset: -20px;
+        border-radius: 50%;
+        border: 2px solid var(--primary);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        100% {
+            transform: scale(1.5);
+            opacity: 0;
+        }
+    }
+
+    #tapScore {
+        font-size: 3rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .stats-card {
+        background: var(--surface);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden; /* Empêche le débordement */
+    max-width: 100%; /* Limite la largeur pour éviter les dépassements */
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+    }
+
+    .stat-label {
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.6);
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .game-container {
+        width: 100%;
+        height: 80px;
+        border-radius: 12px;
+        position: relative;
+        overflow: visible;
+        margin-bottom: 0.5rem;
+    }
+
+    .ground {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+
+.player { --bottom: 0; position: absolute; left: 20px; bottom: calc(var(--bottom) * 1px);
+        font-size: 20px; line-height: 20px; width: 20px; height: 20px; text-align: center; }
+    .obstacle { position: absolute; bottom: calc(var(--bottom) * 1px);
+        left: calc(var(--left) * 1%); font-size: 20px; line-height: 20px;
+        width: 20px; height: 20px; text-align: center; }
+
+
+    input[type="text"] {
+        background: var(--surface);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: var(--text);
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        width: 100%;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    input[type="text"]:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(0, 245, 255, 0.1);
+    }
+
+    .wallet-section {
+        margin: 2rem 0;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    @media (max-width: 768px) {
+        .mining-interface {
+            grid-template-columns: 1fr;
+        }
+
+        .nav-buttons {
+            flex-wrap: wrap;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+        }
+        .stats-grid {
+        grid-template-columns: 1fr; /* Une seule colonne pour éviter le débordement */
+    }
+    #tapDisk {
+        width: 180px; /* Réduire la taille du disque sur les écrans plus petits */
+        height: 180px;
+    }
+
+    .header h1 {
+        font-size: 2.5rem; /* Réduction pour améliorer la présentation sur petits écrans */
+    }
+
+    }
+</style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>YouMine</h1>
+            <h2>Cross-web dope</h2>
+            <p>Gamified Supply Limit & Difficulty</p>
+        </header>
+
+        <div class="wallet-section">
+            <input type="text" id="solanaAddress" spellcheck="false" placeholder="Who do you tap for?">
+            <button class="btn primary">Me</button>
+        </div>
+
+        <div class="game-container">
+            <div class="ground"></div>
+            <div class="player"></div>
+        </div>
+        <p style="text-align: center; opacity: 0.7; margin-bottom: 2rem;">
+            <i>💰 More games soon...</i>
+        </p>
+
+        <div class="mining-interface">
+            <div class="tap-section">
+                <div id="tapDisk">
+                    <div class="tap-pulse"></div>
+                    <div id="tapScore">Tap!</div>
+                    <p>Reboot in:</p>
+                    <div id="countdown"></div>
+                </div>
+            </div>
+
+            <button class="btn primary" id="connectWallet">
+                Connect Solana
+            </button>
+
+            <div class="stats-card">
+                <button class="btn" style="width: 100%; margin-bottom: 2rem;" onclick="window.open('https://www.google.com', '_blank')">
+                    Estimate now
+                </button>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Difficulty</div>
+                        <div class="stat-value">ln(community taps)</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Divided by</div>
+                        <div class="stat-value">(1+$YMbalance)/100</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <p style="opacity: 0.7;">Taps/$YM cost:</p>
+                    <p id="ymToMine" style="font-size: 1.5rem; font-weight: 600; margin-top: 0.5rem;"></p>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn primary" id="mine" style="width: 100%; margin-top: 2rem; padding: 1rem;">
+            Halve score to mine $YM
+        </button>
+
+        <p style="font-size: 0.875rem; opacity: 0.7; max-width: 600px; margin: 2rem auto; text-align: center;">
+            We trust in a free financial market and a mass adoptable gamified disinflationary reserve institution. No investor. No premine.
+        </p>
+    </div>
+            <div class="nav-buttons">
+            <button class="btn" onclick="window.open('https://www.google.com', '_blank')">
+                <span>Telegram</span>
+            </button>
+            <button class="btn" onclick="window.open('https://www.google.com', '_blank')">
+                <span>Get $YM</span>
+            </button>
+        </div>
+
+<script>
+
+  const JUMP_SPEED = 0.6;
+const GRAVITY = 0.002;
+const OBSTACLE_INTERVAL_MIN = 500;
+const OBSTACLE_INTERVAL_MAX = 1500;
+const OBSTACLE_SPEED = 0.05;
+const RESTART_DELAY = 3000;
+let isJumping;
+let yVelocity;
+let lastTime;
+let nextObstacleTime;
+let gameStarted = false;
+let jumpCount = 0;
+let isGameOver = false;
+let restartTimeout;
+
+async function handleTapDisk(event) {
+    event.preventDefault();     
+    if (!currentAddress) {
+        if (tapError) tapError.textContent = "Please enter a valid Solana address!";
+        return;
+    }            
+    const now = Date.now();
+    if (now - lastTapTime <= 100) return;
+    lastTapTime = now;
+    if (isGameOver) {
+        return;
+    }
+    if (!gameStarted) {
+        startGame();
+    }
+    if (!isJumping) {
+        isJumping = true;
+        yVelocity = JUMP_SPEED;
+    }
+    const disk = document.getElementById('tapDisk');
+    disk.style.animation = 'none';
+    disk.offsetHeight;
+    disk.style.animation = 'clickPulse 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+    disk.addEventListener('animationend', () => {
+        disk.style.animation = 'pulse 1s infinite';
+    }, { once: true });
+}
+
+function update(time) {
+    if (!gameStarted || isGameOver) return;
+    if (lastTime == null) {
+        lastTime = time;
+        window.requestAnimationFrame(update);
+        return;
+    }
+    const delta = time - lastTime;
+    updatePlayer(delta);
+    updateObstacles(delta);
+    if (checkGameOver()) return handleGameOver();            
+    lastTime = time;
+    window.requestAnimationFrame(update);
+}
+
+function startGame() {
+    if (isGameOver) {
+        return;
+    }
+    lastTime = null;
+    isJumping = false;
+    yVelocity = 0;
+    nextObstacleTime = OBSTACLE_INTERVAL_MIN;
+    gameStarted = true;
+    setCustomProperty(document.querySelector("#player"), "--bottom", 0);
+    document.querySelectorAll(".obstacle").forEach(obstacle => obstacle.remove());
+    window.requestAnimationFrame(update);
+}
+
+function updatePlayer(delta) {
+    if (isJumping) {
+        setCustomProperty(player, "--bottom", getCustomProperty(player, "--bottom") + yVelocity * delta);
+        if (getCustomProperty(player, "--bottom") <= 0) {
+            setCustomProperty(player, "--bottom", 0);
+            isJumping = false;
+            jumpCount++;
+            score = jumpCount;
+            updateScoreDisplay();
+            updateAddressScore(currentAddress, score);
+        }
+        yVelocity -= GRAVITY * delta;
+    }
+}
+        
+function updateObstacles(delta) {
+    document.querySelectorAll(".obstacle").forEach(obstacle => {
+        setCustomProperty(obstacle, "--left", 
+            getCustomProperty(obstacle, "--left") - delta * OBSTACLE_SPEED); 
+        if (getCustomProperty(obstacle, "--left") <= -10) {
+            obstacle.remove();
+        }
+    });
+    if (nextObstacleTime <= 0) {
+        createObstacle();
+        nextObstacleTime = randomizer(OBSTACLE_INTERVAL_MIN, OBSTACLE_INTERVAL_MAX);
+    }
+    nextObstacleTime -= delta;
+}
+        
+function createObstacle() {
+    const obstacle = document.createElement("div");
+    obstacle.classList.add("obstacle");
+    const obstacles = ["🐦", "👹","👟","👽"];
+    const randomObstacle = obstacles[Math.floor(Math.random() * obstacles.length)];
+    obstacle.textContent = randomObstacle;
+    obstacle.style.fontSize = "20px";
+    obstacle.style.textAlign = "center";
+    const randomHeight = randomizer(0, 70);
+    setCustomProperty(obstacle, "--bottom", randomHeight);
+    setCustomProperty(obstacle, "--left", 100);
+    game.append(obstacle);
+}
+
+async function handleCycleReset() {
+    try {
+        const wasGameRunning = gameStarted && !isGameOver;
+        if (wasGameRunning) {
+            isGameOver = true;
+            gameStarted = false;
+            if (lastTime) {
+                window.cancelAnimationFrame(lastTime);
+            }
+        }
+        const snapshot = await db.ref('addresses').once('value');
+        const addresses = snapshot.val();
+        if (!addresses) return;
+        const updates = {};
+        Object.entries(addresses).forEach(([address, data]) => {
+            updates[`addresses/${address}`] = {
+                score: 0,
+                realScore: data.score || 0
+            };
+        });
+        await db.ref().update(updates);
+        score = 0;
+        jumpCount = 0;
+        updateScoreDisplay();
+        if (wasGameRunning) {
+            isGameOver = false;
+            document.getElementById("player").textContent = "😎";
+            startGame();
+        }
+        
+    } catch (error) {
+        console.error("Error during cycle reset:", error);
+    }
+}
+
+function checkGameOver() {
+    const playerRect = player.getBoundingClientRect();
+    return [...document.querySelectorAll(".obstacle")].some(obstacle => {
+        const obstacleRect = obstacle.getBoundingClientRect();
+        return (
+            playerRect.left < obstacleRect.right &&
+            playerRect.top < obstacleRect.bottom &&
+            playerRect.right > obstacleRect.left &&
+            playerRect.bottom > obstacleRect.top
+        );
+    });
+}
+
+function handleGameOver() {
+    isGameOver = true;
+    gameStarted = false;
+    document.getElementById("player").textContent = "😢";
+    if (restartTimeout) {
+        clearTimeout(restartTimeout);
+    }
+    if (lastTime) {
+        window.cancelAnimationFrame(lastTime);
+    }
+    restartTimeout = setTimeout(() => {
+        if (!isGameOver) return;
+        isGameOver = false;
+        if (score > 0) {
+            document.getElementById("player").textContent = "😎";
+            startGame();
+        }
+    }, RESTART_DELAY);
+}
+
+function onJump(e) {
+    if (e.code !== "Space" || isJumping) return;
+    isJumping = true;
+    yVelocity = JUMP_SPEED;
+}
+
+function getCustomProperty(elem, prop) {
+    return parseFloat(getComputedStyle(elem).getPropertyValue(prop)) || 0;
+}
+
+function setCustomProperty(elem, prop, value) {
+    elem.style.setProperty(prop, value);
+}
+
+function randomizer(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
+
+const player = document.getElementById("player");
+player.textContent = "😎"; // Emoji lunettes de soleil
+player.style.fontSize = "20px"; // Ajuster la taille si nécessaire
+player.style.textAlign = "center";
+
+window.addEventListener('load', startGame);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Page Not Found</title>
+
+    <style media="screen">
+           * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1A1716;
+            line-height: 1.6;
+            padding: 10px;
+            max-width: 800px;
+            margin: 10 auto;
+        }
+        h1 {
+            font-size: 3em;
+            margin-bottom: 0px;
+            color: #79FE0C
+        }
+        h2 {
+            font-size: 1.2em;
+            margin-bottom: 0px;
+            color: #C4C4C4;
+        }
+    .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+.error404page {
+    width: 400px;
+    height: 800px;
+    position: absolute;
+    top: 50%;
+    left: 80%;
+    transform: translate(-50%, -50%);
+}
+
+.body404,
+.head404,
+.eyes404,
+.leftarm404,
+.rightarm404,
+.chair404,
+.leftshoe404,
+.rightshoe404,
+.legs404,
+.laptop404 {
+    background: url(https://s3-us-west-2.amazonaws.com/s.cdpn.io/15979/404-character-new.png)
+        0 0 no-repeat;
+    width: 200px;
+    height: 200px;
+}
+
+.newcharacter404,
+.torso404,
+.body404,
+.head404,
+.eyes404,
+.leftarm404,
+.rightarm404,
+.chair404,
+.leftshoe404,
+.rightshoe404,
+.legs404,
+.laptop404 {
+    background-size: 750px;
+    position: absolute;
+    display: block;
+}
+
+.newcharacter404 {
+    width: 400px;
+    height: 800px;
+    left: 50%;
+    top: 20px;
+    margin-left: -200px;
+}
+
+$swayspeed: 20s;
+
+.torso404 {
+    position: absolute;
+    display: block;
+    top: 138px;
+    left: 0px;
+    width: 389px;
+    height: 252px;
+    animation: sway $swayspeed ease infinite;
+    transform-origin: 50% 100%;
+}
+
+.body404 {
+    position: absolute;
+    display: block;
+    top: 0px;
+    left: 0px;
+    width: 389px;
+    height: 253px;
+}
+
+.head404 {
+    position: absolute;
+    top: -148px;
+    left: 106px;
+    width: 160px;
+    height: 194px;
+    background-position: 0px -265px;
+    transform-origin: 50% 85%;
+    animation: headTilt $swayspeed ease infinite;
+}
+
+.eyes404 {
+    position: absolute;
+    top: 92px;
+    left: 34px;
+    width: 73px;
+    height: 18px;
+    background-position: -162px -350px;
+    animation: blink404 10s steps(1) infinite, pan 10s ease-in-out infinite;
+}
+
+.leftarm404 {
+    position: absolute;
+    top: 159px;
+    left: 0;
+    width: 165px;
+    height: 73px;
+    background-position: -265px -341px;
+    transform-origin: 9% 35%;
+    transform: rotateZ(0deg);
+    animation: typeLeft 0.4s linear infinite;
+}
+
+.rightarm404 {
+    position: absolute;
+    top: 148px;
+    left: 231px;
+    width: 157px;
+    height: 91px;
+    background-position: -442px -323px;
+    transform-origin: 90% 25%;
+    animation: typeLeft 0.4s linear infinite;
+}
+
+.chair404 {
+    position: absolute;
+    top: 430px;
+    left: 55px;
+    width: 260px;
+    height: 365px;
+    background-position: -12px -697px;
+}
+
+.legs404 {
+    position: absolute;
+    top: 378px;
+    left: 4px;
+    width: 370px;
+    height: 247px;
+    background-position: -381px -443px;
+}
+
+.leftshoe404 {
+    position: absolute;
+    top: 591px;
+    left: 54px;
+    width: 130px;
+    height: 92px;
+    background-position: -315px -749px;
+}
+
+.rightshoe404 {
+    position: absolute;
+    top: 594px;
+    left: 187px;
+    width: 135px;
+    height: 81px;
+    background-position: -453px -749px;
+    transform-origin: 35% 12%;
+    animation: tapRight 1s linear infinite;
+}
+
+.laptop404 {
+    position: absolute;
+    top: 186px;
+    left: 9px;
+    width: 365px;
+    height: 216px;
+    background-position: -2px -466px;
+    transform-origin: 50% 100%;
+    animation: tapWobble 0.4s linear infinite;
+}
+
+@keyframes sway {
+    0% {
+        transform: rotateZ(0deg);
+    }
+    20% {
+        transform: rotateZ(0deg);
+    }
+    25% {
+        transform: rotateZ(4deg);
+    }
+    45% {
+        transform: rotateZ(4deg);
+    }
+    50% {
+        transform: rotateZ(0deg);
+    }
+    70% {
+        transform: rotateZ(0deg);
+    }
+    75% {
+        transform: rotateZ(-4deg);
+    }
+    90% {
+        transform: rotateZ(-4deg);
+    }
+    100% {
+        transform: rotateZ(0deg);
+    }
+}
+
+@keyframes headTilt {
+    0% {
+        transform: rotateZ(0deg);
+    }
+    20% {
+        transform: rotateZ(0deg);
+    }
+    25% {
+        transform: rotateZ(-4deg);
+    }
+    35% {
+        transform: rotateZ(-4deg);
+    }
+    38% {
+        transform: rotateZ(2deg);
+    }
+    42% {
+        transform: rotateZ(2deg);
+    }
+    45% {
+        transform: rotateZ(-4deg);
+    }
+    50% {
+        transform: rotateZ(0deg);
+    }
+    70% {
+        transform: rotateZ(0deg);
+    }
+    82% {
+        transform: rotateZ(0deg);
+    }
+    85% {
+        transform: rotateZ(4deg);
+    }
+    90% {
+        transform: rotateZ(4deg);
+    }
+    100% {
+        transform: rotateZ(0deg);
+    }
+}
+
+@keyframes typeLeft {
+    0% {
+        transform: rotateZ(0deg);
+    }
+    25% {
+        transform: rotateZ(7deg);
+    }
+    75% {
+        transform: rotateZ(-6deg);
+    }
+    100% {
+        transform: rotateZ(0deg);
+    }
+}
+
+@keyframes typeRight {
+    0% {
+        transform: rotateZ(0deg);
+    }
+    25% {
+        transform: rotateZ(-6deg);
+    }
+    75% {
+        transform: rotateZ(7deg);
+    }
+    100% {
+        transform: rotateZ(0deg);
+    }
+}
+
+@keyframes tapWobble {
+    0% {
+        transform: rotateZ(-0.2deg);
+    }
+    50% {
+        transform: rotateZ(0.2deg);
+    }
+    100% {
+        transform: rotateZ(-0.2deg);
+    }
+}
+
+@keyframes tapRight {
+    0% {
+        transform: rotateZ(0deg);
+    }
+    90% {
+        transform: rotateZ(-6deg);
+    }
+    100% {
+        transform: rotateZ(0deg);
+    }
+}
+
+@keyframes blink404 {
+    0% {
+        background-position: -162px -350px;
+    }
+    94% {
+        background-position: -162px -350px;
+    }
+    98% {
+        background-position: -162px -368px;
+    }
+    100% {
+        background-position: -162px -350px;
+    }
+}
+
+@keyframes pan {
+    0% {
+        transform: translateX(-2px);
+    }
+    49% {
+        transform: translateX(-2px);
+    }
+    50% {
+        transform: translateX(2px);
+    }
+    99% {
+        transform: translateX(2px);
+    }
+    100% {
+        transform: translateX(-2px);
+    }
+}
+
+    </style>
+  </head>
+  <body>
+    <div id="message">
+      <h2>404</h2>
+      <h1>Page Not Found</h1>
+      <div class="container">
+    <div class="error404page">
+        <div class="newcharacter404">
+            <div class="chair404"></div>
+            <div class="leftshoe404"></div>
+            <div class="rightshoe404"></div>
+            <div class="legs404"></div>
+            <div class="torso404">
+                <div class="body404"></div>
+                <div class="leftarm404"></div>
+                <div class="rightarm404"></div>
+                <div class="head404">
+                    <div class="eyes404"></div>
+                </div>
+            </div>
+            <div class="laptop404"></div>
+        </div>
+    </div>
+</div>
+    </div>
+  </body>
+</html>

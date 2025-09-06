@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YourMine : Last Action Crypto</title>
+    
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.min.js"></script>
+    
+    <script src="web3-config.js"></script>
+    <link rel="stylesheet" href="style.css">
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='yellow'/></svg>">
+</head>
+<body>
+    <audio id="clareAudio" autoplay preload="auto">
+        <source src="Clare.mp3" type="audio/mpeg">
+    </audio>
+
+    <img src="LAH.png" alt="" class="main-image">
+    
+    <h1 class="title" id="mainTitle">YourMine Democratic Deflationary Mining</h1>
+    
+    <div class="bottom-card">
+        <div class="line">
+            <div class="formula">The more you burn, commit, wait, the more you earn.</div>
+            <button class="btn btn-connect wallet-connect" id="connectBtn">🚀 Connect</button>
+        </div>
+        
+        <div class="line">
+            <div class="sol-balance"><span id="solBalance">-</span> SOL</div>
+            <button class="btn btn-burn" id="burnBtn" disabled>🔥 Burn</button>
+        </div>
+        
+        <div class="line">
+            <div class="yrm-balance"><span id="yrmBalance">-</span> YRM</div>
+            <button class="btn btn-claim" id="claimBtn" disabled>⚡ Claim</button>
+        </div>
+
+        <div class="line">
+            <div class="simulator">
+                <span>Slot:</span>
+                <input type="number" id="blockInput" placeholder="Slot#">
+                <div class="user-info" id="userInfo">
+                    <span>Last: <span id="lastActionDisplay">-</span></span>
+                    <span>T: <span id="taxRateDisplay">-</span>%</span>
+                    <span>Burn: <span id="lastBurnDisplay">-</span> SOL</span>
+                </div>
+                <div class="claimable-result" id="claimableResult">- YRM</div>
+            </div>
+            <button class="btn btn-small" id="simulateBtn" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">Simulate</button>
+        </div>
+    </div>
+
+    <div class="bottom-buttons">
+        <button class="btn btn-small btn-wp" onclick="window.open('wpyourmine.pdf', '_blank')">WP</button>
+        <button class="btn btn-small btn-lore" onclick="window.open('PitchDeck.html', '_blank')">PITCH</button>
+        <button class="btn btn-small btn-wp" onclick="window.open('vision.pdf', '_blank')">VISION</button>
+    </div>
+    
+    <div class="token-supply">
+        <span>Total Supply:</span>
+        <span id="totalSupply">-</span>
+    </div>
+    
+    <div class="token-address">
+        <span>TA :</span>
+        <span id="tokenAddress">k5KdweiLaLDR57YqVQ9WCWNdLDQm4wMTzz5zPRRPLMn</span>
+    </div>
+
+    <div class="burn-popup" id="burnDialog">
+        <div class="burn-popup-content">
+            <h3>🔥 Burn SOL → Get YRM</h3>
+            
+            <div class="amount-input-container">
+                <input type="number" id="burnAmount" class="amount-input" value="1" placeholder="SOL Amount" min="0.001" step="0.001">
+            </div>
+
+            <div class="tax-container">
+                <div class="tax-label">Choose Your Tax/Bonus Rate</div>
+                <div class="tax-slider-container">
+                    <input type="range" id="taxSlider" class="tax-slider" min="0" max="40" value="20">
+                </div>
+                <div class="tax-display">
+                    <span class="tax-value" id="taxValue">20%</span>
+                    <span class="tax-info">Your SOL balance: <span id="solBalanceDisplay">0</span> SOL</span>
+                </div>
+            </div>
+
+            <div class="burn-preview">
+                <div class="burn-preview-title">Transaction Preview</div>
+                <div class="burn-calculation">
+                    <span>SOL to burn:</span>
+                    <span class="value" id="previewBurnAmount">- SOL</span>
+                </div>
+                <div class="burn-calculation">
+                    <span>Tax rate:</span>
+                    <span class="value" id="previewTaxRate">- %</span>
+                </div>
+                <div class="burn-calculation">
+                    <span>Tax amount:</span>
+                    <span class="value" id="previewTaxAmount">- SOL</span>
+                </div>
+                <div class="burn-calculation">
+                    <span>You get:</span>
+                    <span class="value" id="previewYrmAmount">- YRM</span>
+                </div>
+            </div>
+
+            <div class="popup-buttons">
+                <button class="btn-confirm" id="confirmBurnBtn">🔥 Burn, Commit & Claim</button>
+                <button class="btn-cancel" id="cancelBurnBtn">❌ Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+
+    <script>
+        // Fonction pour calculer le compte à rebours
+        function updateCountdown() {
+            const targetDate = new Date('2026-01-05T00:00:00Z');
+            const currentDate = new Date();
+            const timeDifference = targetDate - currentDate;
+            
+            if (timeDifference > 0) {
+                // Calculer jours, heures, minutes, secondes
+                const days = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((timeDifference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((timeDifference % (1000 * 60)) / 1000);
+                
+                document.getElementById('mainTitle').textContent = `YourMine Democratic Deflationary Mining - Mainnet ${days}j ${hours}h ${minutes}m ${seconds}s`;
+            } else {
+                document.getElementById('mainTitle').textContent = 'YourMine Democratic Deflationary Mining - Mainnet LIVE!';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialiser le compte à rebours
+            updateCountdown();
+            
+            // Mettre à jour le compte à rebours toutes les secondes
+            setInterval(updateCountdown, 1000);
+            
+            const audio = document.getElementById('clareAudio');
+            
+            const playPromise = audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.log('Autoplay blocked, audio will play on first user interaction');
+                    
+                    const playOnInteraction = () => {
+                        audio.play();
+                        document.removeEventListener('click', playOnInteraction);
+                        document.removeEventListener('keydown', playOnInteraction);
+                    };
+                    
+                    document.addEventListener('click', playOnInteraction);
+                    document.addEventListener('keydown', playOnInteraction);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
