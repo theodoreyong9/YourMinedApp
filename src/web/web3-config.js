@@ -11,7 +11,7 @@ window.YM_CONFIG = {
         decimals: 18,
         description: 'Democratic Deflationary Mining Token'
     },
-    
+     
     ALGORITHM: {
         max_tax_rate: 40,
         default_tax_rate: 20,
@@ -56,4 +56,5 @@ window.YM_CONFIG = {
     },
     
     YRM_DECIMALS_MULTIPLIER: 1000000000000000000,
+
 };
