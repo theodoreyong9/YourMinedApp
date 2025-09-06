@@ -37,7 +37,7 @@ YourMine introduces democratic mining where participants burn SOL tokens to rece
 
 - **Blockchain**: Solana
 - **Smart Contracts**: Rust/Anchor
-- **Frontend**: TypeScript/JavaScript
+- **Frontend**: JavaScript/CSS
 - **Real-time Updates**: WebSocket integration
 
 ## License
