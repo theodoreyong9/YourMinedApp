@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
@@ -20,7 +20,7 @@
 
     <img src="LAH.png" alt="" class="main-image">
     
-    <h1 class="title" id="mainTitle">YourMine Democratic Deflationary Mining</h1>
+    <h1 class="title" id="mainTitle">YourMine devnet - Calculations may cause transaction failures and gas loss</h1>
     
     <div class="bottom-card">
         <div class="line">
@@ -118,30 +118,26 @@
     <script src="app.js"></script>
 
     <script>
-        // Fonction pour calculer le compte à rebours
         function updateCountdown() {
             const targetDate = new Date('2026-01-05T00:00:00Z');
             const currentDate = new Date();
             const timeDifference = targetDate - currentDate;
             
             if (timeDifference > 0) {
-                // Calculer jours, heures, minutes, secondes
                 const days = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
                 const hours = Math.floor((timeDifference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                 const minutes = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
                 const seconds = Math.floor((timeDifference % (1000 * 60)) / 1000);
                 
-                document.getElementById('mainTitle').textContent = `YourMine Democratic Deflationary Mining - Mainnet ${days}j ${hours}h ${minutes}m ${seconds}s`;
+                document.getElementById('mainTitle').textContent = `YourMine devnet - Calculations may cause transaction failures and gas loss`;
             } else {
-                document.getElementById('mainTitle').textContent = 'YourMine Democratic Deflationary Mining - Mainnet LIVE!';
+                document.getElementById('mainTitle').textContent = 'YourMine devnet - Calculations may cause transaction failures and gas loss - Mainnet LIVE!';
             }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialiser le compte à rebours
             updateCountdown();
             
-            // Mettre à jour le compte à rebours toutes les secondes
             setInterval(updateCountdown, 1000);
             
             const audio = document.getElementById('clareAudio');
@@ -165,5 +161,4 @@
         });
     </script>
 </body>
-
 </html>
