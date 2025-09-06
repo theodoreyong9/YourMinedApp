@@ -2,7 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-} 
+}
 
 body {
     font-family: 'Arial', sans-serif;
@@ -13,7 +13,6 @@ body {
     overflow-x: hidden;
 }
 
-/* IMAGE PRINCIPALE */
 .main-image {
     position: fixed;
     top: 40px;
@@ -27,7 +26,6 @@ body {
     object-position: center;
 }
 
-/* TITRE EN HAUT */
 .title {
     position: fixed;
     top: 10px;
@@ -45,7 +43,6 @@ body {
     text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
 }
 
-/* CARD EN BAS */
 .bottom-card {
     position: fixed;
     bottom: 120px;
@@ -62,7 +59,6 @@ body {
     max-width: 600px;
 }
 
-/* BOUTONS WP/LORE */
 .bottom-buttons {
     position: fixed;
     bottom: 75px;
@@ -73,7 +69,6 @@ body {
     z-index: 100;
 }
 
-/* TOTAL SUPPLY */
 .token-supply {
     position: fixed;
     bottom: 40px;
@@ -109,7 +104,6 @@ body {
     white-space: nowrap;
 }
 
-/* ADRESSE TOKEN */
 .token-address {
     position: fixed;
     bottom: 5px;
@@ -144,7 +138,6 @@ body {
     white-space: nowrap;
 }
 
-/* LIGNES */
 .line {
     display: flex;
     align-items: center;
@@ -157,7 +150,6 @@ body {
     margin-bottom: 0;
 }
 
-/* FORMULE */
 .formula {
     background: rgba(0, 255, 136, 0.1);
     border: 1px dashed #48dbfb;
@@ -172,7 +164,6 @@ body {
     line-height: 1.2;
 }
 
-/* BALANCES */
 .sol-balance, .yrm-balance {
     border-radius: 8px;
     padding: 8px 12px;
@@ -212,7 +203,6 @@ body {
     z-index: -1;
 }
 
-/* SIMULATEUR - UNE LIGNE SIMPLE ET PROPRE */
 .simulator {
     display: flex;
     align-items: center;
@@ -265,7 +255,6 @@ body {
     white-space: nowrap;
 }
 
-/* BOUTONS */
 .btn {
     border: none;
     border-radius: 12px;
@@ -326,7 +315,6 @@ body {
     text-transform: uppercase;
 }
 
-/* POPUP BURN */
 .burn-popup {
     position: fixed;
     top: 0;
@@ -362,7 +350,6 @@ body {
     color: #ff6b6b;
 }
 
-/* INPUT AMOUNT */
 .amount-input-container {
     margin: 20px 0;
 }
@@ -379,7 +366,6 @@ body {
     margin: 0 auto;
 }
 
-/* JAUGE DE TAXE */
 .tax-container {
     margin: 25px 0;
     padding: 20px;
@@ -449,7 +435,6 @@ body {
     font-weight: bold;
 }
 
-/* PREVIEW BURN */
 .burn-preview {
     background: rgba(72, 219, 251, 0.1);
     border: 1px solid rgba(72, 219, 251, 0.3);
@@ -476,7 +461,6 @@ body {
     font-weight: bold;
 }
 
-/* BOUTONS POPUP */
 .popup-buttons {
     display: flex;
     gap: 15px;
@@ -504,7 +488,6 @@ body {
     color: white;
 }
 
-/* NOTIFICATIONS */
 .notification {
     position: fixed;
     top: 50px;
@@ -534,7 +517,6 @@ body {
     background: linear-gradient(135deg, #667eea, #764ba2);
 }
 
-/* RESPONSIVE */
 @media (max-width: 480px) {
     .title {
         font-size: 1em;
@@ -735,5 +717,4 @@ body {
     .simulator .claimable-result {
         font-size: 0.6em;
     }
-
 }
