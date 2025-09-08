@@ -1,9 +1,15 @@
+/**
+ * Styles principaux pour YourMine
+ */
+
+/* Reset CSS */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* Styles de base */
 body {
     font-family: 'Arial', sans-serif;
     background: #000;
@@ -13,6 +19,7 @@ body {
     overflow-x: hidden;
 }
 
+/* Image principale */
 .main-image {
     position: fixed;
     top: 40px;
@@ -26,6 +33,7 @@ body {
     object-position: center;
 }
 
+/* Titre principal */
 .title {
     position: fixed;
     top: 10px;
@@ -43,6 +51,7 @@ body {
     text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
 }
 
+/* Carte principale */
 .bottom-card {
     position: fixed;
     bottom: 120px;
@@ -59,6 +68,7 @@ body {
     max-width: 600px;
 }
 
+/* Boutons du bas */
 .bottom-buttons {
     position: fixed;
     bottom: 75px;
@@ -69,6 +79,7 @@ body {
     z-index: 100;
 }
 
+/* Supply de tokens */
 .token-supply {
     position: fixed;
     bottom: 40px;
@@ -104,6 +115,7 @@ body {
     white-space: nowrap;
 }
 
+/* Adresse du token */
 .token-address {
     position: fixed;
     bottom: 5px;
@@ -138,6 +150,7 @@ body {
     white-space: nowrap;
 }
 
+/* Lignes de la carte */
 .line {
     display: flex;
     align-items: center;
@@ -150,6 +163,7 @@ body {
     margin-bottom: 0;
 }
 
+/* Formule */
 .formula {
     background: rgba(0, 255, 136, 0.1);
     border: 1px dashed #48dbfb;
@@ -164,6 +178,7 @@ body {
     line-height: 1.2;
 }
 
+/* Soldes */
 .sol-balance, .yrm-balance {
     border-radius: 8px;
     padding: 8px 12px;
@@ -203,6 +218,7 @@ body {
     z-index: -1;
 }
 
+/* Simulateur */
 .simulator {
     display: flex;
     align-items: center;
@@ -255,6 +271,7 @@ body {
     white-space: nowrap;
 }
 
+/* Boutons */
 .btn {
     border: none;
     border-radius: 12px;
@@ -315,6 +332,7 @@ body {
     text-transform: uppercase;
 }
 
+/* Popup de burn */
 .burn-popup {
     position: fixed;
     top: 0;
@@ -488,6 +506,7 @@ body {
     color: white;
 }
 
+/* Notifications */
 .notification {
     position: fixed;
     top: 50px;
@@ -517,6 +536,7 @@ body {
     background: linear-gradient(135deg, #667eea, #764ba2);
 }
 
+/* Media queries pour mobile */
 @media (max-width: 480px) {
     .title {
         font-size: 1em;
