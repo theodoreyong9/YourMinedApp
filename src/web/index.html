@@ -5,23 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YourMine : Last Action Crypto</title>
     
+    <!-- Solana Web3 Libraries -->
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.min.js"></script>
     
+    <!-- Configuration -->
     <script src="web3-config.js"></script>
+    
+    <!-- Styles -->
     <link rel="stylesheet" href="style.css">
     
+    <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='50' fill='yellow'/></svg>">
 </head>
 <body>
+    <!-- Audio -->
     <audio id="clareAudio" autoplay preload="auto">
         <source src="Clare.mp3" type="audio/mpeg">
     </audio>
 
+    <!-- Logo and Main Image -->
+    <img src="ym.png" style="position: fixed; top: 30px; left: 50%; transform: translateX(-50%); max-width: 100px; max-height: 80px; width: auto; height: auto; z-index: 1000;">
     <img src="LAH.png" alt="" class="main-image">
     
+    <!-- Title -->
     <h1 class="title" id="mainTitle">YourMine devnet</h1>
     
+    <!-- Main Interface Card -->
     <div class="bottom-card">
         <div class="line">
             <div class="formula">The more you burn, commit, wait, the more you earn.</div>
@@ -53,12 +63,17 @@
         </div>
     </div>
 
+    <!-- Bottom Navigation -->
     <div class="bottom-buttons">
         <button class="btn btn-small btn-wp" onclick="window.open('wpyourmine.pdf', '_blank')">WP</button>
-        <button class="btn btn-small btn-lore" onclick="window.open('PitchDeck.html', '_blank')">PITCH</button>
+        <button class="btn btn-small btn-wp" onclick="window.open('https://github.com/theodoreyong9/YourMinedApp/tree/main', '_blank')">GITHUB</button>
         <button class="btn btn-small btn-wp" onclick="window.open('vision.pdf', '_blank')">VISION</button>
+        <button class="btn btn-small btn-wp" onclick="window.open('https://x.com/YourMinedApp', '_blank')">X</button>
+        <button class="btn btn-small btn-wp" onclick="window.open('https://bitcointalk.org/index.php?topic=5558274.0', '_blank')">TALK</button>
+        <button class="btn btn-small btn-wp" onclick="window.open('traducedBook.pdf', '_blank')">BOOK</button>
     </div>
     
+    <!-- Token Info -->
     <div class="token-supply">
         <span>Total Supply:</span>
         <span id="totalSupply">-</span>
@@ -69,6 +84,7 @@
         <span id="tokenAddress">k5KdweiLaLDR57YqVQ9WCWNdLDQm4wMTzz5zPRRPLMn</span>
     </div>
 
+    <!-- Burn Dialog -->
     <div class="burn-popup" id="burnDialog">
         <div class="burn-popup-content">
             <h3>🔥 Burn SOL → Get YRM</h3>
@@ -115,51 +131,14 @@
         </div>
     </div>
 
+    <!-- JavaScript Modules (TOUS dans le même dossier) -->
+    <script src="utils.js"></script>
+    <script src="solana-helpers.js"></script>
+    <script src="wallet-manager.js"></script>
+    <script src="ui-manager.js"></script>
+    <script src="realtime-updates.js"></script>
     <script src="app.js"></script>
+    <script src="countdown.js"></script>
 
-    <script>
-        function updateCountdown() {
-            const targetDate = new Date('2026-01-05T00:00:00Z');
-            const currentDate = new Date();
-            const timeDifference = targetDate - currentDate;
-            
-            if (timeDifference > 0) {
-                const days = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
-                const hours = Math.floor((timeDifference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                const minutes = Math.floor((timeDifference % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((timeDifference % (1000 * 60)) / 1000);
-                
-                document.getElementById('mainTitle').textContent = `YourMine devnet`;
-            } else {
-                document.getElementById('mainTitle').textContent = 'YourMine devnet - Mainnet LIVE!';
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            updateCountdown();
-            
-            setInterval(updateCountdown, 1000);
-            
-            const audio = document.getElementById('clareAudio');
-            
-            const playPromise = audio.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.log('Autoplay blocked, audio will play on first user interaction');
-                    
-                    const playOnInteraction = () => {
-                        audio.play();
-                        document.removeEventListener('click', playOnInteraction);
-                        document.removeEventListener('keydown', playOnInteraction);
-                    };
-                    
-                    document.addEventListener('click', playOnInteraction);
-                    document.addEventListener('keydown', playOnInteraction);
-                });
-            }
-        });
-    </script>
 </body>
 </html>
-
