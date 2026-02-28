@@ -267,6 +267,7 @@ frodon.register({
           }
           frodon.sendDM(peerId, PLUGIN_ID, {type:'move', gameId, cell:i});
           frodon.refreshPeerModal(peerId);
+          frodon.refreshSphereTab(PLUGIN_ID);
         });
       }
       grid.appendChild(sq);
@@ -285,6 +286,7 @@ frodon.register({
         addScore('loss');
         frodon.sendDM(peerId, PLUGIN_ID, {type:'forfeit', gameId});
         frodon.refreshPeerModal(peerId);
+        frodon.refreshSphereTab(PLUGIN_ID);
       });
       btnRow.appendChild(forfeitBtn);
     } else {
@@ -304,56 +306,132 @@ frodon.register({
   }
 
   /* ──────────────────────────────────────────────────
-     WIDGET PROFIL — scores & parties en cours
+     BOTTOM PANEL — onglet SPHERE
+     Tab 1: Jeu en cours
+     Tab 2: Historique / Scores
   ────────────────────────────────────────────────── */
-  frodon.registerProfileWidget(PLUGIN_ID, (container) => {
-    const wins   = store.get('wins')   || 0;
-    const losses = store.get('losses') || 0;
-    const draws  = store.get('draws')  || 0;
-    const total  = wins + losses + draws;
+  frodon.registerBottomPanel(PLUGIN_ID, [
+    {
+      id    : 'games',
+      label : '⊞ Parties en cours',
+      render: (container) => {
+        const activeGames = Object.entries(games).filter(([,g]) => !g.done);
+        if(!activeGames.length) {
+          const em = frodon.makeElement('div','');
+          em.style.cssText = 'text-align:center;padding:28px 16px;color:var(--txt2);font-size:.78rem;line-height:1.9';
+          em.innerHTML = '<div style="font-size:2rem;opacity:.3;margin-bottom:10px">⊞</div>'
+            + 'Aucune partie en cours.<br>'
+            + '<small style="color:var(--txt3)">Défiez un pair sur le radar !</small>';
+          container.appendChild(em);
+          return;
+        }
+        activeGames.forEach(([gid, g]) => {
+          const peer = frodon.getPeer(g.opponentId);
+          const card = frodon.makeElement('div','mini-card');
+          card.style.cssText = 'margin:8px 10px 0;cursor:pointer';
+          // Mini board preview (3×3 compact)
+          const row = frodon.makeElement('div','');
+          row.style.cssText = 'display:flex;align-items:center;gap:10px';
+          // Tiny board
+          const miniBoard = frodon.makeElement('div','');
+          miniBoard.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:2px;width:52px;flex-shrink:0';
+          g.board.forEach(cell => {
+            const sq = frodon.makeElement('div','');
+            sq.style.cssText = 'aspect-ratio:1;display:flex;align-items:center;justify-content:center;'
+              +'background:var(--sur2);border-radius:3px;font-size:.55rem';
+            sq.textContent = cell==='X'?'✕':cell==='O'?'○':'';
+            sq.style.color = cell==='X'?'#ff6b35':cell==='O'?'#7c4dff':'';
+            miniBoard.appendChild(sq);
+          });
+          row.appendChild(miniBoard);
+          // Info
+          const info = frodon.makeElement('div','');
+          info.style.cssText = 'min-width:0;flex:1';
+          info.innerHTML = `<div style="font-size:.8rem;font-weight:700;color:var(--txt)">${peer?.name||g.opponentId}</div>
+            <div style="font-size:.62rem;color:${g.myTurn?'var(--acc)':'var(--txt2)'};font-family:var(--mono);margin-top:2px">
+              ${g.myTurn?'⌛ Votre tour':'💬 Son tour'}&nbsp;·&nbsp;Vous: ${g.mySymbol==='X'?'✕':'○'}
+            </div>`;
+          row.appendChild(info);
+          card.appendChild(row);
+          container.appendChild(card);
+        });
+      },
+    },
+    {
+      id    : 'scores',
+      label : '🏆 Scores',
+      render: (container) => {
+        const wins   = store.get('wins')   || 0;
+        const losses = store.get('losses') || 0;
+        const draws  = store.get('draws')  || 0;
+        const total  = wins + losses + draws;
 
-    // Score board
-    const board = frodon.makeElement('div','');
-    board.style.cssText = 'display:flex;gap:0;border:1px solid var(--bdr2);border-radius:10px;overflow:hidden;margin-bottom:10px';
-    [
-      {icon:'🏆', val:wins,   lbl:'Victoires', color:'var(--ok)'},
-      {icon:'😔', val:losses, lbl:'Défaites',  color:'var(--warn)'},
-      {icon:'🤝', val:draws,  lbl:'Égalités',  color:'var(--txt2)'},
-    ].forEach(({icon, val, lbl, color}, i) => {
-      const cell = frodon.makeElement('div','');
-      cell.style.cssText = `flex:1;display:flex;flex-direction:column;align-items:center;
-        gap:1px;padding:8px 4px;
-        ${i<2?'border-right:1px solid var(--bdr2);':''}`;
-      cell.innerHTML = `<span style="font-size:1rem">${icon}</span>
-        <strong style="font-size:1.1rem;color:${color};font-family:var(--mono)">${val}</strong>
-        <span style="font-size:.55rem;color:var(--txt2)">${lbl}</span>`;
-      board.appendChild(cell);
-    });
-    container.appendChild(board);
+        // Score board
+        const scoreboard = frodon.makeElement('div','');
+        scoreboard.style.cssText = 'display:flex;gap:0;border:1px solid var(--bdr2);border-radius:12px;overflow:hidden;margin:10px';
+        [
+          {icon:'🏆', val:wins,   lbl:'Victoires', color:'var(--ok)'},
+          {icon:'😔', val:losses, lbl:'Défaites',  color:'var(--warn)'},
+          {icon:'🤝', val:draws,  lbl:'Égalités',  color:'var(--txt2)'},
+        ].forEach(({icon, val, lbl, color}, i) => {
+          const cell = frodon.makeElement('div','');
+          cell.style.cssText = `flex:1;display:flex;flex-direction:column;align-items:center;
+            justify-content:center;gap:2px;padding:14px 4px;
+            ${i<2?'border-right:1px solid var(--bdr2);':''}`;
+          cell.innerHTML = `<span style="font-size:1.2rem">${icon}</span>
+            <strong style="font-size:1.4rem;color:${color};font-family:var(--mono)">${val}</strong>
+            <span style="font-size:.55rem;color:var(--txt2)">${lbl}</span>`;
+          scoreboard.appendChild(cell);
+        });
+        container.appendChild(scoreboard);
 
-    // Parties en cours
-    const activeGames = Object.entries(games).filter(([,g]) => !g.done);
-    if(activeGames.length) {
-      container.appendChild(frodon.makeElement('div','section-label',`⊞ ${activeGames.length} partie(s) en cours`));
-      activeGames.forEach(([gid, g]) => {
-        const peer = frodon.getPeer(g.opponentId);
-        const chip = frodon.makeElement('div','mini-card');
-        chip.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer';
-        chip.innerHTML = `<span style="font-size:1.2rem">⊞</span>
-          <div>
-            <div style="font-size:.78rem;font-weight:700">${peer?.name || g.opponentId}</div>
-            <div style="font-size:.62rem;color:var(--txt2);font-family:var(--mono)">
-              ${g.myTurn ? '⌛ Votre tour' : '💬 Son tour'}
-              &nbsp;·&nbsp; ${g.mySymbol}
+        // Win rate bar
+        if(total > 0) {
+          const rate = Math.round(wins/total*100);
+          const barWrap = frodon.makeElement('div','');
+          barWrap.style.cssText = 'margin:0 10px 10px';
+          barWrap.innerHTML = `
+            <div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--txt2);font-family:var(--mono);margin-bottom:5px">
+              <span>Taux de victoire</span><span style="color:var(--ok)">${rate}%</span>
             </div>
-          </div>`;
-        container.appendChild(chip);
-      });
-    } else if(total === 0) {
-      const hint = frodon.makeElement('div','no-posts','Défiez un pair sur le radar pour commencer !');
-      container.appendChild(hint);
-    }
-  });
+            <div style="height:6px;background:var(--sur2);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${rate}%;background:linear-gradient(90deg,var(--ok),var(--acc));border-radius:4px;transition:width .5s"></div>
+            </div>
+            <div style="font-size:.58rem;color:var(--txt2);font-family:var(--mono);margin-top:5px;text-align:center">${total} partie${total>1?'s':''} jouée${total>1?'s':''}</div>`;
+          container.appendChild(barWrap);
+        } else {
+          const hint = frodon.makeElement('div','');
+          hint.style.cssText = 'text-align:center;padding:20px;color:var(--txt2);font-size:.75rem';
+          hint.textContent = 'Jouez votre première partie !';
+          container.appendChild(hint);
+        }
+
+        // Parties terminées (historique)
+        const doneGames = Object.entries(games).filter(([,g]) => g.done);
+        if(doneGames.length) {
+          const lbl = frodon.makeElement('div','section-label','Parties récentes');
+          lbl.style.cssText = 'margin:10px 10px 6px;font-size:.58rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;letter-spacing:1px';
+          container.appendChild(lbl);
+          doneGames.slice(-5).reverse().forEach(([gid, g]) => {
+            const peer = frodon.getPeer(g.opponentId);
+            const isWin  = g.winner === g.mySymbol;
+            const isDraw = g.winner === 'draw';
+            const card = frodon.makeElement('div','mini-card');
+            card.style.cssText = 'margin:0 10px 6px;display:flex;align-items:center;gap:8px';
+            card.innerHTML = `
+              <span style="font-size:1.1rem">${isDraw?'🤝':isWin?'🏆':'😔'}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:.76rem;font-weight:700;color:var(--txt)">${peer?.name||g.opponentId}</div>
+                <div style="font-size:.6rem;color:var(--txt2);font-family:var(--mono)">
+                  ${isDraw?'Égalité':isWin?'Victoire':'Défaite'} · Vous: ${g.mySymbol==='X'?'✕':'○'}
+                </div>
+              </div>`;
+            container.appendChild(card);
+          });
+        }
+      },
+    },
+  ]);
 
   /* ──────────────────────────────────────────────────
      LIFECYCLE HOOKS
