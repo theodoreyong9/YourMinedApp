@@ -328,5 +328,17 @@ frodon.register({
       frodon.showToast('⊞ '+peer.name+' est de retour');
   });
 
+  // Auto-challenge when installed from a peer's profile
+  frodon.registerPeerInstallHook(PLUGIN_ID, (peerId) => {
+    const peer = frodon.getPeer(peerId);
+    const peerName = peer?.name || peerId;
+    const gid = 'ttc_'+Date.now();
+    games[gid] = newGame(peerId, 'X');
+    frodon.sendDM(peerId, PLUGIN_ID, {type:'challenge', gameId:gid, _label:'⊞ Défi TicTacToe !'});
+    frodon.showToast('⊞ Défi envoyé à '+peerName+' !');
+    frodon.refreshSphereTab(PLUGIN_ID);
+    setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
+  });
+
   return { destroy() {} };
 });
