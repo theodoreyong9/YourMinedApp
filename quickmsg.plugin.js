@@ -1,12 +1,10 @@
 /**
- * FRODON PLUGIN — Message rapide  v1.0.0
- * Palette de réactions et messages prédéfinis à envoyer en un tap.
- * Les reçus s'accumulent dans SPHERE avec compteurs.
+ * FRODON PLUGIN — Message rapide  v1.1.0
  */
 frodon.register({
   id: 'quickmsg',
   name: 'Message rapide',
-  version: '1.0.0',
+  version: '1.1.0',
   author: 'frodon-community',
   description: 'Envoyez des réactions et messages courts en un tap.',
   icon: '⚡',
@@ -33,22 +31,20 @@ frodon.register({
   /* ── DM handler ── */
   frodon.onDM(PLUGIN_ID, (fromId, payload) => {
     if(payload.type !== 'react') return;
-    const emoji = payload.emoji;
     const peer = frodon.getPeer(fromId);
     const name = peer?.name || '?';
 
-    // Store received
     const inbox = store.get('inbox') || [];
-    inbox.unshift({ fromId, fromName: name, emoji, label: payload.label, ts: Date.now() });
+    inbox.unshift({ fromId, fromName: name, emoji: payload.emoji, label: payload.label, ts: Date.now() });
     if(inbox.length > 100) inbox.length = 100;
     store.set('inbox', inbox);
 
-    // Increment counter per emoji
     const counts = store.get('counts') || {};
-    counts[emoji] = (counts[emoji] || 0) + 1;
+    counts[payload.emoji] = (counts[payload.emoji] || 0) + 1;
     store.set('counts', counts);
 
-    frodon.showToast(emoji + ' ' + name + ' : ' + (payload.label || emoji));
+    frodon.showToast(payload.emoji + ' ' + name + ' : ' + (payload.label || payload.emoji));
+    // refreshSphereTab will re-render the panel + update feed badge
     frodon.refreshSphereTab(PLUGIN_ID);
   });
 
@@ -63,12 +59,13 @@ frodon.register({
     REACTIONS.forEach(({ emoji, label }) => {
       const btn = frodon.makeElement('button', 'plugin-action-btn');
       btn.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:1.3rem;line-height:1';
+      btn.innerHTML = emoji;
       const lbl = frodon.makeElement('span', '', label);
       lbl.style.cssText = 'font-size:.52rem;color:var(--txt2);font-weight:400;line-height:1.2';
-      btn.innerHTML = emoji;
       btn.appendChild(lbl);
       btn.addEventListener('click', () => {
-        frodon.sendDM(peerId, PLUGIN_ID, { type: 'react', emoji, label });
+        // _label makes this appear in recipient's feed
+        frodon.sendDM(peerId, PLUGIN_ID, { type: 'react', emoji, label, _label: emoji + ' ' + label });
         frodon.showToast(emoji + ' envoyé à ' + peerName + ' !');
         btn.style.transform = 'scale(1.25)';
         btn.style.borderColor = 'var(--acc)';
@@ -88,8 +85,7 @@ frodon.register({
     container.appendChild(lbl);
     const row = frodon.makeElement('div', '');
     row.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;padding:4px 0';
-    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 8);
-    sorted.forEach(([emoji, count]) => {
+    Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0,8).forEach(([emoji, count]) => {
       const chip = frodon.makeElement('div', '');
       chip.style.cssText = 'font-size:.78rem;padding:2px 8px;background:var(--sur2);border:1px solid var(--bdr2);border-radius:12px';
       chip.textContent = emoji + ' ' + count;
@@ -101,8 +97,7 @@ frodon.register({
   /* ── Panneau SPHERE ── */
   frodon.registerBottomPanel(PLUGIN_ID, [
     {
-      id: 'inbox',
-      label: '⚡ Reçus',
+      id: 'inbox', label: '⚡ Reçus',
       render(container) {
         const inbox = store.get('inbox') || [];
         if(!inbox.length) {
@@ -114,11 +109,9 @@ frodon.register({
         inbox.slice(0, 40).forEach(e => {
           const row = frodon.makeElement('div', '');
           row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--bdr)';
-
           const ico = frodon.makeElement('span', '');
           ico.style.cssText = 'font-size:1.4rem;flex-shrink:0';
           ico.textContent = e.emoji;
-
           const inf = frodon.makeElement('div', '');
           inf.style.cssText = 'flex:1;min-width:0';
           const name = frodon.makeElement('div', '');
@@ -128,16 +121,14 @@ frodon.register({
           lbl.style.cssText = 'font-size:.64rem;color:var(--txt2)';
           lbl.textContent = e.label || e.emoji;
           inf.appendChild(name); inf.appendChild(lbl);
-
-          const ts = frodon.makeElement('span', 'mini-card-ts', frodon.formatTime(e.ts));
-          row.appendChild(ico); row.appendChild(inf); row.appendChild(ts);
+          row.appendChild(ico); row.appendChild(inf);
+          row.appendChild(frodon.makeElement('span', 'mini-card-ts', frodon.formatTime(e.ts)));
           container.appendChild(row);
         });
       }
     },
     {
-      id: 'stats',
-      label: '📊 Stats',
+      id: 'stats', label: '📊 Stats',
       render(container) {
         const counts = store.get('counts') || {};
         const total = Object.values(counts).reduce((a,b) => a+b, 0);
@@ -161,7 +152,7 @@ frodon.register({
           const bar_bg = frodon.makeElement('div', '');
           bar_bg.style.cssText = 'height:6px;background:var(--sur2);border-radius:4px;overflow:hidden';
           const bar_fill = frodon.makeElement('div', '');
-          bar_fill.style.cssText = 'height:100%;width:' + pct + '%;background:linear-gradient(90deg,var(--acc2),var(--acc));border-radius:4px';
+          bar_fill.style.cssText = 'height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--acc2),var(--acc));border-radius:4px';
           bar_bg.appendChild(bar_fill);
           const bar_lbl = frodon.makeElement('div', '');
           bar_lbl.style.cssText = 'font-size:.58rem;color:var(--txt2);font-family:var(--mono);margin-top:2px';
