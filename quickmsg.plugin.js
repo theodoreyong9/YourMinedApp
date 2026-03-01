@@ -115,8 +115,9 @@ frodon.register({
           const inf = frodon.makeElement('div', '');
           inf.style.cssText = 'flex:1;min-width:0';
           const name = frodon.makeElement('div', '');
-          name.style.cssText = 'font-size:.74rem;font-weight:700;color:var(--txt)';
+          name.style.cssText = 'font-size:.74rem;font-weight:700;color:var(--acc2);cursor:pointer';
           name.textContent = e.fromName;
+          name.addEventListener('click', () => frodon.openPeer(e.fromId));
           const lbl = frodon.makeElement('div', '');
           lbl.style.cssText = 'font-size:.64rem;color:var(--txt2)';
           lbl.textContent = e.label || e.emoji;
