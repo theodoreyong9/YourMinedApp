@@ -217,7 +217,8 @@ frodon.register({
           const hdr = frodon.makeElement('div', '');
           hdr.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:5px';
           const name = frodon.makeElement('strong', '', o.fromName);
-          name.style.cssText = 'font-size:.74rem;color:var(--acc2)';
+          name.style.cssText = 'font-size:.74rem;color:var(--acc2);cursor:pointer';
+          name.addEventListener('click', () => frodon.openPeer(o.fromId));
           hdr.appendChild(name);
           hdr.appendChild(frodon.makeElement('span', 'mini-card-ts', frodon.formatTime(o.ts)));
           card.appendChild(hdr);
