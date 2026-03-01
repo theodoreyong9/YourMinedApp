@@ -307,8 +307,9 @@ frodon.register({
           row.innerHTML = '<span style="font-size:.85rem">'+(isDraw?'🤝':isWin?'🏆':'😔')+'</span>';
           const inf = frodon.makeElement('div',''); inf.style.cssText = 'flex:1;min-width:0';
           const nameEl = frodon.makeElement('div','');
-          nameEl.style.cssText = 'font-size:.72rem;font-weight:700;color:var(--txt)';
+          nameEl.style.cssText = 'font-size:.72rem;font-weight:700;color:var(--acc2);cursor:pointer;text-decoration:none';
           nameEl.textContent = name;
+          nameEl.addEventListener('click', () => frodon.openPeer(h.opponentId));
           const ts = frodon.makeElement('div','', frodon.formatTime(h.ts));
           ts.style.cssText = 'font-size:.56rem;color:var(--txt2);font-family:var(--mono)';
           inf.appendChild(nameEl); inf.appendChild(ts);
@@ -338,6 +339,17 @@ frodon.register({
     frodon.showToast('⊞ Défi envoyé à '+peerName+' !');
     frodon.refreshSphereTab(PLUGIN_ID);
     setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
+  });
+
+  // Forfeit all active games when plugin is uninstalled
+  frodon.registerUninstallHook(PLUGIN_ID, () => {
+    Object.entries(games).forEach(([gameId, game]) => {
+      if(!game.done) {
+        game.done = true;
+        addScore('loss', game.opponentId);
+        frodon.sendDM(game.opponentId, PLUGIN_ID, {type:'forfeit', gameId, _silent:true});
+      }
+    });
   });
 
   return { destroy() {} };
