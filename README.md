@@ -24,7 +24,7 @@ Whitepaper : https://yourmine-dapp.web.app/WPYourMine.pdf
    - [Stockage persistant](#66-stockage-persistant)
    - [Utilitaires](#67-utilitaires)
    - [Hooks de cycle de vie](#68-hooks-de-cycle-de-vie)
-   - [Refresh UI](#69-refresh-ui)
+   - [Refresh UI & Navigation](#69-refresh--navigation)
 7. [Propagation automatique aux pairs](#7-propagation-automatique-aux-pairs)
 8. [Classes CSS disponibles](#8-classes-css-disponibles)
 9. [Exemples complets](#9-exemples-complets)
@@ -161,7 +161,7 @@ L'`id` est la clé principale. Si vous publiez une mise à jour avec le même `i
 
 ```js
 frodon.getMyId()
-// → string  — votre peerId local (identifiant unique de session P2P)
+// → string — votre peerId local (identifiant unique de session P2P)
 
 frodon.getMyProfile()
 // → { name, avatar, network, handle, peerId }
@@ -171,7 +171,7 @@ frodon.getPeer(peerId)
 // → null si le pair n'est pas connu
 
 frodon.getAllPeers()
-// → tableau de tous les pairs actuellement découverts dans la zone
+// → tableau de tous les pairs découverts dans la zone
 
 frodon.getPosition()
 // → { lat, lng, acc }  ou  null si GPS non disponible
@@ -180,8 +180,6 @@ frodon.getPosition()
 ---
 
 ### 6.2 Messagerie privée P2P
-
-Les DMs sont des paquets JSON routés via le hub FRODON en P2P. **Le destinataire doit avoir le même plugin installé** pour les recevoir (sinon ils sont ignorés). Si l'autre utilisateur n'a pas le plugin, il verra un bouton "Installer et jouer" dans votre fiche.
 
 #### Envoyer un DM
 
@@ -195,267 +193,94 @@ frodon.sendDM(peerId, pluginId, payload)
 | `pluginId` | string | ID de votre plugin (pour le routing) |
 | `payload` | object | Données libres sérialisées en JSON |
 
-```js
-// Exemple
-frodon.sendDM(peerId, 'mon_plugin', {
-  type : 'move',
-  cell : 4,
-  data : { score: 3 },
-});
-```
-
 #### Recevoir des DMs
 
 ```js
 frodon.onDM(pluginId, handler)
 // handler: (fromPeerId: string, payload: object) => void
-```
-
-À appeler dans votre `initFn`. Un seul handler par plugin. Les DMs arrivent même si la modale du pair est fermée — ils sont notifiés via toast et badge.
-
-```js
-frodon.onDM('mon_plugin', (fromId, payload) => {
-  if(payload.type === 'move') {
-    // Mettre à jour l'état du jeu
-    applyMove(fromId, payload.cell);
-    frodon.refreshPeerModal(fromId);
-    frodon.refreshSphereTab('mon_plugin');
-  }
-});
+// Un seul handler par plugin — appelé même si la modale est fermée
 ```
 
 ---
 
 ### 6.3 Hooks UI — fiche d'un pair
 
-Cette zone s'affiche dans la modale qui s'ouvre quand on clique sur un pair dans le radar ou le fil social. **Elle n'apparaît que si les deux utilisateurs ont le plugin installé.**
-
 ```js
 frodon.registerPeerAction(pluginId, sectionLabel, actionFn)
 // actionFn: (peerId: string, containerEl: HTMLElement) => void
-```
-
-| Paramètre | Type | Description |
-|---|---|---|
-| `pluginId` | string | ID de votre plugin |
-| `sectionLabel` | string | Titre de la section (ex: `'⊞ TicTacToe'`) |
-| `actionFn` | function | Appelée à chaque ouverture de la modale du pair |
-
-`containerEl` est un `<div>` vide dans lequel vous pouvez injecter n'importe quel HTML. La fonction est re-appelée à chaque `frodon.refreshPeerModal()`.
-
-```js
-frodon.registerPeerAction('mon_plugin', '🎮 Jouer', (peerId, container) => {
-  const peer = frodon.getPeer(peerId);
-
-  // Afficher l'état actuel
-  const status = frodon.makeElement('div', '', `Partie contre ${peer.name}`);
-  container.appendChild(status);
-
-  // Bouton d'action
-  const btn = frodon.makeElement('button', 'plugin-action-btn acc', '🎯 Jouer un coup');
-  btn.onclick = () => {
-    frodon.sendDM(peerId, 'mon_plugin', { type: 'move', cell: 4 });
-    frodon.showToast('Coup envoyé !');
-    frodon.refreshPeerModal(peerId);
-  };
-  container.appendChild(btn);
-});
+// containerEl est un <div> vide à remplir. Re-appelé à chaque refreshPeerModal().
 ```
 
 ---
 
 ### 6.4 Panneau SPHERE — onglet bas d'écran
 
-L'onglet **⬡ SPHERE** en bas de l'écran affiche un panneau par plugin installé. Chaque plugin peut déclarer plusieurs **sous-onglets** (ex: "Parties en cours" / "Scores").
-
 ```js
 frodon.registerBottomPanel(pluginId, tabs)
-```
-
-```js
-// tabs: tableau d'onglets
-[
-  {
-    id    : 'games',              // identifiant unique de l'onglet
-    label : '⊞ Parties en cours', // texte affiché dans la barre
-    render: (containerEl) => {   // appelé à chaque activation de l'onglet
-      // injecter du contenu dans containerEl
-    }
-  },
-  {
-    id    : 'scores',
-    label : '🏆 Scores',
-    render: (containerEl) => {
-      // ...
-    }
-  },
-]
-```
-
-Pour déclencher un re-render de votre panneau (après réception d'un DM par exemple) :
-
-```js
-frodon.refreshSphereTab(pluginId)
-```
-
-Exemple complet avec deux onglets :
-
-```js
-frodon.registerBottomPanel('mon_plugin', [
-  {
-    id    : 'live',
-    label : '⚡ En direct',
-    render: (container) => {
-      const parties = getActiveGames();
-      if(!parties.length) {
-        container.innerHTML = '<p style="text-align:center;padding:20px;color:var(--txt2)">Aucune partie en cours</p>';
-        return;
-      }
-      parties.forEach(g => {
-        const card = frodon.makeElement('div', 'mini-card');
-        // ... construire la carte
-        container.appendChild(card);
-      });
-    }
-  },
-  {
-    id    : 'history',
-    label : '📋 Historique',
-    render: (container) => {
-      // afficher les dernières parties terminées
-    }
-  }
-]);
+// tabs: [{ id: string, label: string, render(containerEl: HTMLElement): void }]
+// render() est appelé à chaque activation de l'onglet ou refreshSphereTab()
 ```
 
 ---
 
 ### 6.5 Widget profil
 
-S'affiche dans **votre propre modale de profil**, après les champs nom/réseau. Utile pour afficher des stats, une config, ou un récapitulatif de votre activité sur le plugin.
-
 ```js
 frodon.registerProfileWidget(pluginId, renderFn)
 // renderFn: (containerEl: HTMLElement) => void
-```
-
-```js
-frodon.registerProfileWidget('mon_plugin', (container) => {
-  const wins = store.get('wins') || 0;
-  container.appendChild(frodon.makeElement('div', 'section-label', '🏆 Mes stats'));
-  container.appendChild(frodon.makeElement('div', '', `${wins} victoires`));
-});
+// S'affiche dans votre propre modale de profil
 ```
 
 ---
 
 ### 6.6 Stockage persistant
 
-Chaque plugin dispose d'un espace `localStorage` namespaced. Les clés sont automatiquement préfixées par `frd_plug_{pluginId}_` pour éviter les collisions.
-
 ```js
 const store = frodon.storage(pluginId)
-
-store.get(key)          // → valeur (désérialisée depuis JSON) | null
-store.set(key, value)   // stocke value sérialisée en JSON
+store.get(key)          // → valeur désérialisée | null
+store.set(key, value)   // JSON.stringify automatique
 store.del(key)          // supprime la clé
-```
-
-```js
-// Exemple : compteur de victoires
-const store = frodon.storage('mon_plugin');
-const wins = store.get('wins') || 0;
-store.set('wins', wins + 1);
-
-// Exemple : stocker un objet complexe
-store.set('game_state', {
-  board  : [null, 'X', null, 'O', null, null, null, null, null],
-  myTurn : false,
-});
-const state = store.get('game_state');
+// Clés préfixées par frd_plug_{pluginId}_ dans localStorage
 ```
 
 ---
 
 ### 6.7 Utilitaires
 
-Ces fonctions exposent les utilitaires internes de FRODON directement dans vos plugins.
-
 ```js
-frodon.showToast(message, isError?)
-// Affiche un toast natif en bas de l'écran
-// isError = true → toast rouge/orange
-
-frodon.makeElement(tag, className?, textContent?)
-// Crée un élément HTML DOM
-// Équivalent à: const el = document.createElement(tag); el.className = ...; el.textContent = ...
-
-frodon.formatTime(timestamp)
-// Formate un timestamp en texte relatif
-// → "à l'instant" | "3min" | "2h" | "12 jan"
-
-frodon.distStr(meters)
-// Formate une distance en texte lisible
-// → "340 m" | "1.2 km"
-
-frodon.safeImg(src, fallbackSrc, className?)
-// Crée un <img> avec fallback automatique si l'image ne charge pas
+frodon.showToast(message, isError?)     // toast natif (isError = orange)
+frodon.makeElement(tag, className?, textContent?)  // → HTMLElement
+frodon.formatTime(timestamp)            // → "il y a 3 min" | "2h" | "12 jan"
+frodon.distStr(meters)                  // → "340 m" | "1.2 km"
+frodon.safeImg(src, fallbackSrc, className?)  // → <img> avec fallback
 ```
 
 ---
 
 ### 6.8 Hooks de cycle de vie
 
-Ces callbacks sont déclenchés par les événements du réseau P2P.
-
 ```js
 frodon.onPeerAppear(callback)
-// callback: (peer: PeerObject) => void
-// Appelé quand un nouveau pair entre dans la zone GPS
+// callback: (peer: PeerObject) => void — nouveau pair visible sur radar
 
 frodon.onPeerLeave(callback)
-// callback: (peerId: string) => void
-// Appelé quand un pair quitte la zone (TTL expiré ou déconnexion)
-```
-
-```js
-// Exemple : notifier quand un adversaire revient
-frodon.onPeerAppear(peer => {
-  const game = getGameWithPeer(peer.peerId);
-  if(game && !game.done && !game.myTurn) {
-    frodon.showToast(`${peer.name} est de retour — à lui de jouer !`);
-  }
-});
-
-frodon.onPeerLeave(peerId => {
-  const game = getGameWithPeer(peerId);
-  if(game && !game.done) {
-    frodon.showToast('Votre adversaire a quitté la zone.');
-  }
-});
+// callback: (peerId: string) => void — pair disparu (TTL expiré)
 ```
 
 ---
 
-### 6.9 Refresh UI
-
-Ces fonctions forcent le re-render des zones UI après un changement d'état.
+### 6.9 Refresh & navigation
 
 ```js
-frodon.refreshPeerModal(peerId)
-// Re-render la modale d'un pair si elle est actuellement ouverte
-// Sans effet si la modale n'est pas ouverte
+frodon.refreshPeerModal(peerId)     // re-render modale d'un pair si ouverte
+frodon.refreshSphereTab(pluginId)   // re-render onglets plugin dans SPHERE
+frodon.refreshProfileModal()        // re-render modale de profil si ouverte
 
-frodon.refreshSphereTab(pluginId)
-// Re-render le panneau de votre plugin dans l'onglet SPHERE
-// Sans effet si l'onglet SPHERE n'est pas actif
-
-frodon.refreshProfileModal()
-// Re-render la modale de profil si elle est ouverte
+frodon.focusPlugin(pluginId)        // ouvre le panneau SPHERE + sélectionne le plugin
+frodon.focusSphere()                // ouvre l'onglet ⬡ SPHERE en bas d'écran
 ```
 
-**Règle d'usage :** appelez `refreshSphereTab` et `refreshPeerModal` après chaque changement d'état important (réception d'un DM, coup joué, vote reçu…).
-
+**Règle :** appelez `refreshSphereTab` et `refreshPeerModal` après chaque changement d'état.
 ---
 
 ## 7. Propagation automatique aux pairs
@@ -827,6 +652,5 @@ frodon.register({ id: 'timer', name: 'Timer', icon: '⏱' }, () => {
 ---
 
 *FRODON Plugin SDK — documenté avec ❤️*
-
 Licence
 MIT License - See LICENSE file for details
