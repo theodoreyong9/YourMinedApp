@@ -100,9 +100,14 @@ frodon.register({
     sendBtn.addEventListener('click', () => {
       const msg = ta.value.trim();
       if(!msg) { frodon.showToast('Écrivez un message', true); return; }
-      // _label makes it appear in the recipient's feed
       frodon.sendDM(peerId, PLUGIN_ID, { type: 'opportunity', message: msg, _label: '💼 Opportunité reçue' });
       frodon.showToast('💼 Opportunité envoyée à ' + peerName + ' !');
+      // Add feed event on SENDER's side showing who they contacted + their badge
+      frodon.addFeedEvent(peerId, {
+        pluginName: 'Cherche un emploi', pluginIcon: '💼',
+        peerName,
+        text: '→ ' + (peerBadge?.jobTitle || 'Opportunité envoyée') + (peerBadge?.skills ? ' · ' + peerBadge.skills : ''),
+      });
       sendBtn.textContent = '✓ Envoyé !'; sendBtn.disabled = true;
       ta.disabled = true;
     });
@@ -130,6 +135,7 @@ frodon.register({
   frodon.registerBottomPanel(PLUGIN_ID, [
     {
       id: 'my_badge', label: '💼 Mon badge',
+      settings: true, // ← Config tab: shown in ⚙, NOT in SPHERE live panel
       render(container) {
         const badge = getMyBadge();
         const isOn = badge && badge.active;
@@ -147,7 +153,7 @@ frodon.register({
           b.active = !b.active;
           store.set('badge', b);
           frodon.showToast(b.active ? '💼 Badge activé !' : 'Badge désactivé');
-          frodon.refreshSphereTab(PLUGIN_ID);
+          frodon.refreshSphereTab(PLUGIN_ID); // also closes the ⚙ panel
           frodon.refreshProfileModal();
         });
         toggle_row.appendChild(toggle_lbl); toggle_row.appendChild(toggle_btn);
@@ -187,7 +193,7 @@ frodon.register({
           };
           store.set('badge', b);
           frodon.showToast('💼 Badge mis à jour !');
-          frodon.refreshSphereTab(PLUGIN_ID);
+          frodon.refreshSphereTab(PLUGIN_ID); // closes the ⚙ panel
           frodon.refreshProfileModal();
         });
         form.appendChild(saveBtn);
@@ -196,6 +202,7 @@ frodon.register({
     },
     {
       id: 'opportunities', label: '📬 Opportunités',
+      // No settings:true → shown as live panel in SPHERE tab
       render(container) {
         const opps = store.get('opportunities') || [];
         if(!opps.length) {
