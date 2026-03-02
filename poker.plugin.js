@@ -132,21 +132,59 @@ frodon.register({
     if(type==='invite'){const host=frodon.getPeer(fromId);T={id:tid,isHost:false,hostId:fromId,phase:'lobby',players:payload.players||[],myHand:[],allHands:{},community:[],deck:[],pot:0,roundBet:payload.bb||20,currentIdx:0,dealerIdx:-1,sb:payload.sb||10,bb:payload.bb||20,pendingInvites:new Set(),showResult:null,_inviteFrom:host?.name||'?'};T.players.forEach(p=>{if(p.id===myId())p.isMe=true;});persist();frodon.showToast('🃏 '+(host?.name||'?')+' vous invite !');frodon.refreshSphereTab(PLUGIN_ID);setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),400);return;}
     if(type==='invite_accept'){if(!T||!T.isHost||T.id!==tid)return;const peer=frodon.getPeer(fromId);let p=T.players.find(pl=>pl.id===fromId);if(!p){p={id:fromId,name:peer?.name||'?',avatar:peer?.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:false};T.players.push(p);}else{p.status='active';}T.pendingInvites.delete(fromId);frodon.showToast('🃏 '+(peer?.name||'?')+' rejoint !');hostSync();return;}
     if(type==='invite_decline'){if(!T||!T.isHost||T.id!==tid)return;T.pendingInvites.delete(fromId);T.players=T.players.filter(p=>p.id!==fromId);frodon.showToast((frodon.getPeer(fromId)?.name||'?')+' décline.');hostSync();return;}
-    if(type==='state_sync'){if(!T||T.id!==tid)return;const pub=payload.pub;T.phase=pub.phase;T.community=pub.community;T.pot=pub.pot;T.currentIdx=pub.currentIdx;T.dealerIdx=pub.dealerIdx;T.roundBet=pub.roundBet;T.players=pub.players.map(p=>({...p,isMe:p.id===myId()}));if(pub.showResult)T.showResult=pub.showResult;persist();frodon.refreshSphereTab(PLUGIN_ID);if(T.phase!=='ended'&&T.phase!=='lobby'&&T.players[T.currentIdx]?.id===myId()){frodon.showToast('🃏 C\'est votre tour !');setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);}return;}
+    // ── state_sync: protect against stale sync overwriting a showdown ──
+    if(type==='state_sync'){if(!T||T.id!==tid)return;const pub=payload.pub;
+      // If we already received the showdown, ignore stale state_sync that would revert phase
+      if(T.showResult&&pub.phase!=='ended'){}
+      else{T.phase=pub.phase;T.community=pub.community;T.pot=pub.pot;T.currentIdx=pub.currentIdx;T.dealerIdx=pub.dealerIdx;T.roundBet=pub.roundBet;T.players=pub.players.map(p=>({...p,isMe:p.id===myId()}));}
+      if(pub.showResult)T.showResult=pub.showResult;
+      persist();frodon.refreshSphereTab(PLUGIN_ID);
+      if(T.phase!=='ended'&&T.phase!=='lobby'&&!T.showResult&&T.players[T.currentIdx]?.id===myId()){frodon.showToast('🃏 C\'est votre tour !');setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);}
+      if(T.phase==='ended'||T.showResult)setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);
+      return;}
     if(type==='hand'){if(!T||T.id!==tid)return;T.myHand=payload.cards||[];persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
     if(type==='action'){if(!T||!T.isHost||T.id!==tid)return;hostAction(fromId,payload.action,payload.amount||0);return;}
     if(type==='showdown'){if(!T||T.id!==tid)return;applyShowdown(payload);return;}
     if(type==='kick'){if(!T||T.id!==tid)return;frodon.showToast('🃏 Vous avez quitté la table.');T=null;persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
     if(type==='replace_notify'){if(!T||T.id!==tid)return;const p=T.players.find(pl=>pl.id===payload.oldId);if(p){p.id=payload.newId;p.name=payload.newName;p.avatar=payload.newAvatar||'';}frodon.showToast('🃏 '+payload.oldName+' → '+payload.newName);persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
-    if(type==='resync'){if(!T||!T.isHost||T.id!==tid)return;const p=T.players.find(pl=>pl.id===fromId);if(p&&p.status==='away')p.status='active';const pub=hostPublicState();toPlayer(fromId,'state_sync',{pub});if(T.allHands[fromId])toPlayer(fromId,'hand',{cards:T.allHands[fromId]});return;}
     if(type==='leave'){if(!T||T.id!==tid)return;if(T.isHost){const p=T.players.find(pl=>pl.id===fromId);if(p){p.status='away';p.chips=0;}if(T.phase!=='lobby'&&T.phase!=='ended'){if(T.currentIdx===T.players.indexOf(p))hostCheckRoundEnd();else hostSync();}}return;}
+    // ── resync: host handles reconnecting player, may have new peerId ──
+    if(type==='resync'){if(!T||!T.isHost||T.id!==tid)return;
+      let p=T.players.find(pl=>pl.id===fromId);
+      if(!p){
+        // Player reconnected with a new peerId — try to match by name to an 'away' slot
+        const peer=frodon.getPeer(fromId);
+        if(peer){p=T.players.find(pl=>pl.status==='away'&&pl.name===peer.name);}
+        if(p){
+          // Migrate: update peerId in table + allHands
+          const oldId=p.id;
+          if(T.allHands[oldId]){T.allHands[fromId]=T.allHands[oldId];delete T.allHands[oldId];}
+          p.id=fromId;p.avatar=peer?.avatar||p.avatar;
+        }
+      }
+      if(p&&p.status==='away')p.status='active';
+      const pub=hostPublicState();toPlayer(fromId,'state_sync',{pub});if(T.allHands[fromId])toPlayer(fromId,'hand',{cards:T.allHands[fromId]});
+      hostSync();return;}
   });
 
   frodon.onPeerAppear(peer=>{
-    if(!T)return;const p=T.players.find(pl=>pl.id===peer.peerId);if(!p)return;
+    if(!T)return;
+    let p=T.players.find(pl=>pl.id===peer.peerId);
+    if(!p){
+      // Maybe reconnected with new peerId — match by name to an away slot
+      p=T.players.find(pl=>pl.status==='away'&&pl.name===peer.name);
+      if(p&&T.isHost){
+        const oldId=p.id;
+        if(T.allHands[oldId]){T.allHands[peer.peerId]=T.allHands[oldId];delete T.allHands[oldId];}
+        p.id=peer.peerId;p.avatar=peer.avatar||p.avatar;
+      } else if(p&&!T.isHost){
+        p.id=peer.peerId;
+      }
+    }
+    if(!p)return;
     frodon.showToast('🃏 '+peer.name+' est de retour !');
     if(T.isHost){if(p.status==='away')p.status='active';const pub=hostPublicState();toPlayer(peer.peerId,'state_sync',{pub});if(T.allHands[peer.peerId])toPlayer(peer.peerId,'hand',{cards:T.allHands[peer.peerId]});hostSync();}
-    else if(peer.peerId===T.hostId){setTimeout(()=>toHost('resync',{}),500);}
+    else if(peer.peerId===T.hostId||p.id===T.hostId){setTimeout(()=>toHost('resync',{}),500);}
   });
 
   frodon.onPeerLeave(peerId=>{
@@ -169,7 +207,7 @@ frodon.register({
       if(!T){renderEmpty(container);return;}
       if(T._inviteFrom){renderInvitePrompt(container);return;}
       if(T.phase==='lobby'){renderLobby(container);return;}
-      if(T.phase==='ended'){renderResult(container);return;}
+      if(T.phase==='ended'||T.showResult){renderResult(container);return;}
       renderGame(container);
     }},
     {id:'history',label:'📜 Historique',render(container){
