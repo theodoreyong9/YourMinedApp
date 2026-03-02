@@ -1,10 +1,10 @@
 /**
- * FRODON PLUGIN — Texas Hold'em Poker P2P  v1.1.0
- * Fixes: persistance localStorage, resync reconnexion, showResult dans state_sync,
- *        scores côté non-hôte, phase ended correcte, Nouvelle main OK.
+ * FRODON PLUGIN — Texas Hold'em Poker P2P  v1.2.0
+ * Fix: saveHistory côté tous les joueurs, onglet Scores, rebuy 0-chips,
+ *      bouton Nouvelle main visible pour tous, confirmation rebuy.
  */
 frodon.register({
-  id: 'poker', name: "Texas Hold'em", version: '1.1.0',
+  id: 'poker', name: "Texas Hold'em", version: '1.2.0',
   author: 'frodon-community',
   description: "Poker Texas Hold'em multijoueur P2P — jusqu'à 8 joueurs.",
   icon: '🃏',
@@ -19,7 +19,7 @@ frodon.register({
   function cardHtml(c,back=false){if(back||!c)return'<div class="pk-card back">🂠</div>';const red=c.s==='♥'||c.s==='♦';return`<div class="pk-card" style="color:${red?'#ff4f8b':'var(--txt)'}"><span class="pk-card-tl">${c.v}<small>${c.s}</small></span><span class="pk-card-suit">${c.s}</span><span class="pk-card-br">${c.v}<small>${c.s}</small></span></div>`;}
 
   function evalBest(cards){if(!cards||cards.length<2)return{score:0,name:'—'};const combos=[];if(cards.length<=5){combos.push(cards);}else{for(let i=0;i<cards.length;i++)for(let j=i+1;j<cards.length;j++)combos.push(cards.filter((_,k)=>k!==i&&k!==j));}let best=null;for(const c of combos){const s=eval5(c);if(!best||s.score>best.score)best=s;}return best||{score:0,name:'—'};}
-  function eval5(cards){const ns=cards.map(c=>VNUM[c.v]||0).sort((a,b)=>b-a);const suits=cards.map(c=>c.s);const flush=suits.every(s=>s===suits[0]);let straight=false,sHigh=0;if(ns[0]-ns[4]===4&&new Set(ns).size===5){straight=true;sHigh=ns[0];}if(''+ns==='14,5,4,3,2'){straight=true;sHigh=5;}const cnt={};ns.forEach(n=>cnt[n]=(cnt[n]||0)+1);const freq=Object.entries(cnt).map(([n,c])=>({n:+n,c})).sort((a,b)=>b.c-a.c||b.n-a.n);let rank,name,tb;if(flush&&straight){rank=sHigh===14?8:7;name=sHigh===14?'Quinte flush royale':'Quinte flush';tb=[sHigh];}else if(freq[0].c===4){rank=6;name='Carré';tb=[freq[0].n,freq[1]?.n||0];}else if(freq[0].c===3&&freq[1]?.c===2){rank=5;name='Full house';tb=[freq[0].n,freq[1].n];}else if(flush){rank=4;name='Couleur';tb=ns;}else if(straight){rank=3;name='Suite';tb=[sHigh];}else if(freq[0].c===3){rank=2;name='Brelan';tb=[freq[0].n,...freq.slice(1).map(f=>f.n)];}else if(freq[0].c===2&&freq[1]?.c===2){rank=1;name='Double paire';tb=[freq[0].n,freq[1].n,freq[2]?.n||0];}else if(freq[0].c===2){rank=0;name='Paire';tb=[freq[0].n,...freq.slice(1).map(f=>f.n)];}else{rank=-1;name='Carte haute';tb=ns;}const score=rank*1e7+tb.reduce((a,n,i)=>a+n*Math.pow(100,4-i),0);return{score,name};}
+  function eval5(cards){const ns=cards.map(c=>VNUM[c.v]||0).sort((a,b)=>b-a);const suits=cards.map(c=>c.s);const flush=suits.every(s=>s===suits[0]);let straight=false,sHigh=0;if(ns[0]-ns[4]===4&&new Set(ns).size===5){straight=true;sHigh=ns[0];}if(''+ns==='14,5,4,3,2'){straight=true;sHigh=5;}const cnt={};ns.forEach(n=>cnt[n]=(cnt[n]||0)+1);const freq=Object.entries(cnt).map(([n,c])=>({n:+n,c})).sort((a,b)=>b.c-a.c||b.n-a.n);let rank,name,tb;if(flush&&straight){rank=sHigh===14?8:7;name=sHigh===14?'Quinte flush royale':'Quinte flush';tb=[sHigh];}else if(freq[0].c===4){rank=6;name='Carré';tb=[freq[0].n,freq[1]?.n||0];}else if(freq[0].c===3&&freq[1]?.c===2){rank=5;name='Full house';tb=[freq[0].n,freq[1].n];}else if(flush){rank=4;name='Couleur';tb=ns;}else if(straight){rank=3;name='Suite';tb=[sHigh];}else if(freq[0].c===3){rank=2;name='Brelan';tb=[freq[0].n,...freq.slice(1).map(f=>f.n)];}else if(freq[0].c===2&&freq[1]?.c===2){rank=1;name='Double paire';tb=[freq[0].n,freq[1].n,freq[2]?.n||0];}else if(freq[0].c===2){rank=0;name:'Paire';tb=[freq[0].n,...freq.slice(1).map(f=>f.n)];}else{rank=-1;name='Carte haute';tb=ns;}const score=rank*1e7+tb.reduce((a,n,i)=>a+n*Math.pow(100,4-i),0);return{score,name};}
 
   let T = null;
   const myId = () => frodon.getMyProfile().peerId;
@@ -94,6 +94,83 @@ frodon.register({
     toAll('showdown',result);applyShowdown(result);
   }
 
+  /* ── Scores ── */
+  function saveScore(isWin, isDraw, opponentNames, pot) {
+    store.set('wins',   (store.get('wins')   || 0) + (isWin  ? 1 : 0));
+    store.set('losses', (store.get('losses') || 0) + (!isWin && !isDraw ? 1 : 0));
+    store.set('draws',  (store.get('draws')  || 0) + (isDraw ? 1 : 0));
+    store.set('chips_won', (store.get('chips_won') || 0) + (isWin ? pot : 0));
+    const hist = store.get('history') || [];
+    hist.unshift({
+      result: isWin ? 'win' : isDraw ? 'draw' : 'loss',
+      pot,
+      opponents: opponentNames,
+      ts: Date.now(),
+    });
+    if(hist.length > 50) hist.length = 50;
+    store.set('history', hist);
+  }
+
+  function applyShowdown(result){
+    if(!T)return;
+    T.phase='ended';T.showResult=result;
+    result.players.forEach(r=>{const p=T.players.find(q=>q.id===r.id);if(p)p.chips=r.chips;});
+    if(result.community)T.community=result.community;
+
+    // Comptabiliser le score pour TOUS les joueurs (pas seulement l'hôte)
+    const isWin = result.winner === myId();
+    const isDraw = false; // pas de draw au poker
+    const opponentNames = T.players.filter(p => p.id !== myId()).map(p => p.name);
+    saveScore(isWin, isDraw, opponentNames, result.pot);
+
+    persist();
+    frodon.refreshSphereTab(PLUGIN_ID);
+    if(isWin) frodon.showToast('🏆 Vous remportez ' + result.pot + '🪙 !');
+    else frodon.showToast('🃏 ' + result.winnerName + ' gagne ' + result.pot + '🪙');
+    setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);
+  }
+
+  /* ── DM handler ── */
+  frodon.onDM(PLUGIN_ID,(fromId,payload)=>{
+    const{type,tid}=payload;
+    if(type==='invite'){const host=frodon.getPeer(fromId);T={id:tid,isHost:false,hostId:fromId,phase:'lobby',players:payload.players||[],myHand:[],allHands:{},community:[],deck:[],pot:0,roundBet:payload.bb||20,currentIdx:0,dealerIdx:-1,sb:payload.sb||10,bb:payload.bb||20,pendingInvites:new Set(),showResult:null,_inviteFrom:host?.name||'?'};T.players.forEach(p=>{if(p.id===myId())p.isMe=true;});persist();frodon.showToast('🃏 '+(host?.name||'?')+' vous invite !');frodon.refreshSphereTab(PLUGIN_ID);setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),400);return;}
+    if(type==='invite_accept'){if(!T||!T.isHost||T.id!==tid)return;const peer=frodon.getPeer(fromId);let p=T.players.find(pl=>pl.id===fromId);if(!p){p={id:fromId,name:peer?.name||'?',avatar:peer?.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:false};T.players.push(p);}else{p.status='active';}T.pendingInvites.delete(fromId);frodon.showToast('🃏 '+(peer?.name||'?')+' rejoint !');hostSync();return;}
+    if(type==='invite_decline'){if(!T||!T.isHost||T.id!==tid)return;T.pendingInvites.delete(fromId);T.players=T.players.filter(p=>p.id!==fromId);frodon.showToast((frodon.getPeer(fromId)?.name||'?')+' décline.');hostSync();return;}
+    if(type==='state_sync'){if(!T||T.id!==tid)return;const pub=payload.pub;
+      if(T.showResult&&pub.phase!=='ended'){}
+      else{T.phase=pub.phase;T.community=pub.community;T.pot=pub.pot;T.currentIdx=pub.currentIdx;T.dealerIdx=pub.dealerIdx;T.roundBet=pub.roundBet;T.players=pub.players.map(p=>({...p,isMe:p.id===myId()}));}
+      if(pub.showResult)T.showResult=pub.showResult;
+      persist();frodon.refreshSphereTab(PLUGIN_ID);
+      if(T.phase!=='ended'&&T.phase!=='lobby'&&!T.showResult&&T.players[T.currentIdx]?.id===myId()){frodon.showToast('🃏 C\'est votre tour !');setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);}
+      if(T.phase==='ended'||T.showResult)setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);
+      return;}
+    if(type==='hand'){if(!T||T.id!==tid)return;T.myHand=payload.cards||[];persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
+    if(type==='action'){if(!T||!T.isHost||T.id!==tid)return;hostAction(fromId,payload.action,payload.amount||0);return;}
+    if(type==='showdown'){if(!T||T.id!==tid)return;applyShowdown(payload);return;}
+    if(type==='kick'){if(!T||T.id!==tid)return;frodon.showToast('🃏 Vous avez quitté la table.');T=null;persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
+    if(type==='replace_notify'){if(!T||T.id!==tid)return;const p=T.players.find(pl=>pl.id===payload.oldId);if(p){p.id=payload.newId;p.name=payload.newName;p.avatar=payload.newAvatar||'';}frodon.showToast('🃏 '+payload.oldName+' → '+payload.newName);persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
+    if(type==='leave'){if(!T||T.id!==tid)return;if(T.isHost){const p=T.players.find(pl=>pl.id===fromId);if(p){p.status='away';p.chips=0;}if(T.phase!=='lobby'&&T.phase!=='ended'){if(T.currentIdx===T.players.indexOf(p))hostCheckRoundEnd();else hostSync();}}return;}
+    if(type==='resync'){if(!T||!T.isHost||T.id!==tid)return;
+      let p=T.players.find(pl=>pl.id===fromId);
+      if(!p){const peer=frodon.getPeer(fromId);if(peer){p=T.players.find(pl=>pl.status==='away'&&pl.name===peer.name);}if(p){const oldId=p.id;if(T.allHands[oldId]){T.allHands[fromId]=T.allHands[oldId];delete T.allHands[oldId];}p.id=fromId;p.avatar=peer?.avatar||p.avatar;}}
+      if(p&&p.status==='away')p.status='active';
+      const pub=hostPublicState();toPlayer(fromId,'state_sync',{pub});if(T.allHands[fromId])toPlayer(fromId,'hand',{cards:T.allHands[fromId]});
+      hostSync();return;}
+    if(type==='new_hand_vote'){if(!T||!T.isHost||T.id!==tid)return;
+      if(!T._newHandVotes) T._newHandVotes = new Set();
+      T._newHandVotes.add(fromId);
+      // Si tous les joueurs actifs ont voté (ou l'hôte décide), lancer
+      const activePlayers = T.players.filter(p => p.id !== myId() && p.status !== 'away');
+      if(T._newHandVotes.size >= activePlayers.length) {
+        T._newHandVotes = new Set();
+        hostStartNewHand();
+      } else {
+        frodon.showToast('🃏 ' + (frodon.getPeer(fromId)?.name||'?') + ' veut rejouer (' + T._newHandVotes.size + '/' + activePlayers.length + ')');
+        hostSync();
+      }
+      return;}
+  });
+
   function hostAction(fromId,action,amount){
     if(!T||!T.isHost||T.phase==='lobby'||T.phase==='ended')return;
     const pIdx=T.players.findIndex(p=>p.id===fromId);if(pIdx<0||T.currentIdx!==pIdx)return;
@@ -108,78 +185,28 @@ frodon.register({
     T.currentIdx=next;hostSync();
   }
 
-  function saveHistory(winnerId,pot){
-    const hist=store.get('history')||[];
-    hist.unshift({isWin:winnerId===myId(),winnerName:winnerId===myId()?'Moi':T.players.find(p=>p.id===winnerId)?.name||'?',pot,ts:Date.now()});
-    if(hist.length>30)hist.length=30;store.set('history',hist);
-  }
-
-  function applyShowdown(result){
-    if(!T)return;
-    T.phase='ended';T.showResult=result;
-    result.players.forEach(r=>{const p=T.players.find(q=>q.id===r.id);if(p)p.chips=r.chips;});
-    if(result.community)T.community=result.community;
-    persist();saveHistory(result.winner,result.pot);
-    frodon.refreshSphereTab(PLUGIN_ID);
-    if(result.winner===myId())frodon.showToast('🏆 Vous remportez '+result.pot+'🪙 !');
-    else frodon.showToast('🃏 '+result.winnerName+' gagne '+result.pot+'🪙');
-    setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);
-  }
-
-  /* ── DM handler ── */
-  frodon.onDM(PLUGIN_ID,(fromId,payload)=>{
-    const{type,tid}=payload;
-    if(type==='invite'){const host=frodon.getPeer(fromId);T={id:tid,isHost:false,hostId:fromId,phase:'lobby',players:payload.players||[],myHand:[],allHands:{},community:[],deck:[],pot:0,roundBet:payload.bb||20,currentIdx:0,dealerIdx:-1,sb:payload.sb||10,bb:payload.bb||20,pendingInvites:new Set(),showResult:null,_inviteFrom:host?.name||'?'};T.players.forEach(p=>{if(p.id===myId())p.isMe=true;});persist();frodon.showToast('🃏 '+(host?.name||'?')+' vous invite !');frodon.refreshSphereTab(PLUGIN_ID);setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),400);return;}
-    if(type==='invite_accept'){if(!T||!T.isHost||T.id!==tid)return;const peer=frodon.getPeer(fromId);let p=T.players.find(pl=>pl.id===fromId);if(!p){p={id:fromId,name:peer?.name||'?',avatar:peer?.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:false};T.players.push(p);}else{p.status='active';}T.pendingInvites.delete(fromId);frodon.showToast('🃏 '+(peer?.name||'?')+' rejoint !');hostSync();return;}
-    if(type==='invite_decline'){if(!T||!T.isHost||T.id!==tid)return;T.pendingInvites.delete(fromId);T.players=T.players.filter(p=>p.id!==fromId);frodon.showToast((frodon.getPeer(fromId)?.name||'?')+' décline.');hostSync();return;}
-    // ── state_sync: protect against stale sync overwriting a showdown ──
-    if(type==='state_sync'){if(!T||T.id!==tid)return;const pub=payload.pub;
-      // If we already received the showdown, ignore stale state_sync that would revert phase
-      if(T.showResult&&pub.phase!=='ended'){}
-      else{T.phase=pub.phase;T.community=pub.community;T.pot=pub.pot;T.currentIdx=pub.currentIdx;T.dealerIdx=pub.dealerIdx;T.roundBet=pub.roundBet;T.players=pub.players.map(p=>({...p,isMe:p.id===myId()}));}
-      if(pub.showResult)T.showResult=pub.showResult;
-      persist();frodon.refreshSphereTab(PLUGIN_ID);
-      if(T.phase!=='ended'&&T.phase!=='lobby'&&!T.showResult&&T.players[T.currentIdx]?.id===myId()){frodon.showToast('🃏 C\'est votre tour !');setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);}
-      if(T.phase==='ended'||T.showResult)setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),300);
-      return;}
-    if(type==='hand'){if(!T||T.id!==tid)return;T.myHand=payload.cards||[];persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
-    if(type==='action'){if(!T||!T.isHost||T.id!==tid)return;hostAction(fromId,payload.action,payload.amount||0);return;}
-    if(type==='showdown'){if(!T||T.id!==tid)return;applyShowdown(payload);return;}
-    if(type==='kick'){if(!T||T.id!==tid)return;frodon.showToast('🃏 Vous avez quitté la table.');T=null;persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
-    if(type==='replace_notify'){if(!T||T.id!==tid)return;const p=T.players.find(pl=>pl.id===payload.oldId);if(p){p.id=payload.newId;p.name=payload.newName;p.avatar=payload.newAvatar||'';}frodon.showToast('🃏 '+payload.oldName+' → '+payload.newName);persist();frodon.refreshSphereTab(PLUGIN_ID);return;}
-    if(type==='leave'){if(!T||T.id!==tid)return;if(T.isHost){const p=T.players.find(pl=>pl.id===fromId);if(p){p.status='away';p.chips=0;}if(T.phase!=='lobby'&&T.phase!=='ended'){if(T.currentIdx===T.players.indexOf(p))hostCheckRoundEnd();else hostSync();}}return;}
-    // ── resync: host handles reconnecting player, may have new peerId ──
-    if(type==='resync'){if(!T||!T.isHost||T.id!==tid)return;
-      let p=T.players.find(pl=>pl.id===fromId);
-      if(!p){
-        // Player reconnected with a new peerId — try to match by name to an 'away' slot
-        const peer=frodon.getPeer(fromId);
-        if(peer){p=T.players.find(pl=>pl.status==='away'&&pl.name===peer.name);}
-        if(p){
-          // Migrate: update peerId in table + allHands
-          const oldId=p.id;
-          if(T.allHands[oldId]){T.allHands[fromId]=T.allHands[oldId];delete T.allHands[oldId];}
-          p.id=fromId;p.avatar=peer?.avatar||p.avatar;
-        }
+  function hostStartNewHand() {
+    // Rebuy automatique pour les joueurs à 0
+    T.players.forEach(p => {
+      if(p.chips <= 0 && p.status !== 'away') {
+        p.chips = 1000;
+        frodon.showToast('🃏 Rebuy : ' + (p.isMe ? 'vous' : p.name) + ' reçoit 1000🪙');
       }
-      if(p&&p.status==='away')p.status='active';
-      const pub=hostPublicState();toPlayer(fromId,'state_sync',{pub});if(T.allHands[fromId])toPlayer(fromId,'hand',{cards:T.allHands[fromId]});
-      hostSync();return;}
-  });
+    });
+    T.phase = 'lobby';
+    T.showResult = null;
+    T._newHandVotes = new Set();
+    T.players.forEach(p => { p.bet = 0; p.hasActed = false; p.status = p.chips > 0 ? 'active' : 'out'; });
+    hostSync();
+  }
 
   frodon.onPeerAppear(peer=>{
     if(!T)return;
     let p=T.players.find(pl=>pl.id===peer.peerId);
     if(!p){
-      // Maybe reconnected with new peerId — match by name to an away slot
       p=T.players.find(pl=>pl.status==='away'&&pl.name===peer.name);
-      if(p&&T.isHost){
-        const oldId=p.id;
-        if(T.allHands[oldId]){T.allHands[peer.peerId]=T.allHands[oldId];delete T.allHands[oldId];}
-        p.id=peer.peerId;p.avatar=peer.avatar||p.avatar;
-      } else if(p&&!T.isHost){
-        p.id=peer.peerId;
-      }
+      if(p&&T.isHost){const oldId=p.id;if(T.allHands[oldId]){T.allHands[peer.peerId]=T.allHands[oldId];delete T.allHands[oldId];}p.id=peer.peerId;p.avatar=peer.avatar||p.avatar;}
+      else if(p&&!T.isHost){p.id=peer.peerId;}
     }
     if(!p)return;
     frodon.showToast('🃏 '+peer.name+' est de retour !');
@@ -196,7 +223,7 @@ frodon.register({
 
   frodon.registerPeerAction(PLUGIN_ID,'🃏 Poker',(peerId,container)=>{
     const peer=frodon.getPeer(peerId),peerName=peer?.name||'?';
-    if(!T){const btn=frodon.makeElement('button','plugin-action-btn acc','🃏 Créer une table & inviter');btn.addEventListener('click',()=>{const me=frodon.getMyProfile(),tid='pk_'+Date.now();T={id:tid,isHost:true,hostId:myId(),phase:'lobby',players:[{id:myId(),name:me.name,avatar:me.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:true},{id:peerId,name:peerName,avatar:peer?.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:false}],myHand:[],allHands:{},community:[],deck:[],pot:0,roundBet:20,currentIdx:0,dealerIdx:-1,sb:10,bb:20,pendingInvites:new Set([peerId]),showResult:null};frodon.sendDM(peerId,PLUGIN_ID,{type:'invite',tid,sb:10,bb:20,players:T.players.map(p=>({id:p.id,name:p.name,avatar:p.avatar||'',chips:p.chips,status:p.status})),_label:'🃏 Invitation au Poker !'});persist();frodon.showToast('🃏 Invitation envoyée');frodon.refreshSphereTab(PLUGIN_ID);setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),200);});container.appendChild(btn);return;}
+    if(!T){const btn=frodon.makeElement('button','plugin-action-btn acc','🃏 Créer une table & inviter');btn.addEventListener('click',()=>{const me=frodon.getMyProfile(),tid='pk_'+Date.now();T={id:tid,isHost:true,hostId:myId(),phase:'lobby',players:[{id:myId(),name:me.name,avatar:me.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:true},{id:peerId,name:peerName,avatar:peer?.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:false}],myHand:[],allHands:{},community:[],deck:[],pot:0,roundBet:20,currentIdx:0,dealerIdx:-1,sb:10,bb:20,pendingInvites:new Set([peerId]),showResult:null,_newHandVotes:new Set()};frodon.sendDM(peerId,PLUGIN_ID,{type:'invite',tid,sb:10,bb:20,players:T.players.map(p=>({id:p.id,name:p.name,avatar:p.avatar||'',chips:p.chips,status:p.status})),_label:'🃏 Invitation au Poker !'});persist();frodon.showToast('🃏 Invitation envoyée');frodon.refreshSphereTab(PLUGIN_ID);setTimeout(()=>frodon.focusPlugin(PLUGIN_ID),200);});container.appendChild(btn);return;}
     if(T.isHost&&T.phase==='lobby'){const inTable=T.players.find(p=>p.id===peerId);if(inTable){container.appendChild(frodon.makeElement('div','no-posts','Déjà à la table ✓'));}else{const btn=frodon.makeElement('button','plugin-action-btn','+ Ajouter à la table');btn.addEventListener('click',()=>{T.players.push({id:peerId,name:peerName,avatar:peer?.avatar||'',chips:1000,bet:0,hasActed:false,status:'active',isMe:false});T.pendingInvites.add(peerId);frodon.sendDM(peerId,PLUGIN_ID,{type:'invite',tid:T.id,sb:T.sb,bb:T.bb,players:T.players.map(p=>({id:p.id,name:p.name,avatar:p.avatar||'',chips:p.chips,status:p.status})),_label:'🃏 Invitation au Poker !'});frodon.showToast('🃏 Invitation à '+peerName);frodon.refreshSphereTab(PLUGIN_ID);});container.appendChild(btn);}}
     else{const p=T.players.find(pl=>pl.id===peerId);container.appendChild(frodon.makeElement('div','no-posts',p?('En jeu ('+p.chips+'🪙)'):'Partie en cours'));}
   });
@@ -210,10 +237,11 @@ frodon.register({
       if(T.phase==='ended'||T.showResult){renderResult(container);return;}
       renderGame(container);
     }},
+    {id:'scores',label:'🏆 Scores',render(container){
+      renderScores(container);
+    }},
     {id:'history',label:'📜 Historique',render(container){
-      const hist=store.get('history')||[];
-      if(!hist.length){container.appendChild(frodon.makeElement('div','no-posts','Aucune partie jouée.'));return;}
-      hist.slice(0,20).forEach(h=>{const row=frodon.makeElement('div','');row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bdr)';row.innerHTML=`<span style="font-size:1.1rem">${h.isWin?'🏆':'😔'}</span><div style="flex:1"><div style="font-size:.74rem;font-weight:700;color:${h.isWin?'var(--ok)':'var(--warn)'}">${h.isWin?'Victoire':'Défaite'}</div><div style="font-size:.6rem;color:var(--txt2);font-family:var(--mono)">${h.isWin?'Vous avez gagné':(h.winnerName+' a gagné')} ${h.pot}🪙</div></div><span style="font-size:.56rem;color:var(--txt3);font-family:var(--mono)">${frodon.formatTime(h.ts)}</span>`;container.appendChild(row);});
+      renderHistory(container);
     }},
   ]);
 
@@ -310,15 +338,126 @@ frodon.register({
     const res=T.showResult;
     if(!res){const w=frodon.makeElement('div','');w.style.cssText='text-align:center;padding:24px;color:var(--txt3);font-size:.72rem;font-family:var(--mono)';w.textContent='⌛ En attente du résultat…';c.appendChild(w);return;}
     const win=res.winner===myId();const winP=T.players.find(p=>p.id===res.winner);
+
+    // Header résultat
     const hdr=frodon.makeElement('div','');hdr.style.cssText='text-align:center;padding:14px 12px 8px';
     hdr.innerHTML=`<div style="font-size:1.8rem;margin-bottom:5px">${win?'🏆':'🃏'}</div><div style="font-size:.95rem;font-weight:700;color:${win?'var(--ok)':'var(--txt)'}">${win?'Vous avez gagné !':((winP?.name||res.winnerName||'?')+' gagne')}</div><div style="font-size:.7rem;font-family:var(--mono);color:var(--warn);margin-top:3px">Pot : ${res.pot}🪙</div>`;
     c.appendChild(hdr);
+
+    // Cartes communes
     if(T.community.length){const comm=frodon.makeElement('div','');comm.style.cssText='display:flex;gap:5px;justify-content:center;margin:0 8px 10px';T.community.forEach(card=>{const el=frodon.makeElement('div','');el.innerHTML=cardHtml(card);comm.appendChild(el);});c.appendChild(comm);}
+
+    // Résultats des mains
     if(res.results){const rl=frodon.makeElement('div','');rl.style.cssText='padding:0 8px';res.results.forEach(r=>{const isW=r.id===res.winner;const row=frodon.makeElement('div','');row.style.cssText=`display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;margin-bottom:4px;background:${isW?'rgba(0,229,122,.08)':'var(--sur2)'};border:1px solid ${isW?'rgba(0,229,122,.25)':'var(--bdr)'}`;const ph=T.players.find(p=>p.id===r.id);row.innerHTML=`${mkAvHtml(ph||{name:r.name,avatar:''},26)}<div style="flex:1;min-width:0"><div style="font-size:.72rem;font-weight:700;color:${isW?'var(--ok)':'var(--txt)'}">${r.id===myId()?'Moi':r.name}${isW?' 🏆':''}</div><div style="font-size:.6rem;color:var(--acc2);font-family:var(--mono)">${r.handName||'—'}</div></div><div style="display:flex;gap:3px">${(r.hand||[]).map(card=>cardHtml(card)).join('')}</div>`;rl.appendChild(row);});c.appendChild(rl);}
-    const chips=frodon.makeElement('div','');chips.style.cssText='margin:10px 8px 0;border-top:1px solid var(--bdr);padding-top:8px';chips.innerHTML='<div style="font-size:.56rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">Chips restants</div>'+T.players.map(p=>`<div style="display:flex;justify-content:space-between;font-size:.68rem;font-family:var(--mono);padding:2px 0;color:${p.isMe?'var(--acc)':'var(--txt2)'}"><span>${p.isMe?'Moi':p.name}</span><span>${p.chips}🪙</span></div>`).join('');c.appendChild(chips);
-    const btns=frodon.makeElement('div','');btns.style.cssText='display:flex;gap:8px;padding:12px 8px 14px';
-    if(T.isHost){const newH=frodon.makeElement('button','plugin-action-btn acc','🔄 Nouvelle main');newH.addEventListener('click',()=>{T.phase='lobby';T.showResult=null;T.players.forEach(p=>{p.bet=0;p.hasActed=false;p.status=p.chips>0?'active':'out';});persist();hostSync();});btns.appendChild(newH);}
-    const leave=frodon.makeElement('button','plugin-action-btn','🚪 Quitter');leave.addEventListener('click',()=>{if(T.isHost)toAll('kick',{});else toHost('leave',{});T=null;persist();frodon.refreshSphereTab(PLUGIN_ID);});btns.appendChild(leave);c.appendChild(btns);
+
+    // Chips restants
+    const chips=frodon.makeElement('div','');chips.style.cssText='margin:10px 8px 0;border-top:1px solid var(--bdr);padding-top:8px';
+    const chipsLbl=frodon.makeElement('div','');chipsLbl.style.cssText='font-size:.56rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px';chipsLbl.textContent='Chips restants';chips.appendChild(chipsLbl);
+    const brokeCount = T.players.filter(p=>p.chips<=0&&p.status!=='away').length;
+    T.players.forEach(p=>{
+      const row=frodon.makeElement('div','');row.style.cssText='display:flex;justify-content:space-between;align-items:center;font-size:.68rem;font-family:var(--mono);padding:2px 0';
+      const nameEl=frodon.makeElement('span','',p.isMe?'Moi':p.name);nameEl.style.color=p.isMe?'var(--acc)':'var(--txt2)';
+      const chipsEl=frodon.makeElement('span','',p.chips>0?p.chips+'🪙':'💀 éliminé');chipsEl.style.color=p.chips>0?'var(--txt2)':'var(--warn)';
+      row.appendChild(nameEl);row.appendChild(chipsEl);chips.appendChild(row);
+    });
+    c.appendChild(chips);
+
+    // Zone "Nouvelle main" — visible par TOUS les joueurs
+    const btns=frodon.makeElement('div','');btns.style.cssText='padding:12px 8px 14px';
+
+    if(T.isHost) {
+      // L'hôte voit le bouton "Nouvelle main" et l'info rebuy si besoin
+      if(brokeCount > 0) {
+        const rebuyInfo=frodon.makeElement('div','');rebuyInfo.style.cssText='font-size:.62rem;color:var(--txt2);font-family:var(--mono);text-align:center;margin-bottom:8px;padding:5px 8px;background:rgba(255,107,53,.07);border:1px solid rgba(255,107,53,.2);border-radius:7px';
+        rebuyInfo.textContent='⚠ '+brokeCount+' joueur'+(brokeCount>1?'s':'')+' à 0🪙 — recevra un rebuy de 1000🪙';
+        btns.appendChild(rebuyInfo);
+      }
+      const newH=frodon.makeElement('button','plugin-action-btn acc','🔄 Nouvelle main');
+      newH.style.cssText+=';width:100%;margin-bottom:8px';
+      newH.addEventListener('click',()=>hostStartNewHand());
+      btns.appendChild(newH);
+    } else {
+      // Les clients voient un bouton "Demander une nouvelle main"
+      const voteBtn=frodon.makeElement('button','plugin-action-btn acc','🔄 Nouvelle main ?');
+      voteBtn.style.cssText+=';width:100%;margin-bottom:8px';
+      voteBtn.addEventListener('click',()=>{
+        toHost('new_hand_vote',{});
+        voteBtn.disabled=true;voteBtn.textContent='✓ Demande envoyée…';
+        frodon.showToast('🃏 Demande envoyée à l\'hôte !');
+      });
+      btns.appendChild(voteBtn);
+      const hint=frodon.makeElement('div','');hint.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);text-align:center;margin-bottom:8px';hint.textContent='L\'hôte doit valider pour lancer une nouvelle main';btns.appendChild(hint);
+    }
+
+    const leave=frodon.makeElement('button','plugin-action-btn','🚪 Quitter la table');
+    leave.style.cssText+=';width:100%';
+    leave.addEventListener('click',()=>{if(T.isHost)toAll('kick',{});else toHost('leave',{});T=null;persist();frodon.refreshSphereTab(PLUGIN_ID);});
+    btns.appendChild(leave);
+    c.appendChild(btns);
+  }
+
+  /* ── Onglet Scores ── */
+  function renderScores(c) {
+    const wins   = store.get('wins')   || 0;
+    const losses = store.get('losses') || 0;
+    const draws  = store.get('draws')  || 0;
+    const chipsWon = store.get('chips_won') || 0;
+    const total  = wins + losses + draws;
+
+    if(!total) {
+      const em=frodon.makeElement('div','');em.style.cssText='text-align:center;padding:32px 20px;color:var(--txt2);font-size:.76rem;line-height:1.9';em.innerHTML='<div style="font-size:2.2rem;opacity:.2;margin-bottom:8px">🏆</div>Jouez votre première partie !';c.appendChild(em);return;
+    }
+
+    // Blocs stats principaux
+    const sb=frodon.makeElement('div','');sb.style.cssText='display:flex;border:1px solid var(--bdr2);border-radius:10px;overflow:hidden;margin:10px 8px 8px';
+    [['🏆',wins,'Victoires','var(--ok)'],['😔',losses,'Défaites','var(--warn)'],['🤝',draws,'Nulles','var(--txt2)']].forEach(([ico,n,lbl,col],i)=>{
+      const cell=frodon.makeElement('div','');cell.style.cssText='flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:12px 4px;'+(i<2?'border-right:1px solid var(--bdr2)':'');
+      cell.innerHTML=`<span style="font-size:1.1rem">${ico}</span><strong style="font-size:1.3rem;color:${col};font-family:var(--mono)">${n}</strong><span style="font-size:.52rem;color:var(--txt2)">${lbl}</span>`;
+      sb.appendChild(cell);
+    });
+    c.appendChild(sb);
+
+    // Taux de victoire
+    const rate=Math.round(wins/total*100);
+    const bw=frodon.makeElement('div','');bw.style.cssText='margin:0 8px 10px';
+    bw.innerHTML=`<div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--txt2);font-family:var(--mono);margin-bottom:3px"><span>Taux de victoire</span><span style="color:var(--ok)">${rate}%</span></div><div style="height:5px;background:var(--sur2);border-radius:4px;overflow:hidden"><div style="height:100%;width:${rate}%;background:linear-gradient(90deg,var(--ok),var(--acc));border-radius:4px"></div></div><div style="font-size:.55rem;color:var(--txt2);font-family:var(--mono);margin-top:3px;text-align:center">${total} partie${total>1?'s':''} jouée${total>1?'s':''}</div>`;
+    c.appendChild(bw);
+
+    // Chips gagnés
+    if(chipsWon > 0) {
+      const cw=frodon.makeElement('div','');cw.style.cssText='margin:0 8px 12px;padding:8px 10px;background:rgba(0,229,122,.07);border:1px solid rgba(0,229,122,.2);border-radius:8px;display:flex;justify-content:space-between;align-items:center';
+      cw.innerHTML=`<span style="font-size:.65rem;color:var(--txt2)">Total chips gagnés</span><strong style="font-family:var(--mono);color:var(--ok)">${chipsWon.toLocaleString()}🪙</strong>`;
+      c.appendChild(cw);
+    }
+
+    // Bouton reset
+    const resetBtn=frodon.makeElement('button','plugin-action-btn');resetBtn.style.cssText+=';font-size:.62rem;margin:0 8px;width:calc(100% - 16px);color:var(--txt3);border-color:var(--bdr)';resetBtn.textContent='↺ Remettre les scores à zéro';
+    resetBtn.addEventListener('click',()=>{
+      if(!confirm('Remettre tous les scores à zéro ?')) return;
+      ['wins','losses','draws','chips_won','history'].forEach(k=>store.del(k));
+      frodon.refreshSphereTab(PLUGIN_ID);
+      frodon.showToast('Scores remis à zéro');
+    });
+    c.appendChild(resetBtn);
+  }
+
+  /* ── Onglet Historique ── */
+  function renderHistory(c) {
+    const hist=store.get('history')||[];
+    if(!hist.length){const em=frodon.makeElement('div','no-posts','Aucune partie jouée.');em.style.padding='24px 16px';c.appendChild(em);return;}
+    hist.slice(0,30).forEach(h=>{
+      const isWin=h.result==='win',isDraw=h.result==='draw';
+      const row=frodon.makeElement('div','');row.style.cssText='display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-bottom:1px solid var(--bdr)';
+      const ico=frodon.makeElement('span','');ico.style.cssText='font-size:1.2rem;flex-shrink:0;margin-top:1px';ico.textContent=isDraw?'🤝':isWin?'🏆':'😔';
+      const inf=frodon.makeElement('div','');inf.style.cssText='flex:1;min-width:0';
+      const res=frodon.makeElement('div','');res.style.cssText='font-size:.76rem;font-weight:700;color:'+(isDraw?'var(--txt2)':isWin?'var(--ok)':'var(--warn)');res.textContent=isDraw?'Égalité':isWin?'Victoire':'Défaite';
+      const opp=frodon.makeElement('div','');opp.style.cssText='font-size:.62rem;color:var(--txt2);margin-top:1px';opp.textContent='vs '+(h.opponents?.join(', ')||'?');
+      const pot=frodon.makeElement('div','');pot.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono)';pot.textContent='Pot : '+h.pot+'🪙';
+      inf.appendChild(res);inf.appendChild(opp);inf.appendChild(pot);
+      const ts=frodon.makeElement('span','mini-card-ts',frodon.formatTime(h.ts));ts.style.flexShrink='0';
+      row.appendChild(ico);row.appendChild(inf);row.appendChild(ts);
+      c.appendChild(row);
+    });
   }
 
   function mkAvHtml(p,size=32){const col=['#00f5c8','#7c4dff','#ff6b35','#00e87a','#f5c842','#ff4f8b'];const cl=col[((p?.name||'?').charCodeAt(0)||0)%col.length];return`<div style="width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--sur2);display:flex;align-items:center;justify-content:center;font-size:${size*.38}px;color:${cl};font-weight:700;font-family:var(--mono)">${p?.avatar?`<img src="${p.avatar}" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display='none'">`:''}${(p?.name||'?')[0].toUpperCase()}</div>`;}
