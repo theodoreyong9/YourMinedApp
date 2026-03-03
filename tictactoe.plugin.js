@@ -1,9 +1,9 @@
 /**
- * FRODON PLUGIN — TicTacToe P2P  v2.2
- * Le plateau vit dans ⬡ SPHERE. focusPlugin() y amène le joueur.
+ * FRODON PLUGIN — TicTacToe P2P  v2.3
+ * Fix: persist/restore games on page refresh
  */
 frodon.register({
-  id:'tictactoe', name:'TicTacToe', version:'2.2.0',
+  id:'tictactoe', name:'TicTacToe', version:'2.3.0',
   author:'frodon-community',
   description:'Défiez vos pairs à une partie de TicTacToe en P2P.',
   icon:'⊞',
@@ -26,6 +26,18 @@ frodon.register({
   }
   function getGameId(pid) { return Object.keys(games).find(g=>games[g].opponentId===pid); }
 
+  /* ── Persistance (copié de Poker) ── */
+  function persist() {
+    if(!Object.keys(games).length) store.del('games');
+    else store.set('games', games);
+  }
+  function restore() {
+    const saved = store.get('games');
+    if(!saved) return;
+    for(const [gid, g] of Object.entries(saved)) games[gid] = g;
+    if(Object.keys(games).length) frodon.refreshSphereTab(PLUGIN_ID);
+  }
+
   function addScore(result, opponentId) {
     store.set('wins',  (store.get('wins') ||0)+(result==='win' ?1:0));
     store.set('losses',(store.get('losses')||0)+(result==='loss'?1:0));
@@ -45,6 +57,7 @@ frodon.register({
     if(type === 'challenge') {
       const prev = getGameId(fromId); if(prev) delete games[prev];
       games[gameId] = newGame(fromId, 'O');
+      persist();
       const peer = frodon.getPeer(fromId);
       frodon.showToast('⊞ '+(peer?.name||'?')+' vous défie !');
       frodon.refreshSphereTab(PLUGIN_ID);
@@ -66,6 +79,7 @@ frodon.register({
         frodon.showToast('⊞ À votre tour !');
         frodon.focusPlugin(PLUGIN_ID);
       }
+      persist();
       frodon.refreshSphereTab(PLUGIN_ID);
       frodon.refreshPeerModal(fromId);
     }
@@ -74,6 +88,7 @@ frodon.register({
       const game = games[gameId]; if(!game) return;
       game.done=true; game.winner=game.mySymbol;
       addScore('win', game.opponentId);
+      persist();
       frodon.showToast('🏆 Victoire par abandon !');
       frodon.refreshSphereTab(PLUGIN_ID);
       frodon.refreshPeerModal(fromId);
@@ -82,6 +97,7 @@ frodon.register({
     if(type === 'rematch') {
       const prev = getGameId(fromId); if(prev) delete games[prev];
       games[gameId] = newGame(fromId, 'O');
+      persist();
       const peer = frodon.getPeer(fromId);
       frodon.showToast('⊞ Revanche de '+(peer?.name||'?')+' !');
       frodon.refreshSphereTab(PLUGIN_ID);
@@ -90,7 +106,7 @@ frodon.register({
     }
   });
 
-  /* ── Fiche d'un pair — compact, jeu dans SPHERE ── */
+  /* ── Fiche d'un pair ── */
   frodon.registerPeerAction(PLUGIN_ID, '⊞ TicTacToe', (peerId, container) => {
     const peer = frodon.getPeer(peerId);
     const peerName = peer?.name || peerId;
@@ -102,7 +118,7 @@ frodon.register({
       btn.addEventListener('click', () => {
         const gid = 'ttc_'+Date.now();
         games[gid] = newGame(peerId, 'X');
-        // _label: shows in opponent's feed as a challenge notification
+        persist();
         frodon.sendDM(peerId, PLUGIN_ID, {type:'challenge', gameId:gid, _label:'⊞ Défi TicTacToe !'});
         frodon.showToast('Défi envoyé à '+peerName+' !');
         frodon.refreshPeerModal(peerId);
@@ -113,7 +129,6 @@ frodon.register({
       return;
     }
 
-    // Game in progress — minimal status + "Ouvrir dans SPHERE"
     const st = frodon.makeElement('div','');
     st.style.cssText = 'font-family:var(--mono);font-size:.72rem;text-align:center;padding:6px 0 8px;color:var(--acc)';
     if(game.done) {
@@ -124,7 +139,6 @@ frodon.register({
     }
     container.appendChild(st);
 
-    // Mini read-only board
     const mini = frodon.makeElement('div','');
     mini.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:2px;max-width:72px;margin:0 auto 8px';
     game.board.forEach(cell => {
@@ -145,6 +159,7 @@ frodon.register({
         delete games[gameId];
         const gid = 'ttc_'+Date.now();
         games[gid] = newGame(peerId, 'X');
+        persist();
         frodon.sendDM(peerId, PLUGIN_ID, {type:'rematch', gameId:gid, _label:'⊞ Revanche TicTacToe !'});
         frodon.refreshPeerModal(peerId);
         frodon.refreshSphereTab(PLUGIN_ID);
@@ -154,7 +169,7 @@ frodon.register({
     }
   });
 
-  /* ── Panneau SPHERE — le vrai jeu ── */
+  /* ── Panneau SPHERE ── */
   frodon.registerBottomPanel(PLUGIN_ID, [
 
     { id:'games', label:'⊞ Parties',
@@ -210,8 +225,8 @@ frodon.register({
                 game.board[i] = game.mySymbol; game.myTurn = false;
                 const win = checkWinner(game.board);
                 if(win) { game.done=true; game.winner=win; win==='draw'?addScore('draw',game.opponentId):addScore('win',game.opponentId); }
-                // move DM is silent (it's game protocol, not a user-facing event)
                 frodon.sendDM(game.opponentId, PLUGIN_ID, {type:'move', gameId, cell:i, _silent:true});
+                persist();
                 frodon.refreshSphereTab(PLUGIN_ID);
                 frodon.refreshPeerModal(game.opponentId);
               });
@@ -242,8 +257,8 @@ frodon.register({
             f.addEventListener('click', () => {
               game.done=true; game.winner=game.mySymbol==='X'?'O':'X';
               addScore('loss', game.opponentId);
-              // forfeit is silent — toast on their side handles it
               frodon.sendDM(game.opponentId, PLUGIN_ID, {type:'forfeit', gameId, _silent:true});
+              persist();
               frodon.refreshSphereTab(PLUGIN_ID);
               frodon.refreshPeerModal(game.opponentId);
             });
@@ -256,6 +271,7 @@ frodon.register({
               const gid = 'ttc_'+Date.now();
               games[gid] = newGame(game.opponentId, 'X');
               frodon.sendDM(game.opponentId, PLUGIN_ID, {type:'rematch', gameId:gid, _label:'⊞ Revanche TicTacToe !'});
+              persist();
               frodon.refreshSphereTab(PLUGIN_ID);
               frodon.refreshPeerModal(game.opponentId);
             });
@@ -329,19 +345,18 @@ frodon.register({
       frodon.showToast('⊞ '+peer.name+' est de retour');
   });
 
-  // Auto-challenge when installed from a peer's profile
   frodon.registerPeerInstallHook(PLUGIN_ID, (peerId) => {
     const peer = frodon.getPeer(peerId);
     const peerName = peer?.name || peerId;
     const gid = 'ttc_'+Date.now();
     games[gid] = newGame(peerId, 'X');
+    persist();
     frodon.sendDM(peerId, PLUGIN_ID, {type:'challenge', gameId:gid, _label:'⊞ Défi TicTacToe !'});
     frodon.showToast('⊞ Défi envoyé à '+peerName+' !');
     frodon.refreshSphereTab(PLUGIN_ID);
     setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
   });
 
-  // Forfeit all active games when plugin is uninstalled
   frodon.registerUninstallHook(PLUGIN_ID, () => {
     Object.entries(games).forEach(([gameId, game]) => {
       if(!game.done) {
@@ -352,5 +367,6 @@ frodon.register({
     });
   });
 
+  restore();
   return { destroy() {} };
 });
