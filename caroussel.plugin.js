@@ -266,7 +266,9 @@ frodon.register({
       info.style.cssText = 'flex:1;min-width:0';
       const u = frodon.makeElement('div','');
       u.style.cssText = 'font-size:.62rem;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-      u.textContent = img.url;
+      // base64 → juste afficher le type et numéro
+      const isB64 = img.url.startsWith('data:');
+      u.textContent = isB64 ? 'Image '+(i+1) : img.url;
       const cap = frodon.makeElement('div','');
       cap.style.cssText = 'font-size:.58rem;color:var(--txt3);font-style:italic';
       cap.textContent = img.caption || '(sans légende)';
@@ -285,41 +287,97 @@ frodon.register({
       c.appendChild(row);
     });
 
-    // Ajouter une image
+    // Ajouter une image (upload fichier → base64)
     const addSec = frodon.makeElement('div','section-label','Ajouter une image');
     addSec.style.margin = '10px 10px 6px';
     c.appendChild(addSec);
 
     const addForm = frodon.makeElement('div','');
-    addForm.style.cssText = 'padding:0 10px 12px;display:flex;flex-direction:column;gap:6px';
+    addForm.style.cssText = 'padding:0 10px 12px;display:flex;flex-direction:column;gap:8px';
 
-    const urlInp = document.createElement('input');
-    urlInp.type = 'url';
-    urlInp.className = 'f-input';
-    urlInp.placeholder = 'https://... (URL de l\'image)';
-    urlInp.style.width = '100%';
+    // Zone de drop / bouton upload
+    const dropZone = frodon.makeElement('div','');
+    dropZone.style.cssText = 'border:2px dashed var(--bdr2);border-radius:10px;padding:18px;text-align:center;cursor:pointer;transition:.2s;background:var(--sur2)';
+    const dropLbl = frodon.makeElement('div','');
+    dropLbl.style.cssText = 'font-size:.72rem;color:var(--txt2);line-height:1.6';
+    dropLbl.innerHTML = '📁 <strong>Cliquez</strong> pour choisir une image<br><span style="font-size:.6rem;color:var(--txt3)">JPG, PNG, GIF, WebP · max 2 Mo</span>';
+    dropZone.appendChild(dropLbl);
+
+    // Prévisualisation
+    const preview = frodon.makeElement('div','');
+    preview.style.cssText = 'display:none;align-items:center;gap:8px';
+    const preImg = document.createElement('img');
+    preImg.style.cssText = 'width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0';
+    const preName = frodon.makeElement('div','');
+    preName.style.cssText = 'font-size:.62rem;color:var(--txt2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    const preReset = frodon.makeElement('button','plugin-action-btn','✕');
+    preReset.style.cssText = 'font-size:.62rem;color:var(--warn);padding:3px 7px;flex-shrink:0';
+    preview.appendChild(preImg); preview.appendChild(preName); preview.appendChild(preReset);
+
+    // Input file caché
+    const fileInp = document.createElement('input');
+    fileInp.type = 'file';
+    fileInp.accept = 'image/*';
+    fileInp.style.display = 'none';
+    let pendingDataUrl = null;
+
+    function loadFile(file) {
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { frodon.showToast('⚠ Image trop lourde (max 2 Mo)'); return; }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        pendingDataUrl = ev.target.result;
+        preImg.src = pendingDataUrl;
+        preName.textContent = file.name;
+        dropZone.style.display = 'none';
+        preview.style.display  = 'flex';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    fileInp.addEventListener('change', () => loadFile(fileInp.files[0]));
+    dropZone.addEventListener('click', () => fileInp.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='var(--acc)'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor='var(--bdr2)'; });
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--bdr2)';
+      loadFile(e.dataTransfer.files[0]);
+    });
+
+    preReset.addEventListener('click', () => {
+      pendingDataUrl = null; fileInp.value = '';
+      preImg.src = ''; preName.textContent = '';
+      preview.style.display  = 'none';
+      dropZone.style.display = '';
+    });
+
+    addForm.appendChild(fileInp);
+    addForm.appendChild(dropZone);
+    addForm.appendChild(preview);
 
     const capInp = document.createElement('input');
     capInp.type = 'text';
     capInp.className = 'f-input';
     capInp.placeholder = 'Légende (optionnel)';
     capInp.style.width = '100%';
+    addForm.appendChild(capInp);
 
-    const addBtn = frodon.makeElement('button','plugin-action-btn acc','＋ Ajouter');
+    const addBtn = frodon.makeElement('button','plugin-action-btn acc','＋ Ajouter au carousel');
     addBtn.style.cssText = 'width:100%;font-size:.72rem';
     addBtn.addEventListener('click', () => {
-      const url = urlInp.value.trim();
-      if (!url) { frodon.showToast('⚠ URL requise'); return; }
+      if (!pendingDataUrl) { frodon.showToast('⚠ Choisissez une image'); return; }
       const c2 = getConfig();
-      c2.images.push({ url, caption: capInp.value.trim() });
+      c2.images.push({ url: pendingDataUrl, caption: capInp.value.trim() });
       saveConfig(c2);
-      urlInp.value = ''; capInp.value = '';
+      // reset
+      pendingDataUrl = null; fileInp.value = ''; capInp.value = '';
+      preImg.src = ''; preName.textContent = '';
+      preview.style.display  = 'none';
+      dropZone.style.display = '';
       frodon.showToast('🖼 Image ajoutée !');
       frodon.refreshSphereTab(PLUGIN_ID);
     });
-
-    addForm.appendChild(urlInp);
-    addForm.appendChild(capInp);
     addForm.appendChild(addBtn);
     c.appendChild(addForm);
 
