@@ -25,51 +25,98 @@ frodon.register({
 
   // Carousel reçus des autres (clé = peerId expéditeur)
   const received = {};
+  // Titres annoncés par les pairs qui ont le plugin : peerId → {title, active}
+  const peerMeta = {};
 
-  /* ── Profil : action visible sur NOTRE profil par les autres ──
-     Le visiteur voit "▶ [title]" et clic → on lui envoie le carousel par DM  */
-  frodon.registerPeerAction(PLUGIN_ID, '🖼 Carousel', (peerId, container) => {
+  /* ── Annonce aux pairs : dès qu'un pair apparaît, on lui envoie notre titre ──
+     Ainsi le visiteur connaît le titre AVANT d'ouvrir le profil. */
+  function announce(toId) {
     const cfg = getConfig();
-    if (!cfg.active || !cfg.images.length) {
-      // On n'affiche rien si pas configuré
-      const info = frodon.makeElement('div','');
-      info.style.cssText = 'font-size:.65rem;color:var(--txt3);padding:6px 0;text-align:center';
-      info.textContent = 'Aucun carousel configuré.';
-      container.appendChild(info);
+    frodon.sendDM(toId, PLUGIN_ID, {
+      type:   'announce',
+      title:  cfg.title,
+      active: cfg.active && cfg.images.length > 0,
+      _silent: true,
+    });
+  }
+
+  frodon.onPeerAppear(peer => {
+    announce(peer.peerId);
+  });
+
+  /* ── Profil : le visiteur voit le TITRE DU PROPRIÉTAIRE et demande son carousel.
+     registerPeerAction tourne sur l'appareil du visiteur, donc on lit peerMeta
+     qui a été rempli quand le propriétaire nous a envoyé son announce. */
+  frodon.registerPeerAction(PLUGIN_ID, '🖼 Carousel', (peerId, container) => {
+    const meta = peerMeta[peerId];
+    // Si on n'a pas encore reçu l'annonce du pair, on la demande
+    if (!meta) {
+      frodon.sendDM(peerId, PLUGIN_ID, { type: 'meta_req', _silent: true });
+    }
+    if (!meta || !meta.active) {
+      // Soit pas encore reçu, soit pas configuré — bouton neutre
+      const btn = frodon.makeElement('button','plugin-action-btn','🖼 Voir le carousel');
+      btn.style.width = '100%';
+      btn.disabled = !!(meta && !meta.active);
+      btn.title = meta && !meta.active ? 'Pas de carousel configuré' : '';
+      btn.addEventListener('click', () => {
+        frodon.sendDM(peerId, PLUGIN_ID, { type: 'request', _silent: true });
+        frodon.showToast('🖼 Demande envoyée…');
+      });
+      container.appendChild(btn);
       return;
     }
-    /* Bouton visible sur notre profil par le visiteur.
-       "Ouvrir" (pas "installer") — envoie le carousel par DM au visiteur */
-    const btn = frodon.makeElement('button','plugin-action-btn acc','▶ '+cfg.title);
+    // On connaît le titre — bouton avec le vrai nom
+    const btn = frodon.makeElement('button','plugin-action-btn acc','▶ '+meta.title);
     btn.style.width = '100%';
     btn.addEventListener('click', () => {
-      frodon.sendDM(peerId, PLUGIN_ID, {
-        type:   'push',
-        title:  cfg.title,
-        images: cfg.images,
-        from:   frodon.getMyProfile().name,
-        _label: '🖼 '+cfg.title,
-        _silent: false,
-      });
-      frodon.showToast('🖼 Carousel envoyé !');
+      frodon.sendDM(peerId, PLUGIN_ID, { type: 'request', _silent: true });
+      frodon.showToast('🖼 Ouverture de "'+meta.title+'"…');
     });
     container.appendChild(btn);
   });
 
-  /* ── DM : réception d'un carousel poussé ── */
+  /* ── DM handler ── */
   frodon.onDM(PLUGIN_ID, (fromId, payload) => {
-    if (payload.type !== 'push') return;
-    received[fromId] = {
-      fromId,
-      fromName: frodon.getPeer(fromId)?.name || 'Pair inconnu',
-      title:    payload.title,
-      images:   payload.images || [],
-      idx:      0,
-      ts:       Date.now(),
-    };
-    frodon.showToast('🖼 Carousel de '+received[fromId].fromName+' reçu !');
-    frodon.refreshSphereTab(PLUGIN_ID);
-    setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
+    // Annonce d'un pair : on mémorise son titre
+    if (payload.type === 'announce') {
+      peerMeta[fromId] = { title: payload.title, active: payload.active };
+      frodon.refreshPeerModal(fromId);
+      return;
+    }
+    // Quelqu'un demande notre meta (n'avait pas reçu l'announce)
+    if (payload.type === 'meta_req') {
+      announce(fromId);
+      return;
+    }
+    // Quelqu'un demande notre carousel → on lui envoie
+    if (payload.type === 'request') {
+      const cfg = getConfig();
+      if (!cfg.active || !cfg.images.length) return;
+      frodon.sendDM(fromId, PLUGIN_ID, {
+        type:    'push',
+        title:   cfg.title,
+        images:  cfg.images,
+        _label:  '🖼 '+cfg.title,
+        _silent: false,
+      });
+      return;
+    }
+    // Réception d'un carousel poussé
+    if (payload.type === 'push') {
+      received[fromId] = {
+        fromId,
+        fromName: frodon.getPeer(fromId)?.name || 'Pair inconnu',
+        title:    payload.title,
+        images:   payload.images || [],
+        idx:      0,
+        ts:       Date.now(),
+      };
+      frodon.showToast('🖼 Carousel de '+received[fromId].fromName+' reçu !');
+      frodon.refreshSphereTab(PLUGIN_ID);
+      setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
+      return;
+    }
   });
 
   /* ── SPHERE ── */
@@ -225,6 +272,7 @@ frodon.register({
       c2.title = nameInp.value.trim() || 'Mon Carousel';
       saveConfig(c2);
       frodon.showToast('🖼 Nom sauvegardé !');
+      frodon.getOnlinePeers?.()?.forEach(p => announce(p.peerId));
     });
     nameRow.appendChild(nameInp);
     nameRow.appendChild(saveName);
@@ -242,6 +290,7 @@ frodon.register({
       const c2 = getConfig();
       c2.active = !c2.active;
       saveConfig(c2);
+      frodon.getOnlinePeers?.()?.forEach(p => announce(p.peerId));
       frodon.refreshSphereTab(PLUGIN_ID);
     });
     togRow.appendChild(togLbl);
