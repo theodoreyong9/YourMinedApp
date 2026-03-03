@@ -44,7 +44,7 @@ frodon.register({
     store.set('draws', (store.get('draws') ||0)+(result==='draw'?1:0));
     const hist = store.get('history')||[];
     const peer = frodon.getPeer(opponentId);
-    hist.unshift({opponentId, name:peer?.name||opponentId,
+    hist.unshift({opponentId, name:peer?.name||'Pair inconnu',
       network:peer?.network||'', handle:peer?.handle||'', result, ts:Date.now()});
     if(hist.length>30) hist.length=30;
     store.set('history', hist);
@@ -59,7 +59,7 @@ frodon.register({
       games[gameId] = newGame(fromId, 'O');
       persist();
       const peer = frodon.getPeer(fromId);
-      frodon.showToast('⊞ '+(peer?.name||'?')+' vous défie !');
+      frodon.showToast('⊞ '+(peer?.name||'Pair inconnu')+' vous défie !');
       frodon.refreshSphereTab(PLUGIN_ID);
       frodon.refreshPeerModal(fromId);
       setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
@@ -74,7 +74,7 @@ frodon.register({
         game.done=true; game.winner=win;
         win==='draw' ? addScore('draw',game.opponentId) : addScore('loss',game.opponentId);
         const peer = frodon.getPeer(game.opponentId);
-        frodon.showToast((win==='draw'?'🤝 Égalité':'😔 Défaite')+' contre '+(peer?.name||'?'));
+        frodon.showToast((win==='draw'?'🤝 Égalité':'😔 Défaite')+' contre '+(peer?.name||'Pair inconnu'));
       } else {
         frodon.showToast('⊞ À votre tour !');
         frodon.focusPlugin(PLUGIN_ID);
@@ -99,7 +99,7 @@ frodon.register({
       games[gameId] = newGame(fromId, 'O');
       persist();
       const peer = frodon.getPeer(fromId);
-      frodon.showToast('⊞ Revanche de '+(peer?.name||'?')+' !');
+      frodon.showToast('⊞ Revanche de '+(peer?.name||'Pair inconnu')+' !');
       frodon.refreshSphereTab(PLUGIN_ID);
       frodon.refreshPeerModal(fromId);
       setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
@@ -109,7 +109,7 @@ frodon.register({
   /* ── Fiche d'un pair ── */
   frodon.registerPeerAction(PLUGIN_ID, '⊞ TicTacToe', (peerId, container) => {
     const peer = frodon.getPeer(peerId);
-    const peerName = peer?.name || peerId;
+    const peerName = peer?.name || 'Pair inconnu';
     const gameId = getGameId(peerId);
     const game = gameId ? games[gameId] : null;
 
@@ -347,7 +347,7 @@ frodon.register({
 
   frodon.registerPeerInstallHook(PLUGIN_ID, (peerId) => {
     const peer = frodon.getPeer(peerId);
-    const peerName = peer?.name || peerId;
+    const peerName = peer?.name || 'Pair inconnu';
     const gid = 'ttc_'+Date.now();
     games[gid] = newGame(peerId, 'X');
     persist();
