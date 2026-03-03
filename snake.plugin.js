@@ -234,10 +234,34 @@ frodon.register({
       }
 
       // clic pour focus + pauser si en cours
-      cvs.addEventListener('click', () => {
+      /* Clic sur le canvas : diriger le serpent vers le clic.
+         Compare la position du clic à la tête — vecteur dominant = direction,
+         demi-tour interdit → bascule sur l'axe perpendiculaire. */
+      cvs.addEventListener('click', (e) => {
         cvs.focus();
-        if (state && state.alive && !state.paused) return;
-        if (state && state.alive && state.paused) { togglePause(); }
+        if (!state) return;
+        if (!state.alive) { startGame(); btnStart.textContent = '🔄 Recommencer'; return; }
+        if (state.paused)  { togglePause(); btnPause.textContent = '⏸ Pause'; return; }
+        const rect = cvs.getBoundingClientRect();
+        const scaleX = cvs.width  / rect.width;
+        const scaleY = cvs.height / rect.height;
+        const cx = (e.clientX - rect.left) * scaleX;
+        const cy = (e.clientY - rect.top)  * scaleY;
+        const hx = state.snake[0].x * CELL + CELL / 2;
+        const hy = state.snake[0].y * CELL + CELL / 2;
+        const dx = cx - hx, dy = cy - hy;
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+        let nx = state.dir.x, ny = state.dir.y;
+        if (adx > ady) {
+          const wx = dx > 0 ? 1 : -1;
+          if (wx !== -state.dir.x) { nx = wx; ny = 0; }
+          else { ny = dy > 0 ? 1 : -1; nx = 0; }
+        } else {
+          const wy = dy > 0 ? 1 : -1;
+          if (wy !== -state.dir.y) { ny = wy; nx = 0; }
+          else { nx = dx > 0 ? 1 : -1; ny = 0; }
+        }
+        state.nextDir = { x: nx, y: ny };
       });
       cvs.addEventListener('keydown', onKey);
 
