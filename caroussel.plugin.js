@@ -506,8 +506,10 @@ frodon.register({
           imgEl.style.cssText = 'width:100%;max-height:200px;object-fit:contain;display:block';
           imgEl.src = realImgs[cur]?.url || '';
           imgWrap.appendChild(imgEl);
+          // ctr déclaré ici pour être accessible dans goTo (même scope)
+          let ctr = null;
           if (realImgs.length > 1) {
-            const ctr = frodon.makeElement('div','');
+            ctr = frodon.makeElement('div','');
             ctr.style.cssText = 'position:absolute;bottom:5px;right:7px;background:rgba(0,0,0,.6);color:#fff;font-size:.52rem;font-family:var(--mono);padding:2px 6px;border-radius:8px';
             ctr.textContent = (cur+1)+'/'+realImgs.length;
             imgWrap.appendChild(ctr);
