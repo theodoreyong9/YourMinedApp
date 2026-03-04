@@ -82,13 +82,37 @@ frodon.register({
 
     const hint = frodon.makeElement('div', '');
     hint.style.cssText = 'font-size:.6rem;color:var(--txt3);font-family:var(--mono);margin-bottom:10px;padding:5px 9px;background:rgba(124,77,255,.06);border-radius:6px;border:1px solid rgba(124,77,255,.15)';
-    hint.textContent = '👁 ' + peer.name + ' ne verra pas votre nom · chaque envoi = nouvelle conversation anonyme';
+    hint.textContent = '👁 ' + peer.name + ' ne verra pas votre nom';
     container.appendChild(hint);
 
-    if (convs.length) {
-      const sec = frodon.makeElement('div', 'section-label', convs.length + ' conversation(s) — voir dans SPHERE');
-      sec.style.cssText += ';margin-bottom:8px';
+    // Sélecteur de conversation : existantes + nouvelle
+    const allConvs = getConvs().filter(c => c.kind === 'sent' && c.peerId === peerId);
+    let activeConvId = allConvs.length ? allConvs[0].convId : null;
+
+    if (allConvs.length) {
+      const sec = frodon.makeElement('div', 'section-label', 'Conversation');
+      sec.style.cssText += ';margin-bottom:4px';
       container.appendChild(sec);
+
+      const sel = document.createElement('select');
+      sel.className = 'f-input';
+      sel.style.cssText += ';margin-bottom:8px;font-size:.7rem';
+
+      allConvs.forEach((c, i) => {
+        const opt = document.createElement('option');
+        opt.value = c.convId;
+        const last = c.messages[c.messages.length - 1];
+        opt.textContent = 'Conv #' + (i+1) + ' — ' + (last?.text || '').substring(0, 30) + '…';
+        sel.appendChild(opt);
+      });
+      const optNew = document.createElement('option');
+      optNew.value = '__new__';
+      optNew.textContent = '+ Nouvelle conversation anonyme';
+      sel.appendChild(optNew);
+
+      sel.value = activeConvId;
+      sel.addEventListener('change', () => { activeConvId = sel.value === '__new__' ? null : sel.value; });
+      container.appendChild(sel);
     }
 
     const ta = document.createElement('textarea');
@@ -102,23 +126,36 @@ frodon.register({
       const text = ta.value.trim();
       if (!text) { frodon.showToast('Écrivez un message', true); return; }
 
-      const convId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
       const list = getConvs();
-      list.unshift({
-        convId, kind: 'sent', peerId, displayName: peer.name,
-        messages: [{ text, fromMe: true, ts: Date.now() }], ts: Date.now(),
-      });
+      let convId = activeConvId;
+
+      if (convId) {
+        // Ajouter dans la conversation existante
+        const c = list.find(x => x.convId === convId);
+        if (c) {
+          c.messages.push({ text, fromMe: true, ts: Date.now() });
+          c.ts = Date.now();
+        }
+        frodon.sendDM(peerId, PLUGIN_ID, { type:'anon_msg', convId, text,
+          _label:'🕵 Message anonyme reçu', _silent:false });
+      } else {
+        // Nouvelle conversation — nouveau convId unique
+        convId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+        list.unshift({
+          convId, kind:'sent', peerId, displayName: peer.name,
+          messages: [{ text, fromMe: true, ts: Date.now() }], ts: Date.now(),
+        });
+        activeConvId = convId;
+        frodon.sendDM(peerId, PLUGIN_ID, { type:'anon_msg', convId, text,
+          _label:'🕵 Message anonyme reçu', _silent:false });
+      }
+
       saveConvs(list);
-
-      frodon.sendDM(peerId, PLUGIN_ID, { type:'anon_msg', convId, text,
-        _label:'🕵 Message anonyme reçu', _silent:false });
-      frodon.showToast('🕵 Envoyé anonymement à ' + peer.name + ' !');
+      frodon.showToast('🕵 Envoyé à ' + peer.name + ' !');
       frodon.refreshSphereTab(PLUGIN_ID);
-
-      // Réinitialiser le champ pour permettre un autre envoi
       ta.value = '';
-      btn.textContent = '✓ Envoyé ! Envoyer un autre…';
-      setTimeout(() => { btn.textContent = '🕵 Envoyer anonymement'; }, 1500);
+      btn.textContent = '✓ Envoyé !';
+      setTimeout(() => { btn.textContent = '🕵 Envoyer anonymement'; }, 1200);
     });
     container.appendChild(btn);
   });
@@ -176,10 +213,10 @@ frodon.register({
     replyRow.style.cssText = 'display:flex;gap:6px;padding:6px 10px 10px';
     const replyIn = document.createElement('input');
     replyIn.type = 'text'; replyIn.className = 'f-input';
-    replyIn.placeholder = 'Répondre…'; replyIn.maxLength = 500;
+    replyIn.placeholder = 'Envoyer un message…'; replyIn.maxLength = 500;
     replyIn.style.flex = '1';
 
-    const replyBtn = frodon.makeElement('button', 'plugin-action-btn acc', '↩');
+    const replyBtn = frodon.makeElement('button', 'plugin-action-btn acc', '↗');
     replyBtn.style.cssText += ';padding:0 12px;flex-shrink:0';
 
     const doReply = () => {
