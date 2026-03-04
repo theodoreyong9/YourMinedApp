@@ -267,48 +267,39 @@ frodon.register({
 
       wrap.appendChild(cvs);
 
-      // boutons sous le canvas
-      const btns = frodon.makeElement('div','');
-      btns.style.cssText = 'display:flex;gap:8px;margin-top:10px';
-
+      // Bouton unique : Jouer / Recommencer (Pause via clic canvas ou Espace)
       const btnStart = frodon.makeElement('button','plugin-action-btn acc', state && state.alive ? '🔄 Recommencer' : '▶ Jouer');
-      btnStart.style.fontSize = '.75rem';
+      btnStart.style.cssText = 'font-size:.75rem;margin-top:10px';
       btnStart.addEventListener('click', () => {
         startGame();
         cvs.focus();
         btnStart.textContent = '🔄 Recommencer';
       });
-      btns.appendChild(btnStart);
+      wrap.appendChild(btnStart);
 
-      const btnPause = frodon.makeElement('button','plugin-action-btn','⏸ Pause');
-      btnPause.style.fontSize = '.75rem';
-      btnPause.addEventListener('click', () => {
-        togglePause();
-        btnPause.textContent = state?.paused ? '▶ Reprendre' : '⏸ Pause';
-      });
-      btns.appendChild(btnPause);
-
-      wrap.appendChild(btns);
-
-      // contrôles tactiles
+      // D-pad tactile : structure flex sans cellules vides
       const dpad = frodon.makeElement('div','');
-      dpad.style.cssText = 'display:grid;grid-template-areas:"_ u _""l _ r""_ d _";grid-template-columns:44px 44px 44px;grid-template-rows:44px 44px 44px;gap:4px;margin-top:10px';
-      const arrows = [
-        ['u','▲','ArrowUp'],['l','◀','ArrowLeft'],['r','▶','ArrowRight'],['d','▼','ArrowDown']
-      ];
-      arrows.forEach(([area, sym, key]) => {
+      dpad.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:10px';
+      const mkBtn = (sym, key) => {
         const b = frodon.makeElement('button','plugin-action-btn');
-        b.style.cssText = `grid-area:${area};font-size:.9rem;padding:0;display:flex;align-items:center;justify-content:center;height:44px`;
+        b.style.cssText = 'width:44px;height:44px;font-size:.9rem;padding:0;display:flex;align-items:center;justify-content:center';
         b.textContent = sym;
-        b.addEventListener('click', () => { onKey({key, preventDefault:()=>{}}); });
-        dpad.appendChild(b);
-      });
+        b.addEventListener('click', () => { onKey({key, preventDefault:()=>{}}); cvs.focus(); });
+        return b;
+      };
+      const rowH = frodon.makeElement('div','');
+      rowH.style.cssText = 'display:flex;gap:4px';
+      rowH.appendChild(mkBtn('◀','ArrowLeft'));
+      rowH.appendChild(mkBtn('▼','ArrowDown'));
+      rowH.appendChild(mkBtn('▶','ArrowRight'));
+      dpad.appendChild(mkBtn('▲','ArrowUp'));
+      dpad.appendChild(rowH);
       wrap.appendChild(dpad);
 
       // hint
       const hint = frodon.makeElement('div','');
-      hint.style.cssText = 'font-size:.56rem;color:var(--txt3);font-family:var(--mono);margin-top:8px;text-align:center';
-      hint.textContent = 'WASD / ↑↓←→ · Espace = pause/démarrer';
+      hint.style.cssText = 'font-size:.56rem;color:var(--txt3);font-family:var(--mono);margin-top:6px;text-align:center';
+      hint.textContent = 'Clic canvas · WASD/↑↓←→ · Espace = pause';
       wrap.appendChild(hint);
 
       container.appendChild(wrap);
