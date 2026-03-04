@@ -45,74 +45,74 @@ frodon.register({
     if (payload.type === 'request_carousel') {
       if (!isActive()) return;
       const c = getMyCarousel();
-      // Compresse les images pour le DM (max 400×400, qualité 0.6)
-      function dmCompress(dataUrl, cb) {
-        if (!dataUrl.startsWith('data:image')) { cb(dataUrl); return; }
-        const img = new Image();
-        img.onload = () => {
-          let w = img.width, h = img.height;
-          const maxD = 400;
-          if (w > maxD || h > maxD) {
-            const r = Math.min(maxD/w, maxD/h);
-            w = Math.round(w*r); h = Math.round(h*r);
-          }
-          const cv = document.createElement('canvas');
-          cv.width = w; cv.height = h;
-          cv.getContext('2d').drawImage(img, 0, 0, w, h);
-          cb(cv.toDataURL('image/jpeg', 0.6));
-        };
-        img.onerror = () => cb(dataUrl);
-        img.src = dataUrl;
-      }
-      // Traiter toutes les images en série avant d'envoyer
-      const imgs = c.images.slice();
-      const compressed = [];
-      let i = 0;
-      function next() {
-        if (i >= imgs.length) {
+      // Envoie d'abord un header avec le titre + nombre d'images
+      // puis une image à la fois pour éviter les gros payloads DM
+      frodon.sendDM(fromId, PLUGIN_ID, {
+        type:  'carousel_header',
+        title: c.title,
+        total: c.images.length,
+        _label: '🖼 ' + c.title,
+        _silent: false,
+      });
+      // Envoie chaque image dans un DM séparé avec délai
+      c.images.forEach((img, idx) => {
+        setTimeout(() => {
           frodon.sendDM(fromId, PLUGIN_ID, {
-            type:   'carousel_data',
-            title:  c.title,
-            images: compressed,
-            _label: '🖼 ' + c.title,
-            _silent: false,
+            type:    'carousel_image',
+            title:   c.title,
+            idx:     idx,
+            total:   c.images.length,
+            url:     img.url,
+            caption: img.caption || '',
+            _silent: true,
           });
-          return;
-        }
-        dmCompress(imgs[i].url, url => {
-          compressed.push({ url, caption: imgs[i].caption });
-          i++; next();
-        });
-      }
-      next();
+        }, idx * 200); // 200ms entre chaque pour ne pas saturer
+      });
       return;
     }
 
-    // Réception d'un carousel demandé
-    if (payload.type === 'carousel_data') {
+    // Réception header : crée l'entrée vide dans received
+    if (payload.type === 'carousel_header') {
       const peer = frodon.getPeer(fromId);
       const peerName = peer?.name || 'Pair inconnu';
       const received = store.get('received') || [];
+      // Supprimer ancien carousel du même pair s'il existe
+      const existing = received.findIndex(r => r.fromId === fromId && r.title === payload.title);
+      if (existing >= 0) received.splice(existing, 1);
       received.unshift({
-        fromId,
-        fromName: peerName,
-        title:    payload.title,
-        images:   payload.images || [],
-        ts:       Date.now(),
+        fromId, fromName: peerName,
+        title: payload.title,
+        images: new Array(payload.total).fill(null), // placeholders
+        ts: Date.now(),
       });
       if (received.length > 30) received.length = 30;
       store.set('received', received);
-      frodon.showToast('🖼 Carousel de ' + peerName + ' reçu !');
-      // Ajouter dans le feed
+      frodon.showToast('🖼 Carousel de ' + peerName + ' en cours de réception…');
       frodon.addFeedEvent(fromId, {
-        pluginId:   PLUGIN_ID,
-        pluginName: 'Carousel',
-        pluginIcon: '🖼',
-        peerName,
-        text: '→ ' + (payload.title || 'Carousel') + ' · ' + (payload.images?.length || 0) + ' image(s)',
+        pluginId: PLUGIN_ID, pluginName: 'Carousel', pluginIcon: '🖼', peerName,
+        text: '→ ' + (payload.title || 'Carousel') + ' · ' + payload.total + ' image(s)',
       });
       frodon.refreshSphereTab(PLUGIN_ID);
       setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
+      return;
+    }
+
+    // Réception image individuelle
+    if (payload.type === 'carousel_image') {
+      const received = store.get('received') || [];
+      const item = received.find(r => r.fromId === fromId && r.title === payload.title);
+      if (item) {
+        // S'assurer que le tableau est assez grand
+        while (item.images.length <= payload.idx) item.images.push(null);
+        item.images[payload.idx] = { url: payload.url, caption: payload.caption };
+        store.set('received', received);
+        // Toast seulement à la dernière image
+        if (item.images.filter(Boolean).length === payload.total) {
+          const peer = frodon.getPeer(fromId);
+          frodon.showToast('🖼 Carousel de ' + (peer?.name || 'Pair inconnu') + ' reçu !');
+        }
+        frodon.refreshSphereTab(PLUGIN_ID);
+      }
       return;
     }
   });
@@ -398,6 +398,9 @@ frodon.register({
           refreshStatus();
           renderImageList();
           frodon.showToast('🖼 Carousel enregistré !');
+          // Fermer la config et revenir à l'onglet principal
+          frodon.refreshSphereTab(PLUGIN_ID);
+          setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 100);
         });
         saveWrap.appendChild(saveBtn);
 
