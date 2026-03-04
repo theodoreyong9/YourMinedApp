@@ -147,6 +147,8 @@ frodon.getAllPeers()
 
 > **Note :** Toujours tester `peer !== null` dans `registerPeerAction` — un pair peut se déconnecter pendant que la fiche est ouverte.
 
+> **`peerId` vs `stableId` :** `peerId` peut changer après reconnexion. `stableId` est stable mais **aucun plugin actuel ne l'utilise** — les plugins gèrent les reconnexions via `onPeerAppear` et la correspondance par nom (`peer.name`). Utiliser `stableId` uniquement si votre plugin doit identifier un utilisateur de façon strictement persistante.
+
 ---
 
 ### 3.2 Messagerie P2P (DM)
@@ -166,11 +168,31 @@ frodon.onDM(pluginId, (fromId, payload) => { })
 | `_silent: true` | bool | Aucun événement dans le feed SPHERE |
 | `_label: 'texte'` | string | Texte affiché dans le feed du récepteur |
 
-**Règle :** Messages de protocole interne → toujours `_silent: true`. Messages visibles → toujours `_label`.
+**Règle :** Messages de protocole interne → toujours `_silent: true`. Messages visibles → `_label` (sans `_silent`, ou `_silent: false` explicite).
+
+> ⚠️ **Règle de priorité :** `_silent:true` supprime l'événement feed **même si `_label` est présent dans le même payload**. Pour garantir la visibilité, utiliser `_silent:false` explicitement avec `_label`, ou simplement omettre `_silent`.
+
+> ⚠️ **Wrapper `send()` :** Si votre wrapper intègre `_silent:true` après un spread (`{type, ...payload, _silent:true}`), tout `_label` dans `payload` sera ignoré car `_silent:true` prend le dessus. Solution : mettre `_silent:true` avant le spread, ou exclure le `_label` du payload pour les messages que vous voulez silencieux.
 
 ```js
-// ✅ Protocole interne
+// ✅ Protocole interne — silencieux garanti
 frodon.sendDM(peerId, PLUGIN_ID, { type: 'sync', state: {...}, _silent: true });
+
+// ✅ Visible — _silent omis (visible par défaut) 
+frodon.sendDM(peerId, PLUGIN_ID, { type: 'challenge', _label: '🎯 Défi reçu !' });
+
+// ✅ Visible — _silent:false explicite (pattern défensif recommandé)
+frodon.sendDM(peerId, PLUGIN_ID, { type: 'carousel_header', _label: '🖼 Portfolio', _silent: false });
+
+// ⚠️ Piège wrapper : _silent:true dans le wrapper rend TOUT silencieux
+function send(pid, type, payload) {
+  frodon.sendDM(pid, PLUGIN_ID, { type, ...payload, _silent: true }); // _label dans payload ignoré !
+}
+// Solution si certains messages du wrapper doivent être visibles :
+function send(pid, type, payload, silent = true) {
+  frodon.sendDM(pid, PLUGIN_ID, { type, ...payload, _silent: silent });
+}
+send(peerId, 'invite', { players, _label: '🃏 Invitation !' }, false); // visible
 
 // ✅ Notification visible
 frodon.sendDM(peerId, PLUGIN_ID, { type: 'challenge', _label: '🎯 Défi reçu !' });
@@ -398,7 +420,7 @@ frodon.addFeedEvent(peerId, {
 });
 ```
 
-**Règle :** `_label` pour les événements **entrants** (je reçois), `addFeedEvent` pour les événements **sortants** (j'envoie).
+**En pratique :** Tous les plugins existants utilisent uniquement `_label`. `addFeedEvent` est disponible pour les événements **sortants** que vous voulez explicitement logguer dans votre propre feed, mais c'est optionnel.
 
 ---
 
@@ -686,8 +708,14 @@ render(container) {
 
 Pour les jeux où le score évolue très vite (tap, clics rapides), ne pas appeler `refreshSphereTab` à chaque action — mettre à jour le DOM directement.
 
+> **Zone tapable mobile :** utiliser un `div` (pas un `button`) + `pointerdown` (pas `click`). Ajouter `touch-action:manipulation` pour empêcher le double-tap zoom sur iOS/Android, et `user-select:none` pour éviter la sélection de texte pendant un tap intensif.
+
 ```js
-// Bouton tapable : utiliser pointerdown (pas click) pour la réactivité tactile
+// Créer la zone tapable comme div (plus réactif que button sur mobile)
+const tapBtn = document.createElement('div');
+tapBtn.style.cssText = '...;touch-action:manipulation;user-select:none;-webkit-user-select:none';
+
+// pointerdown (pas click) pour la réactivité maximale
 tapBtn.addEventListener('pointerdown', e => {
   e.preventDefault();
   if (!game || game.phase !== 'playing') return;
@@ -713,6 +741,240 @@ const barInterval = setInterval(() => {
   bar.style.width = Math.round((1 - elapsed) * 100) + '%';
 }, 250);
 ```
+
+---
+
+### 5.6 Jeu visuel avec Canvas
+
+Pour les jeux avec rendu graphique (snake, arcade), utiliser un `<canvas>` géré directement.
+
+```js
+// Création du canvas
+const cvs = document.createElement('canvas');
+cvs.width  = COLS * CELL;
+cvs.height = ROWS * CELL;
+cvs.style.cssText = 'border-radius:8px;border:1.5px solid rgba(0,245,200,.25);cursor:pointer;outline:none;display:block';
+cvs.setAttribute('tabindex', '0'); // OBLIGATOIRE pour recevoir les keydown
+
+// Conserver une référence module-level pour les mises à jour depuis le game loop
+let canvas = null;
+// Dans render() :
+canvas = cvs;
+
+// Game loop avec setInterval
+let loop = null;
+function startGame() {
+  clearInterval(loop);
+  state = newState();
+  loop = setInterval(tick, state.speed);
+}
+
+// Contrôles clavier sur le canvas
+cvs.addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); togglePause(); }
+  // ...
+});
+
+// Contrôles tactile : clic canvas → calculer la direction depuis la tête
+cvs.addEventListener('click', e => {
+  const rect = cvs.getBoundingClientRect();
+  const scaleX = cvs.width / rect.width;
+  const cx = (e.clientX - rect.left) * scaleX;
+  const hx = snake[0].x * CELL + CELL / 2;
+  const dx = cx - hx;
+  // Vecteur dominant = direction, demi-tour interdit
+});
+
+// D-pad DOM pour mobile (flex sans cellules vides)
+const dpad = frodon.makeElement('div','');
+dpad.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:10px';
+const mkBtn = (sym, key) => {
+  const b = frodon.makeElement('button','plugin-action-btn');
+  b.style.cssText = 'width:44px;height:44px;font-size:.9rem;padding:0;display:flex;align-items:center;justify-content:center';
+  b.textContent = sym;
+  b.addEventListener('click', () => { simulateKey(key); cvs.focus(); });
+  return b;
+};
+const rowH = frodon.makeElement('div','');
+rowH.style.cssText = 'display:flex;gap:4px';
+rowH.appendChild(mkBtn('◀','ArrowLeft'));
+rowH.appendChild(mkBtn('▼','ArrowDown'));
+rowH.appendChild(mkBtn('▶','ArrowRight'));
+dpad.appendChild(mkBtn('▲','ArrowUp'));
+dpad.appendChild(rowH);
+
+// Nettoyage dans destroy() et registerUninstallHook
+return { destroy() { clearInterval(loop); loop = null; } };
+frodon.registerUninstallHook(PLUGIN_ID, () => { clearInterval(loop); loop = null; });
+
+// Focus automatique après render
+container.appendChild(cvs);
+setTimeout(() => cvs.focus(), 100);
+```
+
+**Dessin sur canvas :**
+```js
+function draw() {
+  if (!canvas || !state) return;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0d0d1a'; // fond
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Utiliser les variables CSS via getComputedStyle ou hardcoder les couleurs FRODON
+  // --acc = #00f5c8 | --acc2 = #7c4dff | --warn = #ff6b35 | --ok = #00e87a
+}
+```
+---
+
+### 5.7 Techniques DOM avancées
+
+**Hover sur éléments dynamiques (sans CSS injection) :**
+```js
+// :hover ne fonctionne pas sur les éléments créés dynamiquement sans classe CSS
+// → Utiliser mouseenter/mouseleave
+sq.addEventListener('mouseenter', () => {
+  sq.style.background = 'var(--bdr)';
+  if (!cell) sq.innerHTML = '<span style="color:rgba(255,107,53,.25)">✕</span>';
+});
+sq.addEventListener('mouseleave', () => {
+  sq.style.background = 'var(--sur2)';
+  if (!cell) sq.innerHTML = '';
+});
+```
+
+**innerHTML pour le HTML statique complexe :**
+```js
+// Acceptable pour les blocs de HTML statique qui ne contiennent pas d'événements
+const w = frodon.makeElement('div', '');
+w.innerHTML = `
+  <div style="font-size:2rem;margin-bottom:8px">🃏</div>
+  <div style="font-size:.88rem;font-weight:700">${peer.name} vous invite</div>
+  <div style="font-size:.68rem;color:var(--txt2)">Texas Hold'em · ${sb}/${bb}</div>
+`;
+// ⚠️ Ne pas attacher d'événements sur des éléments créés via innerHTML → utiliser
+//    container.querySelector() après insertion, ou créer ces éléments séparément.
+```
+
+**Grille 4 colonnes pour boutons emoji :**
+```js
+const grid = frodon.makeElement('div', '');
+grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px';
+
+reactions.forEach(({ emoji, label }) => {
+  const btn = frodon.makeElement('button', 'plugin-action-btn');
+  btn.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;font-size:1.3rem;line-height:1';
+  btn.innerHTML = emoji; // emoji en grand
+  const lbl = frodon.makeElement('span', '', label);
+  lbl.style.cssText = 'font-size:.52rem;color:var(--txt2);font-weight:400;line-height:1.2';
+  btn.appendChild(lbl);
+  grid.appendChild(btn);
+});
+```
+
+**Ratio 1:1 pour les cases de jeu :**
+```js
+sq.style.cssText = 'aspect-ratio:1;display:flex;align-items:center;justify-content:center;...';
+```
+
+**Capture de variables de closure avant mutation d'état :**
+```js
+// ⚠️ Capturer AVANT toute mutation — les handlers asynchrones liront la valeur au moment du clic
+function renderResult(container) {
+  const savedPeerId   = game.peerId;   // capturé ici
+  const savedPeerName = game.peerName; // avant cleanGame() ou innerHTML
+  
+  const again = frodon.makeElement('button', 'plugin-action-btn acc', '🔄 Rejouer');
+  again.addEventListener('click', () => {
+    newGame(savedPeerId, savedPeerName, ''); // utilise les copies
+    frodon.sendDM(savedPeerId, PLUGIN_ID, { type: 'challenge', _silent: false, _label: '👆 Revanche !' });
+  });
+}
+```
+
+**Ouvrir le profil d'un pair depuis une liste :**
+```js
+const nameEl = frodon.makeElement('div', '');
+nameEl.style.cssText = 'font-size:.74rem;font-weight:700;color:var(--acc2);cursor:pointer';
+nameEl.textContent = peerName;
+nameEl.addEventListener('click', () => frodon.openPeer(peerId));
+```
+
+**Zone tapable mobile (div, pas button) :**
+```js
+// Pour les zones de tap intensif sur mobile, utiliser div + pointerdown (pas button + click)
+const tapZone = document.createElement('div');
+tapZone.style.cssText = 'width:120px;height:120px;border-radius:50%;cursor:pointer;' +
+  'touch-action:manipulation;' +          // ← empêche le double-tap zoom sur iOS/Android
+  'user-select:none;-webkit-user-select:none;' +  // ← empêche la sélection de texte
+  'overflow:hidden;border:4px solid var(--warn)';
+tapZone.addEventListener('pointerdown', e => {
+  e.preventDefault(); // empêche le comportement par défaut (sélection, scroll)
+  // traiter le tap
+});
+```
+
+**Réception progressive avec placeholders :**
+```js
+// Réception de N items envoyés en DMs séparés — préparer un tableau de N null
+function onHeader(total, fromId) {
+  store.set('item_' + fromId, {
+    items: new Array(total).fill(null), // indices fixes, remplis au fur et à mesure
+    total,
+  });
+}
+
+function onItem(idx, data, fromId) {
+  const rec = store.get('item_' + fromId);
+  if (!rec) return;
+  while (rec.items.length <= idx) rec.items.push(null); // sécurité taille
+  rec.items[idx] = data;
+  store.set('item_' + fromId, rec);
+  const received = rec.items.filter(Boolean).length;
+  frodon.refreshSphereTab(PLUGIN_ID);
+  if (received === rec.total) {
+    frodon.showToast('✅ Tous les éléments reçus !');
+    setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
+  }
+}
+```
+
+**`plugin-actions-row` pour une rangée de boutons :**
+```js
+const row = frodon.makeElement('div', 'plugin-actions-row');
+row.appendChild(frodon.makeElement('button', 'plugin-action-btn', '🔄 Revanche'));
+row.appendChild(frodon.makeElement('button', 'plugin-action-btn acc', '▶ Ouvrir'));
+container.appendChild(row);
+// plugin-actions-row applique : display:flex; gap; flex-wrap:wrap
+```
+
+**Anti-boucle refreshPeerModal depuis onDM :**
+```js
+frodon.onDM(PLUGIN_ID, (fromId, payload) => {
+  if (payload.type === 'meta') {
+    const prevMeta = store.get('peer_meta_' + fromId);
+    store.set('peer_meta_' + fromId, payload);
+    // Refresh SEULEMENT si c'est la première réception
+    // → évite boucle infinie : refreshPeerModal → render → sendDM → refreshPeerModal
+    if (!prevMeta) frodon.refreshPeerModal(fromId);
+  }
+});
+// Dans registerPeerAction :
+// if (!meta) sendDM(request) ← guard côté envoi
+// → la boucle est cassée par les deux guards combinés
+```
+
+**registerUninstallHook avec plusieurs parties actives :**
+```js
+frodon.registerUninstallHook(PLUGIN_ID, () => {
+  Object.entries(games).forEach(([gameId, game]) => {
+    if (!game.done) {
+      game.done = true;
+      addScore('loss', game.opponentId); // enregistrer la défaite
+      frodon.sendDM(game.opponentId, PLUGIN_ID, { type: 'forfeit', gameId, _silent: true });
+    }
+  });
+});
+```
+
 
 ---
 
@@ -747,6 +1009,72 @@ btn.addEventListener('click', () => {
 // ✅ Réutiliser le convId existant, n'en créer un que si aucun n'existe
 let convId = getExistingConvId(peerId) || createNewConvId();
 ```
+
+
+### Pattern helpers utilitaires
+
+```js
+// Raccourcis courants dans la closure du plugin
+const me = () => frodon.getMyProfile().peerId;
+const peerName = id => frodon.getPeer(id)?.name || 'Pair inconnu';
+
+// Avatar avec initiales fallback (HTML inline)
+function avatarHTML(peer, size = 32) {
+  const colors = ['#00f5c8','#7c4dff','#ff6b35','#00e87a'];
+  const name = peer?.name || '?';
+  const color = colors[name.charCodeAt(0) % colors.length];
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;
+    background:var(--sur2);display:flex;align-items:center;justify-content:center;
+    font-size:${size*.38}px;color:${color};font-weight:700">
+    ${name[0].toUpperCase()}</div>`;
+}
+```
+
+### Gestion de plusieurs parties simultanées
+
+```js
+// Pattern poker/tictactoe : objet keyed par ID de partie
+const games = {};
+
+function getGameByPeer(peerId) {
+  return Object.values(games).find(g => g.opponentId === peerId);
+}
+
+// persist : économiser localStorage pour les clients
+function persist() {
+  const save = {};
+  for (const [id, g] of Object.entries(games)) {
+    save[id] = { ...g, deck: g.isHost ? g.deck : [] }; // pas de deck côté client
+  }
+  if (!Object.keys(save).length) store.del('games');
+  else store.set('games', save);
+}
+```
+
+### Actions destructives
+
+```js
+// confirm() natif pour les actions irréversibles
+del.addEventListener('click', () => {
+  if (!confirm('Supprimer cette image ?')) return;
+  editImages.splice(i, 1);
+  renderImageList();
+});
+```
+
+### DMs séquentiels asynchrones
+
+```js
+// Envoyer plusieurs DMs en séquence avec délai (évite saturation WebRTC)
+(async () => {
+  for (let i = 0; i < items.length; i++) {
+    const data = await processItem(items[i]); // compression, etc.
+    await new Promise(r => setTimeout(r, 400)); // délai entre envois
+    frodon.sendDM(peerId, PLUGIN_ID, { type: 'item', idx: i, data, _silent: true });
+  }
+})();
+```
+
 
 ### `Set` non sérialisable
 
