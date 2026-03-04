@@ -34,7 +34,7 @@ frodon.register({
     // Réception de la meta d'un pair (réponse à request_meta)
     if (payload.type === 'meta') {
       store.set('peer_meta_' + fromId, { title: payload.title, count: payload.count, active: payload.active });
-      frodon.refreshPeerModal(fromId);
+      // Pas de refreshPeerModal ici — évite la boucle infinie render→request→meta→refresh→render
       return;
     }
 
@@ -85,8 +85,8 @@ frodon.register({
   frodon.registerPeerAction(PLUGIN_ID, '🖼 Carousel', (peerId, container) => {
     const meta = store.get('peer_meta_' + peerId);
 
-    // Toujours demander la meta fraîche
-    frodon.sendDM(peerId, PLUGIN_ID, { type: 'request_meta', _silent: true });
+    // Demander la meta seulement si absente (évite la boucle render→DM→refreshPeerModal→render)
+    if (!meta) frodon.sendDM(peerId, PLUGIN_ID, { type: 'request_meta', _silent: true });
 
     if (!meta) {
       const loading = frodon.makeElement('div', '');
@@ -159,103 +159,95 @@ frodon.register({
       id: 'my_carousel', label: '🖼 Mon carousel',
       settings: true,
       render(container) {
+        // État local du formulaire — pas de refreshSphereTab intermédiaire
         const c = getMyCarousel();
-        const form = frodon.makeElement('div','');
-        form.style.cssText = 'padding:10px 10px 14px';
+        // Images en cours d'édition (ajouts/suppressions sans rechargement)
+        let editImages = c.images.map(img => ({...img}));
+        let pendingDataUrl = null;
+
+        const wrap = frodon.makeElement('div','');
+        wrap.style.cssText = 'padding:10px 10px 14px';
 
         // Statut
         const status = frodon.makeElement('div','');
         status.style.cssText = 'font-size:.7rem;font-family:var(--mono);margin-bottom:10px;padding:6px 8px;border-radius:6px;border:1px solid';
-        if (isActive()) {
-          status.textContent = '● Carousel actif — visible sur votre profil';
-          status.style.color = 'var(--ok)';
-          status.style.borderColor = 'rgba(0,229,122,.25)';
-          status.style.background = 'rgba(0,229,122,.06)';
-        } else {
-          status.textContent = '○ Renseignez un titre et ajoutez des images pour activer';
-          status.style.color = 'var(--txt3)';
-          status.style.borderColor = 'var(--bdr)';
-        }
-        form.appendChild(status);
+        const refreshStatus = () => {
+          const active = isActive();
+          status.textContent = active ? '● Carousel actif — visible sur votre profil' : '○ Renseignez un titre et ajoutez des images pour activer';
+          status.style.color = active ? 'var(--ok)' : 'var(--txt3)';
+          status.style.borderColor = active ? 'rgba(0,229,122,.25)' : 'var(--bdr)';
+          status.style.background = active ? 'rgba(0,229,122,.06)' : 'transparent';
+        };
+        refreshStatus();
+        wrap.appendChild(status);
 
         // Titre
         const lbl = frodon.makeElement('div','');
         lbl.style.cssText = 'font-size:.62rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px';
         lbl.textContent = 'Nom du carousel *';
-        form.appendChild(lbl);
+        wrap.appendChild(lbl);
         const titleInp = document.createElement('input');
         titleInp.className = 'f-input';
         titleInp.placeholder = 'ex: Mon portfolio, Vacances 2024…';
         titleInp.maxLength = 60;
         titleInp.value = c.title || '';
-        form.appendChild(titleInp);
+        wrap.appendChild(titleInp);
 
-        // Toggle actif
+        // Toggle actif (juste un checkbox visuel, sauvé avec le bouton principal)
         const togRow = frodon.makeElement('div','');
-        togRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-top:12px;margin-bottom:6px;padding:8px 0;border-top:1px solid var(--bdr)';
+        togRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:8px 0;border-top:1px solid var(--bdr)';
         const togLbl = frodon.makeElement('div','');
         togLbl.style.cssText = 'font-size:.72rem;color:var(--txt)';
         togLbl.textContent = 'Visible sur mon profil';
-        const togBtn = frodon.makeElement('button', 'plugin-action-btn' + (c.active ? ' acc' : ''), c.active ? '✔ Activé' : '○ Désactivé');
+        let activeState = c.active;
+        const togBtn = frodon.makeElement('button', 'plugin-action-btn' + (activeState ? ' acc' : ''), activeState ? '✔ Activé' : '○ Désactivé');
         togBtn.style.fontSize = '.65rem';
         togBtn.addEventListener('click', () => {
-          const c2 = getMyCarousel();
-          c2.active = !c2.active;
-          store.set('carousel', c2);
-          frodon.refreshSphereTab(PLUGIN_ID);
-          frodon.refreshProfileModal();
+          activeState = !activeState;
+          togBtn.textContent = activeState ? '✔ Activé' : '○ Désactivé';
+          togBtn.className = 'plugin-action-btn' + (activeState ? ' acc' : '');
         });
         togRow.appendChild(togLbl);
         togRow.appendChild(togBtn);
-        form.appendChild(togRow);
+        wrap.appendChild(togRow);
+        container.appendChild(wrap);
 
-        // Bouton sauver titre
-        const saveTitle = frodon.makeElement('button','plugin-action-btn acc','💾 Enregistrer le titre');
-        saveTitle.style.cssText += ';width:100%;margin-bottom:14px';
-        saveTitle.addEventListener('click', () => {
-          const t = titleInp.value.trim();
-          if (!t) { frodon.showToast('Le titre est obligatoire', true); return; }
-          const c2 = getMyCarousel();
-          c2.title = t;
-          store.set('carousel', c2);
-          frodon.showToast('🖼 Titre enregistré !');
-          frodon.refreshSphereTab(PLUGIN_ID);
-          frodon.refreshProfileModal();
-        });
-        form.appendChild(saveTitle);
-        container.appendChild(form);
+        // Liste des images (rendu dynamique dans un conteneur dédié)
+        const imgSec = frodon.makeElement('div','section-label','');
+        imgSec.style.margin = '8px 10px 4px';
+        container.appendChild(imgSec);
+        const imgList = frodon.makeElement('div','');
+        container.appendChild(imgList);
 
-        // Liste des images
-        const secImg = frodon.makeElement('div','section-label', 'Images (' + c.images.length + ')');
-        secImg.style.margin = '0 10px 6px';
-        container.appendChild(secImg);
-
-        c.images.forEach((img, i) => {
-          const row = frodon.makeElement('div','');
-          row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bdr)';
-          const thumb = document.createElement('img');
-          thumb.src = img.url;
-          thumb.style.cssText = 'width:40px;height:40px;object-fit:cover;border-radius:6px;flex-shrink:0;background:var(--sur2)';
-          const info = frodon.makeElement('div','');
-          info.style.cssText = 'flex:1;min-width:0';
-          const nm = frodon.makeElement('div','');
-          nm.style.cssText = 'font-size:.68rem;font-weight:600;color:var(--txt)';
-          nm.textContent = 'Image ' + (i + 1);
-          const cap = frodon.makeElement('div','');
-          cap.style.cssText = 'font-size:.58rem;color:var(--txt3);font-style:italic';
-          cap.textContent = img.caption || '(sans légende)';
-          info.appendChild(nm); info.appendChild(cap);
-          const del = frodon.makeElement('button','plugin-action-btn','✕');
-          del.style.cssText = 'font-size:.65rem;color:var(--warn);flex-shrink:0;padding:4px 8px';
-          del.addEventListener('click', () => {
-            const c2 = getMyCarousel();
-            c2.images.splice(i, 1);
-            store.set('carousel', c2);
-            frodon.refreshSphereTab(PLUGIN_ID);
+        function renderImageList() {
+          imgSec.textContent = 'Images (' + editImages.length + ')';
+          imgList.innerHTML = '';
+          editImages.forEach((img, i) => {
+            const row = frodon.makeElement('div','');
+            row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bdr)';
+            const thumb = document.createElement('img');
+            thumb.src = img.url;
+            thumb.style.cssText = 'width:40px;height:40px;object-fit:cover;border-radius:6px;flex-shrink:0;background:var(--sur2)';
+            const info = frodon.makeElement('div','');
+            info.style.cssText = 'flex:1;min-width:0';
+            const nm = frodon.makeElement('div','');
+            nm.style.cssText = 'font-size:.68rem;font-weight:600;color:var(--txt)';
+            nm.textContent = 'Image ' + (i + 1);
+            const cap = frodon.makeElement('div','');
+            cap.style.cssText = 'font-size:.58rem;color:var(--txt3);font-style:italic';
+            cap.textContent = img.caption || '(sans légende)';
+            info.appendChild(nm); info.appendChild(cap);
+            const del = frodon.makeElement('button','plugin-action-btn','✕');
+            del.style.cssText = 'font-size:.65rem;color:var(--warn);flex-shrink:0;padding:4px 8px';
+            del.addEventListener('click', () => {
+              editImages.splice(i, 1);
+              renderImageList();
+            });
+            row.appendChild(thumb); row.appendChild(info); row.appendChild(del);
+            imgList.appendChild(row);
           });
-          row.appendChild(thumb); row.appendChild(info); row.appendChild(del);
-          container.appendChild(row);
-        });
+        }
+        renderImageList();
 
         // Ajouter image
         const addSec = frodon.makeElement('div','section-label','Ajouter une image');
@@ -263,9 +255,8 @@ frodon.register({
         container.appendChild(addSec);
 
         const addForm = frodon.makeElement('div','');
-        addForm.style.cssText = 'padding:0 10px 14px;display:flex;flex-direction:column;gap:8px';
+        addForm.style.cssText = 'padding:0 10px 8px;display:flex;flex-direction:column;gap:8px';
 
-        // Zone drop
         const dropZone = frodon.makeElement('div','');
         dropZone.style.cssText = 'border:2px dashed var(--bdr2);border-radius:10px;padding:16px;text-align:center;cursor:pointer;background:var(--sur2)';
         const dropLbl = frodon.makeElement('div','');
@@ -285,7 +276,6 @@ frodon.register({
 
         const fileInp = document.createElement('input');
         fileInp.type = 'file'; fileInp.accept = 'image/*'; fileInp.style.display = 'none';
-        let pendingDataUrl = null;
 
         function loadFile(file) {
           if (!file) return;
@@ -296,7 +286,7 @@ frodon.register({
             preImg.src = pendingDataUrl;
             preName.textContent = file.name;
             dropZone.style.display = 'none';
-            preview.style.display  = 'flex';
+            preview.style.display = 'flex';
           };
           reader.readAsDataURL(file);
         }
@@ -306,11 +296,10 @@ frodon.register({
         dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--acc)'; });
         dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--bdr2)'; });
         dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--bdr2)'; loadFile(e.dataTransfer.files[0]); });
-
         preReset.addEventListener('click', () => {
           pendingDataUrl = null; fileInp.value = '';
           preImg.src = ''; preName.textContent = '';
-          preview.style.display  = 'none';
+          preview.style.display = 'none';
           dropZone.style.display = '';
         });
 
@@ -323,37 +312,52 @@ frodon.register({
         capInp.placeholder = 'Légende (optionnel)'; capInp.style.width = '100%';
         addForm.appendChild(capInp);
 
-        const addBtn = frodon.makeElement('button','plugin-action-btn acc','＋ Ajouter au carousel');
+        const addBtn = frodon.makeElement('button','plugin-action-btn','＋ Mettre en file');
         addBtn.style.cssText = 'width:100%;font-size:.72rem';
         addBtn.addEventListener('click', () => {
           if (!pendingDataUrl) { frodon.showToast('⚠ Choisissez une image', true); return; }
-          const c2 = getMyCarousel();
-          c2.images.push({ url: pendingDataUrl, caption: capInp.value.trim() });
-          store.set('carousel', c2);
+          editImages.push({ url: pendingDataUrl, caption: capInp.value.trim() });
           pendingDataUrl = null; fileInp.value = ''; capInp.value = '';
           preImg.src = ''; preName.textContent = '';
-          preview.style.display  = 'none';
+          preview.style.display = 'none';
           dropZone.style.display = '';
-          frodon.showToast('🖼 Image ajoutée !');
-          frodon.refreshSphereTab(PLUGIN_ID);
-          frodon.refreshProfileModal();
+          renderImageList();
+          frodon.showToast('🖼 Image en attente — cliquez Enregistrer pour sauver');
         });
         addForm.appendChild(addBtn);
         container.appendChild(addForm);
 
-        if (c.images.length) {
+        // Bouton Enregistrer UNIQUE
+        const saveWrap = frodon.makeElement('div','');
+        saveWrap.style.cssText = 'padding:10px 10px 6px;border-top:1px solid var(--bdr);margin-top:4px';
+        const saveBtn = frodon.makeElement('button','plugin-action-btn acc','💾 Enregistrer tout');
+        saveBtn.style.width = '100%';
+        saveBtn.addEventListener('click', () => {
+          const t = titleInp.value.trim();
+          if (!t) { frodon.showToast('Le titre est obligatoire', true); return; }
+          const c2 = getMyCarousel();
+          c2.title = t;
+          c2.active = activeState;
+          c2.images = editImages;
+          store.set('carousel', c2);
+          refreshStatus();
+          renderImageList();
+          frodon.showToast('🖼 Carousel enregistré !');
+        });
+        saveWrap.appendChild(saveBtn);
+
+        if (editImages.length) {
           const clr = frodon.makeElement('button','plugin-action-btn');
-          clr.style.cssText = 'font-size:.62rem;margin:0 10px 10px;width:calc(100% - 20px);color:var(--warn);border-color:var(--warn)';
-          clr.textContent = '🗑 Vider le carousel';
+          clr.style.cssText = 'font-size:.62rem;margin-top:8px;width:100%;color:var(--warn);border-color:var(--warn)';
+          clr.textContent = '🗑 Vider toutes les images';
           clr.addEventListener('click', () => {
             if (!confirm('Vider toutes les images ?')) return;
-            const c2 = getMyCarousel();
-            c2.images = [];
-            store.set('carousel', c2);
-            frodon.refreshSphereTab(PLUGIN_ID);
+            editImages = [];
+            renderImageList();
           });
-          container.appendChild(clr);
+          saveWrap.appendChild(clr);
         }
+        container.appendChild(saveWrap);
       }
     },
     {
