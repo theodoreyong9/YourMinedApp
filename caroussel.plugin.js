@@ -45,13 +45,46 @@ frodon.register({
     if (payload.type === 'request_carousel') {
       if (!isActive()) return;
       const c = getMyCarousel();
-      frodon.sendDM(fromId, PLUGIN_ID, {
-        type:   'carousel_data',
-        title:  c.title,
-        images: c.images,
-        _label: '🖼 ' + c.title,
-        _silent: false,
-      });
+      // Compresse les images pour le DM (max 400×400, qualité 0.6)
+      function dmCompress(dataUrl, cb) {
+        if (!dataUrl.startsWith('data:image')) { cb(dataUrl); return; }
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          const maxD = 400;
+          if (w > maxD || h > maxD) {
+            const r = Math.min(maxD/w, maxD/h);
+            w = Math.round(w*r); h = Math.round(h*r);
+          }
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          cb(cv.toDataURL('image/jpeg', 0.6));
+        };
+        img.onerror = () => cb(dataUrl);
+        img.src = dataUrl;
+      }
+      // Traiter toutes les images en série avant d'envoyer
+      const imgs = c.images.slice();
+      const compressed = [];
+      let i = 0;
+      function next() {
+        if (i >= imgs.length) {
+          frodon.sendDM(fromId, PLUGIN_ID, {
+            type:   'carousel_data',
+            title:  c.title,
+            images: compressed,
+            _label: '🖼 ' + c.title,
+            _silent: false,
+          });
+          return;
+        }
+        dmCompress(imgs[i].url, url => {
+          compressed.push({ url, caption: imgs[i].caption });
+          i++; next();
+        });
+      }
+      next();
       return;
     }
 
@@ -128,9 +161,8 @@ frodon.register({
     btn.style.width = '100%';
     btn.addEventListener('click', () => {
       frodon.sendDM(peerId, PLUGIN_ID, { type: 'request_carousel', _silent: true });
-      frodon.showToast('🖼 Demande envoyée, ouverture en cours…');
-      btn.textContent = '⌛ Chargement…';
-      btn.disabled = true;
+      frodon.showToast('🖼 Demande envoyée — le carousel va s\'ouvrir dans SPHERE');
+      btn.textContent = '✔ Demande envoyée';
     });
     container.appendChild(btn);
   });
@@ -280,16 +312,36 @@ frodon.register({
         const fileInp = document.createElement('input');
         fileInp.type = 'file'; fileInp.accept = 'image/*'; fileInp.style.display = 'none';
 
+        function compressImage(dataUrl, maxW, maxH, quality, cb) {
+          const img = new Image();
+          img.onload = () => {
+            let w = img.width, h = img.height;
+            if (w > maxW || h > maxH) {
+              const ratio = Math.min(maxW / w, maxH / h);
+              w = Math.round(w * ratio);
+              h = Math.round(h * ratio);
+            }
+            const cvs = document.createElement('canvas');
+            cvs.width = w; cvs.height = h;
+            cvs.getContext('2d').drawImage(img, 0, 0, w, h);
+            cb(cvs.toDataURL('image/jpeg', quality));
+          };
+          img.src = dataUrl;
+        }
+
         function loadFile(file) {
           if (!file) return;
-          if (file.size > 2 * 1024 * 1024) { frodon.showToast('⚠ Image trop lourde (max 2 Mo)', true); return; }
+          if (file.size > 10 * 1024 * 1024) { frodon.showToast('⚠ Image trop lourde (max 10 Mo)', true); return; }
           const reader = new FileReader();
           reader.onload = ev => {
-            pendingDataUrl = ev.target.result;
-            preImg.src = pendingDataUrl;
-            preName.textContent = file.name;
-            dropZone.style.display = 'none';
-            preview.style.display = 'flex';
+            // Compresse à max 800×800 qualité 0.75 pour le stockage et l'envoi DM
+            compressImage(ev.target.result, 800, 800, 0.75, compressed => {
+              pendingDataUrl = compressed;
+              preImg.src = compressed;
+              preName.textContent = file.name;
+              dropZone.style.display = 'none';
+              preview.style.display = 'flex';
+            });
           };
           reader.readAsDataURL(file);
         }
