@@ -79,6 +79,7 @@ frodon.register({
     hist.unshift({ score: state.score, ts: Date.now() });
     if (hist.length > 20) hist.length = 20;
     store.set('history', hist);
+    frodon.refreshSphereTab(PLUGIN_ID);
     draw();
   }
 
