@@ -43,7 +43,7 @@ frodon.register({
 
     // Quelqu'un demande notre carousel
     if (payload.type === 'request_carousel') {
-      if (!isActive()) return;
+      if (!isActive()) { frodon.sendDM(fromId, PLUGIN_ID, {type:'carousel_error', reason:'inactif', _silent:true}); return; }
       const c = getMyCarousel();
       // Envoie d'abord un header avec le titre + nombre d'images
       // puis une image à la fois pour éviter les gros payloads DM
@@ -68,6 +68,12 @@ frodon.register({
           });
         }, idx * 200); // 200ms entre chaque pour ne pas saturer
       });
+      return;
+    }
+
+    if (payload.type === 'carousel_error') {
+      frodon.showToast('🖼 Ce pair n\'a pas de carousel actif.');
+      frodon.refreshPeerModal(fromId);
       return;
     }
 
@@ -398,9 +404,8 @@ frodon.register({
           refreshStatus();
           renderImageList();
           frodon.showToast('🖼 Carousel enregistré !');
-          // Fermer la config et revenir à l'onglet principal
           frodon.refreshSphereTab(PLUGIN_ID);
-          setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 100);
+          frodon.refreshProfileModal();
         });
         saveWrap.appendChild(saveBtn);
 
