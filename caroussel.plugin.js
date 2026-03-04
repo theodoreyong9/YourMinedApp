@@ -33,8 +33,11 @@ frodon.register({
 
     // Réception de la meta d'un pair (réponse à request_meta)
     if (payload.type === 'meta') {
+      const prevMeta = store.get('peer_meta_' + fromId);
       store.set('peer_meta_' + fromId, { title: payload.title, count: payload.count, active: payload.active });
-      // Pas de refreshPeerModal ici — évite la boucle infinie render→request→meta→refresh→render
+      // Rafraîchit le profil seulement si c'est la première réception (meta absente avant)
+      // Le guard "if (!meta) sendDM" dans registerPeerAction empêche la boucle au 2e tour
+      if (!prevMeta) frodon.refreshPeerModal(fromId);
       return;
     }
 
