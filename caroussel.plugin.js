@@ -93,9 +93,8 @@ frodon.register({
       });
       if (received.length > 30) received.length = 30;
       store.set('received', received);
-      frodon.showToast('🖼 Carousel de ' + peerName + ' — ouverture dans SPHERE');
       frodon.refreshSphereTab(PLUGIN_ID);
-      setTimeout(() => frodon.focusPlugin(PLUGIN_ID, 'received'), 400);
+      frodon.showToast('🖼 Carousel de ' + peerName + ' en cours de réception…');
       return;
     }
 
@@ -108,12 +107,14 @@ frodon.register({
         while (item.images.length <= payload.idx) item.images.push(null);
         item.images[payload.idx] = { url: payload.url, caption: payload.caption };
         store.set('received', received);
-        // Toast seulement à la dernière image
-        if (item.images.filter(Boolean).length === payload.total) {
+        const received_count = item.images.filter(Boolean).length;
+        frodon.refreshSphereTab(PLUGIN_ID);
+        // Ouvrir sphere seulement quand toutes les images sont arrivées
+        if (received_count === payload.total) {
           const peer = frodon.getPeer(fromId);
           frodon.showToast('🖼 Carousel de ' + (peer?.name || 'Pair inconnu') + ' reçu !');
+          setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
         }
-        frodon.refreshSphereTab(PLUGIN_ID);
       }
       return;
     }
@@ -449,54 +450,91 @@ frodon.register({
           wrap.appendChild(hdr);
 
           // Carousel viewer
-          const images = item.images || [];
-          if (!images.length) { wrap.appendChild(frodon.makeElement('div','','Aucune image.')); container.appendChild(wrap); return; }
+          const allImgs = item.images || [];
+          const realImgs = allImgs.filter(Boolean); // uniquement les images reçues
 
-          const idxKey = 'view_idx_' + item.fromId + '_' + ri;
-          let idx = store.get(idxKey) || 0;
-          if (idx >= images.length) idx = 0;
+          // Pas encore d'images reçues → loading
+          if (!allImgs.length || !realImgs.length) {
+            const loading = frodon.makeElement('div','');
+            loading.style.cssText = 'text-align:center;padding:18px;color:var(--txt2);font-size:.7rem;font-family:var(--mono)';
+            loading.textContent = '⌛ Réception des images (' + allImgs.filter(Boolean).length + '/' + allImgs.length + ')…';
+            wrap.appendChild(loading);
+            container.appendChild(wrap);
+            return;
+          }
 
+          const idxKey = 'vidx_' + item.fromId + '_' + ri;
+          let cur = store.get(idxKey) || 0;
+          if (cur >= realImgs.length) cur = 0;
+
+          // Affiche le statut de réception si incomplet
+          if (realImgs.length < allImgs.length) {
+            const prog = frodon.makeElement('div','');
+            prog.style.cssText = 'font-size:.58rem;color:var(--txt3);font-family:var(--mono);text-align:center;margin-bottom:4px';
+            prog.textContent = '⌛ ' + realImgs.length + '/' + allImgs.length + ' images reçues';
+            wrap.appendChild(prog);
+          }
+
+          // Rendu de l'image courante — navigation DOM sans refreshSphereTab
           const imgWrap = frodon.makeElement('div','');
           imgWrap.style.cssText = 'position:relative;background:#000;border-radius:8px;overflow:hidden;margin-bottom:6px';
           const imgEl = document.createElement('img');
           imgEl.style.cssText = 'width:100%;max-height:200px;object-fit:contain;display:block';
-          imgEl.src = images[idx]?.url || '';
+          imgEl.src = realImgs[cur]?.url || '';
           imgWrap.appendChild(imgEl);
-          if (images.length > 1) {
+          if (realImgs.length > 1) {
             const ctr = frodon.makeElement('div','');
             ctr.style.cssText = 'position:absolute;bottom:5px;right:7px;background:rgba(0,0,0,.6);color:#fff;font-size:.52rem;font-family:var(--mono);padding:2px 6px;border-radius:8px';
-            ctr.textContent = (idx+1)+'/'+images.length;
+            ctr.textContent = (cur+1)+'/'+realImgs.length;
             imgWrap.appendChild(ctr);
           }
           wrap.appendChild(imgWrap);
 
-          if (images[idx]?.caption) {
-            const cap = frodon.makeElement('div','');
-            cap.style.cssText = 'font-size:.65rem;color:var(--txt2);text-align:center;margin-bottom:6px;font-style:italic';
-            cap.textContent = images[idx].caption;
-            wrap.appendChild(cap);
-          }
+          const capEl = frodon.makeElement('div','');
+          capEl.style.cssText = 'font-size:.65rem;color:var(--txt2);text-align:center;margin-bottom:6px;font-style:italic';
+          if (realImgs[cur]?.caption) capEl.textContent = realImgs[cur].caption;
+          wrap.appendChild(capEl);
 
-          if (images.length > 1) {
+          if (realImgs.length > 1) {
             const nav = frodon.makeElement('div','');
             nav.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px';
-            const prev = frodon.makeElement('button','plugin-action-btn','◀');
-            prev.style.cssText = 'width:34px;height:34px;padding:0;font-size:.8rem';
-            prev.disabled = idx === 0;
-            prev.addEventListener('click', () => { store.set(idxKey, Math.max(0,idx-1)); frodon.refreshSphereTab(PLUGIN_ID); });
+
+            function goTo(i) {
+              cur = Math.max(0, Math.min(realImgs.length-1, i));
+              store.set(idxKey, cur);
+              imgEl.src = realImgs[cur]?.url || '';
+              capEl.textContent = realImgs[cur]?.caption || '';
+              ctr && (ctr.textContent = (cur+1)+'/'+realImgs.length);
+              prevBtn.disabled = cur === 0;
+              nextBtn.disabled = cur === realImgs.length - 1;
+              dotEls.forEach((d,di) => {
+                d.style.width = di===cur?'9px':'5px'; d.style.height=di===cur?'9px':'5px';
+                d.style.background = di===cur?'var(--acc)':'var(--bdr2)';
+              });
+            }
+
+            const prevBtn = frodon.makeElement('button','plugin-action-btn','◀');
+            prevBtn.style.cssText = 'width:34px;height:34px;padding:0;font-size:.8rem';
+            prevBtn.disabled = cur === 0;
+            prevBtn.addEventListener('click', () => goTo(cur-1));
+
             const dots = frodon.makeElement('div','');
             dots.style.cssText = 'display:flex;gap:4px;align-items:center';
-            images.forEach((_,i) => {
+            const dotEls = [];
+            realImgs.forEach((_,i) => {
               const d = frodon.makeElement('div','');
-              d.style.cssText = `width:${i===idx?9:5}px;height:${i===idx?9:5}px;border-radius:50%;background:${i===idx?'var(--acc)':'var(--bdr2)'};cursor:pointer`;
-              d.addEventListener('click', () => { store.set(idxKey, i); frodon.refreshSphereTab(PLUGIN_ID); });
+              d.style.cssText = `width:${i===cur?9:5}px;height:${i===cur?9:5}px;border-radius:50%;background:${i===cur?'var(--acc)':'var(--bdr2)'};cursor:pointer;transition:all .15s`;
+              d.addEventListener('click', () => goTo(i));
+              dotEls.push(d);
               dots.appendChild(d);
             });
-            const next = frodon.makeElement('button','plugin-action-btn','▶');
-            next.style.cssText = 'width:34px;height:34px;padding:0;font-size:.8rem';
-            next.disabled = idx === images.length - 1;
-            next.addEventListener('click', () => { store.set(idxKey, Math.min(images.length-1,idx+1)); frodon.refreshSphereTab(PLUGIN_ID); });
-            nav.appendChild(prev); nav.appendChild(dots); nav.appendChild(next);
+
+            const nextBtn = frodon.makeElement('button','plugin-action-btn','▶');
+            nextBtn.style.cssText = 'width:34px;height:34px;padding:0;font-size:.8rem';
+            nextBtn.disabled = cur === realImgs.length - 1;
+            nextBtn.addEventListener('click', () => goTo(cur+1));
+
+            nav.appendChild(prevBtn); nav.appendChild(dots); nav.appendChild(nextBtn);
             wrap.appendChild(nav);
           }
 
