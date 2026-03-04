@@ -93,13 +93,9 @@ frodon.register({
       });
       if (received.length > 30) received.length = 30;
       store.set('received', received);
-      frodon.showToast('🖼 Carousel de ' + peerName + ' en cours de réception…');
-      frodon.addFeedEvent(fromId, {
-        pluginId: PLUGIN_ID, pluginName: 'Carousel', pluginIcon: '🖼', peerName,
-        text: '→ ' + (payload.title || 'Carousel') + ' · ' + payload.total + ' image(s)',
-      });
+      frodon.showToast('🖼 Carousel de ' + peerName + ' — ouverture dans SPHERE');
       frodon.refreshSphereTab(PLUGIN_ID);
-      setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
+      setTimeout(() => frodon.focusPlugin(PLUGIN_ID, 'received'), 400);
       return;
     }
 
