@@ -45,29 +45,53 @@ frodon.register({
     if (payload.type === 'request_carousel') {
       if (!isActive()) { frodon.sendDM(fromId, PLUGIN_ID, {type:'carousel_error', reason:'inactif', _silent:true}); return; }
       const c = getMyCarousel();
-      // Envoie d'abord un header avec le titre + nombre d'images
-      // puis une image à la fois pour éviter les gros payloads DM
+
+      // Compresse une image à 300×300 q=0.5 pour tenir dans un DM PeerJS
+      function shrink(dataUrl) {
+        return new Promise(resolve => {
+          if (!dataUrl || !dataUrl.startsWith('data:image')) { resolve(dataUrl); return; }
+          const img = new Image();
+          img.onload = () => {
+            const MAX = 300;
+            let w = img.width, h = img.height;
+            if (w > MAX || h > MAX) { const r = Math.min(MAX/w, MAX/h); w = Math.round(w*r); h = Math.round(h*r); }
+            const cv = document.createElement('canvas');
+            cv.width = w; cv.height = h;
+            cv.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(cv.toDataURL('image/jpeg', 0.5));
+          };
+          img.onerror = () => resolve(dataUrl);
+          img.src = dataUrl;
+        });
+      }
+
+      // Envoie le header d'abord
       frodon.sendDM(fromId, PLUGIN_ID, {
-        type:  'carousel_header',
-        title: c.title,
-        total: c.images.length,
+        type:   'carousel_header',
+        title:  c.title,
+        total:  c.images.length,
         _label: '🖼 ' + c.title,
         _silent: false,
       });
-      // Envoie chaque image dans un DM séparé avec délai
-      c.images.forEach((img, idx) => {
-        setTimeout(() => {
+
+      // Compresse et envoie chaque image en série (attend la compression avant d'envoyer)
+      (async () => {
+        for (let idx = 0; idx < c.images.length; idx++) {
+          const img = c.images[idx];
+          const url = await shrink(img.url);
+          // Pause entre chaque envoi pour laisser le DataChannel respirer
+          await new Promise(r => setTimeout(r, 400));
           frodon.sendDM(fromId, PLUGIN_ID, {
             type:    'carousel_image',
             title:   c.title,
-            idx:     idx,
+            idx,
             total:   c.images.length,
-            url:     img.url,
+            url,
             caption: img.caption || '',
             _silent: true,
           });
-        }, idx * 200); // 200ms entre chaque pour ne pas saturer
-      });
+        }
+      })();
       return;
     }
 
