@@ -2,52 +2,69 @@
 
 Whitepaper : https://yourmine-dapp.web.app/WPYourMine.pdf
 
-# # FRODON Plugin SDK — Documentation complète
+# FRODON Plugin SDK
 
-# Table des matières
-
-1. [Architecture générale](#1-architecture-générale)
-2. [Structure d'un plugin](#2-structure-dun-plugin)
-3. [FrodonAPI — référence complète](#3-frodonapi--référence-complète)
-   - 3.1 Identité & pairs
-   - 3.2 Messagerie P2P (DM)
-   - 3.3 Stockage local
-   - 3.4 UI — toasts, éléments, navigation
-   - 3.5 Panneaux SPHERE (`registerBottomPanel`)
-   - 3.6 Fiche d'un pair (`registerPeerAction`)
-   - 3.7 Widget profil (`registerProfileWidget`)
-   - 3.8 Hooks de cycle de vie
-4. [Système d'événements du feed SPHERE](#4-système-dévénements-du-feed-sphere)
-5. [CSS disponible — classes et variables](#5-css-disponible--classes-et-variables)
-6. [Patterns avancés](#6-patterns-avancés)
-7. [Prompt système IA — version corrigée](#7-prompt-système-ia--version-corrigée)
-8. [Checklist de validation d'un plugin](#8-checklist-de-validation-dun-plugin)
+Guide complet pour développer des plugins pour FRODON — application P2P géolocalisée WebRTC.
 
 ---
 
-## 1. Architecture générale
+## Table des matières
 
-FRODON est une application web P2P géolocalisée. Les pairs se découvrent par GPS dans un rayon configurable et communiquent via PeerJS (WebRTC).
+1. [Architecture](#1-architecture)
+2. [Structure d'un plugin](#2-structure-dun-plugin)
+3. [API complète](#3-api-complète)
+   - 3.1 [Identité & pairs](#31-identité--pairs)
+   - 3.2 [Messagerie P2P (DM)](#32-messagerie-p2p-dm)
+   - 3.3 [Stockage local](#33-stockage-local)
+   - 3.4 [UI & navigation](#34-ui--navigation)
+   - 3.5 [Panneau SPHERE](#35-panneau-sphere-registerbottompanel)
+   - 3.6 [Fiche d'un pair](#36-fiche-dun-pair-registerpeeraction)
+   - 3.7 [Widget de profil](#37-widget-de-profil-registerprofilewidget)
+   - 3.8 [Hooks de cycle de vie](#38-hooks-de-cycle-de-vie)
+   - 3.9 [Feed SPHERE](#39-feed-sphere)
+4. [CSS — classes et variables](#4-css--classes-et-variables)
+5. [Patterns par type de plugin](#5-patterns-par-type-de-plugin)
+   - 5.1 [Jeu P2P](#51-jeu-p2p)
+   - 5.2 [Badge & présence](#52-badge--présence)
+   - 5.3 [Messagerie](#53-messagerie)
+   - 5.4 [Média & contenu](#54-média--contenu)
+   - 5.5 [Jeu temps-réel](#55-jeu-temps-réel)
+6. [Pièges courants](#6-pièges-courants)
+7. [Checklist de validation](#7-checklist-de-validation)
 
-Un **plugin** est un fichier `.js` autonome chargé dynamiquement à l'exécution. Il reçoit un objet `frodon` (le SDK) et s'enregistre via `frodon.register()`. Il peut :
+---
 
-- Envoyer/recevoir des messages directs entre pairs (DM P2P)
-- Afficher une interface interactive dans le panneau **SPHERE**
-- Ajouter des actions dans la **fiche d'un pair**
-- Ajouter un **widget** dans la modal de profil
-- Persister des données localement (localStorage isolé)
-- Accéder aux informations des pairs visibles sur le radar
+## 1. Architecture
 
-**Cycle de vie d'un plugin :**
+FRODON est une app web P2P géolocalisée. Les pairs se découvrent par GPS (rayon configurable) et communiquent via WebRTC (PeerJS). Les DMs transitent par un Hub PeerJS — si un pair est hors ligne, le message est **perdu** (pas de queue).
 
 ```
-install(url)
-  → fetch JS
-  → exécution : frodon.register(manifest, initFn)
-  → initFn() appelée → retourne { destroy() }
-  → mountPluginPanels() → panels SPHERE rendus
-  → destroy() appelée à la désinstallation
+┌─────────────────────────────────────────────────────────┐
+│  FRODON App                                             │
+│                                                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │   Radar GPS  │  │  SPHERE tab  │  │  Fiche pair  │  │
+│  │  (pairs)     │  │  (plugins)   │  │  (actions)   │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │
+│                           │                             │
+│                    frodon (SDK)                         │
+│                           │                             │
+│            ┌──────────────┼──────────────┐             │
+│            │              │              │             │
+│         plugin A       plugin B       plugin C         │
+│         (store A)      (store B)      (store C)        │
+└─────────────────────────────────────────────────────────┘
 ```
+
+**Points d'intégration d'un plugin :**
+
+| Zone | API | Visibilité |
+|------|-----|-----------|
+| Onglet SPHERE | `registerBottomPanel` | Toujours visible |
+| Config plugin | `registerBottomPanel` + `settings: true` | Dans ⚙ Installés seulement |
+| Fiche d'un pair | `registerPeerAction` | Si les deux ont le plugin |
+| Modal de profil | `registerProfileWidget` | Propre profil |
+| Feed SPHERE | `addFeedEvent` / `_label` | Feed global |
 
 ---
 
@@ -56,130 +73,120 @@ install(url)
 ```js
 frodon.register(
   {
-    id: 'mon-plugin',          // Identifiant unique, kebab-case, OBLIGATOIRE
-    name: 'Mon Plugin',        // Nom affiché, OBLIGATOIRE
-    version: '1.0.0',          // Semver
-    author: 'pseudo',          // Optionnel
-    description: 'Ce que fait le plugin.',  // Optionnel (max ~80 chars)
-    icon: '🎯',                // Emoji affiché partout
+    id: 'mon-plugin',          // OBLIGATOIRE — kebab-case unique
+    name: 'Mon Plugin',        // OBLIGATOIRE — nom affiché
+    version: '1.0.0',
+    author: 'pseudo',
+    description: 'Ce que fait le plugin.',
+    icon: '🎯',
   },
   () => {
-    // === CODE DU PLUGIN ===
-
-    const PLUGIN_ID = 'mon-plugin';  // doit correspondre à manifest.id
+    const PLUGIN_ID = 'mon-plugin'; // doit correspondre à manifest.id
     const store = frodon.storage(PLUGIN_ID);
 
-    // 1. Handler DM (toujours déclarer en premier)
-    frodon.onDM(PLUGIN_ID, (fromId, payload) => {
-      // traitement des messages reçus
-    });
+    // 1. Toujours déclarer onDM EN PREMIER
+    frodon.onDM(PLUGIN_ID, (fromId, payload) => { });
 
     // 2. Actions dans la fiche d'un pair
-    frodon.registerPeerAction(PLUGIN_ID, '🎯 Mon action', (peerId, container) => {
-      // construire le DOM dans container
-    });
+    frodon.registerPeerAction(PLUGIN_ID, '🎯 Mon action', (peerId, container) => { });
 
-    // 3. Widget profil (optionnel)
-    frodon.registerProfileWidget(PLUGIN_ID, (container) => {
-      // construire le DOM dans container
-    });
+    // 3. Widget profil
+    frodon.registerProfileWidget(PLUGIN_ID, (container) => { });
 
-    // 4. Panneau SPHERE (l'UI principale)
+    // 4. Panneau SPHERE
     frodon.registerBottomPanel(PLUGIN_ID, [
-      {
-        id: 'main',
-        label: '🎯 Principal',
-        render(container) {
-          // construire le DOM dans container
-        }
-      },
-      {
-        id: 'settings',
-        label: '⚙ Config',
-        settings: true,  // ← tab masquée dans SPHERE, visible dans ⚙ Installés
-        render(container) { /* ... */ }
-      }
+      { id: 'main', label: '🎯 Principal', render(container) { } },
+      { id: 'config', label: '⚙ Config', settings: true, render(container) { } },
     ]);
 
-    // 5. Retourner l'objet d'instance
-    return {
-      destroy() {
-        // nettoyage : forfaits, DMs d'au revoir, etc.
-      }
-    };
+    // 5. Hooks
+    frodon.onPeerAppear(peer => { });
+    frodon.onPeerLeave(peerId => { });
+
+    // 6. Retourner l'instance — OBLIGATOIRE
+    return { destroy() { } };
   }
 );
 ```
 
-### Règles importantes
+### Contraintes fondamentales
 
-- `id` doit être **unique**, en kebab-case, sans espaces
-- Le plugin est un **fichier JS autonome**, sans `import`/`export`
-- Pas de `require()`, pas de modules ES — tout est dans la closure
-- L'objet `frodon` est le seul point d'entrée vers l'application
+- Fichier JS **autonome** — zéro `import` / `export` / `require`
+- Tout le code vit dans la closure de `initFn`
+- `frodon` est le seul accès à l'application
 - `initFn` est appelée **une seule fois** à l'installation
-- Les callbacks (`onDM`, `registerPeerAction`, etc.) sont rattachés **à vie** jusqu'à `destroy()`
+- Les callbacks enregistrés sont actifs **jusqu'à `destroy()`**
 
 ---
 
-## 3. FrodonAPI — référence complète
+## 3. API complète
 
 ### 3.1 Identité & pairs
 
 ```js
 frodon.getMyProfile()
-// → { name, avatar, network, handle, website, peerId, stableId }
-// avatar = data URI base64 JPEG (80×80px max)
-// network = clé NETS : 'mastodon' | 'bluesky' | 'youtube' | etc.
+// → { name, avatar, peerId, stableId, network, handle, website }
+// avatar = data URI base64 JPEG (80×80 px)
+// stableId = identifiant persistant (peerId peut changer à la reconnexion)
 
 frodon.getMyId()
-// → string  PeerJS ID du peer local (peut changer après reconnexion)
+// → string — PeerJS ID local courant
 
 frodon.getPosition()
-// → { lat, lng, acc } | null  Position GPS actuelle
+// → { lat, lng, acc } | null
 
 frodon.getPeer(peerId)
-// → { peerId, name, avatar, network, handle, website, lat, lng,
-//     dist,  plugins, pluginUrls, lastSeen } | null
-// dist = distance en mètres depuis notre position GPS
+// → { peerId, name, avatar, network, handle, website,
+//     lat, lng, dist, plugins, pluginUrls, lastSeen } | null
+// dist = mètres (peut être null sans GPS)
+// plugins = array des IDs installés chez ce pair
 
 frodon.getAllPeers()
-// → Array<PeerInfo>  Tous les pairs actuellement visibles sur le radar
+// → PeerInfo[]  — tous les pairs visibles sur le radar
 ```
 
-**Notes :**
-- `peerId` peut changer après une reconnexion ; utiliser `stableId` pour identifier un utilisateur de façon persistante
-- `dist` peut être `null` si la position GPS n'est pas disponible
-- `plugins` = tableau des IDs de plugins installés chez ce pair
+> **Note :** Toujours tester `peer !== null` dans `registerPeerAction` — un pair peut se déconnecter pendant que la fiche est ouverte.
 
 ---
 
 ### 3.2 Messagerie P2P (DM)
 
 ```js
-// Envoyer un DM à un pair
+// Envoi
 frodon.sendDM(peerId, pluginId, payload)
-// payload = objet JS arbitraire + champs spéciaux optionnels :
-//   _silent: true   → ne génère PAS d'événement dans le feed SPHERE
-//   _label: 'texte' → texte affiché dans le feed SPHERE (côté récepteur)
 
-// Recevoir des DMs
-frodon.onDM(pluginId, (fromId, payload) => {
-  // fromId = peerId de l'expéditeur
-  // payload = objet envoyé
-})
+// Réception
+frodon.onDM(pluginId, (fromId, payload) => { })
 ```
 
-**Convention payload :**
+**Champs spéciaux du payload :**
+
+| Champ | Type | Effet |
+|-------|------|-------|
+| `_silent: true` | bool | Aucun événement dans le feed SPHERE |
+| `_label: 'texte'` | string | Texte affiché dans le feed du récepteur |
+
+**Règle :** Messages de protocole interne → toujours `_silent: true`. Messages visibles → toujours `_label`.
+
 ```js
-// Messages de protocole interne → toujours _silent: true
-frodon.sendDM(peerId, PLUGIN_ID, { type: 'move', cell: 4, _silent: true });
+// ✅ Protocole interne
+frodon.sendDM(peerId, PLUGIN_ID, { type: 'sync', state: {...}, _silent: true });
 
-// Messages visibles par l'utilisateur → fournir _label
-frodon.sendDM(peerId, PLUGIN_ID, { type: 'challenge', _label: '⊞ Défi reçu !' });
+// ✅ Notification visible
+frodon.sendDM(peerId, PLUGIN_ID, { type: 'challenge', _label: '🎯 Défi reçu !' });
 ```
 
-**Acheminement :** Les DMs transitent par le Hub PeerJS. Si le destinataire est hors ligne, le message est **perdu** (pas de file persistante). Gérer les reconnexions avec `onPeerAppear`.
+**Taille des DMs :** Les payloads passent par WebRTC DataChannel. Pour envoyer des images (base64), compresser avant envoi (max ~800×800 px, qualité 0.75 JPEG) et envoyer une image par DM séparé si plusieurs.
+
+```js
+// Pattern split DM pour contenu volumineux
+frodon.sendDM(peerId, PLUGIN_ID, { type: 'media_header', title, total: images.length, _silent: true });
+images.forEach((img, i) => {
+  setTimeout(() => {
+    frodon.sendDM(peerId, PLUGIN_ID, { type: 'media_item', idx: i, url: img.url, _silent: true });
+  }, i * 200); // 200ms entre chaque pour éviter la saturation
+});
+```
 
 ---
 
@@ -188,620 +195,614 @@ frodon.sendDM(peerId, PLUGIN_ID, { type: 'challenge', _label: '⊞ Défi reçu !
 ```js
 const store = frodon.storage(PLUGIN_ID);
 
-store.get(key)          // → valeur | null  (JSON.parse automatique)
-store.set(key, value)   // stocke en localStorage (JSON.stringify)
-store.del(key)          // supprime la clé
+store.get(key)          // → valeur désérialisée | null
+store.set(key, value)   // sérialise en JSON + stocke dans localStorage
+store.del(key)          // supprime
 ```
 
-**Isolation :** chaque plugin a son propre namespace `frd_plug_{id}_`. Les données persistent entre les sessions.
+**Isolation :** namespace `frd_plug_{id}_` — les plugins ne partagent pas leurs données.
 
-**Recommandations :**
-- Clés courtes et descriptives : `'badge'`, `'history'`, `'inbox'`
-- Valeurs max ~1 Mo par clé (localStorage global ~5 Mo)
-- Sérialiser les `Set` en `Array` avant `store.set()`
+**Limites :** ~5 Mo total localStorage, max ~1 Mo par clé.
+
+```js
+// ✅ Sérialiser Set → Array avant store.set
+store.set('invited', [...mySet]);
+
+// ✅ Désérialiser Array → Set après store.get
+const mySet = new Set(store.get('invited') || []);
+
+// ✅ Nettoyer dans destroy()
+return { destroy() { store.del('active_game'); } };
+```
 
 ---
 
-### 3.4 UI — toasts, éléments, navigation
+### 3.4 UI & navigation
+
+#### Création d'éléments
 
 ```js
-frodon.showToast(message, isError?)
-// Affiche une notification en bas de l'écran (3 secondes)
-// isError = true → couleur rouge/warn
-
 frodon.makeElement(tag, className, innerHTML?)
-// Raccourci document.createElement avec innerHTML safe
-// Retourne l'élément DOM
-// Exemple : frodon.makeElement('button', 'plugin-action-btn', '🎯 Go')
+// → HTMLElement — innerHTML est safe (pas d'injection)
+// Pour inputs : toujours document.createElement (voir ci-dessous)
 
 frodon.safeImg(src, fallback, className?)
-// Crée un <img> avec fallback automatique si src échoue
+// → <img> avec fallback automatique si src échoue
 
-frodon.formatTime(timestamp)
-// → "à l'instant" | "5min" | "2h" | "3 jan"
-
-frodon.distStr(metres)
-// → "42 m" | "1.2 km"
+frodon.formatTime(timestamp)  // → "à l'instant" | "5min" | "2h" | "3 jan"
+frodon.distStr(metres)        // → "42 m" | "1.2 km"
+frodon.showToast(message, isError?)  // notification 3s en bas d'écran
 ```
 
-**Navigation :**
-```js
-frodon.focusPlugin(pluginId)
-// Ferme la modal ouverte + navigue vers SPHERE + ouvre le panneau du plugin
-
-frodon.focusSphere()
-// Navigue vers l'onglet SPHERE (sans ouvrir de plugin spécifique)
-
-frodon.openPeer(peerId)
-// Ouvre la modal de fiche d'un pair
-
-frodon.refreshSphereTab(pluginId)
-// Re-rend le panneau du plugin dans SPHERE + le feed global
-// ⚠ Appeler après toute modification d'état qui affecte l'UI
-
-frodon.refreshPeerModal(peerId)
-// Re-rend la modal d'un pair si elle est ouverte
-// (utile après réception d'un DM qui enrichit la fiche)
-
-frodon.refreshProfileModal()
-// Re-rend la modal de profil si elle est ouverte
-```
-
----
-
-### 3.5 Panneaux SPHERE (`registerBottomPanel`)
-
-Le panneau SPHERE est la zone d'interaction principale. Chaque plugin peut y enregistrer plusieurs **tabs**.
-
-```js
-frodon.registerBottomPanel(PLUGIN_ID, [
-  {
-    id: 'main',           // identifiant unique dans ce plugin
-    label: '🎯 Principal', // texte de l'onglet
-    settings: false,       // false (défaut) = visible dans SPHERE
-                           // true = visible dans ⚙ modal Installés seulement
-    render(container) {
-      // container = div vide
-      // Construire le DOM et l'appender dans container
-      // Cette fonction est appelée à chaque fois que le tab s'affiche
-      // ⚠ Ne PAS garder de référence à container entre les appels
-    }
-  }
-]);
-```
-
-**Cycle render :** `render()` est appelé à chaque `refreshSphereTab()` ou ouverture du bloc. Ne pas supposer que le DOM précédent existe encore.
-
-**Tab `settings: true` :** Permet d'exposer une configuration dans la modal ⚙ sans encombrer l'onglet SPHERE principal. Idéal pour les formulaires de configuration (voir plugin `jobseeker`).
-
----
-
-### 3.6 Fiche d'un pair (`registerPeerAction`)
-
-```js
-frodon.registerPeerAction(PLUGIN_ID, label, (peerId, container) => {
-  // label = titre de la section dans la fiche (ex: '⚡ Message rapide')
-  // peerId = ID du pair affiché
-  // container = div vide dans la section du plugin
-
-  const peer = frodon.getPeer(peerId);
-  // peer peut être null si le pair s'est déconnecté entre temps
-
-  // Construire le DOM et l'appender dans container
-});
-```
-
-**Comportement :** La section est affichée dans la modal du pair, **uniquement si les deux pairs ont le plugin installé** (plugin en commun). Le titre de la section correspond au `label` passé.
-
-**Pattern recommandé :**
-```js
-frodon.registerPeerAction(PLUGIN_ID, '🎯 Action', (peerId, container) => {
-  const peer = frodon.getPeer(peerId);
-  if(!peer) {
-    container.appendChild(frodon.makeElement('div', 'no-posts', 'Pair non disponible.'));
-    return;
-  }
-
-  // Cas : aucun contexte partagé
-  const btn = frodon.makeElement('button', 'plugin-action-btn acc', '🎯 Démarrer');
-  btn.addEventListener('click', () => {
-    // ...
-    frodon.refreshPeerModal(peerId);
-    frodon.refreshSphereTab(PLUGIN_ID);
-  });
-  container.appendChild(btn);
-});
-```
-
----
-
-### 3.7 Widget profil (`registerProfileWidget`)
-
-```js
-frodon.registerProfileWidget(PLUGIN_ID, (container) => {
-  // Affiché dans la modal de profil personnel (en bas)
-  // S'affiche uniquement si le plugin ajoute quelque chose
-  // Ne rien appender = widget invisible
-});
-```
-
-Exemple : le plugin `quickmsg` affiche les réactions reçues. Le plugin `jobseeker` affiche le badge "En recherche".
-
----
-
-### 3.8 Hooks de cycle de vie
-
-```js
-// Quand un pair apparaît sur le radar (nouvelle connexion ou reconnexion)
-frodon.onPeerAppear((peer) => {
-  // peer = { peerId, name, avatar, network, handle, ... }
-  // Utiliser pour : resync de partie, renvoi de données, etc.
-});
-
-// Quand un pair disparaît du radar (timeout >90s ou déconnexion)
-frodon.onPeerLeave((peerId) => {
-  // Utiliser pour : marquer "away", gérer abandon de partie, etc.
-});
-
-// Quand ce plugin est installé depuis la fiche d'un pair
-frodon.registerPeerInstallHook(PLUGIN_ID, (peerId) => {
-  // peerId = pair depuis lequel on a installé le plugin
-  // Exemple : envoyer un défi automatique (TicTacToe)
-});
-
-// Avant désinstallation du plugin
-frodon.registerUninstallHook(PLUGIN_ID, () => {
-  // Envoyer les forfaits, DMs d'adieu, nettoyer le state
-  // Appelé AVANT destroy()
-});
-```
-
----
-
-## 4. Système d'événements du feed SPHERE
-
-Le feed global SPHERE agrège les événements de tous les plugins. Il y a deux façons de créer des événements :
-
-### 4.1 Événement automatique via `_label` dans sendDM
-
-Côté **récepteur** : si le payload contient `_label` et que l'expéditeur est connu, un événement apparaît automatiquement dans le feed.
-
-```js
-// Expéditeur
-frodon.sendDM(peerId, PLUGIN_ID, {
-  type: 'challenge',
-  _label: '⊞ Défi TicTacToe reçu !'  // ← affiché dans le feed du récepteur
-});
-```
-
-### 4.2 Événement manuel via `addFeedEvent`
-
-```js
-frodon.addFeedEvent(peerId, {
-  pluginId   : PLUGIN_ID,       // pour le filtre
-  pluginName : 'Mon Plugin',    // affiché dans le feed
-  pluginIcon : '🎯',
-  peerName   : peer.name,
-  text       : 'Message décrivant l\'action',  // ex: "→ Opportunité envoyée"
-});
-```
-
-Utiliser `addFeedEvent` pour les actions **sortantes** (je fais quelque chose vers un pair), et `_label` pour les actions **entrantes** (je reçois quelque chose d'un pair).
-
-### 4.3 Quand utiliser `_silent: true`
-
-Toujours `_silent: true` pour les messages de protocole interne qui ne représentent pas une action visible par l'utilisateur :
-- Synchronisations d'état (`state_sync`, `resync`)
-- Échanges de données (`badge_data`, `request_badge`)
-- Mouvements de jeu silencieux
-- Réponses techniques (`hand`, `avatar`)
-
----
-
-## 5. CSS disponible — classes et variables
-
-### 5.1 Variables CSS globales
-
-```css
-/* Couleurs */
---bg      : #04040c   /* Fond principal */
---bg2     : #080816   /* Fond modal */
---sur     : #0f0f22   /* Surface 1 */
---sur2    : #161630   /* Surface 2 */
---bdr     : #1e1e40   /* Bordure principale */
---bdr2    : #2a2a58   /* Bordure secondaire */
-
---acc     : #00f5c8   /* Cyan / accent principal */
---acc2    : #7c4dff   /* Violet / accent secondaire */
---warn    : #ff6b35   /* Orange / avertissement */
---ok      : #00e87a   /* Vert / succès */
-
---txt     : #e8e8f8   /* Texte principal */
---txt2    : #7070a0   /* Texte secondaire */
---txt3    : #2e2e55   /* Texte tertiaire / désactivé */
-
---glow    : 0 0 28px rgba(0,245,200,.22)  /* Ombre cyan */
---r       : 12px      /* Radius standard */
---r2      : 20px      /* Radius large */
---mono    : 'Space Mono', monospace
---sans    : 'Syne', sans-serif
-```
-
-### 5.2 Classes utilitaires
-
-```
-/* Texte et labels */
-.section-label     Titre de section (caps, monospace, txt2)
-.no-posts          Message vide (centré, italique, txt2)
-
-/* Cartes */
-.mini-card         Carte compacte (fond sur, bordure bdr)
-.mini-card-img     Image dans mini-card (max-h 90px, cover)
-.mini-card-title   Titre d'un article (txt, bold)
-.mini-card-body    Corps texte (txt2, 3 lignes clampées)
-.mini-card-ts      Timestamp (txt3, monospace, .6rem)
-
-.post-card         Carte plus grande (sur2, hover bdr2)
-.post-img          Image post (max-h 140px)
-.post-title        Titre post
-.post-body         Corps post (3 lignes)
-.post-meta         Ligne de métadonnées (flex, .6rem)
-.post-link         Lien ↗ (acc2, bordure)
-
-/* Boutons */
-.plugin-action-btn            Bouton standard violet (acc2)
-.plugin-action-btn.acc        Bouton cyan (acc)
-/* Inline style pour danger : color:var(--warn) */
-
-/* Formulaires */
-.f-input           Input standard
-.f-btn             Bouton pleine largeur (acc)
-.f-btn.secondary   Bouton secondaire (acc2, outline)
-.f-btn.danger      Bouton danger (warn, outline)
-.f-hint            Texte d'aide sous un champ
-.field             Wrapper de champ avec label
-
-/* Layout plugin */
-.plugin-card       Carte de plugin (sur, bdr2, r)
-.plugin-card-head  Header de carte (flex, gap, items-center)
-.plugin-icon       Icône de plugin (38px, fond violet)
-.plugin-name       Nom du plugin (.85rem, bold)
-.plugin-author     Auteur/description (.6rem, txt2, mono)
-.plugin-desc       Description longue
-.plugin-actions-row Rangée de boutons (flex, gap, wrap)
-.plugin-widget-area Zone interne violet translucide
-
-/* Loading */
-.loading-bar       Barre de chargement animée (shimmer, acc)
-```
-
-### 5.3 Construire une UI avec `makeElement` + styles inline
-
-Pour les éléments non couverts par les classes, utiliser des styles inline :
-
-```js
-const card = frodon.makeElement('div', '');
-card.style.cssText = `
-  background: var(--sur);
-  border: 1px solid var(--bdr2);
-  border-radius: var(--r);
-  padding: 12px 14px;
-  margin-bottom: 8px;
-`;
-```
-
-**Couleurs à utiliser dans les styles inline :**
-- Texte important : `color: var(--acc)` (cyan) ou `color: var(--acc2)` (violet)
-- Texte secondaire : `color: var(--txt2)`
-- Fond subtil violet : `background: rgba(124,77,255,.10)` + `border: 1px solid rgba(124,77,255,.25)`
-- Fond subtil cyan : `background: rgba(0,245,200,.08)` + `border: 1px solid rgba(0,245,200,.20)`
-- Succès : `color: var(--ok)` + `background: rgba(0,229,122,.07)`
-- Danger : `color: var(--warn)` + `background: rgba(255,107,53,.08)`
-
----
-
-## 6. Patterns avancés
-
-### 6.1 Plugin de jeu P2P (pattern poker/tictactoe)
-
-```
-État centralisé chez l'hôte :
-  hostSync() → envoie state_sync à tous + hand privée à chacun
-  hostAction(fromId, action) → validé, puis hostSync()
-
-Côté client :
-  onDM 'state_sync' → met à jour l'état local + refreshSphereTab
-  onDM 'hand' → cartes privées
-  action locale → envoie DM 'action' à l'hôte (+ mise à jour optimiste)
-
-Reconnexion :
-  onPeerAppear → si hôte : re-sync, si client : envoie 'resync' à l'hôte
-  onPeerLeave  → si hôte : marquer 'away', gérer le tour
-```
-
-### 6.2 Plugin de badge/données (pattern jobseeker)
-
-```
-Activation implicite : badge actif dès que les données sont renseignées
-Pas de toggle — la présence de données = badge actif
-
-Distribution :
-  onPeerAppear → envoyer mes données à ce pair (_silent)
-  onDM 'request_badge' → répondre avec mes données si actif
-  onDM 'badge_data' → stocker + refreshPeerModal
-
-Affichage :
-  registerPeerAction → demander le badge si pas encore reçu
-  registerProfileWidget → afficher mes propres données
-```
-
-### 6.3 Gestion de l'état avec persistance
-
-```js
-// Sauvegarder (convertir Set → Array)
-function persist() {
-  if(!T) { store.del('table'); return; }
-  store.set('table', {
-    ...T,
-    pendingInvites: [...(T.pendingInvites || [])],  // Set → Array
-    deck: T.isHost ? (T.deck || []) : [],            // données hôte seulement
-  });
-}
-
-// Restaurer (convertir Array → Set)
-function restore() {
-  const s = store.get('table');
-  if(!s) return;
-  T = { ...s, pendingInvites: new Set(s.pendingInvites || []) };
-  setTimeout(() => {
-    if(T.isHost) hostSync();
-    else toHost('resync', {});
-  }, 3500);  // délai pour laisser le temps au P2P de s'établir
-}
-```
-
-### 6.4 Pattern IU réactive avec re-render complet
-
-```js
-frodon.registerBottomPanel(PLUGIN_ID, [{
-  id: 'main', label: '🎯 Jeu',
-  render(container) {
-    // Lire l'état
-    const data = store.get('state');
-
-    // Sélection du rendu selon l'état
-    if(!data) { renderEmpty(container); return; }
-    if(data.phase === 'waiting') { renderWaiting(container, data); return; }
-    renderGame(container, data);
-  }
-}]);
-
-// Déclencher un re-render :
-store.set('state', newState);
-frodon.refreshSphereTab(PLUGIN_ID);
-```
-
-### 6.5 Injection CSS
-
-```js
-let _cssInjected = false;
-function injectCSS() {
-  if(_cssInjected) return;
-  _cssInjected = true;
-  const s = document.createElement('style');
-  s.textContent = `.my-class { ... }`;
-  document.head.appendChild(s);
-}
-
-// Appeler dans render() :
-frodon.registerBottomPanel(PLUGIN_ID, [{
-  id: 'main', label: '🎯',
-  render(container) {
-    injectCSS();
-    // ...
-  }
-}]);
-```
-
-### 6.6 Inputs natifs (pas de makeElement)
-
-`frodon.makeElement` supporte `innerHTML` — pour les inputs, créer les éléments directement :
+> **Inputs, textarea, select** : toujours créer avec `document.createElement`, pas `makeElement`.
 
 ```js
 const input = document.createElement('input');
 input.className = 'f-input';
 input.type = 'text';
 input.placeholder = '…';
-input.maxLength = 100;
-container.appendChild(input);
 
 const ta = document.createElement('textarea');
 ta.className = 'f-input';
-ta.rows = 3;
-container.appendChild(ta);
+ta.rows = 4;
 
 const sel = document.createElement('select');
-sel.className = 'f-input f-select';
-['Option 1', 'Option 2'].forEach(o => {
+sel.className = 'f-input';
+['A', 'B'].forEach(v => {
   const opt = document.createElement('option');
-  opt.value = o; opt.textContent = o;
+  opt.value = v; opt.textContent = v;
   sel.appendChild(opt);
 });
-container.appendChild(sel);
+```
+
+#### Navigation
+
+```js
+frodon.focusPlugin(pluginId)
+// Ferme la modal ouverte → navigue vers SPHERE → ouvre+scroll vers le bloc du plugin
+
+frodon.focusSphere()
+// Navigue vers l'onglet SPHERE sans ouvrir de plugin spécifique
+
+frodon.openPeer(peerId)
+// Ouvre la modal de fiche d'un pair
+
+frodon.refreshSphereTab(pluginId)
+// Re-rend le panneau du plugin dans SPHERE + feed global
+// ⚠ EFFET DE BORD : ferme aussi le panneau de config (settings:true)
+//   → à appeler UNIQUEMENT après une action finale, pas pendant l'édition
+
+frodon.refreshPeerModal(peerId)
+// Re-rend la modal du pair si elle est ouverte
+
+frodon.refreshProfileModal()
+// Re-rend la modal de profil si elle est ouverte
+```
+
+> **Piège `refreshSphereTab` :** appeler cette fonction depuis un formulaire de config (`settings: true`) **ferme ce panneau**. Solution : mettre à jour le DOM localement pendant l'édition, et appeler `refreshSphereTab` + `refreshProfileModal` uniquement au **bouton Enregistrer final**.
+
+---
+
+### 3.5 Panneau SPHERE (`registerBottomPanel`)
+
+```js
+frodon.registerBottomPanel(PLUGIN_ID, [
+  {
+    id: 'main',             // identifiant unique dans ce plugin
+    label: '🎯 Principal',  // texte de l'onglet
+    settings: false,        // true = visible seulement dans ⚙ Installés
+    render(container) {
+      // container = div vide
+      // CONSTRUIRE le DOM ici et l'appender à container
+      // Appelé à chaque refreshSphereTab ou ouverture du bloc
+      // ⚠ Ne PAS garder de référence à container entre les appels
+    }
+  }
+]);
+```
+
+**Comportement :**
+- **1 seul tab** : rendu direct, sans barre d'onglets
+- **Plusieurs tabs** : barre d'onglets automatique
+- **`settings: true`** : caché dans SPHERE, visible dans la modale ⚙ Installés
+
+**`render()` est appelé à chaque re-render** — reconstruire le DOM depuis zéro, sans supposer que des éléments précédents existent.
+
+**Mise à jour partielle sans re-render complet :** Pour les éléments qui changent fréquemment (scores, timer), mettre à jour le DOM directement par `getElementById` au lieu d'appeler `refreshSphereTab`.
+
+```js
+// ✅ Mise à jour directe pour les scores temps-réel
+const el = document.getElementById('my-score');
+if (el) el.textContent = score;
+
+// ✅ Re-render complet pour les changements d'état importants
+store.set('phase', 'result');
+frodon.refreshSphereTab(PLUGIN_ID);
 ```
 
 ---
 
-## 7. Prompt système IA — version corrigée
+### 3.6 Fiche d'un pair (`registerPeerAction`)
 
-Le prompt ci-dessous remplace celui de la section **Build** du modal SPHERE. Il est beaucoup plus précis sur l'API, les patterns et les contraintes.
+```js
+frodon.registerPeerAction(PLUGIN_ID, 'Label section', (peerId, container) => {
+  // Affiché dans la fiche du pair UNIQUEMENT si les deux ont le plugin installé
+  const peer = frodon.getPeer(peerId);
+  if (!peer) { container.appendChild(frodon.makeElement('div', 'no-posts', 'Pair non disponible.')); return; }
 
+  // Construire le DOM dans container
+});
 ```
-Tu es un expert en plugins FRODON — une application P2P géolocalisée qui permet
-à des utilisateurs proches de se connecter via WebRTC.
 
-GÉNÈRE UN FICHIER PLUGIN JAVASCRIPT AUTONOME ET COMPLET.
+**Cas d'usage :** défi, échange, voir le profil étendu, envoyer quelque chose.
 
-=== STRUCTURE OBLIGATOIRE ===
+---
 
-frodon.register({
-  id: 'mon-plugin',        // kebab-case unique, OBLIGATOIRE
-  name: 'Mon Plugin',      // OBLIGATOIRE
-  version: '1.0.0',
-  author: 'pseudo',
-  description: 'Description courte.',
-  icon: '🎯',
-}, () => {
-  const PLUGIN_ID = 'mon-plugin';  // identique à manifest.id
-  const store = frodon.storage(PLUGIN_ID);
+### 3.7 Widget de profil (`registerProfileWidget`)
 
-  // ... code du plugin ...
+```js
+frodon.registerProfileWidget(PLUGIN_ID, (container) => {
+  // Affiché dans la modal de VOTRE propre profil (en bas)
+  // Ne rien appender = widget invisible
+  const data = store.get('my_data');
+  if (!data) return; // widget masqué si pas de données
+  container.appendChild(/* ... */);
+});
+```
 
-  return { destroy() { /* nettoyage */ } };
+**Cas d'usage :** afficher son badge actif, ses stats, son statut.
+
+---
+
+### 3.8 Hooks de cycle de vie
+
+```js
+// Pair connecté ou reconnecté au radar
+frodon.onPeerAppear(peer => {
+  // Utiliser pour : resync, renvoyer des données, relancer une partie
 });
 
-=== API FRODON DISPONIBLE ===
+// Pair disparu du radar (timeout 90s ou déconnexion)
+frodon.onPeerLeave(peerId => {
+  // Utiliser pour : marquer "away", gérer abandon, fold auto au poker
+});
 
---- IDENTITÉ ---
-frodon.getMyProfile()   → { name, avatar, peerId, stableId, network, handle, website }
-frodon.getMyId()        → string (peerId local)
-frodon.getPosition()    → { lat, lng, acc } | null
-frodon.getPeer(id)      → { peerId, name, avatar, network, handle, dist, plugins } | null
-frodon.getAllPeers()     → tableau de tous les pairs visibles
+// Plugin installé depuis la fiche d'un pair
+frodon.registerPeerInstallHook(PLUGIN_ID, peerId => {
+  // Envoyer un challenge automatique, initier un échange
+});
 
---- MESSAGERIE P2P ---
-frodon.sendDM(peerId, pluginId, payload)
-  payload spéciaux : _silent:true (pas de feed), _label:'texte' (affiché dans le feed récepteur)
-frodon.onDM(pluginId, (fromId, payload) => { })
-
---- STOCKAGE ---
-const store = frodon.storage(PLUGIN_ID)
-store.get(key)     → valeur | null
-store.set(key, v)  → stocke
-store.del(key)     → supprime
-
---- UI ---
-frodon.makeElement(tag, className, innerHTML?)  → HTMLElement
-frodon.safeImg(src, fallback, className?)       → <img>
-frodon.showToast(msg, isError?)
-frodon.formatTime(timestamp)  → "à l'instant" | "5min" | "2h"
-frodon.distStr(metres)        → "42 m" | "1.2 km"
-
---- NAVIGATION ---
-frodon.focusPlugin(pluginId)    → naviguer vers SPHERE + ouvrir ce plugin
-frodon.focusSphere()            → naviguer vers SPHERE
-frodon.openPeer(peerId)         → ouvrir modal du pair
-frodon.refreshSphereTab(pluginId)   → re-rendre le panneau du plugin (APPELER après chaque update d'état)
-frodon.refreshPeerModal(peerId)     → re-rendre la modal d'un pair si ouverte
-frodon.refreshProfileModal()        → re-rendre la modal de profil si ouverte
-
---- FEED SPHERE ---
-frodon.addFeedEvent(peerId, { pluginId, pluginName, pluginIcon, peerName, text })
-  → pour les événements SORTANTS
-
---- ENREGISTREMENT ---
-frodon.registerBottomPanel(PLUGIN_ID, tabs)
-  tabs = [{ id, label, settings?, render(container){} }]
-  settings:true → tab dans ⚙ seulement, pas dans SPHERE
-
-frodon.registerPeerAction(PLUGIN_ID, label, (peerId, container) => { })
-  → section dans la fiche d'un pair (seulement si les deux ont le plugin)
-
-frodon.registerProfileWidget(PLUGIN_ID, (container) => { })
-  → widget dans la modal de profil
-
---- HOOKS ---
-frodon.onPeerAppear((peer) => { })     → pair connecté/reconnecté
-frodon.onPeerLeave((peerId) => { })    → pair déconnecté
-frodon.registerPeerInstallHook(PLUGIN_ID, (peerId) => { })   → installé depuis fiche d'un pair
-frodon.registerUninstallHook(PLUGIN_ID, () => { })           → avant désinstallation
-
-=== CSS — CLASSES DISPONIBLES ===
-
-Variables : --acc #00f5c8 (cyan), --acc2 #7c4dff (violet), --ok #00e87a (vert),
-            --warn #ff6b35 (orange), --txt #e8e8f8, --txt2 #7070a0, --txt3 #2e2e55
-            --sur #0f0f22, --sur2 #161630, --bdr #1e1e40, --bdr2 #2a2a58
-            --mono 'Space Mono', --sans 'Syne'
-
-Classes : plugin-action-btn (bouton violet), plugin-action-btn acc (bouton cyan),
-          mini-card, mini-card-img, mini-card-title, mini-card-body, mini-card-ts,
-          section-label, no-posts, loading-bar,
-          f-input (champ texte), f-btn, f-btn.secondary, f-hint, field
-
-=== RÈGLES STRICTES ===
-
-1. PAS d'import, export, require — fichier JS autonome dans une closure
-2. TOUJOURS appeler frodon.refreshSphereTab(PLUGIN_ID) après toute modification d'état
-3. Les DMs de protocole interne → TOUJOURS _silent:true
-4. Les DMs visibles par l'utilisateur → fournir _label
-5. render(container) est appelé à chaque re-render — NE PAS garder de référence au container
-6. Inputs (input, textarea, select) → créer avec document.createElement, pas makeElement
-7. Sérialiser Set → Array avant store.set(), désérialiser après store.get()
-8. Toujours gérer le cas peer=null dans registerPeerAction
-9. Pour les jeux multijoueurs : un pair est hôte, il valide toutes les actions
-10. Injecter le CSS personnalisé UNE SEULE FOIS avec un flag _cssInjected
-
-=== STRUCTURE PAR TYPE DE PLUGIN ===
-
-Plugin RÉACTION/COMMUNICATION simple :
-  onDM → stocker dans inbox, refreshSphereTab
-  registerPeerAction → boutons d'envoi
-  registerBottomPanel → liste des reçus + stats
-
-Plugin JEU P2P :
-  État centralisé chez l'hôte (isHost:true)
-  hostSync() → envoie state_sync à tous
-  onDM 'action' → hostAction(fromId, ...) → hostSync()
-  onPeerLeave → fold/abandon automatique
-  onPeerAppear → resync
-  registerBottomPanel → plateau de jeu complet
-
-Plugin BADGE/PRÉSENCE :
-  store.get('badge') → données de profil
-  onPeerAppear → envoyer mon badge (_silent)
-  onDM 'request_badge' → répondre avec mon badge
-  registerPeerAction → afficher badge + formulaire de contact
-  registerProfileWidget → afficher mon propre badge
-  tab settings:true → formulaire de configuration du badge
-
-Réponds UNIQUEMENT avec le code JavaScript brut du plugin, sans balises markdown, sans commentaires de structure.
+// Avant désinstallation
+frodon.registerUninstallHook(PLUGIN_ID, () => {
+  // Envoyer les forfaits en cours, nettoyer les données partagées
+});
 ```
 
 ---
 
-## 8. Checklist de validation d'un plugin
+### 3.9 Feed SPHERE
 
-Avant de publier un plugin, vérifier :
+Le feed global agrège les événements de tous les plugins.
+
+**Événement automatique (côté récepteur) :** un DM avec `_label` génère automatiquement un événement dans le feed du pair qui reçoit.
+
+**Événement manuel :**
+
+```js
+frodon.addFeedEvent(peerId, {
+  pluginId,
+  pluginName: 'Mon Plugin',
+  pluginIcon: '🎯',
+  peerName: peer.name,
+  text: 'Vous avez envoyé un défi',
+});
+```
+
+**Règle :** `_label` pour les événements **entrants** (je reçois), `addFeedEvent` pour les événements **sortants** (j'envoie).
+
+---
+
+## 4. CSS — classes et variables
+
+### Variables globales
+
+```css
+/* Fonds */
+--bg, --bg2               /* Fond principal / modal */
+--sur, --sur2             /* Surfaces */
+--bdr, --bdr2             /* Bordures */
+
+/* Couleurs */
+--acc    : #00f5c8        /* Cyan — accent principal */
+--acc2   : #7c4dff        /* Violet — accent secondaire */
+--ok     : #00e87a        /* Vert — succès */
+--warn   : #ff6b35        /* Orange — danger/alerte */
+
+/* Texte */
+--txt    : #e8e8f8        /* Texte principal */
+--txt2   : #7070a0        /* Texte secondaire */
+--txt3   : #2e2e55        /* Texte tertiaire / désactivé */
+
+/* Typo & décoration */
+--mono   : 'Space Mono', monospace
+--sans   : 'Syne', sans-serif
+--r      : 12px           /* Radius standard */
+--r2     : 20px           /* Radius large */
+--glow   : 0 0 28px rgba(0,245,200,.22)
+```
+
+### Classes utilitaires
+
+```
+Texte         section-label, no-posts, mini-card-ts
+Cartes        mini-card, mini-card-img, mini-card-title, mini-card-body
+              post-card, post-img, post-title, post-body, post-meta, post-link
+Boutons       plugin-action-btn (violet), plugin-action-btn acc (cyan)
+Formulaires   f-input, f-btn, f-btn.secondary, f-btn.danger, f-hint, field
+Plugin        plugin-card, plugin-card-head, plugin-icon, plugin-name,
+              plugin-author, plugin-actions-row, plugin-widget-area
+Autres        loading-bar
+```
+
+### Styles inline courants
+
+```js
+// Fond violet translucide (info, badge)
+'background:rgba(124,77,255,.10);border:1px solid rgba(124,77,255,.25);border-radius:var(--r);padding:10px 12px'
+
+// Fond cyan translucide (actif, confirmé)
+'background:rgba(0,245,200,.08);border:1px solid rgba(0,245,200,.20);border-radius:var(--r);padding:10px 12px'
+
+// Fond orange translucide (alerte, danger)
+'background:rgba(255,107,53,.08);border:1px solid rgba(255,107,53,.25);border-radius:var(--r);padding:10px 12px'
+
+// Fond vert translucide (succès)
+'background:rgba(0,229,122,.07);border:1px solid rgba(0,229,122,.20);border-radius:var(--r);padding:10px 12px'
+
+// Carte standard
+'background:var(--sur);border:1px solid var(--bdr2);border-radius:var(--r);padding:12px 14px;margin-bottom:8px'
+
+// Bulle de message (soi)
+'align-self:flex-end;background:rgba(0,245,200,.1);border:1px solid rgba(0,245,200,.2);color:var(--acc);border-radius:10px 10px 2px 10px;padding:5px 10px;font-size:.72rem;max-width:85%;word-break:break-word'
+
+// Bulle de message (autre)
+'align-self:flex-start;background:rgba(124,77,255,.1);border:1px solid rgba(124,77,255,.2);color:var(--txt);border-radius:10px 10px 10px 2px;padding:5px 10px;font-size:.72rem;max-width:85%;word-break:break-word'
+```
+
+### Injection CSS personnalisée
+
+```js
+let _cssInjected = false;
+function injectCSS() {
+  if (_cssInjected) return;
+  _cssInjected = true;
+  const s = document.createElement('style');
+  s.textContent = `
+    .mon-element { animation: spulse 1s ease-in-out infinite; }
+  `;
+  document.head.appendChild(s);
+}
+// Appeler depuis render() avant de construire le DOM
+```
+
+---
+
+## 5. Patterns par type de plugin
+
+### 5.1 Jeu P2P
+
+**Principe :** un pair est hôte, il valide toutes les actions. Les clients envoient leurs actions à l'hôte, l'hôte resync tout le monde.
+
+```
+Challenger → sendDM 'challenge' → Adversaire
+Adversaire → sendDM 'accept'   → Challenger (devient hôte)
+Hôte : hostSync() → sendDM 'state_sync' à tous les joueurs
+Client : onDM 'state_sync' → mettre à jour + refreshSphereTab
+Client : action locale → sendDM 'action' à l'hôte
+Hôte : onDM 'action' → valider → hostSync()
+onPeerLeave → hôte : marquer joueur "away", gérer le tour
+onPeerAppear → hôte : re-sync le pair | client : envoyer 'resync' à l'hôte
+```
+
+**Persistance :**
+
+```js
+function persist() {
+  if (!game) { store.del('game'); return; }
+  store.set('game', {
+    ...game,
+    pendingInvites: [...(game.pendingInvites || [])], // Set → Array
+    deck: game.isHost ? game.deck : [],               // données hôte seulement
+  });
+}
+
+function restore() {
+  const saved = store.get('game');
+  if (!saved) return;
+  game = { ...saved, pendingInvites: new Set(saved.pendingInvites || []) };
+  setTimeout(() => {
+    if (game.isHost) hostSync();
+    else sendToHost('resync', {});
+  }, 3500); // attendre que le P2P s'établisse
+}
+restore();
+```
+
+---
+
+### 5.2 Badge & présence
+
+**Principe :** les données = le badge actif. Pas de toggle. Distribution automatique à l'apparition d'un pair.
+
+```js
+// Distribution automatique
+frodon.onPeerAppear(peer => {
+  const data = store.get('my_badge');
+  if (data) frodon.sendDM(peer.peerId, PLUGIN_ID, { type: 'badge_data', ...data, _silent: true });
+});
+
+// Réception
+frodon.onDM(PLUGIN_ID, (fromId, payload) => {
+  if (payload.type === 'badge_data') {
+    store.set('peer_badge_' + fromId, payload);
+    frodon.refreshPeerModal(fromId);
+  }
+  if (payload.type === 'request_badge') {
+    const data = store.get('my_badge');
+    if (data) frodon.sendDM(fromId, PLUGIN_ID, { type: 'badge_data', ...data, _silent: true });
+  }
+});
+
+// Affichage dans la fiche d'un pair
+frodon.registerPeerAction(PLUGIN_ID, '🏷 Badge', (peerId, container) => {
+  const badge = store.get('peer_badge_' + peerId);
+  if (!badge) {
+    frodon.sendDM(peerId, PLUGIN_ID, { type: 'request_badge', _silent: true });
+    container.appendChild(frodon.makeElement('div', 'no-posts', 'Chargement…'));
+    return;
+  }
+  // Afficher le badge
+});
+
+// Config dans ⚙ Installés
+frodon.registerBottomPanel(PLUGIN_ID, [
+  { id: 'view', label: '🏷 Badges', render(container) { /* liste des badges reçus */ } },
+  { id: 'config', label: '⚙ Mon badge', settings: true, render(container) { /* formulaire */ } },
+]);
+```
+
+---
+
+### 5.3 Messagerie
+
+**Principe :** le `convId` est l'identifiant de la conversation. Un même `convId` = un même fil, un même "Inconnu". Générer le `convId` **une seule fois** à la création de la conversation.
+
+```js
+// Expéditeur — création d'une conversation
+const convId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+// Stocker convId → persiste la conversation
+store.set('conv_' + convId, { convId, peerId, messages: [{ text, fromMe:true, ts:Date.now() }] });
+frodon.sendDM(peerId, PLUGIN_ID, { type: 'message', convId, text, _label: '💬 Nouveau message' });
+
+// Pour envoyer un message supplémentaire DANS la même conversation
+// → réutiliser le même convId, NE PAS en générer un nouveau
+const conv = store.get('conv_' + convId);
+conv.messages.push({ text, fromMe:true, ts:Date.now() });
+store.set('conv_' + convId, conv);
+frodon.sendDM(peerId, PLUGIN_ID, { type: 'message', convId, text, _silent: true });
+
+// Récepteur — groupement par convId
+frodon.onDM(PLUGIN_ID, (fromId, payload) => {
+  if (payload.type === 'message') {
+    const key = 'conv_' + payload.convId;
+    let conv = store.get(key) || { convId: payload.convId, routeTo: fromId, messages: [] };
+    conv.messages.push({ text: payload.text, fromMe: false, ts: Date.now() });
+    store.set(key, conv);
+    frodon.refreshSphereTab(PLUGIN_ID);
+  }
+});
+```
+
+**Mise à jour DOM sans re-render** (réponse dans une conversation ouverte) :
+
+```js
+// Ajouter une bulle directement dans le DOM existant
+const bubblesEl = document.getElementById('bubbles-' + convId);
+if (bubblesEl) {
+  const b = frodon.makeElement('div', '');
+  b.style.cssText = '/* style bulle */';
+  b.textContent = text;
+  bubblesEl.appendChild(b);
+  bubblesEl.scrollTop = bubblesEl.scrollHeight;
+} else {
+  frodon.refreshSphereTab(PLUGIN_ID); // fallback si DOM absent
+}
+```
+
+---
+
+### 5.4 Média & contenu
+
+**Compression d'image avant envoi :**
+
+```js
+function compressImage(dataUrl, maxW, maxH, quality, cb) {
+  const img = new Image();
+  img.onload = () => {
+    let w = img.width, h = img.height;
+    if (w > maxW || h > maxH) {
+      const ratio = Math.min(maxW / w, maxH / h);
+      w = Math.round(w * ratio); h = Math.round(h * ratio);
+    }
+    const cvs = document.createElement('canvas');
+    cvs.width = w; cvs.height = h;
+    cvs.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(cvs.toDataURL('image/jpeg', quality));
+  };
+  img.src = dataUrl;
+}
+
+// Utilisation
+compressImage(rawDataUrl, 800, 800, 0.75, compressed => {
+  store.set('image_' + id, compressed);
+});
+```
+
+**Config avec sauvegarde différée (pattern "Enregistrer tout") :**
+
+Utiliser un état local dans `render()` pour toutes les modifications intermédiaires, et n'appeler `refreshSphereTab` + `refreshProfileModal` qu'au bouton Enregistrer final. Cela évite que le panneau de config se referme à chaque interaction.
+
+```js
+render(container) {
+  // État local — JAMAIS de refreshSphereTab intermédiaire
+  let editItems = [...(store.get('items') || [])];
+
+  const list = frodon.makeElement('div', '');
+  function renderList() {
+    list.textContent = '';
+    editItems.forEach((item, i) => {
+      const row = frodon.makeElement('div', '');
+      const del = frodon.makeElement('button', 'plugin-action-btn', '✕');
+      del.addEventListener('click', () => { editItems.splice(i, 1); renderList(); }); // DOM local
+      row.appendChild(del); list.appendChild(row);
+    });
+  }
+  renderList();
+  container.appendChild(list);
+
+  const save = frodon.makeElement('button', 'plugin-action-btn acc', '💾 Enregistrer');
+  save.addEventListener('click', () => {
+    store.set('items', editItems);
+    frodon.refreshSphereTab(PLUGIN_ID); // ferme le panel settings → voulu
+    frodon.refreshProfileModal();
+  });
+  container.appendChild(save);
+}
+```
+
+---
+
+### 5.5 Jeu temps-réel
+
+Pour les jeux où le score évolue très vite (tap, clics rapides), ne pas appeler `refreshSphereTab` à chaque action — mettre à jour le DOM directement.
+
+```js
+// Bouton tapable : utiliser pointerdown (pas click) pour la réactivité tactile
+tapBtn.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (!game || game.phase !== 'playing') return;
+  game.score++;
+
+  // Mise à jour DOM directe — sans re-render
+  const el = document.getElementById('score-display');
+  if (el) el.textContent = game.score;
+
+  // Animation locale
+  tapBtn.style.transform = 'scale(.85)';
+  setTimeout(() => { tapBtn.style.transform = ''; }, 75);
+
+  // Sync réseau
+  frodon.sendDM(game.peerId, PLUGIN_ID, { type: 'score_update', score: game.score, _silent: true });
+});
+
+// Timer avec mise à jour DOM de la barre de progression
+const barInterval = setInterval(() => {
+  const bar = document.getElementById('timer-bar');
+  if (!bar) { clearInterval(barInterval); return; }
+  const elapsed = (Date.now() - game.startTs) / 10000;
+  bar.style.width = Math.round((1 - elapsed) * 100) + '%';
+}, 250);
+```
+
+---
+
+## 6. Pièges courants
+
+### `refreshSphereTab` ferme le panneau de config
+
+`refreshSphereTab` supprime le panneau `.plug-panel` dans la modale ⚙. Ne jamais l'appeler depuis un bouton intermédiaire d'un formulaire `settings: true`. Utiliser la mise à jour DOM locale, et réserver `refreshSphereTab` pour la sauvegarde finale.
+
+### Scope de variables dans les closures imbriquées
+
+```js
+// ❌ Bug : ctr déclaré dans un if, utilisé dans un autre if séparé → ReferenceError
+if (items.length > 1) { const ctr = makeElement('div', ''); /* ... */ }
+if (items.length > 1) { ctr.textContent = '…'; } // ReferenceError
+
+// ✅ Déclarer avant, assigner dans le if
+let ctr = null;
+if (items.length > 1) { ctr = makeElement('div', ''); /* ... */ }
+if (items.length > 1) { ctr && (ctr.textContent = '…'); }
+```
+
+### Nouveau `convId` à chaque message
+
+```js
+// ❌ Chaque envoi crée un nouvel "Inconnu" chez le destinataire
+btn.addEventListener('click', () => {
+  const convId = Date.now().toString(36); // nouveau à chaque clic !
+  frodon.sendDM(peerId, PLUGIN_ID, { type: 'message', convId, text });
+});
+
+// ✅ Réutiliser le convId existant, n'en créer un que si aucun n'existe
+let convId = getExistingConvId(peerId) || createNewConvId();
+```
+
+### `Set` non sérialisable
+
+```js
+// ❌ JSON.stringify(new Set([1,2])) = '{}'
+store.set('data', { invited: mySet });
+
+// ✅
+store.set('data', { invited: [...mySet] });
+const { invited } = store.get('data');
+const mySet = new Set(invited);
+```
+
+### DMs perdus si pair hors ligne
+
+Les DMs ne sont pas mis en queue. Toujours utiliser `onPeerAppear` pour resynchroniser l'état après une reconnexion.
+
+### `peerId` vs `stableId`
+
+`peerId` peut changer après reconnexion. Pour identifier un utilisateur de façon persistante (historique, scores), utiliser `stableId`.
+
+### Images trop lourdes dans les DMs
+
+Une image 1920×1080 en base64 ≈ 7 Mo — trop lourd pour un DM WebRTC. Toujours compresser avant envoi (800×800 px max, qualité 0.75 JPEG ≈ 150–300 Ko).
+
+---
+
+## 7. Checklist de validation
 
 **Structure**
-- [ ] `frodon.register({ id, name }, initFn)` — les deux champs obligatoires présents
-- [ ] `PLUGIN_ID` = `manifest.id` dans tout le code
-- [ ] `return { destroy() {} }` présent à la fin de `initFn`
-- [ ] Pas d'`import`/`export`/`require`
+- [ ] `frodon.register({ id, name }, initFn)` — deux champs obligatoires
+- [ ] `PLUGIN_ID === manifest.id` dans tout le code
+- [ ] `return { destroy() {} }` présent
+- [ ] Aucun `import` / `export` / `require`
 
 **Messagerie**
-- [ ] `frodon.onDM(PLUGIN_ID, ...)` déclaré en premier dans `initFn`
+- [ ] `frodon.onDM` déclaré en **premier** dans `initFn`
 - [ ] Tous les DMs de protocole ont `_silent: true`
-- [ ] Les DMs destinés à l'utilisateur ont un `_label`
+- [ ] Tous les DMs visibles ont `_label`
+- [ ] Contenu volumineux (images) compressé et envoyé en DMs séparés
 
 **UI**
-- [ ] `frodon.refreshSphereTab(PLUGIN_ID)` appelé après chaque changement d'état
-- [ ] `render(container)` n'utilise pas de référence stale au container
-- [ ] Cas `peer = null` géré dans `registerPeerAction`
-- [ ] Inputs créés avec `document.createElement`, pas `makeElement`
+- [ ] `refreshSphereTab` appelé après chaque changement d'état important
+- [ ] `refreshSphereTab` **non** appelé depuis un formulaire de config en cours d'édition
+- [ ] `render()` reconstruit le DOM depuis zéro, sans référence stale
+- [ ] Cas `peer === null` géré dans `registerPeerAction`
+- [ ] Inputs créés avec `document.createElement`
+- [ ] CSS injecté une seule fois (`_cssInjected` flag)
 
 **Persistance**
 - [ ] `Set` → `Array` avant `store.set()`
-- [ ] `Array` → `new Set()` après `store.get()`
-- [ ] `store.del()` appelé dans `destroy()` si nécessaire
+- [ ] `stableId` utilisé pour les identifiants persistants (pas `peerId`)
+- [ ] `convId` fixe pour toute la durée d'une conversation
 
 **Cycle de vie**
-- [ ] `registerUninstallHook` : forfaits envoyés, DMs de départ
-- [ ] `onPeerLeave` : état "away" géré si applicable
-- [ ] `onPeerAppear` : resync envoyé si applicable
-
-**Qualité**
-- [ ] CSS injecté une seule fois (`_cssInjected` flag)
-- [ ] Pas de `console.log` en production
-- [ ] Pas d'accès réseau externe sauf via DM FRODON
-- [ ] Tailles de données raisonnables (pas d'images full-size dans les DMs)
+- [ ] `onPeerAppear` : resync si partie en cours / renvoi de badge
+- [ ] `onPeerLeave` : état "away" ou fold auto si applicable
+- [ ] `registerUninstallHook` : forfaits envoyés, données partagées nettoyées
+- [ ] `store.del()` dans `destroy()` si des données temporaires doivent être supprimées
