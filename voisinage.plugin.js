@@ -1,19 +1,7 @@
-/**
- * FRODON PLUGIN — Voisinage v3.0.0
- *
- * ⚙ Paramètres : créer/gérer ses annonces (aide ou activité)
- *
- * SPHERE onglet "Annonces" :
- *   - Toutes les annonces des pairs ET les miennes, détaillées avec profil
- *   - Bouton Candidater sur chaque annonce → formulaire message + contact
- *
- * SPHERE onglet "Candidatures" :
- *   - Messages reçus par annonce, groupés par pair, échange possible
- */
 frodon.register({
   id: 'voisinage',
   name: 'Voisinage',
-  version: '3.0.0',
+  version: '3.2.0',
   author: 'frodon-community',
   description: 'Demandez de l\'aide ou proposez une activité à vos voisins.',
   icon: '🏘',
@@ -27,17 +15,15 @@ frodon.register({
 
   function getMyPosts() { return store.get('my_posts')||[]; }
   function saveMyPosts(p) { store.set('my_posts',p); }
-  // Messages reçus : [{fromId,fromName,postId,postTitle,postType,message,contact,ts}]
-  function getMessages() { return store.get('messages')||[]; }
-  // Candidatures envoyées : {postId+peerId: true}
-  function getApplied() { return store.get('applied')||{}; }
+  function getConvs() { return store.get('convs')||{}; }
+  // convs = { peerId: { peerName, postId, postTitle, postType, postCategory, msgs:[{fromMe,text,ts,read}] } }
 
   function postActive(p){
     if(p.when==='now') return Date.now()-p.createdAt < 8*60*60*1000;
     return new Date(p.when) > new Date(Date.now()-60*60*1000);
   }
 
-  /* ── DM handler ── */
+  /* ── DM ── */
   frodon.onDM(PLUGIN_ID, (fromId, payload) => {
     if(payload.type==='posts_data'){
       store.set('peer_posts_'+fromId,{posts:payload.posts,ts:Date.now()});
@@ -47,22 +33,29 @@ frodon.register({
       const active=getMyPosts().filter(postActive);
       if(active.length) frodon.sendDM(fromId,PLUGIN_ID,{type:'posts_data',posts:active,_silent:true});
     }
-    if(payload.type==='post_deleted'){
-      const deleted=store.get('deleted_posts')||[];
-      if(!deleted.includes(payload.postId)) deleted.push(payload.postId);
-      if(deleted.length>100) deleted.splice(0, deleted.length-100);
-      store.set('deleted_posts', deleted);
+    if(payload.type==='apply'){
+      const peer=frodon.getPeer(fromId);
+      const convs=getConvs();
+      const key=fromId+'_'+payload.postId;
+      if(!convs[key]) convs[key]={
+        peerName:peer?.name||'?', peerId:fromId,
+        postId:payload.postId, postTitle:payload.postTitle, postType:payload.postType, postCategory:payload.postCategory,
+        msgs:[]
+      };
+      convs[key].msgs.push({fromMe:false, text:payload.message||'Candidature', ts:Date.now(), read:false});
+      store.set('convs',convs);
+      frodon.showToast('🏘 '+(peer?.name||'Voisin')+' répond à "'+payload.postTitle+'"');
       frodon.refreshSphereTab(PLUGIN_ID);
     }
-    if(payload.type==='apply'||payload.type==='message'){
+    if(payload.type==='chat'){
       const peer=frodon.getPeer(fromId);
-      const msgs=getMessages();
-      msgs.unshift({fromId,fromName:peer?.name||'?',fromAvatar:peer?.avatar||'',
-        postId:payload.postId,postTitle:payload.postTitle||'',postType:payload.postType||'',
-        message:payload.message,contact:payload.contact||'',ts:Date.now(),read:false});
-      if(msgs.length>100)msgs.length=100;
-      store.set('messages',msgs);
-      frodon.showToast('🏘 '+(peer?.name||'Voisin')+' répond à "'+( payload.postTitle||'votre annonce')+'" !');
+      const convs=getConvs();
+      const key=payload.convKey||fromId;
+      if(!convs[key]) convs[key]={peerName:peer?.name||'?',peerId:fromId,msgs:[]};
+      if(peer?.name) convs[key].peerName=peer.name;
+      convs[key].msgs.push({fromMe:false,text:payload.text,ts:Date.now(),read:false});
+      store.set('convs',convs);
+      frodon.showToast('🏘 Message de '+(peer?.name||'Voisin'));
       frodon.refreshSphereTab(PLUGIN_ID);
     }
   });
@@ -72,107 +65,87 @@ frodon.register({
     const active=getMyPosts().filter(postActive); if(!active.length) return;
     active.slice(0,2).forEach(p=>{
       const isAide=p.type==='aide';
-      const card=frodon.makeElement('div',''); card.style.cssText='background:'+(isAide?'rgba(255,107,53,.07)':'rgba(0,245,200,.06)')+';border:1px solid '+(isAide?'rgba(255,107,53,.28)':'rgba(0,245,200,.22)')+';border-radius:10px;padding:8px 11px;margin-top:5px';
+      const card=frodon.makeElement('div',''); card.style.cssText='background:'+(isAide?'rgba(255,107,53,.07)':'rgba(0,245,200,.06)')+';border:1px solid '+(isAide?'rgba(255,107,53,.28)':'rgba(0,245,200,.22)')+';border-radius:var(--r);padding:8px 11px;margin-top:5px';
       const lbl=frodon.makeElement('div',''); lbl.style.cssText='font-size:.57rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;color:'+(isAide?'#ff6b35':'var(--acc)')+';margin-bottom:2px'; lbl.textContent=(isAide?'🆘 Cherche':'🤝 Propose')+' · '+p.category; card.appendChild(lbl);
       const t=frodon.makeElement('div',''); t.style.cssText='font-size:.78rem;font-weight:700;color:var(--txt)'; t.textContent=p.title; card.appendChild(t);
       container.appendChild(card);
     });
   });
 
-  /* ── Panneau SPHERE ── */
+  /* ── SPHERE ── */
   frodon.registerBottomPanel(PLUGIN_ID, [
     {
       id: 'annonces', label: '🏘 Annonces',
       render(container) {
-        // Mes annonces actives
         const myPosts=getMyPosts().filter(postActive);
-        // Annonces des pairs actuellement découverts
         const allPeer=[];
-        frodon.getAllPeers().forEach(peer => {
+        const seen=new Set();
+        frodon.getAllPeers().forEach(peer=>{
+          if(seen.has(peer.peerId)) return; seen.add(peer.peerId);
           const cached=store.get('peer_posts_'+peer.peerId);
           if(!cached?.posts) return;
-          cached.posts.filter(postActive).forEach(p=>allPeer.push({...p,_peerId:peer.peerId}));
+          cached.posts.filter(postActive).forEach(p=>allPeer.push({...p,_peerId:peer.peerId,_peerName:peer.name||peer.peerId.substring(0,8)+'…'}));
         });
         allPeer.sort((a,b)=>b.createdAt-a.createdAt);
 
         if(!myPosts.length&&!allPeer.length){
-          const em=frodon.makeElement('div',''); em.style.cssText='text-align:center;padding:28px 14px;color:var(--txt2);font-size:.72rem;line-height:1.9';
-          em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:6px">🏘</div>Aucune annonce à proximité.<br><small style="color:var(--txt3)">Créez une annonce dans les paramètres ⚙</small>';
-          container.appendChild(em); return;
+          const em=frodon.makeElement('div','no-posts'); em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:8px">🏘</div>Aucune annonce à proximité.<br><small style="color:var(--txt3)">Créez une annonce dans ⚙</small>'; container.appendChild(em); return;
         }
 
         if(myPosts.length){
           _sLabel(container,'● Mes annonces');
-          myPosts.forEach(p=>container.appendChild(_myPostCard(p)));
+          myPosts.forEach(p=>{
+            const isAide=p.type==='aide';
+            const card=frodon.makeElement('div',''); card.style.cssText='background:var(--sur);border:1px solid '+(isAide?'rgba(255,107,53,.22)':'rgba(0,245,200,.18)')+';border-radius:var(--r);margin:0 8px 6px;padding:9px 12px';
+            const badge=frodon.makeElement('div',''); badge.style.cssText='font-size:.57rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;color:'+(isAide?'#ff6b35':'var(--acc)')+';margin-bottom:3px'; badge.textContent=(isAide?'🆘 Cherche':'🤝 Propose')+' · '+p.category; card.appendChild(badge);
+            const t=frodon.makeElement('div',''); t.style.cssText='font-size:.78rem;font-weight:700;color:var(--txt)'; t.textContent=p.title; card.appendChild(t);
+            const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono);margin-top:3px'; meta.textContent='⏰ '+(p.when==='now'?'Maintenant':new Date(p.when).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}))+(p.location?' · 📍'+p.location:''); card.appendChild(meta);
+            container.appendChild(card);
+          });
         }
 
         if(allPeer.length){
           _sLabel(container, allPeer.length+' annonce'+(allPeer.length>1?'s':'')+' à proximité');
-          allPeer.forEach(p=>container.appendChild(_peerPostCard(p)));
+          allPeer.forEach(p=>{
+            const applied=store.get('applied_'+p._peerId+'_'+p.id);
+            container.appendChild(_peerPostCard(p, applied, container));
+          });
         }
       }
     },
-
     {
       id: 'candidatures', label: '📬 Candidatures',
       render(container) {
-        const msgs=getMessages();
-        if(!msgs.length){
-          const em=frodon.makeElement('div',''); em.style.cssText='text-align:center;padding:28px 14px;color:var(--txt2);font-size:.72rem;line-height:1.9';
-          em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:6px">📬</div>Aucune candidature reçue.<br><small style="color:var(--txt3)">Apparaissent ici quand des voisins répondent.</small>';
-          container.appendChild(em); return;
+        const convs=getConvs();
+        const entries=Object.entries(convs);
+        if(!entries.length){
+          const em=frodon.makeElement('div','no-posts'); em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:8px">📬</div>Aucune candidature.<br><small style="color:var(--txt3)">Apparaissent quand des voisins répondent.</small>'; container.appendChild(em); return;
         }
-        msgs.forEach(m=>m.read=true); store.set('messages',msgs);
-
-        // Grouper par fromId
-        const grouped={};
-        msgs.forEach(m=>{
-          if(!grouped[m.fromId]) grouped[m.fromId]={fromId:m.fromId,fromName:m.fromName,msgs:[]};
-          grouped[m.fromId].msgs.push(m);
-        });
-
-        Object.values(grouped).forEach(g=>{
-          const card=frodon.makeElement('div',''); card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:6px 8px 0;overflow:hidden';
-          const hdr=frodon.makeElement('div',''); hdr.style.cssText='display:flex;align-items:center;gap:9px;padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--bdr)';
-          hdr.addEventListener('click',()=>frodon.openPeer(g.fromId));
-          const av=frodon.makeElement('div',''); av.style.cssText='width:32px;height:32px;border-radius:50%;background:rgba(124,77,255,.18);border:1px solid rgba(124,77,255,.28);display:flex;align-items:center;justify-content:center;font-size:.75rem;font-family:var(--mono);font-weight:700;flex-shrink:0'; av.textContent=g.fromName[0].toUpperCase();
-          const nameEl=frodon.makeElement('div',''); nameEl.style.cssText='font-size:.76rem;font-weight:700;color:var(--acc2);flex:1'; nameEl.textContent=g.fromName;
-          const cnt=frodon.makeElement('div',''); cnt.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono)'; cnt.textContent=g.msgs.length+' msg';
-          hdr.appendChild(av); hdr.appendChild(nameEl); hdr.appendChild(cnt); card.appendChild(hdr);
-
-          const body=frodon.makeElement('div',''); body.style.cssText='padding:8px 12px';
-          g.msgs.slice(0,5).forEach(m=>{
-            const row=frodon.makeElement('div',''); row.style.cssText='padding:5px 0;border-bottom:1px solid var(--bdr)';
-            if(m.postTitle){const pt=frodon.makeElement('div',''); pt.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);margin-bottom:1px'; pt.textContent='Re: '+m.postTitle+(m.postType==='aide'?' 🆘':' 🤝'); row.appendChild(pt);}
-            const txt=frodon.makeElement('div',''); txt.style.cssText='font-size:.7rem;color:var(--txt)'; txt.textContent=m.message; row.appendChild(txt);
-            if(m.contact){const c=frodon.makeElement('div',''); c.style.cssText='font-size:.62rem;color:var(--acc);margin-top:2px'; c.textContent='✉ '+m.contact; row.appendChild(c);}
-            const ts=frodon.makeElement('div',''); ts.style.cssText='font-size:.55rem;color:var(--txt3);font-family:var(--mono);margin-top:2px'; ts.textContent=frodon.formatTime(m.ts); row.appendChild(ts);
-            body.appendChild(row);
-          });
-
-          // Répondre
-          const ta=document.createElement('textarea'); ta.className='f-input'; ta.rows=2; ta.maxLength=300; ta.placeholder='Votre réponse…'; ta.style.cssText+='margin-top:8px;margin-bottom:6px';
-          const replyBtn=frodon.makeElement('button','plugin-action-btn acc','💬 Répondre');
-          replyBtn.addEventListener('click',()=>{
-            const msg=ta.value.trim(); if(!msg){frodon.showToast('Écrivez un message',true);return;}
-            setTimeout(()=>frodon.sendDM(g.fromId,PLUGIN_ID,{type:'message',message:msg,_label:'🏘 Réponse voisinage'}),300);
-            ta.value=''; replyBtn.textContent='✓ Envoyé'; replyBtn.disabled=true;
-            frodon.showToast('🏘 Réponse envoyée à '+g.fromName);
-          });
-          body.appendChild(ta); body.appendChild(replyBtn); card.appendChild(body);
+        const unreadTotal=entries.reduce((s,[,c])=>s+c.msgs.filter(m=>!m.read&&!m.fromMe).length,0);
+        entries.forEach(([key,conv])=>{
+          const unread=conv.msgs.filter(m=>!m.read&&!m.fromMe).length;
+          const card=frodon.makeElement('div',''); card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:var(--r);margin:6px 8px 0;display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer';
+          card.addEventListener('click',()=>{ container.innerHTML=''; _renderConvDetail(container,key,conv); });
+          const av=frodon.makeElement('div',''); av.style.cssText='width:36px;height:36px;border-radius:50%;background:rgba(124,77,255,.18);border:1px solid rgba(124,77,255,.28);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;font-family:var(--mono);font-weight:700'; av.textContent=(conv.peerName||'?')[0].toUpperCase();
+          const info=frodon.makeElement('div',''); info.style.cssText='flex:1;min-width:0';
+          const nameEl=frodon.makeElement('div',''); nameEl.style.cssText='font-size:.76rem;font-weight:700;color:var(--acc2)'; nameEl.textContent=conv.peerName; info.appendChild(nameEl);
+          if(conv.postTitle){const pt=frodon.makeElement('div',''); pt.style.cssText='font-size:.63rem;color:var(--txt2)'; pt.textContent='Re: '+conv.postTitle+(conv.postType==='aide'?' 🆘':' 🤝'); info.appendChild(pt);}
+          if(conv.msgs.length){const last=conv.msgs[conv.msgs.length-1]; const prev=frodon.makeElement('div',''); prev.style.cssText='font-size:.62rem;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis'; prev.textContent=(last.fromMe?'Vous : ':'')+last.text; info.appendChild(prev);}
+          const right=frodon.makeElement('div',''); right.style.cssText='display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0';
+          if(conv.msgs.length){const ts=frodon.makeElement('div',''); ts.style.cssText='font-size:.56rem;color:var(--txt3);font-family:var(--mono)'; ts.textContent=frodon.formatTime(conv.msgs[conv.msgs.length-1].ts); right.appendChild(ts);}
+          if(unread){const badge=frodon.makeElement('div',''); badge.style.cssText='background:var(--acc);color:#000;font-size:.58rem;font-weight:700;border-radius:99px;padding:1px 6px;font-family:var(--mono)'; badge.textContent=unread; right.appendChild(badge);}
+          card.appendChild(av); card.appendChild(info); card.appendChild(right);
           container.appendChild(card);
         });
       }
     },
-
     {
-      id: 'settings', label: '⚙ Mes annonces',
-      settings: true,
+      id: 'settings', label: '⚙ Mes annonces', settings:true,
       render(container) {
         _renderForm(container);
         const posts=getMyPosts();
         if(posts.length){
-          const lbl=frodon.makeElement('div',''); lbl.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin:12px 8px 4px'; lbl.textContent='Mes annonces'; container.appendChild(lbl);
+          const lbl=frodon.makeElement('div','section-label'); lbl.textContent='Mes annonces'; container.appendChild(lbl);
           posts.forEach(p=>{
             const row=frodon.makeElement('div',''); row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--sur);border-bottom:1px solid var(--bdr)';
             const dot=frodon.makeElement('span','',postActive(p)?'●':'○'); dot.style.cssText='color:'+(postActive(p)?'var(--ok)':'var(--txt3)')+';font-size:.7rem;flex-shrink:0';
@@ -181,13 +154,10 @@ frodon.register({
             info.appendChild(Object.assign(frodon.makeElement('div',''),{textContent:p.category,style:{fontSize:'.6rem',color:'var(--txt2)'}}));
             const del=frodon.makeElement('button',''); del.style.cssText='background:none;border:none;cursor:pointer;color:var(--txt3);font-size:.9rem;padding:2px 4px;flex-shrink:0'; del.textContent='✕';
             del.addEventListener('click',()=>{
-              const updated=getMyPosts().filter(x=>x.id!==p.id);
-              saveMyPosts(updated);
+              const updated=getMyPosts().filter(x=>x.id!==p.id); saveMyPosts(updated);
               const active=updated.filter(postActive);
-              // Broadcast mise à jour + signaler la suppression
               frodon.getAllPeers().forEach(peer=>{
                 frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'posts_data',posts:active,_silent:true});
-                frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'post_deleted',postId:p.id,_silent:true});
               });
               frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
             });
@@ -198,69 +168,128 @@ frodon.register({
     },
   ]);
 
-  function _sLabel(container,text){
-    const l=frodon.makeElement('div',''); l.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin:8px 8px 4px'; l.textContent=text; container.appendChild(l);
-  }
-
-  function _myPostCard(p){
+  function _peerPostCard(p, applied, sphereContainer) {
     const isAide=p.type==='aide';
-    const card=frodon.makeElement('div',''); card.style.cssText='background:var(--sur);border:1px solid '+(isAide?'rgba(255,107,53,.22)':'rgba(0,245,200,.18)')+';border-radius:9px;margin:0 8px 6px;padding:9px 12px';
-    const badge=frodon.makeElement('div',''); badge.style.cssText='font-size:.57rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;color:'+(isAide?'#ff6b35':'var(--acc)')+';margin-bottom:3px'; badge.textContent=(isAide?'🆘 Cherche':'🤝 Propose')+' · '+p.category; card.appendChild(badge);
-    const t=frodon.makeElement('div',''); t.style.cssText='font-size:.78rem;font-weight:700;color:var(--txt)'; t.textContent=p.title; card.appendChild(t);
-    const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono);margin-top:3px'; meta.textContent='⏰ '+(p.when==='now'?'Maintenant':new Date(p.when).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}))+(p.location?' · 📍'+p.location:''); card.appendChild(meta);
-    return card;
-  }
-
-  function _peerPostCard(p){
-    const isAide=p.type==='aide';
-    const peer=frodon.getPeer(p._peerId);
-    const name=peer?.name||p._peerId.substring(0,8)+'…';
-    const applied=getApplied()[p._peerId+'_'+p.id];
-
-    const card=frodon.makeElement('div',''); card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:0 8px 8px;overflow:hidden';
+    const card=frodon.makeElement('div',''); card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:var(--r);margin:0 8px 8px;overflow:hidden';
 
     // Header profil cliquable
     const hdr=frodon.makeElement('div',''); hdr.style.cssText='display:flex;align-items:center;gap:9px;padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--bdr)';
     hdr.addEventListener('click',()=>frodon.openPeer(p._peerId));
-    const av=frodon.makeElement('div',''); av.style.cssText='width:28px;height:28px;border-radius:50%;background:rgba(124,77,255,.15);border:1px solid rgba(124,77,255,.25);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-family:var(--mono);font-weight:700;flex-shrink:0'; av.textContent=name[0].toUpperCase();
-    const nameEl=frodon.makeElement('div',''); nameEl.style.cssText='font-size:.7rem;font-weight:700;color:var(--acc2);flex:1'; nameEl.textContent=name;
+    const av=frodon.makeElement('div',''); av.style.cssText='width:28px;height:28px;border-radius:50%;background:rgba(124,77,255,.15);border:1px solid rgba(124,77,255,.25);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-family:var(--mono);font-weight:700;flex-shrink:0'; av.textContent=p._peerName[0].toUpperCase();
+    const nameEl=frodon.makeElement('div',''); nameEl.style.cssText='font-size:.7rem;font-weight:700;color:var(--acc2);flex:1'; nameEl.textContent=p._peerName;
     const cat=frodon.makeElement('div',''); cat.style.cssText='font-size:.58rem;font-family:var(--mono);color:'+(isAide?'#ff6b35':'var(--acc)'); cat.textContent=(isAide?'🆘':'🤝')+' '+p.category;
     hdr.appendChild(av); hdr.appendChild(nameEl); hdr.appendChild(cat); card.appendChild(hdr);
 
-    // Contenu
-    const body=frodon.makeElement('div',''); body.style.cssText='padding:9px 12px 10px';
+    // Contenu complet
+    const body=frodon.makeElement('div',''); body.style.cssText='padding:9px 12px 11px';
     const t=frodon.makeElement('div',''); t.style.cssText='font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:3px'; t.textContent=p.title; body.appendChild(t);
     if(p.description){const d=frodon.makeElement('div',''); d.style.cssText='font-size:.65rem;color:var(--txt2);margin-bottom:4px'; d.textContent=p.description; body.appendChild(d);}
-    const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.61rem;color:var(--txt3);font-family:var(--mono);line-height:1.7;margin-bottom:8px';
-    let mh='⏰ '+(p.when==='now'?'Maintenant':new Date(p.when).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}));
+    const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.62rem;color:var(--txt3);font-family:var(--mono);line-height:1.8;margin-bottom:8px';
+    let mh='⏰ '+(p.when==='now'?'<b style="color:var(--ok)">Maintenant</b>':'<b style="color:var(--txt)">'+new Date(p.when).toLocaleString('fr-FR',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+'</b>');
     if(p.location) mh+='<br>📍 '+p.location;
     if(p.maxPeople) mh+='<br>👥 Max '+p.maxPeople+' personnes';
     meta.innerHTML=mh; body.appendChild(meta);
 
-    if(!applied){
-      // Formulaire candidature
-      const ta=document.createElement('textarea'); ta.className='f-input'; ta.rows=2; ta.maxLength=300; ta.placeholder='Votre message (optionnel)…'; ta.style.marginBottom='5px'; body.appendChild(ta);
-      const contactInp=document.createElement('input'); contactInp.className='f-input'; contactInp.placeholder='Votre contact (email, tel, pseudo…)'; contactInp.style.marginBottom='7px'; body.appendChild(contactInp);
+    if(applied){
+      const done=frodon.makeElement('div',''); done.style.cssText='font-size:.66rem;color:var(--ok);font-family:var(--mono);padding:2px 0;margin-bottom:4px'; done.textContent='✓ Candidature envoyée'; body.appendChild(done);
+      const convBtn=frodon.makeElement('button','plugin-action-btn','💬 Voir la conversation');
+      convBtn.addEventListener('click',()=>{
+        const key=p._peerId+'_'+p.id;
+        const convs=getConvs();
+        sphereContainer.innerHTML='';
+        _renderConvDetail(sphereContainer, key, convs[key]||{peerName:p._peerName,peerId:p._peerId,postTitle:p.title,postType:p.type,postCategory:p.category,msgs:[]});
+      });
+      body.appendChild(convBtn);
+    } else {
       const applyBtn=frodon.makeElement('button','plugin-action-btn acc','🙋 Candidater');
+      applyBtn.style.cssText+=';width:100%';
       applyBtn.addEventListener('click',()=>{
-        const msg=ta.value.trim()||'Je suis intéressé'+(isAide?' pour vous aider':' par cette activité')+'.';
-        setTimeout(()=>frodon.sendDM(p._peerId,PLUGIN_ID,{type:'apply',postId:p.id,postTitle:p.title,postType:p.type,message:msg,contact:contactInp.value.trim(),_label:'🏘 Candidature voisinage'}),300);
-        const applied2=getApplied(); applied2[p._peerId+'_'+p.id]=true; store.set('applied',applied2);
-        applyBtn.textContent='✓ Candidature envoyée'; applyBtn.disabled=true;
-        frodon.showToast('🏘 Candidature envoyée à '+name+' !');
+        store.set('applied_'+p._peerId+'_'+p.id, true);
+        // Créer conv
+        const convs=getConvs(); const key=p._peerId+'_'+p.id;
+        if(!convs[key]) convs[key]={peerName:p._peerName,peerId:p._peerId,postId:p.id,postTitle:p.title,postType:p.type,postCategory:p.category,msgs:[]};
+        store.set('convs',convs);
+        setTimeout(()=>frodon.sendDM(p._peerId,PLUGIN_ID,{type:'apply',postId:p.id,postTitle:p.title,postType:p.type,postCategory:p.category,message:'Je suis intéressé'+(p.type==='aide'?' pour vous aider':' par cette activité')+'.',_label:'🏘 Candidature voisinage'}),300);
+        frodon.refreshSphereTab(PLUGIN_ID);
+        // Ouvrir conv dans candidatures
+        sphereContainer.innerHTML='';
+        _renderConvDetail(sphereContainer, key, convs[key]);
       });
       body.appendChild(applyBtn);
-    } else {
-      const done=frodon.makeElement('div',''); done.style.cssText='font-size:.66rem;color:var(--ok);font-family:var(--mono);padding:2px 0'; done.textContent='✓ Candidature envoyée'; body.appendChild(done);
     }
     card.appendChild(body); return card;
   }
 
+  function _renderConvDetail(container, convKey, conv) {
+    if(!conv) conv={peerName:'?',peerId:convKey,msgs:[]};
+    const peerId=conv.peerId||convKey.split('_')[0];
+    const name=conv.peerName||'?';
+
+    // Top bar avec retour
+    const topBar=frodon.makeElement('div',''); topBar.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0';
+    const backBtn=frodon.makeElement('button',''); backBtn.style.cssText='background:none;border:none;cursor:pointer;color:var(--acc);font-size:.85rem;padding:2px 6px 2px 0'; backBtn.textContent='←';
+    backBtn.addEventListener('click',()=>{ container.innerHTML=''; frodon.refreshSphereTab(PLUGIN_ID); });
+    const av=frodon.makeElement('div',''); av.style.cssText='width:32px;height:32px;border-radius:50%;background:rgba(124,77,255,.18);border:1px solid rgba(124,77,255,.28);display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;font-family:var(--mono);font-weight:700;cursor:pointer'; av.textContent=name[0].toUpperCase(); av.addEventListener('click',()=>frodon.openPeer(peerId));
+    const hInfo=frodon.makeElement('div',''); hInfo.style.cssText='flex:1;min-width:0';
+    const hName=frodon.makeElement('div',''); hName.style.cssText='font-size:.76rem;font-weight:700;color:var(--acc2);cursor:pointer'; hName.textContent=name; hName.addEventListener('click',()=>frodon.openPeer(peerId));
+    hInfo.appendChild(hName);
+    topBar.appendChild(backBtn); topBar.appendChild(av); topBar.appendChild(hInfo); container.appendChild(topBar);
+
+    // Rappel de l'annonce
+    if(conv.postTitle){
+      const isAide=conv.postType==='aide';
+      const recap=frodon.makeElement('div',''); recap.style.cssText='margin:8px 10px 0;padding:8px 10px;background:'+(isAide?'rgba(255,107,53,.07)':'rgba(0,245,200,.07)')+';border:1px solid '+(isAide?'rgba(255,107,53,.25)':'rgba(0,245,200,.2)')+';border-radius:8px';
+      const rl=frodon.makeElement('div',''); rl.style.cssText='font-size:.58rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;color:'+(isAide?'#ff6b35':'var(--acc)')+';margin-bottom:3px'; rl.textContent=(isAide?'🆘 Cherche aide':'🤝 Propose')+' · '+(conv.postCategory||'');
+      const rt=frodon.makeElement('div',''); rt.style.cssText='font-size:.76rem;font-weight:700;color:var(--txt)'; rt.textContent=conv.postTitle;
+      recap.appendChild(rl); recap.appendChild(rt); container.appendChild(recap);
+    }
+
+    // Fil
+    const feed=frodon.makeElement('div',''); feed.style.cssText='flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:5px;min-height:120px;max-height:280px';
+
+    const convs=getConvs();
+    if(convs[convKey]) { convs[convKey].msgs.forEach(m=>{if(!m.fromMe)m.read=true;}); store.set('convs',convs); }
+
+    function renderMsgs(){
+      feed.innerHTML='';
+      const c2=getConvs(); const msgs=(c2[convKey]?.msgs)||conv.msgs||[];
+      if(!msgs.length){ const em=frodon.makeElement('div',''); em.style.cssText='text-align:center;color:var(--txt3);font-size:.66rem;padding:16px 0'; em.textContent='Démarrez la conversation…'; feed.appendChild(em); }
+      msgs.forEach(m=>{
+        const bub=frodon.makeElement('div','');
+        bub.style.cssText=m.fromMe
+          ?'align-self:flex-end;background:rgba(0,245,200,.1);border:1px solid rgba(0,245,200,.2);color:var(--acc);border-radius:10px 10px 2px 10px;padding:6px 10px;font-size:.72rem;max-width:85%;word-break:break-word'
+          :'align-self:flex-start;background:rgba(124,77,255,.1);border:1px solid rgba(124,77,255,.2);color:var(--txt);border-radius:10px 10px 10px 2px;padding:6px 10px;font-size:.72rem;max-width:85%;word-break:break-word';
+        bub.textContent=m.text;
+        const ts=frodon.makeElement('div',''); ts.style.cssText='font-size:.52rem;opacity:.5;margin-top:2px;text-align:'+(m.fromMe?'right':'left'); ts.textContent=frodon.formatTime(m.ts);
+        bub.appendChild(ts); feed.appendChild(bub);
+      });
+      feed.scrollTop=feed.scrollHeight;
+    }
+    renderMsgs(); container.appendChild(feed);
+
+    // Saisie
+    const inputRow=frodon.makeElement('div',''); inputRow.style.cssText='display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--bdr);flex-shrink:0';
+    const ta=document.createElement('textarea'); ta.className='f-input'; ta.rows=2; ta.maxLength=500; ta.placeholder='Votre message…'; ta.style.cssText+=';flex:1;resize:none';
+    const sendBtn=frodon.makeElement('button','plugin-action-btn acc','↑'); sendBtn.style.cssText+=';padding:6px 12px;font-size:.9rem;align-self:flex-end';
+    sendBtn.addEventListener('click',()=>{
+      const txt=ta.value.trim(); if(!txt) return;
+      const convs2=getConvs();
+      if(!convs2[convKey]) convs2[convKey]={peerName:name,peerId,postId:conv.postId,postTitle:conv.postTitle,postType:conv.postType,postCategory:conv.postCategory,msgs:[]};
+      convs2[convKey].msgs.push({fromMe:true,text:txt,ts:Date.now(),read:true});
+      store.set('convs',convs2);
+      setTimeout(()=>frodon.sendDM(peerId,PLUGIN_ID,{type:'chat',text:txt,convKey,_label:'🏘 Message voisinage'}),300);
+      ta.value=''; renderMsgs();
+    });
+    ta.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendBtn.click();} });
+    inputRow.appendChild(ta); inputRow.appendChild(sendBtn); container.appendChild(inputRow);
+  }
+
+  function _sLabel(container,text){ const l=frodon.makeElement('div','section-label'); l.textContent=text; container.appendChild(l); }
+
   function _renderForm(container){
-    const form=frodon.makeElement('div',''); form.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:8px;padding:12px';
+    const form=frodon.makeElement('div',''); form.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:var(--r);margin:8px;padding:12px';
     const title=frodon.makeElement('div',''); title.style.cssText='font-size:.62rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px'; title.textContent='Nouvelle annonce'; form.appendChild(title);
 
-    // Type
     const typeRow=frodon.makeElement('div',''); typeRow.style.cssText='display:flex;gap:6px;margin-bottom:9px';
     let selType='aide';
     const aBtn=frodon.makeElement('button','plugin-action-btn acc','🆘 Cherche aide'); aBtn.style.cssText+=';flex:1;font-size:.63rem';
@@ -273,19 +302,20 @@ frodon.register({
       cats.forEach(cat=>{
         const cb=frodon.makeElement('button',''); cb.style.cssText='padding:3px 8px;border-radius:6px;border:1px solid var(--bdr2);background:var(--sur2);color:var(--txt2);font-size:.6rem;cursor:pointer;transition:all .15s'; cb.textContent=cat;
         cb.addEventListener('click',()=>{selCat=cat; catWrap.querySelectorAll('button').forEach(b=>{b.style.background='var(--sur2)';b.style.color='var(--txt2)';b.style.borderColor='var(--bdr2)';}); cb.style.background=type==='aide'?'rgba(255,107,53,.12)':'rgba(0,245,200,.1)'; cb.style.color=type==='aide'?'#ff6b35':'var(--acc)'; cb.style.borderColor=type==='aide'?'rgba(255,107,53,.35)':'rgba(0,245,200,.3)';});
-        if(cat===selCat) cb.click();
-        catWrap.appendChild(cb);
+        if(cat===selCat) cb.click(); catWrap.appendChild(cb);
       });
       maxRow.style.display=type==='activite'?'flex':'none';
     }
     aBtn.addEventListener('click',()=>{selType='aide';aBtn.classList.add('acc');acBtn.classList.remove('acc');rebuildCats('aide');});
     acBtn.addEventListener('click',()=>{selType='activite';acBtn.classList.add('acc');aBtn.classList.remove('acc');rebuildCats('activite');});
     typeRow.appendChild(aBtn); typeRow.appendChild(acBtn); form.appendChild(typeRow);
-    _fl(form,'Catégorie'); form.appendChild(catWrap);
 
-    _fl(form,'Titre *'); const tInp=document.createElement('input'); tInp.className='f-input'; tInp.placeholder='Ex: Aide pour monter un meuble ? / Balade en forêt dimanche'; tInp.maxLength=100; tInp.style.marginBottom='5px'; form.appendChild(tInp);
-    _fl(form,'Détails'); const dInp=document.createElement('textarea'); dInp.className='f-input'; dInp.rows=2; dInp.maxLength=300; dInp.placeholder='Description, matériel, conditions…'; dInp.style.marginBottom='5px'; form.appendChild(dInp);
-    _fl(form,'📍 Lieu (optionnel)'); const lInp=document.createElement('input'); lInp.className='f-input'; lInp.placeholder='Quartier, adresse, lieu de RDV…'; lInp.style.marginBottom='5px'; form.appendChild(lInp);
+    const catLbl=frodon.makeElement('div',''); catLbl.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;margin-bottom:5px'; catLbl.textContent='Catégorie'; form.appendChild(catLbl); form.appendChild(catWrap);
+
+    const fl=(p,t)=>{const l=frodon.makeElement('div',''); l.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;margin-top:7px'; l.textContent=t; p.appendChild(l);};
+    fl(form,'Titre *'); const tInp=document.createElement('input'); tInp.className='f-input'; tInp.placeholder='Ex: Aide pour monter un meuble ? / Balade dimanche matin ?'; tInp.maxLength=100; tInp.style.marginBottom='5px'; form.appendChild(tInp);
+    fl(form,'Détails'); const dInp=document.createElement('textarea'); dInp.className='f-input'; dInp.rows=2; dInp.maxLength=300; dInp.placeholder='Description, matériel, conditions…'; dInp.style.marginBottom='5px'; form.appendChild(dInp);
+    fl(form,'📍 Lieu (optionnel)'); const lInp=document.createElement('input'); lInp.className='f-input'; lInp.placeholder='Quartier, adresse, lieu de RDV…'; lInp.style.marginBottom='5px'; form.appendChild(lInp);
 
     const maxRow=frodon.makeElement('div',''); maxRow.style.cssText='display:none;align-items:center;gap:8px;margin-bottom:5px';
     const maxLbl=frodon.makeElement('div',''); maxLbl.style.cssText='font-size:.63rem;color:var(--txt2);font-family:var(--mono);white-space:nowrap'; maxLbl.textContent='👥 Participants max :';
@@ -293,7 +323,7 @@ frodon.register({
     maxRow.appendChild(maxLbl); maxRow.appendChild(maxInp); form.appendChild(maxRow);
     rebuildCats('aide');
 
-    _fl(form,'⏰ Quand');
+    fl(form,'⏰ Quand');
     const whenRow=frodon.makeElement('div',''); whenRow.style.cssText='display:flex;gap:6px;margin-bottom:10px;align-items:center';
     let when='now';
     const nowBtn=frodon.makeElement('button','plugin-action-btn acc','Maintenant'); nowBtn.style.cssText+=';flex:1;font-size:.62rem';
@@ -311,18 +341,12 @@ frodon.register({
       const posts=getMyPosts(); posts.unshift(post); if(posts.length>15)posts.length=15;
       saveMyPosts(posts);
       const active=posts.filter(postActive);
-      frodon.getAllPeers().forEach(peer=>{
-        frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'posts_data',posts:active,_silent:true});
-      });
+      frodon.getAllPeers().forEach(peer=>frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'posts_data',posts:active,_silent:true}));
       frodon.showToast('🏘 Annonce publiée !');
       tInp.value=''; dInp.value=''; lInp.value='';
       frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
     });
     form.appendChild(pubBtn); container.appendChild(form);
-  }
-
-  function _fl(parent,text){
-    const l=frodon.makeElement('div',''); l.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;margin-top:7px'; l.textContent=text; parent.appendChild(l);
   }
 
   frodon.onPeerAppear(peer=>{
