@@ -150,10 +150,9 @@ frodon.register({
           meta.innerHTML=mh; body.appendChild(meta);
 
           if(applied[peer.peerId]) {
-            // Déjà candidaté → bouton "Voir la conversation"
-            const convBtn=frodon.makeElement('button','plugin-action-btn','💬 Voir la conversation');
-            convBtn.addEventListener('click',()=>{ frodon.focusPlugin(PLUGIN_ID); setTimeout(()=>frodon.refreshSphereTab(PLUGIN_ID),50); _openConv(container, peer.peerId, name, profile); });
-            body.appendChild(convBtn);
+            const doneLbl=frodon.makeElement('div',''); doneLbl.style.cssText='font-size:.64rem;color:var(--ok);font-family:var(--mono);padding:4px 0';
+            doneLbl.textContent='✓ Candidature envoyée — échange dans Réceptions';
+            body.appendChild(doneLbl);
           } else {
             const applyBtn=frodon.makeElement('button','plugin-action-btn acc','🚗 Candidater');
             applyBtn.style.cssText+=';width:100%';
@@ -167,8 +166,6 @@ frodon.register({
               // Envoyer candidature
               setTimeout(()=>frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'apply',message:'Je candidate pour votre trajet.',_label:'🚗 Candidature autopartage'}),300);
               frodon.refreshSphereTab(PLUGIN_ID);
-              // Basculer sur Réceptions et ouvrir conv
-              _switchTab('reception', container, peer.peerId, name, profile);
             });
             body.appendChild(applyBtn);
           }
