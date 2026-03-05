@@ -1,9 +1,9 @@
 /**
- * FRODON PLUGIN — TicTacToe P2P  v2.3
- * Fix: persist/restore games on page refresh
+ * FRODON PLUGIN — TicTacToe P2P  v2.4
+ * Fix: challenge delay, rematch dedup, opponent name, forfeit closes card
  */
 frodon.register({
-  id:'tictactoe', name:'TicTacToe', version:'2.3.0',
+  id:'tictactoe', name:'TicTacToe', version:'2.4.0',
   author:'frodon-community',
   description:'Défiez vos pairs à une partie de TicTacToe en P2P.',
   icon:'⊞',
@@ -24,9 +24,10 @@ frodon.register({
   function getWinLine(b) {
     for(const l of LINES){const[a,c,d]=l;if(b[a]&&b[a]===b[c]&&b[a]===b[d])return l;} return null;
   }
-  function getGameId(pid) { return Object.keys(games).find(g=>games[g].opponentId===pid); }
+  // Find ALL games with a given opponent (to clean up properly)
+  function getGameIds(pid) { return Object.keys(games).filter(g=>games[g].opponentId===pid); }
+  function getGameId(pid) { return getGameIds(pid)[0]; }
 
-  /* ── Persistance (copié de Poker) ── */
   function persist() {
     if(!Object.keys(games).length) store.del('games');
     else store.set('games', games);
@@ -38,13 +39,19 @@ frodon.register({
     if(Object.keys(games).length) frodon.refreshSphereTab(PLUGIN_ID);
   }
 
+  function peerName(id) {
+    const p = frodon.getPeer(id);
+    const h = (store.get('history')||[]).find(h=>h.opponentId===id);
+    return p?.name || h?.name || id.substring(0,8)+'…';
+  }
+
   function addScore(result, opponentId) {
     store.set('wins',  (store.get('wins') ||0)+(result==='win' ?1:0));
     store.set('losses',(store.get('losses')||0)+(result==='loss'?1:0));
     store.set('draws', (store.get('draws') ||0)+(result==='draw'?1:0));
     const hist = store.get('history')||[];
     const peer = frodon.getPeer(opponentId);
-    hist.unshift({opponentId, name:peer?.name||'Pair inconnu',
+    hist.unshift({opponentId, name:peer?.name||peerName(opponentId),
       network:peer?.network||'', handle:peer?.handle||'', result, ts:Date.now()});
     if(hist.length>30) hist.length=30;
     store.set('history', hist);
@@ -55,11 +62,11 @@ frodon.register({
     const {type, gameId} = payload;
 
     if(type === 'challenge') {
-      const prev = getGameId(fromId); if(prev) delete games[prev];
+      // Remove ALL previous games with this opponent
+      getGameIds(fromId).forEach(gid => delete games[gid]);
       games[gameId] = newGame(fromId, 'O');
       persist();
-      const peer = frodon.getPeer(fromId);
-      frodon.showToast('⊞ '+(peer?.name||'Pair inconnu')+' vous défie !');
+      frodon.showToast('⊞ '+(peerName(fromId))+' vous défie !');
       frodon.refreshSphereTab(PLUGIN_ID);
       frodon.refreshPeerModal(fromId);
       setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
@@ -73,8 +80,7 @@ frodon.register({
       if(win) {
         game.done=true; game.winner=win;
         win==='draw' ? addScore('draw',game.opponentId) : addScore('loss',game.opponentId);
-        const peer = frodon.getPeer(game.opponentId);
-        frodon.showToast((win==='draw'?'🤝 Égalité':'😔 Défaite')+' contre '+(peer?.name||'Pair inconnu'));
+        frodon.showToast((win==='draw'?'🤝 Égalité':'😔 Défaite')+' contre '+(peerName(fromId)));
       } else {
         frodon.showToast('⊞ À votre tour !');
         frodon.focusPlugin(PLUGIN_ID);
@@ -95,11 +101,11 @@ frodon.register({
     }
 
     if(type === 'rematch') {
-      const prev = getGameId(fromId); if(prev) delete games[prev];
+      // Remove ALL previous games with this opponent before creating new one
+      getGameIds(fromId).forEach(gid => delete games[gid]);
       games[gameId] = newGame(fromId, 'O');
       persist();
-      const peer = frodon.getPeer(fromId);
-      frodon.showToast('⊞ Revanche de '+(peer?.name||'Pair inconnu')+' !');
+      frodon.showToast('⊞ Revanche de '+(peerName(fromId))+' !');
       frodon.refreshSphereTab(PLUGIN_ID);
       frodon.refreshPeerModal(fromId);
       setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 400);
@@ -108,19 +114,21 @@ frodon.register({
 
   /* ── Fiche d'un pair ── */
   frodon.registerPeerAction(PLUGIN_ID, '⊞ TicTacToe', (peerId, container) => {
-    const peer = frodon.getPeer(peerId);
-    const peerName = peer?.name || 'Pair inconnu';
+    const name = peerName(peerId);
     const gameId = getGameId(peerId);
     const game = gameId ? games[gameId] : null;
 
     if(!game) {
-      const btn = frodon.makeElement('button','plugin-action-btn acc','⊞ Défier '+peerName);
+      const btn = frodon.makeElement('button','plugin-action-btn acc','⊞ Défier '+name);
       btn.addEventListener('click', () => {
         const gid = 'ttc_'+Date.now();
         games[gid] = newGame(peerId, 'X');
         persist();
-        frodon.sendDM(peerId, PLUGIN_ID, {type:'challenge', gameId:gid, _label:'⊞ Défi TicTacToe !'});
-        frodon.showToast('Défi envoyé à '+peerName+' !');
+        // Small delay to ensure P2P connection is ready
+        setTimeout(() => {
+          frodon.sendDM(peerId, PLUGIN_ID, {type:'challenge', gameId:gid, _label:'⊞ Défi TicTacToe !'});
+        }, 300);
+        frodon.showToast('Défi envoyé à '+name+' !');
         frodon.refreshPeerModal(peerId);
         frodon.refreshSphereTab(PLUGIN_ID);
         setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 200);
@@ -135,7 +143,7 @@ frodon.register({
       const w = game.winner;
       st.textContent = w==='draw'?'🤝 Égalité':w===game.mySymbol?'🏆 Victoire !':'😔 Défaite';
     } else {
-      st.textContent = game.myTurn ? '⌛ Votre tour' : '💬 Tour de '+peerName;
+      st.textContent = game.myTurn ? '⌛ Votre tour' : '💬 Tour de '+name;
     }
     container.appendChild(st);
 
@@ -156,11 +164,14 @@ frodon.register({
     } else {
       const rem = frodon.makeElement('button','plugin-action-btn','🔄 Revanche');
       rem.addEventListener('click', () => {
-        delete games[gameId];
+        // Remove all games with this opponent first
+        getGameIds(peerId).forEach(gid => delete games[gid]);
         const gid = 'ttc_'+Date.now();
         games[gid] = newGame(peerId, 'X');
         persist();
-        frodon.sendDM(peerId, PLUGIN_ID, {type:'rematch', gameId:gid, _label:'⊞ Revanche TicTacToe !'});
+        setTimeout(() => {
+          frodon.sendDM(peerId, PLUGIN_ID, {type:'rematch', gameId:gid, _label:'⊞ Revanche TicTacToe !'});
+        }, 300);
         frodon.refreshPeerModal(peerId);
         frodon.refreshSphereTab(PLUGIN_ID);
         setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 200);
@@ -185,17 +196,16 @@ frodon.register({
         }
 
         [...active, ...done].forEach(([gameId, game]) => {
-          const peer = frodon.getPeer(game.opponentId);
-          const peerName = peer?.name || game.opponentId;
+          const name = peerName(game.opponentId);
           const card = frodon.makeElement('div','');
           card.style.cssText = 'background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:6px 8px 0;overflow:hidden';
 
           const hdr = frodon.makeElement('div','');
           hdr.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--bdr)';
           const inf = frodon.makeElement('div',''); inf.style.cssText = 'flex:1;min-width:0';
-          inf.innerHTML = '<div style="font-size:.76rem;font-weight:700;color:var(--txt)">'+peerName+'</div>'
+          inf.innerHTML = '<div style="font-size:.76rem;font-weight:700;color:var(--txt)">'+name+'</div>'
             +'<div style="font-size:.58rem;color:'+(game.myTurn&&!game.done?'var(--acc)':'var(--txt2)')+';font-family:var(--mono);margin-top:1px">'
-            +(game.done ? (game.winner==='draw'?'🤝 Égalité':game.winner===game.mySymbol?'🏆 Victoire !':'😔 Défaite') : (game.myTurn?'⌛ Votre tour':'💬 Tour de '+peerName))
+            +(game.done ? (game.winner==='draw'?'🤝 Égalité':game.winner===game.mySymbol?'🏆 Victoire !':'😔 Défaite') : (game.myTurn?'⌛ Votre tour':'💬 Tour de '+name))
             +' · '+(game.mySymbol==='X'?'✕':'○')+'</div>';
           hdr.appendChild(Object.assign(frodon.makeElement('span',''),{textContent:'⊞',style:{fontSize:'1rem',flexShrink:'0'}}));
           hdr.appendChild(inf);
@@ -247,7 +257,7 @@ frodon.register({
           };
           pl.appendChild(mkP(me.name, game.mySymbol, !game.done&&game.myTurn));
           pl.appendChild(frodon.makeElement('span','','vs'));
-          pl.appendChild(mkP(peerName, game.mySymbol==='X'?'O':'X', !game.done&&!game.myTurn));
+          pl.appendChild(mkP(name, game.mySymbol==='X'?'O':'X', !game.done&&!game.myTurn));
           bw.appendChild(pl);
 
           const btnRow = frodon.makeElement('div','plugin-actions-row');
@@ -258,6 +268,8 @@ frodon.register({
               game.done=true; game.winner=game.mySymbol==='X'?'O':'X';
               addScore('loss', game.opponentId);
               frodon.sendDM(game.opponentId, PLUGIN_ID, {type:'forfeit', gameId, _silent:true});
+              // Delete game and close — remove card immediately
+              delete games[gameId];
               persist();
               frodon.refreshSphereTab(PLUGIN_ID);
               frodon.refreshPeerModal(game.opponentId);
@@ -267,13 +279,17 @@ frodon.register({
             const r = frodon.makeElement('button','plugin-action-btn acc','🔄 Revanche');
             r.style.fontSize = '.68rem';
             r.addEventListener('click', () => {
-              delete games[gameId];
+              const oppId = game.opponentId;
+              // Remove ALL games with this opponent
+              getGameIds(oppId).forEach(gid => delete games[gid]);
               const gid = 'ttc_'+Date.now();
-              games[gid] = newGame(game.opponentId, 'X');
-              frodon.sendDM(game.opponentId, PLUGIN_ID, {type:'rematch', gameId:gid, _label:'⊞ Revanche TicTacToe !'});
+              games[gid] = newGame(oppId, 'X');
+              setTimeout(() => {
+                frodon.sendDM(oppId, PLUGIN_ID, {type:'rematch', gameId:gid, _label:'⊞ Revanche TicTacToe !'});
+              }, 300);
               persist();
               frodon.refreshSphereTab(PLUGIN_ID);
-              frodon.refreshPeerModal(game.opponentId);
+              frodon.refreshPeerModal(oppId);
             });
             btnRow.appendChild(r);
           }
@@ -323,7 +339,7 @@ frodon.register({
           row.innerHTML = '<span style="font-size:.85rem">'+(isDraw?'🤝':isWin?'🏆':'😔')+'</span>';
           const inf = frodon.makeElement('div',''); inf.style.cssText = 'flex:1;min-width:0';
           const nameEl = frodon.makeElement('div','');
-          nameEl.style.cssText = 'font-size:.72rem;font-weight:700;color:var(--acc2);cursor:pointer;text-decoration:none';
+          nameEl.style.cssText = 'font-size:.72rem;font-weight:700;color:var(--acc2);cursor:pointer';
           nameEl.textContent = name;
           nameEl.addEventListener('click', () => frodon.openPeer(h.opponentId));
           const ts = frodon.makeElement('div','', frodon.formatTime(h.ts));
@@ -346,13 +362,14 @@ frodon.register({
   });
 
   frodon.registerPeerInstallHook(PLUGIN_ID, (peerId) => {
-    const peer = frodon.getPeer(peerId);
-    const peerName = peer?.name || 'Pair inconnu';
+    const name = peerName(peerId);
     const gid = 'ttc_'+Date.now();
     games[gid] = newGame(peerId, 'X');
     persist();
-    frodon.sendDM(peerId, PLUGIN_ID, {type:'challenge', gameId:gid, _label:'⊞ Défi TicTacToe !'});
-    frodon.showToast('⊞ Défi envoyé à '+peerName+' !');
+    setTimeout(() => {
+      frodon.sendDM(peerId, PLUGIN_ID, {type:'challenge', gameId:gid, _label:'⊞ Défi TicTacToe !'});
+    }, 300);
+    frodon.showToast('⊞ Défi envoyé à '+name+' !');
     frodon.refreshSphereTab(PLUGIN_ID);
     setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
   });
