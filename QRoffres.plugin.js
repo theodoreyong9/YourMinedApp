@@ -160,6 +160,7 @@ frodon.register({
         const offers=getOffers(); const entries=Object.entries(offers);
         if(entries.length){
           const lbl=frodon.makeElement('div',''); lbl.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin:12px 8px 4px'; lbl.textContent='Mes offres — gestion'; container.appendChild(lbl);
+          const noDelNote=frodon.makeElement('div',''); noDelNote.style.cssText='margin:4px 8px 6px;padding:7px 10px;background:rgba(255,107,53,.07);border:1px solid rgba(255,107,53,.22);border-radius:8px;font-size:.62rem;color:#ff8a5c;font-family:var(--mono);line-height:1.5'; noDelNote.textContent='ℹ️ Les offres ne peuvent pas être supprimées manuellement. Elles disparaissent automatiquement une fois épuisées.'; container.appendChild(noDelNote);
           entries.forEach(([id,offer])=>{
             const row=frodon.makeElement('div',''); row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--sur);border-bottom:1px solid var(--bdr)';
             const info=frodon.makeElement('div',''); info.style.cssText='flex:1;min-width:0';
