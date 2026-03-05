@@ -62,6 +62,7 @@ frodon.register({
     if(payload.type === 'claim_result') {
       if(payload.success) frodon.showToast('✅ "'+payload.title+'" validée — '+payload.remaining+' restantes');
       else frodon.showToast('❌ '+payload.reason);
+      frodon.refreshSphereTab(PLUGIN_ID);
     }
   });
 
@@ -138,47 +139,6 @@ frodon.register({
       }
     },
 
-    {
-      id: 'mes-offres', label: '📋 Mes offres',
-      render(container) {
-        const offers=getOffers(); const entries=Object.entries(offers);
-        if(!entries.length){
-          const em=frodon.makeElement('div',''); em.style.cssText='text-align:center;padding:28px 14px;color:var(--txt2);font-size:.72rem;line-height:1.9';
-          em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:6px">🎟</div>Aucune offre.<br><small style="color:var(--txt3)">Créez vos offres dans les paramètres ⚙</small>';
-          container.appendChild(em); return;
-        }
-        entries.forEach(([id,offer])=>{
-          const card=frodon.makeElement('div',''); card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:6px 8px 0;overflow:hidden';
-          const hdr=frodon.makeElement('div',''); hdr.style.cssText='padding:10px 12px 8px;border-bottom:1px solid var(--bdr)';
-          const t=frodon.makeElement('div',''); t.style.cssText='font-size:.8rem;font-weight:700;color:var(--txt);margin-bottom:2px'; t.textContent=offer.title; hdr.appendChild(t);
-          if(offer.description){const d=frodon.makeElement('div',''); d.style.cssText='font-size:.64rem;color:var(--txt2);margin-bottom:4px'; d.textContent=offer.description; hdr.appendChild(d);}
-          const cnt=frodon.makeElement('div',''); cnt.style.cssText='display:flex;align-items:center;gap:8px';
-          const badge=frodon.makeElement('span',''); const empty=offer.remaining<=0;
-          badge.style.cssText='font-size:.62rem;font-family:var(--mono);font-weight:700;padding:2px 7px;border-radius:6px;border:1px solid;'+(empty?'border-color:rgba(255,85,85,.3);background:rgba(255,85,85,.07);color:var(--warn)':'border-color:rgba(0,229,122,.3);background:rgba(0,229,122,.08);color:var(--ok)');
-          badge.textContent=empty?'Épuisée':offer.remaining+' / '+offer.total;
-          const prog=frodon.makeElement('div',''); prog.style.cssText='flex:1;height:3px;background:var(--sur2);border-radius:2px;overflow:hidden';
-          const bar=frodon.makeElement('div',''); bar.style.cssText='height:100%;background:linear-gradient(90deg,var(--ok),var(--acc));border-radius:2px'; bar.style.width=Math.round(offer.remaining/offer.total*100)+'%'; prog.appendChild(bar);
-          cnt.appendChild(badge); cnt.appendChild(prog); hdr.appendChild(cnt);
-
-          const body=frodon.makeElement('div',''); body.style.cssText='padding:10px 12px;display:flex;gap:12px;align-items:flex-start';
-          const qrDiv=frodon.makeElement('div',''); qrDiv.style.cssText='width:90px;height:90px;background:#fff;border-radius:6px;flex-shrink:0;'+(empty?'filter:grayscale(1);opacity:.4':'');
-          if(!empty&&window.QRCode){try{new QRCode(qrDiv,{text:buildQRData(id),width:86,height:86,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});}catch(e){}}
-
-          const infoCol=frodon.makeElement('div',''); infoCol.style.cssText='flex:1;min-width:0';
-          const expWarn=frodon.makeElement('div',''); expWarn.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);line-height:1.6;margin-bottom:7px';
-          expWarn.innerHTML='⚠️ QR lié à cette session.<br>Expire si la page est rechargée.'; infoCol.appendChild(expWarn);
-          if(offer.claimants?.length){
-            const cl=frodon.makeElement('div',''); cl.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono);margin-bottom:3px'; cl.textContent='Derniers scans ('+offer.claimants.length+') :'; infoCol.appendChild(cl);
-            offer.claimants.slice(-3).reverse().forEach(c=>{
-              const r=frodon.makeElement('div',''); r.style.cssText='font-size:.63rem;color:var(--txt2);display:flex;justify-content:space-between';
-              r.innerHTML='<span>'+c.name+'</span><span style="color:var(--txt3)">'+frodon.formatTime(c.ts)+'</span>'; infoCol.appendChild(r);
-            });
-          }
-          body.appendChild(qrDiv); body.appendChild(infoCol); card.appendChild(hdr); card.appendChild(body);
-          container.appendChild(card);
-        });
-      }
-    },
 
     {
       id: 'settings', label: '⚙ Gérer',
@@ -205,12 +165,7 @@ frodon.register({
             const info=frodon.makeElement('div',''); info.style.cssText='flex:1;min-width:0';
             info.appendChild(Object.assign(frodon.makeElement('div',''),{textContent:offer.title,style:{fontSize:'.72rem',fontWeight:'700',color:'var(--txt)'}}));
             info.appendChild(Object.assign(frodon.makeElement('div',''),{textContent:offer.remaining+' / '+offer.total+' restantes',style:{fontSize:'.6rem',color:'var(--txt2)',fontFamily:'var(--mono)'}}));
-            const del=frodon.makeElement('button','plugin-action-btn'); del.style.cssText+=';font-size:.62rem;color:var(--warn);border-color:rgba(255,85,85,.25);padding:3px 8px'; del.textContent='🗑 Supprimer';
-            del.addEventListener('click',()=>{
-              if(!confirm('Supprimer "'+offer.title+'" ?')) return;
-              const o=getOffers(); delete o[id]; saveOffers(o); frodon.refreshSphereTab(PLUGIN_ID);
-            });
-            row.appendChild(info); row.appendChild(del); container.appendChild(row);
+            row.appendChild(info); container.appendChild(row);
           });
         }
       }
