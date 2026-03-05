@@ -79,17 +79,13 @@ frodon.register({
       render(container) {
         // Mes annonces actives
         const myPosts=getMyPosts().filter(postActive);
-        // Annonces des pairs
+        // Annonces des pairs actuellement découverts
         const allPeer=[];
-        for(const key of Object.keys(localStorage)){
-          if(!key.startsWith('frd_voisinage_peer_posts_')) continue;
-          try{
-            const pid=key.replace('frd_voisinage_peer_posts_','');
-            const cached=store.get('peer_posts_'+pid);
-            if(!cached?.posts) continue;
-            cached.posts.filter(postActive).forEach(p=>allPeer.push({...p,_peerId:pid}));
-          }catch(e){}
-        }
+        frodon.getAllPeers().forEach(peer => {
+          const cached=store.get('peer_posts_'+peer.peerId);
+          if(!cached?.posts) return;
+          cached.posts.filter(postActive).forEach(p=>allPeer.push({...p,_peerId:peer.peerId}));
+        });
         allPeer.sort((a,b)=>b.createdAt-a.createdAt);
 
         if(!myPosts.length&&!allPeer.length){
@@ -298,10 +294,9 @@ frodon.register({
       const posts=getMyPosts(); posts.unshift(post); if(posts.length>15)posts.length=15;
       saveMyPosts(posts);
       const active=posts.filter(postActive);
-      for(const key of Object.keys(localStorage)){
-        if(!key.startsWith('frd_voisinage_peer_posts_')) continue;
-        try{const pid=key.replace('frd_voisinage_peer_posts_',''); frodon.sendDM(pid,PLUGIN_ID,{type:'posts_data',posts:active,_silent:true});}catch(e){}
-      }
+      frodon.getAllPeers().forEach(peer=>{
+        frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'posts_data',posts:active,_silent:true});
+      });
       frodon.showToast('🏘 Annonce publiée !');
       tInp.value=''; dInp.value=''; lInp.value='';
       frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
