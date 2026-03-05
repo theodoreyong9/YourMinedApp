@@ -1,13 +1,19 @@
 /**
- * FRODON PLUGIN — Autopartage  v2.0.0
- * Paramétrage dans ⚙ (véhiculé ou non, trajet)
- * SPHERE : trajets dispo (conducteurs) + postulants (passagers)
- * Fiche pair : postuler en 1 clic
+ * FRODON PLUGIN — Autopartage v3.0.0
+ *
+ * ⚙ Paramètres : configurer son profil (conducteur ou passager, trajet)
+ *
+ * SPHERE onglet "Trajets" :
+ *   - Si passager → voit les conducteurs disponibles autour, peut candidater + message
+ *   - Si conducteur → voit les passagers disponibles autour, peut envoyer un message
+ *
+ * SPHERE onglet "Réceptions" :
+ *   - Tous : messages reçus groupés par profil, avec réponse possible
  */
 frodon.register({
   id: 'autopartage',
   name: 'Autopartage',
-  version: '2.0.0',
+  version: '3.0.0',
   author: 'frodon-community',
   description: 'Proposez ou trouvez un trajet avec les pairs à proximité.',
   icon: '🚗',
@@ -16,50 +22,47 @@ frodon.register({
   const PLUGIN_ID = 'autopartage';
   const store = frodon.storage(PLUGIN_ID);
 
-  // Mon profil autopartage
   function getMyProfile() { return store.get('profile') || null; }
-  // profile = { role:'driver'|'passenger', destination, departureTime, seats, note, from, updatedAt }
 
   function profileActive(p) {
     if(!p) return false;
-    if(p.departureTime === 'now') return Date.now() - p.updatedAt < 6*60*60*1000;
+    if(p.departureTime === 'now') return Date.now() - p.createdAt < 8*60*60*1000;
     return new Date(p.departureTime) > new Date(Date.now() - 30*60*1000);
   }
 
-  // Cache des profils des pairs
   function getPeerProfile(pid) { return store.get('peer_ap_'+pid) || null; }
+
+  // Messages reçus : [{fromId, fromName, fromAvatar, message, tripDestination, ts}]
+  function getMessages() { return store.get('messages') || []; }
+
+  // Candidatures envoyées : {peerId: true}
+  function getApplied() { return store.get('applied') || {}; }
 
   /* ── DM handler ── */
   frodon.onDM(PLUGIN_ID, (fromId, payload) => {
 
     if(payload.type === 'profile_data') {
-      store.set('peer_ap_'+fromId, {profile: payload.profile, ts: Date.now()});
-      frodon.refreshPeerModal(fromId);
+      store.set('peer_ap_'+fromId, {profile:payload.profile, ts:Date.now()});
       frodon.refreshSphereTab(PLUGIN_ID);
     }
 
     if(payload.type === 'request_profile') {
       const p = getMyProfile();
-      if(p && profileActive(p)) {
+      if(p && profileActive(p))
         frodon.sendDM(fromId, PLUGIN_ID, {type:'profile_data', profile:p, _silent:true});
-      }
     }
 
-    if(payload.type === 'apply') {
-      // Reçu par le conducteur : quelqu'un postule
+    if(payload.type === 'message') {
       const peer = frodon.getPeer(fromId);
-      const apps = store.get('applicants') || [];
-      if(apps.find(a => a.fromId === fromId)) return; // déjà postulé
-      apps.unshift({
-        fromId, fromName: peer?.name||'?', fromAvatar: peer?.avatar||'',
-        role: payload.role, // 'passenger' ou 'driver'
-        from: payload.from||'', // lieu pour passager
-        departureTime: payload.departureTime||'', // heure pour conducteur
-        destination: payload.destination||'',
-        ts: Date.now()
+      const msgs = getMessages();
+      msgs.unshift({
+        fromId, fromName:peer?.name||'?', fromAvatar:peer?.avatar||'',
+        message:payload.message, tripDestination:payload.tripDestination||'',
+        ts:Date.now(), read:false
       });
-      store.set('applicants', apps);
-      frodon.showToast('🚗 '+(peer?.name||'Pair')+' postule pour votre trajet !');
+      if(msgs.length > 100) msgs.length = 100;
+      store.set('messages', msgs);
+      frodon.showToast('🚗 Message de '+(peer?.name||'Pair')+' pour votre trajet');
       frodon.refreshSphereTab(PLUGIN_ID);
     }
 
@@ -69,306 +72,301 @@ frodon.register({
     }
   });
 
-  /* ── Fiche d'un pair : postuler en 1 clic ── */
-  frodon.registerPeerAction(PLUGIN_ID, '🚗 Autopartage', (peerId, container) => {
-    const cached = store.get('peer_ap_'+peerId);
-    if(!cached || Date.now()-cached.ts > 60000) {
-      frodon.sendDM(peerId, PLUGIN_ID, {type:'request_profile', _silent:true});
-    }
-
-    const peerProfile = cached?.profile;
-    const peerName = frodon.getPeer(peerId)?.name || 'ce pair';
-
-    if(!peerProfile || !profileActive(peerProfile)) {
-      const msg = frodon.makeElement('div','');
-      msg.style.cssText = 'font-size:.68rem;color:var(--txt2);padding:4px 0;font-family:var(--mono)';
-      msg.textContent = cached ? '🚗 Aucun trajet actif' : '⌛ Vérification…';
-      container.appendChild(msg); return;
-    }
-
-    // Afficher le trajet du pair
-    const card = frodon.makeElement('div','');
-    const isDriver = peerProfile.role === 'driver';
-    card.style.cssText = 'background:linear-gradient(135deg,rgba(0,232,122,.08),rgba(0,245,200,.05));border:1px solid rgba(0,232,122,.25);border-radius:10px;padding:11px 13px;margin-bottom:10px';
-    const badge = frodon.makeElement('div','');
-    badge.style.cssText = 'font-size:.58rem;font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px;color:var(--ok)';
-    badge.textContent = isDriver ? '🚗 Conducteur — propose un trajet' : '🙋 Passager — cherche un trajet';
-    card.appendChild(badge);
-
-    const dest = frodon.makeElement('div','');
-    dest.style.cssText = 'font-size:.86rem;font-weight:700;color:var(--txt);margin-bottom:4px';
-    dest.textContent = '→ '+peerProfile.destination;
-    card.appendChild(dest);
-
-    const meta = frodon.makeElement('div','');
-    meta.style.cssText = 'font-size:.64rem;color:var(--txt2);font-family:var(--mono);line-height:1.8';
-    let metaHtml = '⏰ '+(peerProfile.departureTime==='now'?'Maintenant':new Date(peerProfile.departureTime).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}));
-    if(isDriver) metaHtml += '<br>💺 '+peerProfile.seats+' place'+(peerProfile.seats>1?'s':'');
-    if(peerProfile.from) metaHtml += '<br>📍 Depuis : '+peerProfile.from;
-    if(peerProfile.note) metaHtml += '<br>📝 '+peerProfile.note;
-    meta.innerHTML = metaHtml;
-    card.appendChild(meta);
-    container.appendChild(card);
-
-    // Vérifier si déjà postulé
-    const myProfile = getMyProfile();
-    const alreadyApplied = (store.get('my_applications')||[]).find(a=>a.toPeerId===peerId);
-    if(alreadyApplied) {
-      const done = frodon.makeElement('div','');
-      done.style.cssText = 'font-size:.68rem;color:var(--ok);font-family:var(--mono);padding:4px 0';
-      done.textContent = '✓ Candidature envoyée';
-      container.appendChild(done); return;
-    }
-
-    const applyBtn = frodon.makeElement('button','plugin-action-btn acc','🚗 Postuler en 1 clic');
-    applyBtn.addEventListener('click', () => {
-      const myP = getMyProfile();
-      const apps = store.get('my_applications') || [];
-      apps.unshift({toPeerId:peerId, toName:peerName, destination:peerProfile.destination, ts:Date.now()});
-      store.set('my_applications', apps);
-      setTimeout(()=>{
-        frodon.sendDM(peerId, PLUGIN_ID, {
-          type: 'apply',
-          role: myP?.role || 'passenger',
-          from: myP?.from || '',
-          departureTime: myP?.departureTime || '',
-          destination: myP?.destination || '',
-          _label: '🚗 Candidature autopartage'
-        });
-      }, 300);
-      applyBtn.disabled=true; applyBtn.textContent='✓ Candidature envoyée !';
-      frodon.showToast('🚗 Candidature envoyée à '+peerName+' !');
-      frodon.refreshSphereTab(PLUGIN_ID);
-    });
-    container.appendChild(applyBtn);
-  });
-
-  /* ── Widget profil ── */
-  frodon.registerProfileWidget(PLUGIN_ID, (container) => {
-    const p = getMyProfile();
-    if(!p || !profileActive(p)) return;
-    const card = frodon.makeElement('div','');
-    card.style.cssText='background:linear-gradient(135deg,rgba(0,232,122,.1),rgba(0,245,200,.07));border:1px solid rgba(0,232,122,.3);border-radius:10px;padding:9px 12px;margin-top:6px';
-    const t = frodon.makeElement('div','');
-    t.style.cssText='font-size:.6rem;color:var(--ok);font-family:var(--mono);text-transform:uppercase;letter-spacing:.7px;margin-bottom:3px';
-    t.textContent = p.role==='driver'?'🚗 Conducteur actif':'🙋 Cherche un trajet';
-    const d = frodon.makeElement('div','');
-    d.style.cssText='font-size:.8rem;font-weight:700;color:var(--txt)';
-    d.textContent='→ '+p.destination;
-    card.appendChild(t); card.appendChild(d); container.appendChild(card);
-  });
-
   /* ── Panneau SPHERE ── */
   frodon.registerBottomPanel(PLUGIN_ID, [
     {
       id: 'trajets', label: '🚗 Trajets',
       render(container) {
-        // Trajets conducteurs disponibles autour
-        const drivers = [];
-        const passengers = [];
-        // Collect from all peers
-        for(const key of Object.keys(localStorage)) {
-          if(!key.startsWith('frd_ap_peer_ap_')) continue;
-          try {
-            const pid = key.replace('frd_ap_peer_ap_','');
-            const cached = store.get('peer_ap_'+pid);
-            if(!cached?.profile || !profileActive(cached.profile)) continue;
-            if(cached.profile.role==='driver') drivers.push({peerId:pid, ...cached.profile});
-            else passengers.push({peerId:pid, ...cached.profile});
-          } catch(e){}
+        const myProfile = getMyProfile();
+        const amDriver = myProfile?.role === 'driver';
+        const amPassenger = myProfile?.role === 'passenger';
+
+        if(!myProfile || !profileActive(myProfile)) {
+          _emptyState(container, '🚗', 'Configurez votre trajet dans les paramètres ⚙\npour voir les pairs compatibles.');
+          return;
         }
 
-        if(!drivers.length && !passengers.length) {
-          const em = frodon.makeElement('div','');
-          em.style.cssText='text-align:center;padding:24px 14px;color:var(--txt2);font-size:.72rem;line-height:1.9';
-          em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:6px">🚗</div>Aucun trajet à proximité.<br><small style="color:var(--txt3)">Configurez votre trajet dans les paramètres.</small>';
-          container.appendChild(em); return;
+        // Collecter les profils des pairs compatibles
+        const peers = _getAllPeerProfiles().filter(p => {
+          if(!profileActive(p.profile)) return false;
+          // Un conducteur voit les passagers, un passager voit les conducteurs
+          return amDriver ? p.profile.role === 'passenger' : p.profile.role === 'driver';
+        });
+
+        if(!peers.length) {
+          _emptyState(container, '🚗', amDriver
+            ? 'Aucun passager à proximité pour l\'instant.'
+            : 'Aucun conducteur disponible à proximité.');
+          return;
         }
 
-        if(drivers.length) {
-          _sectionLabel(container, '🚗 Conducteurs disponibles');
-          drivers.forEach(d => {
-            const peer = frodon.getPeer(d.peerId);
-            _tripCard(container, d, peer, 'driver');
-          });
-        }
-        if(passengers.length) {
-          _sectionLabel(container, '🙋 Passagers qui cherchent');
-          passengers.forEach(d => {
-            const peer = frodon.getPeer(d.peerId);
-            _tripCard(container, d, peer, 'passenger');
-          });
-        }
-      }
-    },
-    {
-      id: 'candidats', label: '📬 Candidats',
-      render(container) {
-        const apps = store.get('applicants') || [];
-        if(!apps.length) {
-          const em=frodon.makeElement('div','');
-          em.style.cssText='text-align:center;padding:24px 14px;color:var(--txt2);font-size:.72rem;line-height:1.9';
-          em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:6px">📬</div>Aucun candidat.<br><small style="color:var(--txt3)">Les pairs qui postulent apparaîtront ici.</small>';
-          container.appendChild(em); return;
-        }
-        apps.forEach(app => {
+        const applied = getApplied();
+        const label = amDriver ? 'Passagers qui cherchent un trajet' : 'Conducteurs disponibles';
+        _sectionLabel(container, label);
+
+        peers.forEach(({peerId, profile}) => {
+          const peer = frodon.getPeer(peerId);
+          const name = peer?.name || peerId.substring(0,8)+'…';
+          const hasApplied = applied[peerId];
+
           const card = frodon.makeElement('div','');
-          card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:9px;margin:6px 8px 0;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer';
-          card.addEventListener('click',()=>frodon.openPeer(app.fromId));
+          card.style.cssText = 'background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:0 8px 8px;overflow:hidden';
 
-          // Avatar
+          // Header cliquable → profil
+          const hdr = frodon.makeElement('div','');
+          hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--bdr)';
+          hdr.addEventListener('click', () => frodon.openPeer(peerId));
+
           const av = frodon.makeElement('div','');
-          av.style.cssText='width:34px;height:34px;border-radius:50%;background:rgba(124,77,255,.2);border:1px solid rgba(124,77,255,.3);display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;font-family:var(--mono)';
-          av.textContent=(app.fromName||'?')[0].toUpperCase();
+          av.style.cssText = 'width:36px;height:36px;border-radius:50%;background:rgba(0,232,122,.15);border:1px solid rgba(0,232,122,.3);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;font-family:var(--mono);font-weight:700';
+          av.textContent = name[0].toUpperCase();
 
           const info = frodon.makeElement('div',''); info.style.cssText='flex:1;min-width:0';
-          const name=frodon.makeElement('div',''); name.style.cssText='font-size:.76rem;font-weight:700;color:var(--acc2)'; name.textContent=app.fromName;
+          const nameEl = frodon.makeElement('div',''); nameEl.style.cssText='font-size:.78rem;font-weight:700;color:var(--txt)'; nameEl.textContent=name;
+          const destEl = frodon.makeElement('div',''); destEl.style.cssText='font-size:.68rem;color:var(--acc);margin-top:1px'; destEl.textContent='→ '+profile.destination;
+          info.appendChild(nameEl); info.appendChild(destEl);
 
-          const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.62rem;color:var(--txt2);font-family:var(--mono);margin-top:2px';
-          if(app.role==='passenger' && app.from) meta.textContent='📍 '+app.from;
-          else if(app.role==='driver' && app.departureTime) meta.textContent='⏰ '+(app.departureTime==='now'?'Maintenant':new Date(app.departureTime).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+          const metaEl = frodon.makeElement('div',''); metaEl.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono);text-align:right';
+          metaEl.textContent = profile.departureTime==='now'?'Maintenant':new Date(profile.departureTime).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit'});
 
-          const ts=frodon.makeElement('div',''); ts.style.cssText='font-size:.56rem;color:var(--txt3);font-family:var(--mono);flex-shrink:0';
-          ts.textContent=frodon.formatTime(app.ts);
+          hdr.appendChild(av); hdr.appendChild(info); hdr.appendChild(metaEl);
+          card.appendChild(hdr);
 
-          info.appendChild(name); if(meta.textContent) info.appendChild(meta);
-          card.appendChild(av); card.appendChild(info); card.appendChild(ts);
+          // Détails
+          const body = frodon.makeElement('div',''); body.style.cssText='padding:8px 12px 10px';
+          const details = frodon.makeElement('div',''); details.style.cssText='font-size:.63rem;color:var(--txt2);font-family:var(--mono);line-height:1.8;margin-bottom:8px';
+          let dHtml = '';
+          if(profile.from) dHtml += '📍 Depuis : '+profile.from+'<br>';
+          if(profile.role==='driver') dHtml += '💺 '+profile.seats+' place'+(profile.seats>1?'s':'');
+          if(profile.note) dHtml += (dHtml?'<br>':'')+'📝 '+profile.note;
+          if(dHtml) { details.innerHTML=dHtml; body.appendChild(details); }
+
+          // Zone message + bouton
+          const ta = document.createElement('textarea');
+          ta.className='f-input'; ta.rows=2; ta.maxLength=300;
+          ta.placeholder = amPassenger ? 'Message au conducteur (optionnel)…' : 'Message au passager…';
+          ta.style.marginBottom='6px';
+          body.appendChild(ta);
+
+          const btnLabel = amPassenger ? (hasApplied ? '✓ Candidature envoyée' : '🚗 Candidater') : '💬 Envoyer un message';
+          const btn = frodon.makeElement('button','plugin-action-btn '+(hasApplied?'':'acc'), btnLabel);
+          if(hasApplied && amPassenger) btn.disabled=true;
+
+          btn.addEventListener('click', () => {
+            const msg = ta.value.trim();
+            if(amPassenger && !hasApplied && !msg && !confirm('Envoyer sans message ?')) return;
+            setTimeout(()=>{
+              frodon.sendDM(peerId, PLUGIN_ID, {
+                type:'message',
+                message: msg || (amPassenger ? 'Je suis intéressé par votre trajet.' : 'Je suis intéressé.'),
+                tripDestination: profile.destination,
+                _label: '🚗 '+(amPassenger?'Candidature':'Message')+' autopartage'
+              });
+            }, 300);
+            if(amPassenger) {
+              const applied2 = getApplied(); applied2[peerId]=true; store.set('applied', applied2);
+              btn.textContent='✓ Candidature envoyée'; btn.disabled=true;
+            } else {
+              btn.textContent='✓ Envoyé'; btn.disabled=true;
+            }
+            frodon.showToast('🚗 Message envoyé à '+name+' !');
+            ta.value='';
+          });
+
+          body.appendChild(btn); card.appendChild(body);
           container.appendChild(card);
         });
       }
     },
+
     {
-      id: 'settings', label: '⚙ Mon trajet',
+      id: 'reception', label: '📬 Réceptions',
+      render(container) {
+        const msgs = getMessages();
+        if(!msgs.length) {
+          _emptyState(container, '📬', 'Aucun message reçu.');
+          return;
+        }
+
+        // Marquer comme lus
+        msgs.forEach(m => m.read=true); store.set('messages', msgs);
+
+        // Grouper par fromId
+        const grouped = {};
+        msgs.forEach(m => {
+          if(!grouped[m.fromId]) grouped[m.fromId]={fromId:m.fromId,fromName:m.fromName,fromAvatar:m.fromAvatar,messages:[]};
+          grouped[m.fromId].messages.push(m);
+        });
+
+        Object.values(grouped).forEach(group => {
+          const card = frodon.makeElement('div','');
+          card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:6px 8px 0;overflow:hidden';
+
+          // Header cliquable
+          const hdr = frodon.makeElement('div','');
+          hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--bdr)';
+          hdr.addEventListener('click',()=>frodon.openPeer(group.fromId));
+          const av=frodon.makeElement('div','');
+          av.style.cssText='width:32px;height:32px;border-radius:50%;background:rgba(124,77,255,.18);border:1px solid rgba(124,77,255,.3);display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;font-family:var(--mono);font-weight:700';
+          av.textContent=group.fromName[0].toUpperCase();
+          const nameEl=frodon.makeElement('div',''); nameEl.style.cssText='font-size:.76rem;font-weight:700;color:var(--acc2);flex:1'; nameEl.textContent=group.fromName;
+          const countEl=frodon.makeElement('div',''); countEl.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono)'; countEl.textContent=group.messages.length+' msg';
+          hdr.appendChild(av); hdr.appendChild(nameEl); hdr.appendChild(countEl);
+          card.appendChild(hdr);
+
+          // Messages
+          const body=frodon.makeElement('div',''); body.style.cssText='padding:8px 12px';
+          group.messages.slice(0,5).forEach(m=>{
+            const row=frodon.makeElement('div',''); row.style.cssText='padding:5px 0;border-bottom:1px solid var(--bdr)';
+            if(m.tripDestination){const d=frodon.makeElement('div',''); d.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);margin-bottom:2px'; d.textContent='Trajet → '+m.tripDestination; row.appendChild(d);}
+            const txt=frodon.makeElement('div',''); txt.style.cssText='font-size:.7rem;color:var(--txt)'; txt.textContent=m.message; row.appendChild(txt);
+            const ts=frodon.makeElement('div',''); ts.style.cssText='font-size:.56rem;color:var(--txt3);font-family:var(--mono);margin-top:2px'; ts.textContent=frodon.formatTime(m.ts); row.appendChild(ts);
+            body.appendChild(row);
+          });
+
+          // Répondre
+          const ta=document.createElement('textarea'); ta.className='f-input'; ta.rows=2; ta.maxLength=300;
+          ta.placeholder='Votre réponse…'; ta.style.cssText+='margin-top:8px;margin-bottom:6px';
+          const replyBtn=frodon.makeElement('button','plugin-action-btn acc','💬 Répondre');
+          replyBtn.addEventListener('click',()=>{
+            const msg=ta.value.trim(); if(!msg){frodon.showToast('Écrivez un message',true);return;}
+            setTimeout(()=>{
+              frodon.sendDM(group.fromId,PLUGIN_ID,{type:'message',message:msg,_label:'🚗 Réponse autopartage'});
+            },300);
+            ta.value=''; replyBtn.textContent='✓ Envoyé'; replyBtn.disabled=true;
+            frodon.showToast('🚗 Réponse envoyée à '+group.fromName+' !');
+          });
+          body.appendChild(ta); body.appendChild(replyBtn); card.appendChild(body);
+          container.appendChild(card);
+        });
+      }
+    },
+
+    {
+      id: 'settings', label: '⚙ Mon profil',
       settings: true,
       render(container) {
         const p = getMyProfile();
-        const active = p && profileActive(p);
-
-        if(active) {
-          const statusCard = frodon.makeElement('div','');
+        if(p && profileActive(p)) {
+          const statusCard=frodon.makeElement('div','');
           statusCard.style.cssText='background:linear-gradient(135deg,rgba(0,232,122,.1),rgba(0,245,200,.07));border:1px solid rgba(0,232,122,.3);border-radius:10px;margin:8px;padding:12px';
-          const lbl=frodon.makeElement('div',''); lbl.style.cssText='font-size:.6rem;color:var(--ok);font-family:var(--mono);text-transform:uppercase;letter-spacing:.7px;margin-bottom:5px'; lbl.textContent='● Trajet actif';
-          const dest=frodon.makeElement('div',''); dest.style.cssText='font-size:.86rem;font-weight:700;color:var(--txt);margin-bottom:4px'; dest.textContent=(p.role==='driver'?'🚗':'🙋')+' → '+p.destination;
+          const dot=frodon.makeElement('div',''); dot.style.cssText='font-size:.6rem;color:var(--ok);font-family:var(--mono);margin-bottom:5px'; dot.textContent='● Profil actif';
+          const dest=frodon.makeElement('div',''); dest.style.cssText='font-size:.88rem;font-weight:700;color:var(--txt);margin-bottom:3px'; dest.textContent=(p.role==='driver'?'🚗':'🙋')+' → '+p.destination;
           const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.64rem;color:var(--txt2);font-family:var(--mono)';
           meta.textContent=(p.departureTime==='now'?'Maintenant':new Date(p.departureTime).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}))+(p.role==='driver'?' · '+p.seats+' place'+(p.seats>1?'s':''):'');
           const cancelBtn=frodon.makeElement('button','plugin-action-btn'); cancelBtn.style.cssText+=';color:var(--warn);border-color:rgba(255,85,85,.3);margin-top:8px;font-size:.68rem;width:100%'; cancelBtn.textContent='✕ Annuler le trajet';
           cancelBtn.addEventListener('click',()=>{
-            store.del('profile');
-            Object.keys(localStorage).filter(k=>k.startsWith('frd_disc_')).forEach(k=>{
-              try{ const pid=k.replace('frd_disc_',''); frodon.sendDM(pid,PLUGIN_ID,{type:'cancel_profile',_silent:true}); }catch(e){}
-            });
+            store.del('profile'); store.del('applied');
+            _broadcastCancel();
             frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
           });
-          statusCard.appendChild(lbl); statusCard.appendChild(dest); statusCard.appendChild(meta); statusCard.appendChild(cancelBtn);
+          statusCard.appendChild(dot); statusCard.appendChild(dest); statusCard.appendChild(meta); statusCard.appendChild(cancelBtn);
           container.appendChild(statusCard);
         }
-
-        // Formulaire
-        _renderSettingsForm(container, p);
+        _renderForm(container, p);
       }
     },
   ]);
 
+  /* ── Widget profil ── */
+  frodon.registerProfileWidget(PLUGIN_ID, (container) => {
+    const p=getMyProfile(); if(!p||!profileActive(p)) return;
+    const card=frodon.makeElement('div',''); card.style.cssText='background:linear-gradient(135deg,rgba(0,232,122,.1),rgba(0,245,200,.07));border:1px solid rgba(0,232,122,.3);border-radius:10px;padding:8px 12px;margin-top:5px';
+    const t=frodon.makeElement('div',''); t.style.cssText='font-size:.6rem;color:var(--ok);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px'; t.textContent=p.role==='driver'?'🚗 Conducteur actif':'🙋 Cherche un trajet';
+    const d=frodon.makeElement('div',''); d.style.cssText='font-size:.8rem;font-weight:700;color:var(--txt)'; d.textContent='→ '+p.destination;
+    card.appendChild(t); card.appendChild(d); container.appendChild(card);
+  });
+
+  function _getAllPeerProfiles() {
+    const result=[];
+    for(const key of Object.keys(localStorage)){
+      if(!key.startsWith('frd_autopartage_peer_ap_')) continue;
+      try{
+        const pid=key.replace('frd_autopartage_peer_ap_','');
+        const cached=getPeerProfile(pid);
+        if(cached?.profile) result.push({peerId:pid, profile:cached.profile});
+      }catch(e){}
+    }
+    return result;
+  }
+
+  function _broadcastCancel() {
+    _getAllPeerProfiles().forEach(({peerId})=>{
+      frodon.sendDM(peerId, PLUGIN_ID, {type:'cancel_profile', _silent:true});
+    });
+  }
+
   function _sectionLabel(container, text) {
-    const lbl=frodon.makeElement('div','');
-    lbl.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin:10px 8px 5px';
-    lbl.textContent=text; container.appendChild(lbl);
+    const lbl=frodon.makeElement('div',''); lbl.style.cssText='font-size:.58rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin:8px 8px 5px'; lbl.textContent=text; container.appendChild(lbl);
   }
 
-  function _tripCard(container, profile, peer, role) {
-    const card=frodon.makeElement('div','');
-    card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:9px;margin:0 8px 6px;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer';
-    card.addEventListener('click',()=>frodon.openPeer(profile.peerId));
-
-    const av=frodon.makeElement('div','');
-    av.style.cssText='width:36px;height:36px;border-radius:50%;background:rgba(0,232,122,.15);border:1px solid rgba(0,232,122,.3);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;font-family:var(--mono)';
-    av.textContent=(peer?.name||'?')[0].toUpperCase();
-
-    const info=frodon.makeElement('div',''); info.style.cssText='flex:1;min-width:0';
-    const name=frodon.makeElement('div',''); name.style.cssText='font-size:.76rem;font-weight:700;color:var(--txt)'; name.textContent=peer?.name||profile.peerId.substring(0,8)+'…';
-    const dest=frodon.makeElement('div',''); dest.style.cssText='font-size:.68rem;color:var(--acc);margin-top:1px'; dest.textContent='→ '+profile.destination;
-    const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);margin-top:1px';
-    if(role==='driver') meta.textContent='⏰ '+(profile.departureTime==='now'?'Maintenant':new Date(profile.departureTime).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit'}))+'  💺 '+profile.seats;
-    else meta.textContent='📍 '+(profile.from||'Lieu non précisé');
-
-    info.appendChild(name); info.appendChild(dest); info.appendChild(meta);
-    card.appendChild(av); card.appendChild(info);
-    container.appendChild(card);
+  function _emptyState(container, icon, text) {
+    const em=frodon.makeElement('div',''); em.style.cssText='text-align:center;padding:28px 14px;color:var(--txt2);font-size:.72rem;line-height:1.9';
+    em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:6px">'+icon+'</div>'+text.replace('\n','<br>'); container.appendChild(em);
   }
 
-  function _renderSettingsForm(container, existing) {
-    const form=frodon.makeElement('div','');
-    form.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:8px;padding:12px';
-
-    const title=frodon.makeElement('div',''); title.style.cssText='font-size:.62rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px';
-    title.textContent=existing?'Modifier mon trajet':'Configurer mon trajet';
+  function _renderForm(container, existing) {
+    const form=frodon.makeElement('div',''); form.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:10px;margin:8px;padding:12px';
+    const title=frodon.makeElement('div',''); title.style.cssText='font-size:.62rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px'; title.textContent=existing?'Modifier mon trajet':'Nouveau trajet';
     form.appendChild(title);
 
     // Rôle
-    const roleLbl=frodon.makeElement('div',''); roleLbl.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;margin-bottom:5px'; roleLbl.textContent='Je suis…';
-    form.appendChild(roleLbl);
+    const roleLbl=frodon.makeElement('div',''); roleLbl.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;margin-bottom:5px'; roleLbl.textContent='Je suis…'; form.appendChild(roleLbl);
     const roleRow=frodon.makeElement('div',''); roleRow.style.cssText='display:flex;gap:6px;margin-bottom:10px';
-    let selectedRole=existing?.role||'driver';
-    const driverBtn=frodon.makeElement('button','plugin-action-btn','🚗 Conducteur'); driverBtn.style.cssText+=';flex:1;font-size:.66rem';
-    const passBtn=frodon.makeElement('button','plugin-action-btn','🙋 Passager'); passBtn.style.cssText+=';flex:1;font-size:.66rem';
-    const roleButtons=[driverBtn,passBtn];
-    const roleVals=['driver','passenger'];
-    roleButtons.forEach((btn,i)=>{
-      btn.addEventListener('click',()=>{
-        selectedRole=roleVals[i];
-        roleButtons.forEach((b,j)=>{b.classList.toggle('acc',j===i);});
-        seatsRow.style.display=selectedRole==='driver'?'flex':'none';
-        fromRow.style.display=selectedRole==='passenger'?'block':'none';
-      });
-    });
-    roleRow.appendChild(driverBtn); roleRow.appendChild(passBtn); form.appendChild(roleRow);
+    let role=existing?.role||'driver';
+    const dBtn=frodon.makeElement('button','plugin-action-btn','🚗 Conducteur'); dBtn.style.cssText+=';flex:1;font-size:.64rem';
+    const pBtn=frodon.makeElement('button','plugin-action-btn','🙋 Passager'); pBtn.style.cssText+=';flex:1;font-size:.64rem';
+    dBtn.addEventListener('click',()=>{role='driver';dBtn.classList.add('acc');pBtn.classList.remove('acc');seatsRow.style.display='flex';fromRow.style.display='none';});
+    pBtn.addEventListener('click',()=>{role='passenger';pBtn.classList.add('acc');dBtn.classList.remove('acc');seatsRow.style.display='none';fromRow.style.display='block';});
+    roleRow.appendChild(dBtn); roleRow.appendChild(pBtn); form.appendChild(roleRow);
+    if(role==='driver') dBtn.classList.add('acc'); else pBtn.classList.add('acc');
 
-    const destInput=document.createElement('input'); destInput.className='f-input'; destInput.placeholder='Destination *'; destInput.value=existing?.destination||''; destInput.style.marginBottom='6px'; form.appendChild(destInput);
+    _fLabel(form,'Destination *');
+    const destInp=document.createElement('input'); destInp.className='f-input'; destInp.placeholder='Ex: Gare de Lyon, Bordeaux…'; destInp.value=existing?.destination||''; destInp.style.marginBottom='6px'; form.appendChild(destInp);
 
-    // Depuis (passager)
-    const fromRow=frodon.makeElement('div',''); fromRow.style.display=existing?.role==='passenger'?'block':'none';
-    const fromInput=document.createElement('input'); fromInput.className='f-input'; fromInput.placeholder='Depuis (lieu de prise en charge)'; fromInput.value=existing?.from||''; fromInput.style.marginBottom='6px';
-    fromRow.appendChild(fromInput); form.appendChild(fromRow);
+    const fromRow=frodon.makeElement('div',''); fromRow.style.display=role==='passenger'?'block':'none';
+    _fLabel(fromRow,'Point de départ');
+    const fromInp=document.createElement('input'); fromInp.className='f-input'; fromInp.placeholder='Votre lieu de départ'; fromInp.value=existing?.from||''; fromInp.style.marginBottom='6px'; fromRow.appendChild(fromInp); form.appendChild(fromRow);
 
-    // Places (conducteur)
-    const seatsRow=frodon.makeElement('div',''); seatsRow.style.cssText='display:'+(existing?.role!=='passenger'?'flex':'none')+';align-items:center;gap:8px;margin-bottom:6px';
+    const seatsRow=frodon.makeElement('div',''); seatsRow.style.cssText='display:'+(role==='driver'?'flex':'none')+';align-items:center;gap:8px;margin-bottom:6px';
     const seatsLbl=frodon.makeElement('div',''); seatsLbl.style.cssText='font-size:.64rem;color:var(--txt2);font-family:var(--mono);white-space:nowrap'; seatsLbl.textContent='💺 Places :';
     const seatsInp=document.createElement('input'); seatsInp.type='number'; seatsInp.className='f-input'; seatsInp.min='1'; seatsInp.max='8'; seatsInp.value=existing?.seats||1; seatsInp.style.width='60px';
     seatsRow.appendChild(seatsLbl); seatsRow.appendChild(seatsInp); form.appendChild(seatsRow);
 
-    // Heure de départ
-    const timeLbl=frodon.makeElement('div',''); timeLbl.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;margin-bottom:5px'; timeLbl.textContent='⏰ Départ'; form.appendChild(timeLbl);
+    _fLabel(form,'⏰ Départ');
     const timeRow=frodon.makeElement('div',''); timeRow.style.cssText='display:flex;gap:6px;margin-bottom:6px;align-items:center';
-    let departureTime=existing?.departureTime||'now';
+    let dt=existing?.departureTime||'now';
     const nowBtn=frodon.makeElement('button','plugin-action-btn','Maintenant'); nowBtn.style.cssText+=';flex:1;font-size:.62rem';
-    const laterInp=document.createElement('input'); laterInp.type='datetime-local'; laterInp.className='f-input'; laterInp.style.cssText='flex:2;display:'+(departureTime!=='now'?'block':'none');
-    if(departureTime!=='now') laterInp.value=departureTime;
+    const laterInp=document.createElement('input'); laterInp.type='datetime-local'; laterInp.className='f-input'; laterInp.style.cssText='flex:2;display:'+(dt!=='now'?'block':'none');
+    if(dt!=='now') laterInp.value=dt;
     const laterBtn=frodon.makeElement('button','plugin-action-btn','Planifier'); laterBtn.style.cssText+=';flex:1;font-size:.62rem';
-    nowBtn.addEventListener('click',()=>{ departureTime='now'; nowBtn.classList.add('acc'); laterInp.style.display='none'; });
-    laterBtn.addEventListener('click',()=>{ laterInp.style.display='block'; nowBtn.classList.remove('acc'); });
-    laterInp.addEventListener('change',()=>{ departureTime=laterInp.value; });
+    nowBtn.addEventListener('click',()=>{dt='now';nowBtn.classList.add('acc');laterInp.style.display='none';});
+    laterBtn.addEventListener('click',()=>{laterInp.style.display='block';nowBtn.classList.remove('acc');});
+    laterInp.addEventListener('change',()=>{dt=laterInp.value;});
+    if(dt==='now') nowBtn.classList.add('acc');
     timeRow.appendChild(nowBtn); timeRow.appendChild(laterBtn); timeRow.appendChild(laterInp); form.appendChild(timeRow);
 
-    const noteInp=document.createElement('input'); noteInp.className='f-input'; noteInp.placeholder='Note (détour ok, bagages…)'; noteInp.value=existing?.note||''; noteInp.style.marginBottom='10px'; form.appendChild(noteInp);
+    _fLabel(form,'Note (optionnel)');
+    const noteInp=document.createElement('input'); noteInp.className='f-input'; noteInp.placeholder='Détour possible, animaux ok…'; noteInp.value=existing?.note||''; noteInp.style.marginBottom='10px'; form.appendChild(noteInp);
 
-    // Activer le bon rôle
-    if(selectedRole==='passenger') { passBtn.classList.add('acc'); } else { driverBtn.classList.add('acc'); }
-
-    const saveBtn=frodon.makeElement('button','plugin-action-btn acc','🚗 Publier le trajet'); saveBtn.style.cssText+=';width:100%';
+    const saveBtn=frodon.makeElement('button','plugin-action-btn acc','🚗 Publier'); saveBtn.style.cssText+=';width:100%';
     saveBtn.addEventListener('click',()=>{
-      const dest=destInput.value.trim();
-      if(!dest){frodon.showToast('Destination requise',true);return;}
-      const profile={role:selectedRole, destination:dest, from:fromInput.value.trim(),
-        departureTime, seats:parseInt(seatsInp.value)||1, note:noteInp.value.trim(), updatedAt:Date.now()};
+      const dest=destInp.value.trim(); if(!dest){frodon.showToast('Destination requise',true);return;}
+      const profile={role,destination:dest,from:fromInp.value.trim(),departureTime:dt,seats:parseInt(seatsInp.value)||1,note:noteInp.value.trim(),createdAt:Date.now()};
       store.set('profile',profile);
-      // Broadcast to peers
-      Object.keys(localStorage).filter(k=>k.startsWith('frd_disc_')).forEach(k=>{
-        try{ const pid=k.replace('frd_disc_',''); frodon.sendDM(pid,PLUGIN_ID,{type:'profile_data',profile,_silent:true}); }catch(e){}
+      store.del('applied'); // reset candidatures envoyées
+      // Broadcast
+      _getAllPeerProfiles().forEach(({peerId})=>{
+        frodon.sendDM(peerId,PLUGIN_ID,{type:'profile_data',profile,_silent:true});
       });
-      frodon.showToast('🚗 Trajet publié !');
+      frodon.showToast('🚗 Profil publié — visible à proximité !');
       frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
     });
     form.appendChild(saveBtn); container.appendChild(form);
+  }
+
+  function _fLabel(parent, text) {
+    const l=frodon.makeElement('div',''); l.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;margin-top:8px'; l.textContent=text; parent.appendChild(l);
   }
 
   frodon.onPeerAppear(peer=>{
