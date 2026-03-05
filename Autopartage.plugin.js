@@ -278,21 +278,14 @@ frodon.register({
   });
 
   function _getAllPeerProfiles() {
-    const result=[];
-    for(const key of Object.keys(localStorage)){
-      if(!key.startsWith('frd_autopartage_peer_ap_')) continue;
-      try{
-        const pid=key.replace('frd_autopartage_peer_ap_','');
-        const cached=getPeerProfile(pid);
-        if(cached?.profile) result.push({peerId:pid, profile:cached.profile});
-      }catch(e){}
-    }
-    return result;
+    return frodon.getAllPeers()
+      .map(peer => ({peerId:peer.peerId, profile:getPeerProfile(peer.peerId)?.profile}))
+      .filter(x => x.profile);
   }
 
   function _broadcastCancel() {
-    _getAllPeerProfiles().forEach(({peerId})=>{
-      frodon.sendDM(peerId, PLUGIN_ID, {type:'cancel_profile', _silent:true});
+    frodon.getAllPeers().forEach(peer=>{
+      frodon.sendDM(peer.peerId, PLUGIN_ID, {type:'cancel_profile', _silent:true});
     });
   }
 
@@ -356,8 +349,8 @@ frodon.register({
       store.set('profile',profile);
       store.del('applied'); // reset candidatures envoyées
       // Broadcast
-      _getAllPeerProfiles().forEach(({peerId})=>{
-        frodon.sendDM(peerId,PLUGIN_ID,{type:'profile_data',profile,_silent:true});
+      frodon.getAllPeers().forEach(peer=>{
+        frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'profile_data',profile,_silent:true});
       });
       frodon.showToast('🚗 Profil publié — visible à proximité !');
       frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
