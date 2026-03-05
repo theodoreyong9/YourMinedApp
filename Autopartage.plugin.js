@@ -102,10 +102,17 @@ frodon.register({
           }
         });
 
-        const compatible = allPeers
+        // Double dédoublonnage : par peerId ET par empreinte profil
+        const compatibleRaw = allPeers
           .map(peer => ({peer, profile: getPeerProfile(peer.peerId)?.profile}))
           .filter(({profile}) => profile && profileActive(profile))
           .filter(({profile}) => amDriver ? profile.role==='passenger' : profile.role==='driver');
+        const seenProfile = new Set();
+        const compatible = compatibleRaw.filter(({peer, profile}) => {
+          const key = peer.peerId + '_' + (profile.destination||'') + '_' + (profile.departureTime||'');
+          if(seenProfile.has(key)) return false;
+          seenProfile.add(key); return true;
+        });
 
         if(!compatible.length) {
           _empty(container, '🚗', allPeers.length
@@ -149,7 +156,9 @@ frodon.register({
           if(profile.note) mh+='📝 '+profile.note;
           meta.innerHTML=mh; body.appendChild(meta);
 
-          if(applied[peer.peerId]) {
+          // Relire applied au moment du render (pas en closure)
+          const alreadyApplied = (store.get('applied')||{})[peer.peerId];
+          if(alreadyApplied) {
             const doneLbl=frodon.makeElement('div',''); doneLbl.style.cssText='font-size:.64rem;color:var(--ok);font-family:var(--mono);padding:4px 0';
             doneLbl.textContent='✓ Candidature envoyée — échange dans Réceptions';
             body.appendChild(doneLbl);
@@ -157,13 +166,14 @@ frodon.register({
             const applyBtn=frodon.makeElement('button','plugin-action-btn acc','🚗 Candidater');
             applyBtn.style.cssText+=';width:100%';
             applyBtn.addEventListener('click',()=>{
-              // Marquer candidaté
+              // Désactiver immédiatement pour éviter double-clic
+              applyBtn.disabled=true; applyBtn.textContent='⏳ Envoi…';
+              // Marquer candidaté AVANT le refresh
               const a=store.get('applied')||{}; a[peer.peerId]=true; store.set('applied',a);
-              // Créer conversation
+              // Créer conversation si elle n'existe pas
               const convs=getConvs();
-              if(!convs[peer.peerId]) convs[peer.peerId]={peerName:name,peerProfile:profile,msgs:[]};
-              store.set('convs',convs);
-              // Envoyer candidature
+              if(!convs[peer.peerId]) { convs[peer.peerId]={peerName:name,peerProfile:profile,msgs:[]}; store.set('convs',convs); }
+              // Envoyer DM
               setTimeout(()=>frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'apply',message:'Je candidate pour votre trajet.',_label:'🚗 Candidature autopartage'}),300);
               frodon.refreshSphereTab(PLUGIN_ID);
             });
@@ -178,7 +188,12 @@ frodon.register({
       id: 'reception', label: '📬 Réceptions',
       render(container) {
         const convs = getConvs();
-        const entries = Object.entries(convs);
+        // Dédoublonner les entrées (même peerId stocké deux fois)
+        const seenConv = new Set();
+        const entries = Object.entries(convs).filter(([pid]) => {
+          if(seenConv.has(pid)) return false;
+          seenConv.add(pid); return true;
+        });
         if(!entries.length){ _empty(container,'📬','Aucune conversation.\nCandidatez à un trajet ou attendez des candidats.'); return; }
 
         // Liste des conversations
