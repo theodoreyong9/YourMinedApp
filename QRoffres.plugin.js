@@ -70,18 +70,14 @@ frodon.register({
     {
       id: 'offres', label: '🎟 Offres',
       render(container) {
-        // Collecter toutes les offres des pairs
+        // Collecter toutes les offres des pairs actuellement découverts
         const peerEntries = [];
-        for(const key of Object.keys(localStorage)){
-          if(!key.startsWith('frd_qr-offres_peer_offers_')) continue;
-          try{
-            const pid=key.replace('frd_qr-offres_peer_offers_','');
-            const cached=store.get('peer_offers_'+pid);
-            if(!cached?.offers?.length) continue;
-            const avail=cached.offers.filter(o=>o.remaining>0);
-            if(avail.length) peerEntries.push({peerId:pid, offers:avail});
-          }catch(e){}
-        }
+        frodon.getAllPeers().forEach(peer => {
+          const cached = store.get('peer_offers_'+peer.peerId);
+          if(!cached?.offers?.length) return;
+          const avail = cached.offers.filter(o=>o.remaining>0);
+          if(avail.length) peerEntries.push({peerId:peer.peerId, offers:avail});
+        });
 
         if(!peerEntries.length){
           const em=frodon.makeElement('div',''); em.style.cssText='text-align:center;padding:28px 14px;color:var(--txt2);font-size:.72rem;line-height:1.9';
@@ -242,13 +238,10 @@ frodon.register({
       saveOffers(offers); tInp.value=''; dInp.value=''; qInp.value='';
       frodon.showToast('🎟 Offre créée — '+q+' disponibles !');
       // Broadcast aux pairs
-      for(const key of Object.keys(localStorage)){
-        if(!key.startsWith('frd_qr-offres_peer_offers_')) continue;
-        try{const pid=key.replace('frd_qr-offres_peer_offers_','');
-          const pub=Object.entries(getOffers()).filter(([,o])=>o.remaining>0).map(([oid,o])=>({id:oid,title:o.title,description:o.description,total:o.total,remaining:o.remaining}));
-          frodon.sendDM(pid,PLUGIN_ID,{type:'offers_data',offers:pub,_silent:true});
-        }catch(e){}
-      }
+      const pub2=Object.entries(getOffers()).filter(([,o])=>o.remaining>0).map(([oid,o])=>({id:oid,title:o.title,description:o.description,total:o.total,remaining:o.remaining}));
+      frodon.getAllPeers().forEach(peer=>{
+        frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'offers_data',offers:pub2,_silent:true});
+      });
       frodon.refreshSphereTab(PLUGIN_ID);
     });
     form.appendChild(saveBtn); container.appendChild(form);
