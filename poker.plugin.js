@@ -411,21 +411,29 @@ frodon.register({
     }
 
     // Bouton inviter (crée ou rejoint un lobby existant)
+    // Si ce pair est déjà dans un lobby avec moi → juste un indicateur, pas de double invite
+    if(inLobby && inLobby.isHost) {
+      const note=frodon.makeElement('div','');
+      note.style.cssText='font-size:.64rem;color:var(--txt2);font-family:var(--mono);padding:4px 0;text-align:center';
+      const count=inLobby.players.length;
+      note.textContent='⌛ En attente dans le salon ('+count+' joueur'+(count>1?'s':'')+')';
+      container.appendChild(note);
+      const go=frodon.makeElement('button','plugin-action-btn','▶ Ouvrir le salon');
+      go.style.fontSize='.68rem'; go.style.width='100%';
+      go.addEventListener('click',()=>frodon.focusPlugin(PLUGIN_ID));
+      container.appendChild(go);
+      return;
+    }
+
     const lobbyTable=findLobbyTable(me());
     const btnLabel=lobbyTable
-      ? '🃏 Inviter à rejoindre la table ('+lobbyTable.players.length+' joueurs)'
-      : '🃏 Créer une table et inviter';
+      ? '🃏 Inviter à la table en cours ('+lobbyTable.players.length+' joueur'+(lobbyTable.players.length>1?'s':'')+')'
+      : '🃏 Inviter à jouer';
 
     const btn=frodon.makeElement('button','plugin-action-btn acc',btnLabel);
-    btn.addEventListener('click',()=>{ invitePeer(peerId); UI._closeModal?.(); });
+    btn.style.width='100%';
+    btn.addEventListener('click',()=>{ invitePeer(peerId); frodon.closeCurrentModal?.(); });
     container.appendChild(btn);
-
-    if(inLobby && !activeGame) {
-      const note=frodon.makeElement('div','');
-      note.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono);margin-top:4px;text-align:center';
-      note.textContent='⌛ Déjà dans un lobby avec vous';
-      container.appendChild(note);
-    }
   });
 
   /* ── SPHERE ── */
@@ -484,19 +492,9 @@ frodon.register({
     hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--bdr);background:rgba(0,0,0,.2)';
     hdr.innerHTML=`<span style="font-family:var(--mono);font-size:.8rem;color:var(--acc)">🃏 SALON · ${t.sb}/${t.bb} · ${t.players.length} joueur${t.players.length>1?'s':''}</span>`;
     if(t.isHost) {
-      const btns=frodon.makeElement('div',''); btns.style.cssText='display:flex;gap:6px';
       const deal=frodon.makeElement('button','plugin-action-btn acc','▶ Lancer'); deal.style.fontSize='.65rem';
       deal.addEventListener('click',()=>hostDeal(t.tid));
-      btns.appendChild(deal);
-      // Bouton "Nouvelle table" si on veut en parallèle
-      const newT=frodon.makeElement('button','plugin-action-btn','+ Table'); newT.style.fontSize='.6rem'; newT.title='Créer une deuxième table en parallèle';
-      newT.addEventListener('click',()=>{
-        const my=frodon.getMyProfile();
-        const tid2='pk_'+Date.now();
-        tables[tid2]={tid:tid2,isHost:true,hostId:me(),phase:'lobby',done:false,_scored:false,players:[{id:me(),name:my.name,chips:1000,bet:0,hasActed:false,status:'active'}],myHand:[],allHands:{},community:[],deck:[],pot:0,roundBet:20,currentIdx:0,dealerIdx:-1,sb:10,bb:20,result:null};
-        persist(); frodon.refreshSphereTab(PLUGIN_ID); frodon.showToast('Nouvelle table créée — invitez des pairs');
-      });
-      btns.appendChild(newT); hdr.appendChild(btns);
+      hdr.appendChild(deal);
     }
     w.appendChild(hdr);
     const seats=frodon.makeElement('div',''); seats.style.cssText='display:flex;flex-wrap:wrap;gap:8px;padding:12px;justify-content:center';
