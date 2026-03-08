@@ -1,418 +1,465 @@
-frodon.register({
-  id: 'autopartage',
-  name: 'Autopartage',
-  version: '3.2.0',
-  author: 'frodon-community',
-  description: 'Proposez ou trouvez un trajet avec les pairs à proximité.',
+/**
+ * Autopartage — YourMine plugin
+ * Conversations privées conducteur ↔ chaque passager.
+ * Modèle: trip.convs = { [passengerUuid]: [{uuid,name,text,ts}] }
+ */
+const plugin = {
+  name: 'autopartage',
   icon: '🚗',
-}, () => {
+  description: 'Covoiturage pair-à-pair entre utilisateurs proches',
 
-  const PLUGIN_ID = 'autopartage';
-  const store = frodon.storage(PLUGIN_ID);
+  _key: 'ym_plugin_autopartage',
+  _save(d) { try { localStorage.setItem(this._key, JSON.stringify(d)); } catch(e) {} },
+  _load()  { try { return JSON.parse(localStorage.getItem(this._key) || 'null'); } catch(e) { return null; } },
 
-  function getMyProfile() { return store.get('profile') || null; }
-  function profileActive(p) {
-    if(!p) return false;
-    if(p.departureTime === 'now') return Date.now() - p.createdAt < 8*60*60*1000;
-    return new Date(p.departureTime) > new Date(Date.now() - 30*60*1000);
-  }
-  function getPeerProfile(pid) { return store.get('peer_ap_'+pid) || null; }
-  function getConvs() { return store.get('convs') || {}; }
-  // convs = { peerId: { peerName, peerProfile, msgs:[{fromMe,text,ts}], postInfo } }
+  _cfg: null,
+  _trips: [],
+  _YM: null,
+  _container: null,
+  _broadcastTimer: null,
+  _view: null,  // null=list, {tripId, passengerUuid}=open conversation
 
-  const _requested = new Set(); // éviter re-demandes en boucle
-
-  /* ── DM ── */
-  frodon.onDM(PLUGIN_ID, (fromId, payload) => {
-    if(payload.type === 'profile_data') {
-      store.set('peer_ap_'+fromId, {profile:payload.profile, ts:Date.now()});
-      _requested.delete(fromId);
-      frodon.refreshSphereTab(PLUGIN_ID);
-    }
-    if(payload.type === 'request_profile') {
-      const p = getMyProfile();
-      if(p && profileActive(p))
-        frodon.sendDM(fromId, PLUGIN_ID, {type:'profile_data', profile:p, _silent:true});
-    }
-    if(payload.type === 'apply') {
-      const peer = frodon.getPeer(fromId);
-      const convs = getConvs();
-      if(!convs[fromId]) convs[fromId] = {peerName:peer?.name||'?', peerProfile:getPeerProfile(fromId)?.profile||null, msgs:[], applied:true};
-      convs[fromId].msgs.push({fromMe:false, text:payload.message||'Candidature', ts:Date.now()});
-      if(convs[fromId].msgs.length > 200) convs[fromId].msgs.splice(0, convs[fromId].msgs.length-200);
-      store.set('convs', convs);
-      frodon.showToast('🚗 '+(peer?.name||'Pair')+' candidate pour votre trajet');
-      frodon.refreshSphereTab(PLUGIN_ID);
-    }
-    if(payload.type === 'chat') {
-      const peer = frodon.getPeer(fromId);
-      const convs = getConvs();
-      if(!convs[fromId]) convs[fromId] = {peerName:peer?.name||'?', peerProfile:null, msgs:[]};
-      if(peer?.name) convs[fromId].peerName = peer.name;
-      convs[fromId].msgs.push({fromMe:false, text:payload.text, ts:Date.now()});
-      if(convs[fromId].msgs.length > 200) convs[fromId].msgs.splice(0, convs[fromId].msgs.length-200);
-      store.set('convs', convs);
-      frodon.showToast('🚗 Message de '+(peer?.name||'Pair'));
-      frodon.refreshSphereTab(PLUGIN_ID);
-    }
-    if(payload.type === 'cancel_profile') {
-      store.del('peer_ap_'+fromId);
-      frodon.refreshSphereTab(PLUGIN_ID);
-    }
-  });
-
-  /* ── Widget profil ── */
-  frodon.registerProfileWidget(PLUGIN_ID, (container) => {
-    const p=getMyProfile(); if(!p||!profileActive(p)) return;
-    const card=frodon.makeElement('div','');
-    card.style.cssText='background:rgba(0,232,122,.1);border:1px solid rgba(0,232,122,.3);border-radius:var(--r);padding:8px 12px;margin-top:5px';
-    const t=frodon.makeElement('div',''); t.style.cssText='font-size:.6rem;color:var(--ok);font-family:var(--mono);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px';
-    t.textContent=p.role==='driver'?'🚗 Conducteur actif':'🙋 Cherche un trajet';
-    const d=frodon.makeElement('div',''); d.style.cssText='font-size:.8rem;font-weight:700;color:var(--txt)'; d.textContent='→ '+p.destination;
-    card.appendChild(t); card.appendChild(d); container.appendChild(card);
-  });
-
-  /* ── SPHERE ── */
-  frodon.registerBottomPanel(PLUGIN_ID, [
-    {
-      id: 'trajets', label: '🚗 Trajets',
-      render(container) {
-        const myProfile = getMyProfile();
-        if(!myProfile || !profileActive(myProfile)) {
-          _empty(container, '🚗', 'Configurez votre trajet dans ⚙\npour voir les pairs compatibles.');
-          return;
-        }
-        const amDriver = myProfile.role === 'driver';
-
-        // Dédoublonner par peerId
-        const seen = new Set();
-        const allPeers = frodon.getAllPeers().filter(p => {
-          if(seen.has(p.peerId)) return false;
-          seen.add(p.peerId); return true;
-        });
-
-        // Demander les profils manquants (une seule fois par peer)
-        allPeers.forEach(peer => {
-          if(!_requested.has(peer.peerId)) {
-            const cached = getPeerProfile(peer.peerId);
-            if(!cached || Date.now() - cached.ts > 120000) {
-              _requested.add(peer.peerId);
-              frodon.sendDM(peer.peerId, PLUGIN_ID, {type:'request_profile', _silent:true});
-            }
-          }
-        });
-
-        // Double dédoublonnage : par peerId ET par empreinte profil
-        const compatibleRaw = allPeers
-          .map(peer => ({peer, profile: getPeerProfile(peer.peerId)?.profile}))
-          .filter(({profile}) => profile && profileActive(profile))
-          .filter(({profile}) => amDriver ? profile.role==='passenger' : profile.role==='driver');
-        const seenProfile = new Set();
-        const compatible = compatibleRaw.filter(({peer, profile}) => {
-          const key = peer.peerId + '_' + (profile.destination||'') + '_' + (profile.departureTime||'');
-          if(seenProfile.has(key)) return false;
-          seenProfile.add(key); return true;
-        });
-
-        if(!compatible.length) {
-          _empty(container, '🚗', allPeers.length
-            ? 'Aucun '+(amDriver?'passager':'conducteur')+' visible parmi '+allPeers.length+' pair(s).\nLes profils arrivent dans quelques secondes…'
-            : 'Aucun pair à proximité.');
-          return;
-        }
-
-        const applied = store.get('applied') || {};
-        _sLabel(container, amDriver ? 'Passagers qui cherchent' : 'Conducteurs disponibles');
-
-        compatible.forEach(({peer, profile}) => {
-          const name = peer.name || peer.peerId.substring(0,8)+'…';
-          const card = frodon.makeElement('div','');
-          card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:var(--r);margin:0 8px 8px;overflow:hidden';
-
-          // Header cliquable → profil
-          const hdr = frodon.makeElement('div','');
-          hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--bdr)';
-          hdr.addEventListener('click', ()=>frodon.openPeer(peer.peerId));
-          const av=frodon.makeElement('div','');
-          av.style.cssText='width:36px;height:36px;border-radius:50%;background:rgba(0,232,122,.15);border:1px solid rgba(0,232,122,.3);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;font-family:var(--mono);font-weight:700';
-          av.textContent=name[0].toUpperCase();
-          const info=frodon.makeElement('div',''); info.style.cssText='flex:1;min-width:0';
-          const nameEl=frodon.makeElement('div',''); nameEl.style.cssText='font-size:.78rem;font-weight:700;color:var(--txt)'; nameEl.textContent=name;
-          const destEl=frodon.makeElement('div',''); destEl.style.cssText='font-size:.7rem;color:var(--acc);margin-top:1px;font-weight:600'; destEl.textContent='→ '+profile.destination;
-          info.appendChild(nameEl); info.appendChild(destEl);
-          const timeEl=frodon.makeElement('div',''); timeEl.style.cssText='font-size:.6rem;color:var(--txt3);font-family:var(--mono);text-align:right;flex-shrink:0';
-          timeEl.textContent=profile.departureTime==='now'?'Maintenant':new Date(profile.departureTime).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'});
-          hdr.appendChild(av); hdr.appendChild(info); hdr.appendChild(timeEl);
-          card.appendChild(hdr);
-
-          // Détails complets
-          const body=frodon.makeElement('div',''); body.style.cssText='padding:9px 12px 11px';
-          const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.64rem;color:var(--txt2);font-family:var(--mono);line-height:1.9;margin-bottom:9px';
-          let mh='';
-          if(profile.from) mh+='📍 Depuis : <b style="color:var(--txt)">'+profile.from+'</b><br>';
-          if(profile.role==='driver') mh+='💺 <b style="color:var(--txt)">'+profile.seats+'</b> place'+(profile.seats>1?'s disponibles':'disponible')+'<br>';
-          if(profile.departureTime!=='now') mh+='⏰ <b style="color:var(--txt)">'+new Date(profile.departureTime).toLocaleString('fr-FR',{weekday:'long',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})+'</b><br>';
-          else mh+='⏰ <b style="color:var(--ok)">Départ immédiat</b><br>';
-          if(profile.note) mh+='📝 '+profile.note;
-          meta.innerHTML=mh; body.appendChild(meta);
-
-          // Relire applied au moment du render (pas en closure)
-          const alreadyApplied = (store.get('applied')||{})[peer.peerId];
-          if(alreadyApplied) {
-            const doneLbl=frodon.makeElement('div',''); doneLbl.style.cssText='font-size:.64rem;color:var(--ok);font-family:var(--mono);padding:4px 0';
-            doneLbl.textContent='✓ Candidature envoyée — échange dans Réceptions';
-            body.appendChild(doneLbl);
-          } else {
-            const applyBtn=frodon.makeElement('button','plugin-action-btn acc','🚗 Candidater');
-            applyBtn.style.cssText+=';width:100%';
-            applyBtn.addEventListener('click',()=>{
-              // Désactiver immédiatement pour éviter double-clic
-              applyBtn.disabled=true; applyBtn.textContent='⏳ Envoi…';
-              // Marquer candidaté AVANT le refresh
-              const a=store.get('applied')||{}; a[peer.peerId]=true; store.set('applied',a);
-              // Créer conversation si elle n'existe pas
-              const convs=getConvs();
-              if(!convs[peer.peerId]) { convs[peer.peerId]={peerName:name,peerProfile:profile,msgs:[]}; store.set('convs',convs); }
-              // Envoyer DM
-              setTimeout(()=>frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'apply',message:'Je candidate pour votre trajet.',_label:'🚗 Candidature autopartage'}),300);
-              frodon.refreshSphereTab(PLUGIN_ID);
-            });
-            body.appendChild(applyBtn);
-          }
-          card.appendChild(body);
-          container.appendChild(card);
-        });
-      }
-    },
-    {
-      id: 'reception', label: '📬 Réceptions',
-      render(container) {
-        const convs = getConvs();
-        // Dédoublonner les entrées (même peerId stocké deux fois)
-        const seenConv = new Set();
-        const entries = Object.entries(convs).filter(([pid]) => {
-          if(seenConv.has(pid)) return false;
-          seenConv.add(pid); return true;
-        });
-        if(!entries.length){ _empty(container,'📬','Aucune conversation.\nCandidatez à un trajet ou attendez des candidats.'); return; }
-
-        // Liste des conversations
-        entries.forEach(([peerId, conv]) => {
-          const unread = conv.msgs.filter(m=>!m.read&&!m.fromMe).length;
-          const card=frodon.makeElement('div','');
-          card.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:var(--r);margin:6px 8px 0;display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer';
-          card.addEventListener('click',()=>{
-            container.innerHTML='';
-            _renderConvDetail(container, peerId, conv);
-          });
-          const av=frodon.makeElement('div','');
-          av.style.cssText='width:36px;height:36px;border-radius:50%;background:rgba(124,77,255,.18);border:1px solid rgba(124,77,255,.28);display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;font-family:var(--mono);font-weight:700';
-          av.textContent=(conv.peerName||'?')[0].toUpperCase();
-          const info=frodon.makeElement('div',''); info.style.cssText='flex:1;min-width:0';
-          const nameEl=frodon.makeElement('div',''); nameEl.style.cssText='font-size:.76rem;font-weight:700;color:var(--acc2)'; nameEl.textContent=conv.peerName;
-          info.appendChild(nameEl);
-          if(conv.peerProfile){
-            const dest=frodon.makeElement('div',''); dest.style.cssText='font-size:.64rem;color:var(--txt2)'; dest.textContent='→ '+(conv.peerProfile.destination||'?'); info.appendChild(dest);
-          }
-          if(conv.msgs.length){
-            const last=conv.msgs[conv.msgs.length-1];
-            const preview=frodon.makeElement('div',''); preview.style.cssText='font-size:.62rem;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis'; preview.textContent=(last.fromMe?'Vous : ':'')+last.text; info.appendChild(preview);
-          }
-          const right=frodon.makeElement('div',''); right.style.cssText='display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0';
-          if(conv.msgs.length) { const ts=frodon.makeElement('div',''); ts.style.cssText='font-size:.56rem;color:var(--txt3);font-family:var(--mono)'; ts.textContent=frodon.formatTime(conv.msgs[conv.msgs.length-1].ts); right.appendChild(ts); }
-          if(unread){ const badge=frodon.makeElement('div',''); badge.style.cssText='background:var(--acc);color:#000;font-size:.58rem;font-weight:700;border-radius:99px;padding:1px 6px;font-family:var(--mono)'; badge.textContent=unread; right.appendChild(badge); }
-          card.appendChild(av); card.appendChild(info); card.appendChild(right);
-          container.appendChild(card);
-        });
-      }
-    },
-    {
-      id: 'settings', label: '⚙ Mon profil', settings:true,
-      render(container) {
-        const p=getMyProfile();
-        if(p&&profileActive(p)){
-          const sc=frodon.makeElement('div',''); sc.style.cssText='background:rgba(0,232,122,.1);border:1px solid rgba(0,232,122,.3);border-radius:var(--r);margin:8px;padding:12px';
-          const dot=frodon.makeElement('div',''); dot.style.cssText='font-size:.6rem;color:var(--ok);font-family:var(--mono);margin-bottom:4px'; dot.textContent='● Profil actif';
-          const dest=frodon.makeElement('div',''); dest.style.cssText='font-size:.88rem;font-weight:700;color:var(--txt);margin-bottom:3px'; dest.textContent=(p.role==='driver'?'🚗':'🙋')+' → '+p.destination;
-          const meta=frodon.makeElement('div',''); meta.style.cssText='font-size:.64rem;color:var(--txt2);font-family:var(--mono)';
-          meta.textContent=(p.departureTime==='now'?'Maintenant':new Date(p.departureTime).toLocaleString('fr-FR',{weekday:'short',hour:'2-digit',minute:'2-digit'}))+(p.role==='driver'?' · '+p.seats+' place'+(p.seats>1?'s':''):'');
-          const cancelBtn=frodon.makeElement('button','plugin-action-btn'); cancelBtn.style.cssText+=';color:var(--warn);border-color:rgba(255,85,85,.3);margin-top:8px;font-size:.68rem;width:100%'; cancelBtn.textContent='✕ Annuler le trajet';
-          cancelBtn.addEventListener('click',()=>{
-            store.del('profile'); store.del('applied');
-            frodon.getAllPeers().forEach(peer=>frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'cancel_profile',_silent:true}));
-            frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
-          });
-          sc.appendChild(dot); sc.appendChild(dest); sc.appendChild(meta); sc.appendChild(cancelBtn);
-          container.appendChild(sc);
-        }
-        _renderForm(container, p);
-      }
-    },
-  ]);
-
-  function _renderConvDetail(container, peerId, conv) {
-    const peer = frodon.getPeer(peerId);
-    const name = conv.peerName;
-    const profile = conv.peerProfile || getPeerProfile(peerId)?.profile;
-
-    // Header avec retour
-    const topBar=frodon.makeElement('div','');
-    topBar.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0';
-    const backBtn=frodon.makeElement('button','');
-    backBtn.style.cssText='background:none;border:none;cursor:pointer;color:var(--acc);font-size:.85rem;padding:2px 6px 2px 0';
-    backBtn.textContent='←';
-    backBtn.addEventListener('click',()=>{ container.innerHTML=''; frodon.refreshSphereTab(PLUGIN_ID); });
-    const av=frodon.makeElement('div','');
-    av.style.cssText='width:32px;height:32px;border-radius:50%;background:rgba(124,77,255,.18);border:1px solid rgba(124,77,255,.28);display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;font-family:var(--mono);font-weight:700;cursor:pointer';
-    av.textContent=name[0].toUpperCase();
-    av.addEventListener('click',()=>frodon.openPeer(peerId));
-    const hInfo=frodon.makeElement('div',''); hInfo.style.cssText='flex:1;min-width:0';
-    const hName=frodon.makeElement('div',''); hName.style.cssText='font-size:.76rem;font-weight:700;color:var(--acc2);cursor:pointer'; hName.textContent=name;
-    hName.addEventListener('click',()=>frodon.openPeer(peerId));
-    hInfo.appendChild(hName);
-    if(profile){
-      const hDest=frodon.makeElement('div',''); hDest.style.cssText='font-size:.62rem;color:var(--txt2)'; hDest.textContent='→ '+(profile.destination||'?')+' · '+(profile.departureTime==='now'?'Maintenant':new Date(profile.departureTime).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit'}))+(profile.role==='driver'?' · 💺'+profile.seats:''); hInfo.appendChild(hDest);
-    }
-    topBar.appendChild(backBtn); topBar.appendChild(av); topBar.appendChild(hInfo);
-    container.appendChild(topBar);
-
-    // Rappel trajet si dispo
-    if(profile){
-      const recap=frodon.makeElement('div','');
-      recap.style.cssText='margin:8px 10px 0;padding:8px 10px;background:rgba(0,232,122,.07);border:1px solid rgba(0,232,122,.2);border-radius:8px;font-size:.62rem;color:var(--txt2);font-family:var(--mono);line-height:1.7';
-      let rh='<span style="color:var(--ok);font-weight:700">'+(profile.role==='driver'?'🚗 Conducteur':'🙋 Passager')+'</span> → <b style="color:var(--txt)">'+profile.destination+'</b><br>';
-      if(profile.from) rh+='📍 Depuis : '+profile.from+'<br>';
-      if(profile.role==='driver') rh+='💺 '+profile.seats+' place'+(profile.seats>1?'s':'')+'<br>';
-      rh+='⏰ '+(profile.departureTime==='now'?'Départ immédiat':new Date(profile.departureTime).toLocaleString('fr-FR',{weekday:'long',hour:'2-digit',minute:'2-digit'}));
-      if(profile.note) rh+='<br>📝 '+profile.note;
-      recap.innerHTML=rh;
-      container.appendChild(recap);
-    }
-
-    // Fil de messages
-    const feed=frodon.makeElement('div','');
-    feed.style.cssText='flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-height:120px;max-height:300px';
-
-    // Marquer lus
-    const convs=getConvs();
-    if(convs[peerId]) { convs[peerId].msgs.forEach(m=>{if(!m.fromMe)m.read=true;}); store.set('convs',convs); }
-
-    function renderMsgs(){
-      feed.innerHTML='';
-      const c2=getConvs(); const msgs=(c2[peerId]?.msgs)||[];
-      if(!msgs.length){
-        const em=frodon.makeElement('div',''); em.style.cssText='text-align:center;color:var(--txt3);font-size:.66rem;padding:16px 0'; em.textContent='Démarrez la conversation…'; feed.appendChild(em);
-      }
-      msgs.forEach(m=>{
-        const bub=frodon.makeElement('div','');
-        bub.style.cssText=m.fromMe
-          ?'align-self:flex-end;background:rgba(0,245,200,.1);border:1px solid rgba(0,245,200,.2);color:var(--acc);border-radius:10px 10px 2px 10px;padding:6px 10px;font-size:.72rem;max-width:85%;word-break:break-word'
-          :'align-self:flex-start;background:rgba(124,77,255,.1);border:1px solid rgba(124,77,255,.2);color:var(--txt);border-radius:10px 10px 10px 2px;padding:6px 10px;font-size:.72rem;max-width:85%;word-break:break-word';
-        bub.textContent=m.text;
-        const ts=frodon.makeElement('div',''); ts.style.cssText='font-size:.52rem;opacity:.5;margin-top:2px;text-align:'+(m.fromMe?'right':'left'); ts.textContent=frodon.formatTime(m.ts);
-        bub.appendChild(ts); feed.appendChild(bub);
+  render(container, YM) {
+    this._YM = YM;
+    this._container = container;
+    const saved = this._load() || {};
+    this._cfg   = saved.cfg   || null;
+    this._trips = saved.trips || [];
+    this._view  = null;
+    container.style.cssText = 'font-family:inherit;padding:0;display:flex;flex-direction:column;height:100%;';
+    if (YM.onHub) {
+      YM.onHub(data => {
+        if (data && data.autopartage) this._mergeTrip(data.autopartage);
       });
-      feed.scrollTop=feed.scrollHeight;
     }
+    this._renderMain();
+  },
+
+  _mergeTrip(incoming) {
+    const idx = this._trips.findIndex(t => t.id === incoming.id);
+    if (idx >= 0) {
+      const ex = this._trips[idx];
+      const merged = Object.assign({}, ex.convs || {});
+      Object.entries(incoming.convs || {}).forEach(function(entry) {
+        const pUuid = entry[0];
+        const msgs  = entry[1];
+        const existing = merged[pUuid] || [];
+        const seen = new Set(existing.map(function(m) { return m.uuid + m.ts; }));
+        const fresh = msgs.filter(function(m) { return !seen.has(m.uuid + m.ts); });
+        merged[pUuid] = existing.concat(fresh).sort(function(a,b) { return a.ts - b.ts; });
+      });
+      Object.assign(ex, {
+        destination: incoming.destination,
+        seats:       incoming.seats,
+        driverPhoto: incoming.driverPhoto,
+        driverName:  incoming.driverName,
+        convs:       merged,
+      });
+    } else {
+      this._trips.unshift(incoming);
+    }
+    this._persist();
+    if (this._container && this._container.isConnected) {
+      if (this._view && this._view.tripId === incoming.id) {
+        this._renderConv(this._view.tripId, this._view.passengerUuid);
+      } else if (!this._view) {
+        this._renderMain();
+      }
+    }
+  },
+
+  _persist() { this._save({ cfg: this._cfg, trips: this._trips }); },
+
+  _renderMain() {
+    this._view = null;
+    const c = this._container;
+    c.innerHTML = '';
+    const bar = el('div', 'ap-bar');
+    bar.append(el('div', 'ap-title', '🚗 Autopartage'), btn('⚙', 'ap-cfg-btn', () => this._renderConfig()));
+    c.appendChild(bar);
+
+    const myUuid = (this._YM.profile && this._YM.profile.uuid) || 'local';
+    const myRole = this._cfg && this._cfg.role;
+
+    if (!myRole) {
+      c.appendChild(el('div', 'ap-hint', 'Configure ton rôle via ⚙ pour participer.'));
+      c.appendChild(styleBlock());
+      return;
+    }
+
+    if (myRole === 'driver') {
+      const myTrip = this._trips.find(function(t) { return t.id === 'trip-' + myUuid; });
+      if (!myTrip) {
+        c.appendChild(el('div', 'ap-hint', 'Sauvegarde ta config pour publier ton trajet.'));
+      } else {
+        const info = el('div', 'ap-trip-info');
+        info.innerHTML = '📍 <strong>' + esc(myTrip.destination || '?') + '</strong> · 💺 ' + (myTrip.seats||1) + ' place(s)';
+        c.appendChild(info);
+        const convs = myTrip.convs || {};
+        const pUuids = Object.keys(convs);
+        c.appendChild(el('div', 'ap-section-label', pUuids.length ? 'Conversations (' + pUuids.length + ')' : 'En attente de messages…'));
+        if (pUuids.length === 0) {
+          c.appendChild(el('div', 'ap-empty', 'Aucun passager ne t\'a encore écrit.'));
+        } else {
+          const self = this;
+          pUuids.forEach(function(pUuid) {
+            const msgs = convs[pUuid] || [];
+            const last = msgs[msgs.length - 1];
+            const near = self._YM.nearPeers && self._YM.nearPeers.find(function(e) { return e.uuid === pUuid; });
+            const pName  = (near && near.profile && near.profile.name) || (last && last.uuid !== myUuid && last.name) || 'Passager';
+            const pPhoto = (near && near.profile && near.profile.photo) || '';
+            c.appendChild(self._convRow(pUuid, pName, pPhoto, last, myUuid, function() {
+              self._renderConv(myTrip.id, pUuid);
+            }));
+          });
+        }
+      }
+    } else {
+      // passenger
+      const self = this;
+      const drivers = this._trips.filter(function(t) { return t.role === 'driver'; });
+      c.appendChild(el('div', 'ap-section-label', 'Conducteurs disponibles'));
+      if (drivers.length === 0) {
+        c.appendChild(el('div', 'ap-empty', 'Aucun conducteur pour l\'instant.'));
+      } else {
+        drivers.forEach(function(trip) {
+          const myConv = (trip.convs && trip.convs[myUuid]) || [];
+          const last = myConv[myConv.length - 1];
+          c.appendChild(self._driverRow(trip, last, myUuid, function() {
+            self._renderConv(trip.id, myUuid);
+          }));
+        });
+      }
+    }
+
+    clearInterval(this._broadcastTimer);
+    this._broadcastMyTrip();
+    const self = this;
+    this._broadcastTimer = setInterval(function() {
+      if (self._container && self._container.isConnected) self._broadcastMyTrip();
+      else clearInterval(self._broadcastTimer);
+    }, 15000);
+
+    c.appendChild(styleBlock());
+  },
+
+  _convRow(pUuid, pName, pPhoto, lastMsg, myUuid, onclick) {
+    const row = el('div', 'ap-conv-row');
+    row.style.cursor = 'pointer';
+    const avatar = el('div', 'ap-avatar');
+    if (pPhoto) {
+      const img = document.createElement('img');
+      img.src = pPhoto; img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+      avatar.appendChild(img);
+    } else { avatar.textContent = (pName||'?')[0].toUpperCase(); }
+    const body = el('div', 'ap-conv-row-body');
+    body.appendChild(el('div', 'ap-conv-row-name', esc(pName)));
+    if (lastMsg) {
+      body.appendChild(el('div', 'ap-conv-row-preview', (lastMsg.uuid === myUuid ? 'Toi: ' : '') + esc(lastMsg.text).slice(0,50)));
+    }
+    row.append(avatar, body, el('div', 'ap-conv-row-arrow', '›'));
+    row.onclick = onclick;
+    return row;
+  },
+
+  _driverRow(trip, lastMsg, myUuid, onclick) {
+    const row = el('div', 'ap-conv-row');
+    row.style.cursor = 'pointer';
+    const avatar = el('div', 'ap-avatar');
+    if (trip.driverPhoto) {
+      const img = document.createElement('img');
+      img.src = trip.driverPhoto; img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+      avatar.appendChild(img);
+    } else { avatar.textContent = (trip.driverName||'?')[0].toUpperCase(); }
+    const body = el('div', 'ap-conv-row-body');
+    body.appendChild(el('div', 'ap-conv-row-name', esc(trip.driverName || 'Anonyme')));
+    body.appendChild(el('div', 'ap-conv-row-preview', '📍 ' + esc(trip.destination||'?') + ' · 💺 ' + (trip.seats||'?')));
+    if (lastMsg) body.appendChild(el('div', 'ap-conv-row-preview', (lastMsg.uuid === myUuid ? 'Toi: ' : '') + esc(lastMsg.text).slice(0,40)));
+    row.append(avatar, body, el('div', 'ap-conv-row-arrow', '›'));
+    row.onclick = onclick;
+    return row;
+  },
+
+  _renderConv(tripId, passengerUuid) {
+    this._view = { tripId: tripId, passengerUuid: passengerUuid };
+    const c = this._container;
+    c.innerHTML = '';
+    const myUuid = (this._YM.profile && this._YM.profile.uuid) || 'local';
+    const myName = (this._YM.profile && this._YM.profile.name) || 'Anonyme';
+    const trip = this._trips.find(function(t) { return t.id === tripId; });
+    if (!trip) { this._renderMain(); return; }
+
+    const isDriver = myUuid === trip.driverUuid;
+    var otherUuid, otherName, otherPhoto;
+    if (isDriver) {
+      otherUuid = passengerUuid;
+      const near = this._YM.nearPeers && this._YM.nearPeers.find(function(e) { return e.uuid === passengerUuid; });
+      const msgs = (trip.convs && trip.convs[passengerUuid]) || [];
+      const firstFromOther = msgs.find(function(m) { return m.uuid !== myUuid; });
+      otherName  = (near && near.profile && near.profile.name) || (firstFromOther && firstFromOther.name) || 'Passager';
+      otherPhoto = (near && near.profile && near.profile.photo) || '';
+    } else {
+      otherUuid  = trip.driverUuid;
+      otherName  = trip.driverName || 'Conducteur';
+      otherPhoto = trip.driverPhoto || '';
+    }
+
+    // Header bar
+    const bar = el('div', 'ap-conv-bar');
+    const self = this;
+    bar.appendChild(btn('←', 'ap-back-btn', function() { self._renderMain(); }));
+    const head = el('div', 'ap-conv-head');
+    head.style.cursor = 'pointer';
+    head.onclick = function() {
+      const near = self._YM.nearPeers && self._YM.nearPeers.find(function(e) { return e.uuid === otherUuid; });
+      if (self._YM.openProfile) self._YM.openProfile(otherUuid,
+        (near && near.profile) || { name: otherName, photo: otherPhoto, networks: [], plugins: [] },
+        near || null);
+    };
+    const avatarSm = el('div', 'ap-avatar-sm');
+    if (otherPhoto) {
+      const img = document.createElement('img');
+      img.src = otherPhoto; img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+      avatarSm.appendChild(img);
+    } else { avatarSm.textContent = (otherName||'?')[0].toUpperCase(); }
+    const headInfo = el('div', 'ap-conv-head-info');
+    headInfo.appendChild(el('div', 'ap-conv-head-name', esc(otherName)));
+    headInfo.appendChild(el('div', 'ap-conv-head-sub',
+      isDriver ? '👤 Passager' : '📍 ' + esc(trip.destination||'?') + ' · 💺 ' + (trip.seats||'?')));
+    head.append(avatarSm, headInfo);
+    bar.appendChild(head);
+    c.appendChild(bar);
+
+    // Messages area
+    const convWrap = el('div', 'ap-conv-wrap');
+    const renderMsgs = function() {
+      convWrap.innerHTML = '';
+      const msgs = (trip.convs && trip.convs[passengerUuid]) || [];
+      if (msgs.length === 0) {
+        convWrap.appendChild(el('div', 'ap-no-msg', 'Pas encore de messages. Dis bonjour !'));
+      } else {
+        msgs.forEach(function(m) {
+          const row = el('div', 'ap-msg' + (m.uuid === myUuid ? ' ap-msg-me' : ''));
+          row.innerHTML = '<span class="ap-msg-name">' + esc(m.name) + '</span><span class="ap-msg-text">' + esc(m.text) + '</span>';
+          convWrap.appendChild(row);
+        });
+        convWrap.scrollTop = convWrap.scrollHeight;
+      }
+    };
     renderMsgs();
-    container.appendChild(feed);
+    c.appendChild(convWrap);
 
-    // Zone saisie
-    const inputRow=frodon.makeElement('div','');
-    inputRow.style.cssText='display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--bdr);flex-shrink:0';
-    const ta=document.createElement('textarea'); ta.className='f-input'; ta.rows=2; ta.maxLength=500; ta.placeholder='Votre message…'; ta.style.cssText+=';flex:1;resize:none';
-    const sendBtn=frodon.makeElement('button','plugin-action-btn acc','↑');
-    sendBtn.style.cssText+=';padding:6px 12px;font-size:.9rem;align-self:flex-end';
-    sendBtn.addEventListener('click',()=>{
-      const txt=ta.value.trim(); if(!txt) return;
-      const convs2=getConvs();
-      if(!convs2[peerId]) convs2[peerId]={peerName:name,peerProfile:profile,msgs:[]};
-      convs2[peerId].msgs.push({fromMe:true,text:txt,ts:Date.now(),read:true});
-      store.set('convs',convs2);
-      setTimeout(()=>frodon.sendDM(peerId,PLUGIN_ID,{type:'chat',text:txt,_label:'🚗 Message autopartage'}),300);
-      ta.value=''; renderMsgs();
-    });
-    ta.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendBtn.click();} });
-    inputRow.appendChild(ta); inputRow.appendChild(sendBtn);
-    container.appendChild(inputRow);
-  }
+    // Input
+    const inputRow = el('div', 'ap-input-row');
+    const input = document.createElement('input');
+    input.type = 'text'; input.placeholder = 'Message…'; input.className = 'ap-input';
+    const sendFn = function() {
+      const txt = input.value.trim(); if (!txt) return;
+      if (!trip.convs) trip.convs = {};
+      if (!trip.convs[passengerUuid]) trip.convs[passengerUuid] = [];
+      trip.convs[passengerUuid].push({ uuid: myUuid, name: myName, text: txt, ts: Date.now() });
+      self._persist();
+      self._broadcastTrip(trip);
+      input.value = '';
+      renderMsgs();
+      input.focus();
+    };
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') sendFn(); });
+    inputRow.append(input, btn('↑', 'ap-send-btn', sendFn));
+    c.appendChild(inputRow);
+    c.appendChild(styleBlock());
+  },
 
-  function _switchTab(tabId, currentContainer, peerId, name, profile) {
-    // Basculer vers l'onglet reception et ouvrir la conv
-    frodon.focusPlugin(PLUGIN_ID);
-    // On ne peut pas changer d'onglet programmatiquement, donc on refresh
-    // et la conv s'ouvrira via le render normal de réceptions
-    frodon.refreshSphereTab(PLUGIN_ID);
-  }
+  _renderConfig() {
+    const c = this._container;
+    c.innerHTML = '';
+    const cfg = Object.assign({ role: 'passenger', destination: '', seats: 2, photo: '' }, this._cfg || {});
+    const wrap = el('div', 'ap-config-wrap');
+    const self = this;
 
-  function _openConv(container, peerId, name, profile) {
-    container.innerHTML='';
-    _renderConvDetail(container, peerId, {peerName:name, peerProfile:profile, msgs:(getConvs()[peerId]?.msgs)||[]});
-  }
+    wrap.appendChild(btn('← Retour', 'ap-back-btn', function() { self._renderMain(); }));
+    wrap.appendChild(el('div', 'ap-config-title', 'Configuration'));
 
-  function _empty(container,icon,text){
-    const em=frodon.makeElement('div','no-posts'); em.innerHTML='<div style="font-size:1.6rem;opacity:.2;margin-bottom:8px">'+icon+'</div>'+text.replace('\n','<br>'); container.appendChild(em);
-  }
-  function _sLabel(container,text){
-    const l=frodon.makeElement('div','section-label'); l.textContent=text; container.appendChild(l);
-  }
-  function _fl(parent,text){
-    const l=frodon.makeElement('div',''); l.style.cssText='font-size:.6rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;margin-top:8px'; l.textContent=text; parent.appendChild(l);
-  }
+    // Role
+    const roleGroup = el('div', 'ap-field-group');
+    roleGroup.appendChild(el('label', 'ap-label', 'Rôle'));
+    const roleRow = el('div', 'ap-role-row');
+    const seatsGroup = el('div', 'ap-field-group');
+    seatsGroup.style.display = cfg.role === 'driver' ? '' : 'none';
+    const mkRole = function(val, label) {
+      const b = btn(label, 'ap-role-btn' + (cfg.role === val ? ' active' : ''), function() {
+        cfg.role = val;
+        wrap.querySelectorAll('.ap-role-btn').forEach(function(x) { x.classList.remove('active'); });
+        b.classList.add('active');
+        seatsGroup.style.display = val === 'driver' ? '' : 'none';
+      });
+      return b;
+    };
+    roleRow.append(mkRole('driver', '🧑‍✈️ Conducteur'), mkRole('passenger', '🙋 Conduit'));
+    roleGroup.appendChild(roleRow);
+    wrap.appendChild(roleGroup);
 
-  function _renderForm(container, existing){
-    const form=frodon.makeElement('div',''); form.style.cssText='background:var(--sur);border:1px solid var(--bdr2);border-radius:var(--r);margin:8px;padding:12px';
-    const title=frodon.makeElement('div',''); title.style.cssText='font-size:.62rem;color:var(--txt3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px'; title.textContent=existing?'Modifier mon trajet':'Nouveau trajet'; form.appendChild(title);
-    _fl(form,'Je suis…');
-    const roleRow=frodon.makeElement('div',''); roleRow.style.cssText='display:flex;gap:6px;margin-bottom:10px';
-    let role=existing?.role||'driver';
-    const dBtn=frodon.makeElement('button','plugin-action-btn','🚗 Conducteur'); dBtn.style.cssText+=';flex:1;font-size:.64rem';
-    const pBtn=frodon.makeElement('button','plugin-action-btn','🙋 Passager'); pBtn.style.cssText+=';flex:1;font-size:.64rem';
-    if(role==='driver') dBtn.classList.add('acc'); else pBtn.classList.add('acc');
-    const seatsRow=frodon.makeElement('div',''); seatsRow.style.cssText='display:'+(role==='driver'?'flex':'none')+';align-items:center;gap:8px;margin-bottom:6px';
-    const fromRow=frodon.makeElement('div',''); fromRow.style.display=role==='passenger'?'block':'none';
-    dBtn.addEventListener('click',()=>{role='driver';dBtn.classList.add('acc');pBtn.classList.remove('acc');seatsRow.style.display='flex';fromRow.style.display='none';});
-    pBtn.addEventListener('click',()=>{role='passenger';pBtn.classList.add('acc');dBtn.classList.remove('acc');seatsRow.style.display='none';fromRow.style.display='block';});
-    roleRow.appendChild(dBtn); roleRow.appendChild(pBtn); form.appendChild(roleRow);
-    _fl(form,'Destination *');
-    const destInp=document.createElement('input'); destInp.className='f-input'; destInp.placeholder='Ex: Gare de Lyon, Bordeaux…'; destInp.value=existing?.destination||''; destInp.style.marginBottom='6px'; form.appendChild(destInp);
-    _fl(fromRow,'Point de départ');
-    const fromInp=document.createElement('input'); fromInp.className='f-input'; fromInp.placeholder='Votre lieu de départ'; fromInp.value=existing?.from||''; fromInp.style.marginBottom='6px'; fromRow.appendChild(fromInp); form.appendChild(fromRow);
-    const seatsLbl=frodon.makeElement('div',''); seatsLbl.style.cssText='font-size:.64rem;color:var(--txt2);font-family:var(--mono);white-space:nowrap'; seatsLbl.textContent='💺 Places :';
-    const seatsInp=document.createElement('input'); seatsInp.type='number'; seatsInp.className='f-input'; seatsInp.min='1'; seatsInp.max='8'; seatsInp.value=existing?.seats||1; seatsInp.style.width='60px';
-    seatsRow.appendChild(seatsLbl); seatsRow.appendChild(seatsInp); form.appendChild(seatsRow);
-    _fl(form,'⏰ Départ');
-    const timeRow=frodon.makeElement('div',''); timeRow.style.cssText='display:flex;gap:6px;margin-bottom:6px;align-items:center';
-    let dt=existing?.departureTime||'now';
-    const nowBtn=frodon.makeElement('button','plugin-action-btn','Maintenant'); nowBtn.style.cssText+=';flex:1;font-size:.62rem';
-    const laterInp=document.createElement('input'); laterInp.type='datetime-local'; laterInp.className='f-input'; laterInp.style.cssText='flex:2;display:'+(dt!=='now'?'block':'none');
-    if(dt!=='now') laterInp.value=dt;
-    const laterBtn=frodon.makeElement('button','plugin-action-btn','Planifier'); laterBtn.style.cssText+=';flex:1;font-size:.62rem';
-    if(dt==='now') nowBtn.classList.add('acc');
-    nowBtn.addEventListener('click',()=>{dt='now';nowBtn.classList.add('acc');laterInp.style.display='none';});
-    laterBtn.addEventListener('click',()=>{laterInp.style.display='block';nowBtn.classList.remove('acc');});
-    laterInp.addEventListener('change',()=>{dt=laterInp.value;});
-    timeRow.appendChild(nowBtn); timeRow.appendChild(laterBtn); timeRow.appendChild(laterInp); form.appendChild(timeRow);
-    _fl(form,'Note (optionnel)');
-    const noteInp=document.createElement('input'); noteInp.className='f-input'; noteInp.placeholder='Détour possible, animaux ok…'; noteInp.value=existing?.note||''; noteInp.style.marginBottom='10px'; form.appendChild(noteInp);
-    const saveBtn=frodon.makeElement('button','plugin-action-btn acc','🚗 Publier'); saveBtn.style.cssText+=';width:100%';
-    saveBtn.addEventListener('click',()=>{
-      const dest=destInp.value.trim(); if(!dest){frodon.showToast('Destination requise',true);return;}
-      const profile={role,destination:dest,from:fromInp.value.trim(),departureTime:dt,seats:parseInt(seatsInp.value)||1,note:noteInp.value.trim(),createdAt:Date.now()};
-      store.set('profile',profile); store.del('applied');
-      frodon.getAllPeers().forEach(peer=>frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'profile_data',profile,_silent:true}));
-      frodon.showToast('🚗 Profil publié !');
-      frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
-    });
-    form.appendChild(saveBtn); container.appendChild(form);
-  }
+    // Destination
+    const destGroup = el('div', 'ap-field-group');
+    destGroup.appendChild(el('label', 'ap-label', 'Destination'));
+    const destInput = document.createElement('input');
+    destInput.type = 'text'; destInput.className = 'ap-field-input';
+    destInput.placeholder = 'Ex: Gare de Lyon'; destInput.value = cfg.destination || '';
+    destGroup.appendChild(destInput);
+    wrap.appendChild(destGroup);
 
-  frodon.onPeerAppear(peer=>{
-    _requested.delete(peer.peerId);
-    const p=getMyProfile();
-    if(p&&profileActive(p)) frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'profile_data',profile:p,_silent:true});
-    frodon.sendDM(peer.peerId,PLUGIN_ID,{type:'request_profile',_silent:true});
-  });
+    // Seats
+    seatsGroup.appendChild(el('label', 'ap-label', 'Places disponibles'));
+    const seatsInput = document.createElement('input');
+    seatsInput.type = 'number'; seatsInput.className = 'ap-field-input';
+    seatsInput.min = 1; seatsInput.max = 8; seatsInput.value = cfg.seats || 2;
+    seatsGroup.appendChild(seatsInput);
+    wrap.appendChild(seatsGroup);
 
-  return { destroy() {} };
-});
+    // Photo
+    const photoGroup = el('div', 'ap-field-group');
+    photoGroup.appendChild(el('label', 'ap-label', 'Photo (optionnel)'));
+    const photoRow = el('div', 'ap-photo-row');
+    const photoPreview = el('div', 'ap-photo-preview');
+    const showPreview = function(src) {
+      photoPreview.innerHTML = '';
+      if (src) {
+        const img = document.createElement('img');
+        img.src = src; img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+        photoPreview.appendChild(img);
+      } else { photoPreview.textContent = '👤'; }
+    };
+    showPreview(cfg.photo);
+    const photoInput = document.createElement('input');
+    photoInput.type = 'file'; photoInput.accept = 'image/*'; photoInput.style.display = 'none';
+    photoInput.onchange = function() {
+      const file = photoInput.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          canvas.width = 80; canvas.height = 80;
+          canvas.getContext('2d').drawImage(img, 0, 0, 80, 80);
+          cfg.photo = canvas.toDataURL('image/jpeg', 0.75);
+          showPreview(cfg.photo);
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+    photoRow.append(photoPreview, btn('Choisir photo', 'ap-upload-btn', function() { photoInput.click(); }), photoInput);
+    photoGroup.appendChild(photoRow);
+    wrap.appendChild(photoGroup);
+
+    // Save
+    wrap.appendChild(btn('Enregistrer', 'ap-save-btn', function() {
+      cfg.destination = destInput.value.trim();
+      cfg.seats = parseInt(seatsInput.value) || 2;
+      self._cfg = cfg;
+      const myUuid = (self._YM.profile && self._YM.profile.uuid) || 'local';
+      const existing = self._trips.find(function(t) { return t.id === 'trip-' + myUuid; });
+      const myTrip = existing || { id: 'trip-' + myUuid, convs: {} };
+      Object.assign(myTrip, {
+        role:        cfg.role,
+        driverUuid:  myUuid,
+        driverName:  (self._YM.profile && self._YM.profile.name) || 'Anonyme',
+        driverPhoto: cfg.photo || (self._YM.profile && (self._YM.profile.photoHub || self._YM.profile.photo)) || '',
+        destination: cfg.destination,
+        seats:       cfg.seats,
+        timestamp:   Date.now(),
+      });
+      if (!myTrip.convs) myTrip.convs = {};
+      if (!existing) self._trips.unshift(myTrip);
+      self._persist();
+      self._broadcastMyTrip();
+      self._renderMain();
+    }));
+
+    c.append(wrap, styleBlock());
+  },
+
+  _broadcastMyTrip() {
+    if (!this._cfg) return;
+    const myUuid = (this._YM.profile && this._YM.profile.uuid) || 'local';
+    const t = this._trips.find(function(t) { return t.id === 'trip-' + myUuid; });
+    if (t) this._broadcastTrip(t);
+  },
+
+  _broadcastTrip(trip) {
+    try { this._YM.broadcast({ autopartage: trip }); } catch(e) {}
+  },
+};
+
+function el(tag, cls, txt) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt !== undefined) e.textContent = txt;
+  return e;
+}
+function btn(label, cls, onclick) {
+  const b = document.createElement('button');
+  b.className = cls; b.textContent = label;
+  b.addEventListener('click', onclick);
+  return b;
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+const _STYLE_ID = 'ap-styles';
+function styleBlock() {
+  if (document.getElementById(_STYLE_ID)) return document.createComment('ap-styles-ok');
+  const s = document.createElement('style');
+  s.id = _STYLE_ID;
+  s.textContent = `
+  .ap-bar { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 8px; flex-shrink:0; }
+  .ap-title { font-size:1.1rem; font-weight:700; }
+  .ap-cfg-btn { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:20px; padding:6px 14px; font-size:.82rem; cursor:pointer; color:inherit; }
+  .ap-hint { padding:16px; font-size:.84rem; color:rgba(255,255,255,.45); font-style:italic; }
+  .ap-section-label { padding:6px 16px 4px; font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; color:rgba(255,255,255,.4); flex-shrink:0; }
+  .ap-empty { padding:20px 16px; text-align:center; color:rgba(255,255,255,.35); font-size:.85rem; }
+  .ap-trip-info { padding:8px 16px 4px; font-size:.84rem; color:rgba(255,255,255,.6); flex-shrink:0; }
+  .ap-conv-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.06); cursor:pointer; }
+  .ap-conv-row:hover { background:rgba(255,255,255,.04); }
+  .ap-avatar { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; overflow:hidden; }
+  .ap-conv-row-body { flex:1; min-width:0; }
+  .ap-conv-row-name { font-weight:600; font-size:.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ap-conv-row-preview { font-size:.78rem; color:rgba(255,255,255,.45); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .ap-conv-row-arrow { color:rgba(255,255,255,.3); font-size:1.4rem; flex-shrink:0; }
+  .ap-conv-bar { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid rgba(255,255,255,.08); flex-shrink:0; }
+  .ap-back-btn { background:none; border:none; color:rgba(255,255,255,.6); cursor:pointer; font-size:1.1rem; padding:0 6px; flex-shrink:0; }
+  .ap-conv-head { display:flex; align-items:center; gap:10px; flex:1; min-width:0; cursor:pointer; }
+  .ap-avatar-sm { width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; overflow:hidden; }
+  .ap-conv-head-info { min-width:0; }
+  .ap-conv-head-name { font-weight:600; font-size:.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ap-conv-head-sub { font-size:.74rem; color:rgba(255,255,255,.5); }
+  .ap-conv-wrap { flex:1; overflow-y:auto; padding:12px 16px; display:flex; flex-direction:column; gap:8px; min-height:0; }
+  .ap-no-msg { font-size:.8rem; color:rgba(255,255,255,.3); text-align:center; padding:20px 0; }
+  .ap-msg { display:flex; flex-direction:column; align-self:flex-start; max-width:78%; }
+  .ap-msg-me { align-self:flex-end; align-items:flex-end; }
+  .ap-msg-name { font-size:.67rem; color:rgba(255,255,255,.4); margin-bottom:2px; }
+  .ap-msg-text { background:rgba(255,255,255,.1); border-radius:14px; padding:7px 12px; font-size:.84rem; line-height:1.4; }
+  .ap-msg-me .ap-msg-text { background:rgba(99,179,237,.28); }
+  .ap-input-row { display:flex; gap:8px; padding:8px 12px 14px; border-top:1px solid rgba(255,255,255,.07); flex-shrink:0; }
+  .ap-input { flex:1; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); border-radius:22px; padding:8px 16px; font-size:.84rem; color:inherit; outline:none; }
+  .ap-input:focus { border-color:rgba(99,179,237,.5); }
+  .ap-send-btn { background:rgba(99,179,237,.2); border:1px solid rgba(99,179,237,.4); border-radius:22px; padding:8px 16px; font-size:.84rem; cursor:pointer; color:inherit; }
+  .ap-send-btn:hover { background:rgba(99,179,237,.35); }
+  .ap-config-wrap { padding:12px 16px 24px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; }
+  .ap-config-title { font-size:1rem; font-weight:700; text-align:center; }
+  .ap-field-group { display:flex; flex-direction:column; gap:6px; }
+  .ap-label { font-size:.75rem; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:.05em; }
+  .ap-field-input { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:9px 13px; font-size:.88rem; color:inherit; outline:none; width:100%; box-sizing:border-box; }
+  .ap-field-input:focus { border-color:rgba(99,179,237,.5); }
+  .ap-role-row { display:flex; gap:8px; }
+  .ap-role-btn { flex:1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:10px; cursor:pointer; font-size:.88rem; color:inherit; }
+  .ap-role-btn.active { background:rgba(99,179,237,.2); border-color:rgba(99,179,237,.5); }
+  .ap-photo-row { display:flex; align-items:center; gap:12px; }
+  .ap-photo-preview { width:52px; height:52px; border-radius:50%; background:rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; font-size:1.5rem; overflow:hidden; flex-shrink:0; }
+  .ap-upload-btn { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:8px 14px; font-size:.82rem; cursor:pointer; color:inherit; }
+  .ap-save-btn { background:rgba(99,179,237,.25); border:1px solid rgba(99,179,237,.45); border-radius:12px; padding:12px; font-size:.92rem; font-weight:600; cursor:pointer; color:inherit; width:100%; }
+  .ap-save-btn:hover { background:rgba(99,179,237,.4); }
+  `;
+  return s;
+}
