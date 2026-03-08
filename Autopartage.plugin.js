@@ -4,7 +4,6 @@
  * Modèle: trip.convs = { [passengerUuid]: [{uuid,name,text,ts}] }
  */
 const plugin = {
-  name: 'autopartage',
   icon: '🚗',
   description: 'Covoiturage pair-à-pair entre utilisateurs proches',
 
