@@ -1,306 +1,333 @@
-frodon.register({
-  id: 'anon-messenger',
-  name: 'Messager Anonyme',
-  version: '2.0.0',
-  author: 'frodon-community',
-  description: 'Envoyez des messages anonymes. Vos destinataires ne savent pas qui vous êtes.',
-  icon: '🕵',
-}, () => {
+/**
+ * YourMine Plugin — Anon Messenger v1.0
+ * Messages anonymes P2P. L'initiateur connaît le destinataire, pas l'inverse.
+ * category: social
+ * website: https://github.com/theodoreyong9/YourMinedApp
+ */
+const plugin = (() => {
+  const ID  = 'social.anon-messenger';
+  const KEY = 'ym_anonmsg_';
 
-  const PLUGIN_ID = 'anon-messenger';
-  const store = frodon.storage(PLUGIN_ID);
+  let _YM = null;
+  let _hubBound = false;
+  let _activeTab = 'inbox';
+  let _container = null;
 
   /* ── Storage ──
-     convs: tableau de { convId, kind:'sent'|'received', peerId (sent) / routeTo (received),
-                         displayName, messages:[{text,fromMe,ts}], ts }
+     convs: { convId: { kind:'sent'|'received', peerId(sent)/routeUuid(received),
+                        peerUuid(sent), displayName, msgs:[{text,fromMe,ts}], ts } }
   */
-  function getConvs()      { return store.get('convs') || []; }
-  function saveConvs(list) { store.set('convs', list); }
+  function getConvs() { return JSON.parse(localStorage.getItem(KEY+'convs') || '{}'); }
+  function saveConvs(c) { localStorage.setItem(KEY+'convs', JSON.stringify(c)); }
 
-  function findConv(convId) {
-    return getConvs().find(c => c.convId === convId) || null;
+  function send(peerId, payload) { _YM.sendTo(peerId, { plugin: ID, ...payload }); }
+  function resolveName(peerId, uuid) {
+    // 1. nearCache by peerId
+    const byPeer = _YM.nearPeers?.find(e => e.peerId === peerId);
+    if (byPeer?.profile?.name) return byPeer.profile.name;
+    // 2. nearCache by uuid
+    const byUuid = _YM.nearPeers?.find(e => e.uuid === uuid);
+    if (byUuid?.profile?.name) return byUuid.profile.name;
+    // 3. contacts
+    const contact = _YM.contacts?.find(c => c.uuid === uuid);
+    if (contact) return contact.nickname || contact.name || null;
+    return null;
+  }
+  function peerName(peerId) {
+    return resolveName(peerId, null) || 'Pair';
+  }
+  function peerNameFromUuid(peerUuid, peerId) {
+    return resolveName(peerId, peerUuid) || null;
   }
 
-  function upsertConv(conv) {
-    const list = getConvs();
-    const i = list.findIndex(c => c.convId === conv.convId);
-    if (i >= 0) list[i] = conv; else list.unshift(conv);
-    saveConvs(list);
-  }
+  function onMsg(data) {
+    if (data.plugin !== ID) return;
+    const myUuid = _YM.profile.uuid;
+    if (data.to && data.to !== myUuid) return;
 
-  /* ── DM handler ── */
-  frodon.onDM(PLUGIN_ID, (fromId, payload) => {
-
-    // Nouveau message entrant — on ne sait pas qui c'est
-    if (payload.type === 'anon_msg') {
-      const list = getConvs();
-      let conv = list.find(c => c.convId === payload.convId);
+    if (data.type === 'anon_msg') {
+      const convs = getConvs();
+      let conv = convs[data.convId];
       if (!conv) {
-        // Créer une nouvelle conversation inconnue
-        const n = list.filter(c => c.kind === 'received').length + 1;
-        conv = {
-          convId:      payload.convId,
-          kind:        'received',
-          routeTo:     fromId,   // pour router les réponses — jamais affiché
-          displayName: 'Inconnu #' + payload.convId.slice(-4).toUpperCase(),
-          messages:    [],
-          ts:          Date.now(),
+        const n = Object.values(convs).filter(c=>c.kind==='received').length + 1;
+        conv = convs[data.convId] = {
+          convId: data.convId, kind: 'received',
+          routePeerId: data.from,    // pour router les réponses — jamais affiché
+          routeUuid: data.fromUuid,
+          displayName: '👁 Inconnu #' + data.convId.slice(-4).toUpperCase(),
+          msgs: [], ts: Date.now(),
         };
-        list.unshift(conv);
       }
-      conv.messages.push({ text: payload.text, fromMe: false, ts: Date.now() });
+      conv.msgs.push({ text: data.text, fromMe: false, ts: Date.now() });
       conv.ts = Date.now();
-      saveConvs(list);
-      frodon.showToast('🕵 Message de ' + conv.displayName);
-      frodon.refreshSphereTab(PLUGIN_ID);
-      setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
+      saveConvs(convs);
+      _YM.notify(ID);
+      _YM.toast('🕵 Message de ' + conv.displayName);
+      rerender();
       return;
     }
 
-    // Réponse à une conversation que j'ai initiée
-    if (payload.type === 'anon_reply') {
-      const list = getConvs();
-      const conv = list.find(c => c.convId === payload.convId);
+    if (data.type === 'anon_reply') {
+      const convs = getConvs();
+      const conv = convs[data.convId];
       if (conv) {
-        conv.messages.push({ text: payload.text, fromMe: false, ts: Date.now() });
+        conv.msgs.push({ text: data.text, fromMe: false, ts: Date.now() });
         conv.ts = Date.now();
-        saveConvs(list);
-        frodon.showToast('🕵 Réponse de ' + conv.displayName);
-        frodon.refreshSphereTab(PLUGIN_ID);
-        setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
+        saveConvs(convs);
+        _YM.notify(ID);
+        _YM.toast('🕵 Réponse de ' + conv.displayName);
+        rerender();
       }
+    }
+  }
+
+  function rerender() {
+    if (_container) renderInto(_container);
+  }
+
+  function renderInto(container) {
+    _container = container;
+    container.innerHTML = '';
+
+    const convs = getConvs();
+    const sent     = Object.values(convs).filter(c=>c.kind==='sent').sort((a,b)=>b.ts-a.ts);
+    const received = Object.values(convs).filter(c=>c.kind==='received').sort((a,b)=>b.ts-a.ts);
+    const unreadSent = sent.reduce((s,c)=>s+c.msgs.filter(m=>!m.fromMe&&!m.read).length,0);
+    const unreadRecv = received.reduce((s,c)=>s+c.msgs.filter(m=>!m.fromMe&&!m.read).length,0);
+
+    // Tab bar
+    const tabs = [['sent','→ Envoyés'+(unreadSent?` (${unreadSent})`:'')], ['inbox','← Reçus'+(unreadRecv?` (${unreadRecv})`:'')]];
+    const tabBar = document.createElement('div');
+    tabBar.style.cssText = 'display:flex;border-bottom:1px solid var(--border)';
+    tabs.forEach(([id,label]) => {
+      const btn = document.createElement('button');
+      btn.style.cssText = `flex:1;padding:10px;font-size:.74rem;background:none;border:none;cursor:pointer;color:${_activeTab===id?'var(--accent)':'var(--text-2)'};border-bottom:2px solid ${_activeTab===id?'var(--accent)':'transparent'};font-weight:${_activeTab===id?'700':'400'}`;
+      btn.textContent = label;
+      btn.onclick = () => { _activeTab = id; rerender(); };
+      tabBar.appendChild(btn);
+    });
+    container.appendChild(tabBar);
+
+    const body = document.createElement('div');
+    container.appendChild(body);
+
+    const list = _activeTab === 'sent' ? sent : received;
+    if (!list.length) {
+      body.innerHTML = `<div style="text-align:center;padding:36px 20px;color:var(--text-2);font-size:.78rem;line-height:1.9"><div style="font-size:2.2rem;margin-bottom:8px">🕵</div>${_activeTab==='sent'?'Aucun message envoyé.<br><small style="color:var(--text-3)">Visitez un profil → plug Anon Messenger</small>':'Aucun message reçu.<br><small style="color:var(--text-3)">Quelqu\'un vous écrira anonymement…</small>'}</div>`;
       return;
     }
-  });
 
-  /* ── Action sur profil ── */
-  frodon.registerPeerAction(PLUGIN_ID, '🕵 Message anonyme', (peerId, container) => {
-    const peer = frodon.getPeer(peerId);
-    if (!peer) return;
+    list.forEach(conv => renderConvCard(body, conv));
+  }
 
-    const convs = getConvs().filter(c => c.kind === 'sent' && c.peerId === peerId);
-
-    const hint = frodon.makeElement('div', '');
-    hint.style.cssText = 'font-size:.6rem;color:var(--txt3);font-family:var(--mono);margin-bottom:10px;padding:5px 9px;background:rgba(124,77,255,.06);border-radius:6px;border:1px solid rgba(124,77,255,.15)';
-    hint.textContent = '👁 ' + peer.name + ' ne verra pas votre nom';
-    container.appendChild(hint);
-
-    // Sélecteur de conversation : existantes + nouvelle
-    const allConvs = getConvs().filter(c => c.kind === 'sent' && c.peerId === peerId);
-    let activeConvId = allConvs.length ? allConvs[0].convId : null;
-
-    if (allConvs.length) {
-      const sec = frodon.makeElement('div', 'section-label', 'Conversation');
-      sec.style.cssText += ';margin-bottom:4px';
-      container.appendChild(sec);
-
-      const sel = document.createElement('select');
-      sel.className = 'f-input';
-      sel.style.cssText += ';margin-bottom:8px;font-size:.7rem';
-
-      allConvs.forEach((c, i) => {
-        const opt = document.createElement('option');
-        opt.value = c.convId;
-        const last = c.messages[c.messages.length - 1];
-        opt.textContent = 'Conv #' + (i+1) + ' — ' + (last?.text || '').substring(0, 30) + '…';
-        sel.appendChild(opt);
-      });
-      const optNew = document.createElement('option');
-      optNew.value = '__new__';
-      optNew.textContent = '+ Nouvelle conversation anonyme';
-      sel.appendChild(optNew);
-
-      sel.value = activeConvId;
-      sel.addEventListener('change', () => { activeConvId = sel.value === '__new__' ? null : sel.value; });
-      container.appendChild(sel);
-    }
-
-    const ta = document.createElement('textarea');
-    ta.className = 'f-input'; ta.rows = 3; ta.maxLength = 500;
-    ta.placeholder = 'Votre message anonyme…';
-    container.appendChild(ta);
-
-    const btn = frodon.makeElement('button', 'plugin-action-btn acc', '🕵 Envoyer anonymement');
-    btn.style.cssText += ';width:100%;margin-top:8px';
-    btn.addEventListener('click', () => {
-      const text = ta.value.trim();
-      if (!text) { frodon.showToast('Écrivez un message', true); return; }
-
-      const list = getConvs();
-      let convId = activeConvId;
-
-      if (convId) {
-        // Ajouter dans la conversation existante
-        const c = list.find(x => x.convId === convId);
-        if (c) {
-          c.messages.push({ text, fromMe: true, ts: Date.now() });
-          c.ts = Date.now();
-        }
-        frodon.sendDM(peerId, PLUGIN_ID, { type:'anon_msg', convId, text,
-          _label:'🕵 Message anonyme reçu', _silent:false });
-      } else {
-        // Nouvelle conversation — nouveau convId unique
-        convId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-        list.unshift({
-          convId, kind:'sent', peerId, displayName: peer.name,
-          messages: [{ text, fromMe: true, ts: Date.now() }], ts: Date.now(),
-        });
-        activeConvId = convId;
-        frodon.sendDM(peerId, PLUGIN_ID, { type:'anon_msg', convId, text,
-          _label:'🕵 Message anonyme reçu', _silent:false });
-      }
-
-      saveConvs(list);
-      frodon.showToast('🕵 Envoyé à ' + peer.name + ' !');
-      frodon.refreshSphereTab(PLUGIN_ID);
-      ta.value = '';
-      btn.textContent = '✓ Envoyé !';
-      setTimeout(() => { btn.textContent = '🕵 Envoyer anonymement'; }, 1200);
-    });
-    container.appendChild(btn);
-  });
-
-  /* ── Rendu d'une conversation dépliable ── */
   function renderConvCard(container, conv) {
-    const block = frodon.makeElement('div', '');
-    block.style.cssText = 'border-bottom:1px solid var(--bdr)';
+    const block = document.createElement('div');
+    block.style.cssText = 'border-bottom:1px solid var(--border)';
 
-    // En-tête cliquable
-    const hdr = frodon.makeElement('div', '');
-    hdr.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;user-select:none';
-    const col = conv.kind === 'sent' ? 'var(--acc)' : 'var(--acc2)';
-    const ico = frodon.makeElement('span', '');
-    ico.style.cssText = 'font-size:.85rem';
-    ico.textContent = conv.kind === 'sent' ? '→' : '←';
-    const nameEl = frodon.makeElement('strong', '');
-    nameEl.style.cssText = 'font-size:.76rem;color:' + col + ';flex:1';
-    nameEl.textContent = conv.displayName;
-    const lastMsg = conv.messages[conv.messages.length - 1];
-    const preview = frodon.makeElement('span', '');
-    preview.style.cssText = 'font-size:.6rem;color:var(--txt3);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-    preview.textContent = (lastMsg?.text || '').substring(0, 40);
-    const ts = frodon.makeElement('span', 'mini-card-ts');
-    ts.style.marginLeft = '4px';
-    ts.textContent = frodon.formatTime(conv.ts);
-    const chev = frodon.makeElement('span', '');
-    chev.style.cssText = 'font-size:.6rem;color:var(--txt3);transition:transform .2s;flex-shrink:0';
-    chev.textContent = '›';
-
-    hdr.appendChild(ico); hdr.appendChild(nameEl); hdr.appendChild(preview);
-    hdr.appendChild(ts); hdr.appendChild(chev);
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none';
+    const col = conv.kind==='sent' ? 'var(--accent)' : 'var(--accent-2,#7c4dff)';
+    const ico = document.createElement('div');
+    ico.style.cssText = `width:36px;height:36px;border-radius:50%;background:${conv.kind==='sent'?'rgba(0,212,170,.12)':'rgba(124,77,255,.12)'};border:1px solid ${conv.kind==='sent'?'rgba(0,212,170,.3)':'rgba(124,77,255,.3)'};display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0`;
+    ico.textContent = conv.kind==='sent' ? '→' : '←';
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;min-width:0';
+    const lastMsg = conv.msgs[conv.msgs.length-1];
+    const unread = conv.msgs.filter(m=>!m.fromMe&&!m.read).length;
+    // Resolve live name: nearPeers > stored peerProfile > displayName
+    let liveName = conv.displayName;
+    if (conv.kind === 'sent') {
+      const freshName = peerNameFromUuid(conv.peerUuid, conv.peerId)
+        || conv.peerProfile?.name;
+      if (freshName) {
+        liveName = freshName;
+        if (liveName !== conv.displayName) {
+          const cs = getConvs(); if (cs[conv.convId]) { cs[conv.convId].displayName = liveName; saveConvs(cs); }
+        }
+      }
+    }
+    info.innerHTML = `<div style="font-size:.78rem;font-weight:700;color:${col}">${liveName}</div><div style="font-size:.65rem;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${(lastMsg?.text||'').substring(0,50)}</div>`;
+    // Click on avatar OR name → open profile (for sent convs)
+    if (conv.kind === 'sent' && conv.peerUuid) {
+      const openProf = e => {
+        e.stopPropagation();
+        const entry = _YM.nearPeers?.find(p => p.uuid === conv.peerUuid);
+        const profile = entry?.profile || conv.peerProfile || null;
+        _YM.openProfile(conv.peerUuid, profile, entry || null);
+      };
+      ico.style.cursor = 'pointer';
+      ico.title = 'Voir le profil';
+      ico.addEventListener('click', openProf);
+      // Also make the name label clickable
+      info.style.cursor = 'pointer';
+      info.title = 'Voir le profil';
+      info.addEventListener('click', openProf);
+    }
+    const right = document.createElement('div');
+    right.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0';
+    if (conv.msgs.length) {
+      const ts = document.createElement('div');
+      ts.style.cssText = 'font-size:.58rem;color:var(--text-3);font-family:var(--font-mono)';
+      ts.textContent = new Date(conv.ts).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+      right.appendChild(ts);
+    }
+    if (unread) {
+      const badge = document.createElement('div');
+      badge.style.cssText = 'background:var(--accent);color:#000;font-size:.58rem;font-weight:700;border-radius:99px;padding:1px 6px;font-family:var(--font-mono)';
+      badge.textContent = unread;
+      right.appendChild(badge);
+    }
+    hdr.appendChild(ico); hdr.appendChild(info); hdr.appendChild(right);
     block.appendChild(hdr);
 
-    // Corps (caché par défaut)
-    const body = frodon.makeElement('div', '');
-    body.style.cssText = 'display:none;border-top:1px solid var(--bdr)';
+    const bodyEl = document.createElement('div');
+    bodyEl.style.display = 'none';
+    bodyEl.style.borderTop = '1px solid var(--border)';
 
-    // Bulles
-    const bubbles = frodon.makeElement('div', '');
-    bubbles.style.cssText = 'display:flex;flex-direction:column;gap:4px;padding:8px 12px;max-height:200px;overflow-y:auto';
-    conv.messages.forEach(m => {
-      const b = frodon.makeElement('div', '');
-      b.style.cssText = m.fromMe
-        ? 'align-self:flex-end;background:rgba(0,245,200,.1);border:1px solid rgba(0,245,200,.2);color:var(--acc);border-radius:10px 10px 2px 10px;padding:5px 10px;font-size:.72rem;max-width:85%;word-break:break-word'
-        : 'align-self:flex-start;background:rgba(124,77,255,.1);border:1px solid rgba(124,77,255,.2);color:var(--txt);border-radius:10px 10px 10px 2px;padding:5px 10px;font-size:.72rem;max-width:85%;word-break:break-word';
-      b.textContent = m.text;
-      bubbles.appendChild(b);
+    // Mark as read on open
+    hdr.addEventListener('click', () => {
+      const open = bodyEl.style.display !== 'none';
+      bodyEl.style.display = open ? 'none' : 'block';
+      if (!open) {
+        const convs = getConvs();
+        if (convs[conv.convId]) {
+          convs[conv.convId].msgs.forEach(m => { if (!m.fromMe) m.read = true; });
+          saveConvs(convs);
+        }
+        renderBubbles();
+        bubbles.scrollTop = bubbles.scrollHeight;
+      }
     });
-    body.appendChild(bubbles);
-    setTimeout(() => { bubbles.scrollTop = bubbles.scrollHeight; }, 0);
 
-    // Champ réponse
-    const replyRow = frodon.makeElement('div', '');
+    const bubbles = document.createElement('div');
+    bubbles.style.cssText = 'display:flex;flex-direction:column;gap:5px;padding:10px 14px;max-height:220px;overflow-y:auto';
+
+    function renderBubbles() {
+      bubbles.innerHTML = '';
+      const fresh = getConvs()[conv.convId];
+      const msgs = fresh?.msgs || conv.msgs;
+      msgs.forEach(m => {
+        const b = document.createElement('div');
+        b.style.cssText = m.fromMe
+          ? 'align-self:flex-end;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.2);color:var(--accent);border-radius:10px 10px 2px 10px;padding:6px 10px;font-size:.74rem;max-width:85%;word-break:break-word'
+          : 'align-self:flex-start;background:rgba(124,77,255,.08);border:1px solid rgba(124,77,255,.18);color:var(--text-1);border-radius:10px 10px 10px 2px;padding:6px 10px;font-size:.74rem;max-width:85%;word-break:break-word';
+        b.textContent = m.text;
+        bubbles.appendChild(b);
+      });
+      setTimeout(() => { bubbles.scrollTop = bubbles.scrollHeight; }, 0);
+    }
+    bodyEl.appendChild(bubbles);
+
+    // Reply row
+    const replyRow = document.createElement('div');
     replyRow.style.cssText = 'display:flex;gap:6px;padding:6px 10px 10px';
-    const replyIn = document.createElement('input');
-    replyIn.type = 'text'; replyIn.className = 'f-input';
-    replyIn.placeholder = 'Envoyer un message…'; replyIn.maxLength = 500;
-    replyIn.style.flex = '1';
-
-    const replyBtn = frodon.makeElement('button', 'plugin-action-btn acc', '↗');
-    replyBtn.style.cssText += ';padding:0 12px;flex-shrink:0';
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.placeholder = 'Répondre…'; inp.maxLength = 500;
+    inp.style.cssText = 'flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:.74rem;color:var(--text-1);outline:none';
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'btn-accent'; sendBtn.textContent = '↗'; sendBtn.style.padding = '6px 12px';
 
     const doReply = () => {
-      const text = replyIn.value.trim(); if (!text) return;
-      const list = getConvs();
-      const c = list.find(x => x.convId === conv.convId);
-      if (!c) return;
-      const msg = { text, fromMe: true, ts: Date.now() };
-      c.messages.push(msg); c.ts = Date.now();
-      saveConvs(list);
-
-      // Envoi DM selon la direction
-      if (c.kind === 'sent') {
-        frodon.sendDM(c.peerId, PLUGIN_ID, { type:'anon_reply', convId:c.convId, text, _silent:true });
+      const text = inp.value.trim(); if (!text) return;
+      const convs = getConvs();
+      const c2 = convs[conv.convId]; if (!c2) return;
+      c2.msgs.push({ text, fromMe: true, ts: Date.now() });
+      c2.ts = Date.now();
+      saveConvs(convs);
+      if (c2.kind === 'sent') {
+        send(c2.peerId, { type:'anon_reply', convId: conv.convId, text, to: c2.peerUuid });
       } else {
-        frodon.sendDM(c.routeTo, PLUGIN_ID, { type:'anon_reply', convId:c.convId, text, _silent:true });
+        send(c2.routePeerId, { type:'anon_reply', convId: conv.convId, text, to: c2.routeUuid });
       }
-
-      // Mise à jour DOM directe
-      const b = frodon.makeElement('div', '');
-      b.style.cssText = 'align-self:flex-end;background:rgba(0,245,200,.1);border:1px solid rgba(0,245,200,.2);color:var(--acc);border-radius:10px 10px 2px 10px;padding:5px 10px;font-size:.72rem;max-width:85%;word-break:break-word';
-      b.textContent = text;
-      bubbles.appendChild(b);
-      setTimeout(() => { bubbles.scrollTop = bubbles.scrollHeight; }, 0);
-      replyIn.value = '';
-      preview.textContent = text.substring(0, 40);
-      ts.textContent = frodon.formatTime(Date.now());
+      inp.value = '';
+      renderBubbles();
     };
-
-    replyIn.addEventListener('keydown', e => { if (e.key === 'Enter') doReply(); });
-    replyBtn.addEventListener('click', doReply);
-    replyRow.appendChild(replyIn); replyRow.appendChild(replyBtn);
-    body.appendChild(replyRow);
-    block.appendChild(body);
-
-    // Toggle
-    let open = false;
-    hdr.addEventListener('click', () => {
-      open = !open;
-      body.style.display = open ? 'block' : 'none';
-      chev.style.transform = open ? 'rotate(90deg)' : '';
-      if (open) setTimeout(() => { bubbles.scrollTop = bubbles.scrollHeight; }, 30);
-    });
-
+    inp.addEventListener('keydown', e => { if (e.key==='Enter') doReply(); });
+    sendBtn.addEventListener('click', doReply);
+    replyRow.appendChild(inp); replyRow.appendChild(sendBtn);
+    bodyEl.appendChild(replyRow);
+    block.appendChild(bodyEl);
     container.appendChild(block);
   }
 
-  /* ── Panneau SPHERE ── */
-  frodon.registerBottomPanel(PLUGIN_ID, [
-    {
-      id: 'known', label: '🔍 Connus',
-      render(container) {
-        const list = getConvs().filter(c => c.kind === 'sent');
-        if (!list.length) {
-          const em = frodon.makeElement('div', 'no-posts',
-            'Aucun message envoyé.\nVisitez un profil pour écrire anonymement.');
-          em.style.cssText += ';padding:20px 16px;white-space:pre-line;text-align:center';
-          container.appendChild(em); return;
-        }
-        const info = frodon.makeElement('div', '');
-        info.style.cssText = 'font-size:.58rem;color:var(--txt3);font-family:var(--mono);padding:5px 12px;border-bottom:1px solid var(--bdr)';
-        info.textContent = '→ Conversations que vous avez initiées · vous connaissez le destinataire';
-        container.appendChild(info);
-        list.forEach(c => renderConvCard(container, c));
-      }
-    },
-    {
-      id: 'unknown', label: '👁 Inconnus',
-      render(container) {
-        const list = getConvs().filter(c => c.kind === 'received');
-        if (!list.length) {
-          const em = frodon.makeElement('div', 'no-posts',
-            'Aucun message reçu.\nQuelqu\'un vous écrira anonymement bientôt…');
-          em.style.cssText += ';padding:20px 16px;white-space:pre-line;text-align:center';
-          container.appendChild(em); return;
-        }
-        const info = frodon.makeElement('div', '');
-        info.style.cssText = 'font-size:.58rem;color:var(--txt3);font-family:var(--mono);padding:5px 12px;border-bottom:1px solid var(--bdr)';
-        info.textContent = '← Conversations reçues · vous ne savez pas qui vous écrit';
-        container.appendChild(info);
-        list.forEach(c => renderConvCard(container, c));
-      }
-    },
-  ]);
+  return {
+    name: 'social.anon-messenger',
+    icon: '🕵',
+    description: 'Messages anonymes P2P. L\'initiateur connaît le destinataire, l\'autre non.',
 
-  return { destroy() {} };
-});
+    init(YM) {
+      _YM = YM;
+      if (YM.onData) YM.onData('social.anon-messenger', onMsg);
+    },
+
+    render(container, YM) {
+      _YM = YM;
+      if (!_hubBound) { YM.onHub(onMsg); _hubBound = true; }
+      if (YM.onData) YM.onData('social.anon-messenger', onMsg);
+      _activeTab = 'inbox';
+      renderInto(container);
+    },
+
+    couple(peerId, container, YM) {
+      _YM = YM;
+      if (!_hubBound) { YM.onHub(onMsg); _hubBound = true; }
+      if (YM.onData) YM.onData('social.anon-messenger', onMsg);
+      // Resolve peer from nearPeers (full entry with profile) or peers snapshot
+      const nearEntry = YM.nearPeers?.find(e => e.peerId === peerId);
+      const peersPeer = YM.peers?.find(p => p.peerId === peerId);
+      const peerUuid = nearEntry?.uuid || peersPeer?.uuid;
+      const peerProfile = nearEntry?.profile || null;
+      const pn = peerProfile?.name || peersPeer?.name || resolveName(peerId, peerUuid) || 'Pair';
+
+      // Conversation existantes avec ce pair
+      const convs = getConvs();
+      const existing = Object.values(convs).filter(c => c.kind==='sent' && c.peerId===peerId);
+
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:.65rem;color:var(--text-2);padding:5px 10px 10px;background:rgba(124,77,255,.06);border:1px solid rgba(124,77,255,.15);border-radius:8px;margin-bottom:10px';
+      hint.textContent = `👁 ${pn} ne verra pas votre nom`;
+      container.appendChild(hint);
+
+      if (existing.length) {
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'font-size:.62rem;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px';
+        lbl.textContent = 'Conversations existantes';
+        container.appendChild(lbl);
+        existing.forEach(conv => {
+          const row = document.createElement('div');
+          row.style.cssText = 'background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;cursor:pointer;font-size:.74rem;color:var(--accent)';
+          const last = conv.msgs[conv.msgs.length-1];
+          row.textContent = '→ Conv #' + conv.convId.slice(-4).toUpperCase() + ' — ' + (last?.text||'').substring(0,40) + '…';
+          container.appendChild(row);
+        });
+      }
+
+      // Nouvelle conversation
+      const ta = document.createElement('textarea');
+      ta.rows = 3; ta.maxLength = 500; ta.placeholder = 'Votre message anonyme…';
+      ta.style.cssText = 'width:100%;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.76rem;color:var(--text-1);resize:none;box-sizing:border-box;outline:none;margin-top:4px';
+      container.appendChild(ta);
+
+      const btn = document.createElement('button');
+      btn.className = 'btn-accent'; btn.textContent = '🕵 Envoyer anonymement'; btn.style.cssText = 'width:100%;margin-top:8px';
+      btn.addEventListener('click', () => {
+        const text = ta.value.trim();
+        if (!text) { _YM.toast('Écrivez un message', 'error'); return; }
+        const convId = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+        const convs2 = getConvs();
+        convs2[convId] = {
+          convId, kind:'sent', peerId, peerUuid,
+          displayName: pn,
+          peerProfile: peerProfile,
+          msgs: [{ text, fromMe: true, ts: Date.now() }], ts: Date.now(),
+        };
+        saveConvs(convs2);
+        send(peerId, { type:'anon_msg', convId, text, fromUuid: YM.profile.uuid, to: peerUuid });
+        _YM.toast('🕵 Envoyé anonymement à ' + pn + ' !');
+        ta.value = ''; btn.textContent = '✓ Envoyé !';
+        setTimeout(() => { btn.textContent = '🕵 Envoyer anonymement'; }, 1500);
+      });
+      container.appendChild(btn);
+    },
+  };
+})();
