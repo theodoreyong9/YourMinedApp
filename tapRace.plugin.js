@@ -1,99 +1,110 @@
-frodon.register({
-  id: 'tap-race',
-  name: 'Tap Race',
-  version: '2.0.0',
-  author: 'frodon-community',
-  description: 'Course de tap : tapez sur la photo de votre adversaire pendant 10 secondes !',
-  icon: '👆',
-}, () => {
+/**
+ * YourMine Plugin — Tap Race v1.0
+ * Duel de tap P2P : qui tapera le plus vite en 10 secondes ?
+ * category: jeux
+ * website: https://github.com/theodoreyong9/YourMinedApp
+ */
+const plugin = (() => {
+  const ID = 'jeux.tap-race';
+  const KEY = 'ym_taprace_';
 
-  const PLUGIN_ID = 'tap-race';
-  const store = frodon.storage(PLUGIN_ID);
+  // ── State (in-memory) ──
+  let game    = null;   // { peerId, peerName, myScore, theirScore, phase, startTs, timerTO, cdIV }
+  let pending = null;   // { fromId, fromName }
+  let _YM     = null;
+  let _hubBound = false;
 
-  // État en mémoire
-  let game    = null;
-  let pending = null;
+  function store(k, v) {
+    if (v === undefined) return JSON.parse(localStorage.getItem(KEY + k) || 'null');
+    localStorage.setItem(KEY + k, JSON.stringify(v));
+  }
 
-  /* ─────────────────── Helpers ─────────────────── */
+  function send(peerId, payload) {
+    _YM.sendTo(peerId, { plugin: ID, ...payload });
+  }
+
   function cleanGame() {
     if (game?.timerTO) clearTimeout(game.timerTO);
     if (game?.cdIV)    clearInterval(game.cdIV);
     game = null;
   }
 
-  function newGame(peerId, peerName, peerAvatar) {
-    cleanGame();
-    game = { peerId, peerName, peerAvatar, myScore:0, theirScore:0,
-             phase:'waiting_accept', timerTO:null, cdIV:null };
+  function peerName(peerId) {
+    return _YM.peers.find(p => p.peerId === peerId)?.name || 'Pair';
   }
 
-  /* ─────────────────── DM handler ─────────────────── */
-  frodon.onDM(PLUGIN_ID, (fromId, payload) => {
+  // ── DM handler ──
+  function onMsg(data) {
+    if (data.plugin !== ID) return;
+    const myUuid = _YM.profile.uuid;
+    if (data.to && data.to !== myUuid) return;
 
-    if (payload.type === 'challenge') {
-      // Refuser silencieusement si déjà en partie
+    if (data.type === 'challenge') {
       if (game && game.phase !== 'result') {
-        frodon.sendDM(fromId, PLUGIN_ID, { type:'decline', reason:'busy', _silent:true });
+        send(data.from, { type: 'decline', to: data.from, reason: 'busy' });
         return;
       }
-      const peer = frodon.getPeer(fromId);
-      pending = { fromId, fromName: peer?.name || payload.fromName || 'Pair inconnu',
-                  fromAvatar: peer?.avatar || payload.fromAvatar || '' };
-      frodon.showToast('👆 Défi Tap Race de ' + pending.fromName + ' !');
-      frodon.refreshSphereTab(PLUGIN_ID);
-      setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
+      pending = { fromId: data.from, fromName: data.fromName || peerName(data.from) };
+      _YM.notify(ID);
+      _YM.toast('👆 Défi Tap Race de ' + pending.fromName + ' !');
+      rerender();
       return;
     }
 
-    if (payload.type === 'accept') {
-      if (!game || game.phase !== 'waiting_accept') return;
+    if (data.type === 'accept') {
+      // A (challenger) receives accept from B: show "Launch" button, do NOT auto-start
+      if (!game || game.phase !== 'waiting') return;
+      game.phase = 'accepted'; // waiting for A to click Launch
+      _YM.toast('👆 ' + game.peerName + ' est prêt ! Lancez la partie.');
+      rerender();
+      return;
+    }
+
+    if (data.type === 'start') {
+      // Accepter receives start: begin countdown
+      if (!game || game.phase !== 'ready') return;
       startCountdown();
       return;
     }
 
-    if (payload.type === 'decline') {
+    if (data.type === 'decline') {
       if (game) {
-        const name = game.peerName;
+        const n = game.peerName;
         cleanGame();
-        frodon.showToast('👆 ' + name + ' ' + (payload.reason === 'busy' ? 'est déjà en partie.' : 'a refusé le défi.'));
-        frodon.refreshSphereTab(PLUGIN_ID);
+        _YM.toast('👆 ' + n + (data.reason === 'busy' ? ' est déjà en partie.' : ' a refusé.'));
+        rerender();
       }
       return;
     }
 
-    if (payload.type === 'tap') {
-      if (game && game.phase === 'playing') {
-        game.theirScore = payload.score;
-        // Mise à jour DOM directe si possible
-        const el = document.getElementById('tap-their-score');
+    if (data.type === 'tap') {
+      if (game?.phase === 'playing') {
+        game.theirScore = data.score;
+        const el = document.getElementById('tr-their-score');
         if (el) el.textContent = game.theirScore;
       }
       return;
     }
 
-    if (payload.type === 'result') {
-      if (game && game.phase === 'playing') {
-        game.theirScore = payload.score;
+    if (data.type === 'result') {
+      if (game?.phase === 'playing') {
+        game.theirScore = data.score;
         endGame();
       }
       return;
     }
-  });
+  }
 
-  /* ─────────────────── Phases ─────────────────── */
+  // ── Game logic ──
   function startCountdown() {
     if (!game) return;
-    const peer = frodon.getPeer(game.peerId);
-    if (peer?.avatar) game.peerAvatar = peer.avatar;
     game.phase = 'countdown';
     game.countdownVal = 3;
-    frodon.refreshSphereTab(PLUGIN_ID);
-    setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 80);
-
+    rerender();
     game.cdIV = setInterval(() => {
       if (!game) return;
       game.countdownVal--;
-      frodon.refreshSphereTab(PLUGIN_ID);
+      rerender();
       if (game.countdownVal <= 0) {
         clearInterval(game.cdIV); game.cdIV = null;
         startPlaying();
@@ -103,297 +114,316 @@ frodon.register({
 
   function startPlaying() {
     if (!game) return;
-    game.phase   = 'playing';
+    game.phase = 'playing';
     game.myScore = 0; game.theirScore = 0;
     game.startTs = Date.now();
-    frodon.refreshSphereTab(PLUGIN_ID);
-
+    rerender();
     game.timerTO = setTimeout(() => {
       if (!game || game.phase !== 'playing') return;
-      frodon.sendDM(game.peerId, PLUGIN_ID, { type:'result', score:game.myScore, _silent:true });
+      send(game.peerId, { type: 'result', score: game.myScore, to: game.peerUuid });
       endGame();
     }, 10000);
   }
 
   function endGame() {
     if (!game) return;
-    if (game.timerTO) { clearTimeout(game.timerTO);  game.timerTO = null; }
-    if (game.cdIV)    { clearInterval(game.cdIV);     game.cdIV    = null; }
+    if (game.timerTO) { clearTimeout(game.timerTO); game.timerTO = null; }
+    if (game.cdIV)    { clearInterval(game.cdIV); game.cdIV = null; }
     game.phase = 'result';
-
-    const hist = store.get('history') || [];
     const won  = game.myScore > game.theirScore;
     const draw = game.myScore === game.theirScore;
-    hist.unshift({ peerName:game.peerName, myScore:game.myScore, theirScore:game.theirScore,
-                   result: draw?'draw':(won?'win':'lose'), ts:Date.now() });
+    const hist = store('history') || [];
+    hist.unshift({ peerName: game.peerName, myScore: game.myScore, theirScore: game.theirScore,
+                   result: draw ? 'draw' : (won ? 'win' : 'lose'), ts: Date.now() });
     if (hist.length > 30) hist.length = 30;
-    store.set('history', hist);
-    frodon.refreshSphereTab(PLUGIN_ID);
+    store('history', hist);
+    rerender();
   }
 
-  /* ─────────────────── Action profil ─────────────────── */
-  frodon.registerPeerAction(PLUGIN_ID, '👆 Tap Race', (peerId, container) => {
-    const peer = frodon.getPeer(peerId);
-    if (!peer) return;
+  // ── Rerender helper ──
+  let _container = null;
+  let _activeTab = 'game';
+  function rerender() {
+    if (_container) renderInto(_container);
+  }
 
-    if (game && game.phase !== 'result') {
-      const info = frodon.makeElement('div','');
-      info.style.cssText = 'font-size:.68rem;color:var(--txt2);padding:8px 0;text-align:center';
-      info.textContent = '⏳ Partie en cours…'; container.appendChild(info); return;
+  // ── Render tabs ──
+  function renderInto(container) {
+    _container = container;
+    container.innerHTML = '';
+
+    // Tab bar
+    const tabs = [['game', '👆 Jeu'], ['scores', '🏆 Scores']];
+    const tabBar = document.createElement('div');
+    tabBar.style.cssText = 'display:flex;border-bottom:1px solid var(--border);margin-bottom:0';
+    tabs.forEach(([id, label]) => {
+      const btn = document.createElement('button');
+      btn.style.cssText = `flex:1;padding:10px;font-size:.76rem;background:none;border:none;cursor:pointer;color:${_activeTab===id?'var(--accent)':'var(--text-2)'};border-bottom:2px solid ${_activeTab===id?'var(--accent)':'transparent'};font-weight:${_activeTab===id?'700':'400'}`;
+      btn.textContent = label;
+      btn.onclick = () => { _activeTab = id; rerender(); };
+      tabBar.appendChild(btn);
+    });
+    container.appendChild(tabBar);
+
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:0';
+    container.appendChild(body);
+
+    if (_activeTab === 'game') renderGame(body);
+    else renderScores(body);
+  }
+
+  function renderGame(c) {
+    // Pending invite
+    if (pending) {
+      const w = document.createElement('div');
+      w.style.cssText = 'padding:28px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px';
+      const av = document.createElement('div');
+      av.style.cssText = 'width:72px;height:72px;border-radius:50%;background:rgba(255,107,53,.15);border:3px solid rgba(255,107,53,.5);display:flex;align-items:center;justify-content:center;font-size:2rem;font-family:var(--font-mono);font-weight:700;color:#ff6b35';
+      av.textContent = (pending.fromName[0] || '?').toUpperCase();
+      const msg = document.createElement('div');
+      msg.style.cssText = 'font-size:.9rem;color:var(--text-1);line-height:1.6';
+      msg.innerHTML = `<strong style="color:#ff6b35">${pending.fromName}</strong> vous défie !<br><span style="font-size:.68rem;color:var(--text-2)">10 secondes · qui tapera le plus vite ?</span>`;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px';
+      const yes = document.createElement('button');
+      yes.className = 'btn-accent'; yes.textContent = '✔ Accepter'; yes.style.flex = '1';
+      yes.onclick = () => {
+        const pid = pending.fromId; const pn = pending.fromName;
+        const peerUuid = _YM.peers.find(p=>p.peerId===pid)?.uuid || _YM.nearPeers?.find(e=>e.peerId===pid)?.uuid;
+        game = { peerId: pid, peerName: pn, peerUuid, myScore:0, theirScore:0, phase:'ready', timerTO:null, cdIV:null };
+        pending = null;
+        send(pid, { type:'accept', to: peerUuid });
+        // Accepter waits for 'start' from challenger before countdown
+        rerender();
+      };
+      const no = document.createElement('button');
+      no.className = 'btn-secondary'; no.textContent = '✕ Refuser'; no.style.flex = '1';
+      no.onclick = () => {
+        send(pending.fromId, { type:'decline', to: _YM.peers.find(p=>p.peerId===pending.fromId)?.uuid });
+        pending = null; rerender();
+      };
+      row.appendChild(yes); row.appendChild(no);
+      w.appendChild(av); w.appendChild(msg); w.appendChild(row);
+      c.appendChild(w); return;
     }
 
-    const card = frodon.makeElement('div','');
-    card.style.cssText = 'background:linear-gradient(135deg,rgba(255,107,53,.1),rgba(124,77,255,.07));border:1px solid rgba(255,107,53,.3);border-radius:10px;padding:10px 12px;margin-bottom:10px;text-align:center';
-    card.innerHTML = '<div style="font-size:.62rem;color:var(--warn);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">👆 TAP RACE</div>'
-      + '<div style="font-size:.72rem;color:var(--txt2)">10 secondes · tapez sur la photo de votre adversaire</div>';
-    container.appendChild(card);
+    if (!game) {
+      // Idle
+      const w = document.createElement('div');
+      w.style.cssText = 'text-align:center;padding:40px 20px;color:var(--text-2);font-size:.8rem;line-height:1.9';
+      w.innerHTML = '<div style="font-size:2.8rem;margin-bottom:10px">👆</div>Visitez un profil et tapez sur<br><strong style="color:#ff6b35">👆 Tap Race</strong> pour défier !';
+      c.appendChild(w); return;
+    }
 
-    const btn = frodon.makeElement('button','plugin-action-btn acc','👆 Défier ' + peer.name);
-    btn.style.width = '100%';
-    btn.addEventListener('click', () => {
-      const me = frodon.getMyProfile();
-      newGame(peerId, peer.name, peer.avatar || '');
-      frodon.sendDM(peerId, PLUGIN_ID, {
-        type:'challenge', fromName:me.name, fromAvatar:me.avatar||'',
-        _label:'👆 Défi Tap Race !', _silent:false,
-      });
-      frodon.showToast('👆 Défi envoyé à ' + peer.name + ' !');
-      frodon.refreshSphereTab(PLUGIN_ID);
-      setTimeout(() => frodon.focusPlugin(PLUGIN_ID), 300);
-    });
-    container.appendChild(btn);
-  });
+    if (game.phase === 'ready') {
+      const w = document.createElement('div');
+      w.style.cssText = 'padding:32px 16px;text-align:center;color:var(--text-2);font-size:.8rem;line-height:1.8';
+      w.innerHTML = `<div style="font-size:2rem;margin-bottom:10px">⏱</div>Défi accepté !<br><strong style="color:var(--accent)">${game.peerName}</strong> confirme…`;
+      c.appendChild(w); return;
+    }
 
-  /* ─────────────────── Rendus SPHERE ─────────────────── */
-  function renderWaiting(container) {
-    const w = frodon.makeElement('div','');
-    w.style.cssText = 'padding:24px 12px;text-align:center;color:var(--txt2);font-size:.76rem;line-height:1.8';
-    w.innerHTML = '<div style="font-size:1.8rem;margin-bottom:8px">⏳</div>En attente que <strong style="color:var(--acc2)">'
-      + game.peerName + '</strong><br>accepte le défi…';
-    const cancel = frodon.makeElement('button','plugin-action-btn','✕ Annuler');
-    cancel.style.cssText += ';margin-top:10px;font-size:.7rem';
-    cancel.addEventListener('click', () => {
-      frodon.sendDM(game.peerId, PLUGIN_ID, { type:'decline', _silent:true });
-      cleanGame(); frodon.refreshSphereTab(PLUGIN_ID);
-    });
-    w.appendChild(cancel); container.appendChild(w);
+    if (game.phase === 'accepted') {
+      // A's turn to launch
+      const w = document.createElement('div');
+      w.style.cssText = 'padding:24px 16px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px';
+      const msg = document.createElement('div');
+      msg.style.cssText = 'font-size:.88rem;color:var(--text-1);line-height:1.6';
+      msg.innerHTML = `<strong style="color:var(--accent)">${game.peerName}</strong> est prêt !<br><span style="font-size:.7rem;color:var(--text-2)">C'est vous qui lancez la partie.</span>`;
+      const launchBtn = document.createElement('button');
+      launchBtn.className = 'btn-accent';
+      launchBtn.textContent = '🚀 Lancer la partie !';
+      launchBtn.style.cssText = 'font-size:.9rem;padding:12px 28px;width:100%';
+      launchBtn.onclick = () => {
+        send(game.peerId, { type: 'start', to: game.peerUuid });
+        startCountdown();
+      };
+      const cancel = document.createElement('button');
+      cancel.className = 'btn-secondary'; cancel.textContent = 'Annuler'; cancel.style.width = '100%';
+      cancel.onclick = () => {
+        send(game.peerId, { type: 'decline', to: game.peerUuid, reason: 'cancelled' });
+        cleanGame(); rerender();
+      };
+      w.appendChild(msg); w.appendChild(launchBtn); w.appendChild(cancel);
+      c.appendChild(w); return;
+    }
+
+    if (game.phase === 'waiting') {
+      const w = document.createElement('div');
+      w.style.cssText = 'padding:32px 16px;text-align:center;color:var(--text-2);font-size:.8rem;line-height:1.8';
+      w.innerHTML = `<div style="font-size:2rem;margin-bottom:10px">⏳</div>En attente que <strong style="color:var(--accent)">${game.peerName}</strong><br>accepte le défi…`;
+      const cancel = document.createElement('button');
+      cancel.className = 'btn-secondary'; cancel.style.cssText = 'margin-top:14px;font-size:.7rem';
+      cancel.textContent = '✕ Annuler';
+      cancel.onclick = () => {
+        send(game.peerId, { type:'decline', to: game.peerUuid });
+        cleanGame(); rerender();
+      };
+      w.appendChild(cancel); c.appendChild(w); return;
+    }
+
+    if (game.phase === 'countdown') {
+      const w = document.createElement('div');
+      w.style.cssText = 'padding:32px 16px;text-align:center';
+      w.innerHTML = `<div style="font-size:6rem;font-family:var(--font-mono);font-weight:700;color:#ff6b35;line-height:1">${game.countdownVal}</div><div style="font-size:.76rem;color:var(--text-2);margin-top:10px">vs ${game.peerName} · Préparez-vous !</div>`;
+      c.appendChild(w); return;
+    }
+
+    if (game.phase === 'playing') {
+      const elapsed = Math.max(0, Math.min(1, (Date.now() - game.startTs) / 10000));
+      const scores = document.createElement('div');
+      scores.style.cssText = 'display:flex;justify-content:space-around;padding:14px 16px 6px;font-family:var(--font-mono)';
+      scores.innerHTML = `<div style="text-align:center"><div style="font-size:.6rem;color:var(--accent);text-transform:uppercase;margin-bottom:2px">Vous</div><div id="tr-my-score" style="font-size:2.8rem;font-weight:700;color:var(--accent)">${game.myScore}</div></div><div style="align-self:center;color:var(--text-3);font-size:.85rem">vs</div><div style="text-align:center"><div style="font-size:.6rem;color:var(--accent-2,#7c4dff);text-transform:uppercase;margin-bottom:2px">${game.peerName}</div><div id="tr-their-score" style="font-size:2.8rem;font-weight:700;color:var(--accent-2,#7c4dff)">${game.theirScore}</div></div>`;
+      c.appendChild(scores);
+
+      const barWrap = document.createElement('div');
+      barWrap.style.cssText = 'margin:4px 16px 10px;height:5px;background:var(--border);border-radius:4px;overflow:hidden';
+      const barFill = document.createElement('div');
+      barFill.id = 'tr-timer-bar';
+      barFill.style.cssText = `height:100%;width:${Math.round((1-elapsed)*100)}%;background:#ff6b35;border-radius:4px;transition:width .25s linear`;
+      barWrap.appendChild(barFill); c.appendChild(barWrap);
+
+      const barInterval = setInterval(() => {
+        const b = document.getElementById('tr-timer-bar');
+        if (!b || !game || game.phase !== 'playing') { clearInterval(barInterval); return; }
+        const e2 = Math.max(0, Math.min(1, (Date.now() - game.startTs) / 10000));
+        b.style.width = Math.round((1-e2)*100) + '%';
+      }, 250);
+
+      const tapArea = document.createElement('div');
+      tapArea.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;padding:8px 16px 18px';
+      const hint = document.createElement('div');
+      hint.style.cssText = 'font-size:.62rem;color:var(--text-3);font-family:var(--font-mono)';
+      hint.textContent = '↓ Tapez le cercle !';
+      tapArea.appendChild(hint);
+
+      const tapBtn = document.createElement('div');
+      tapBtn.style.cssText = 'width:130px;height:130px;border-radius:50%;background:rgba(255,107,53,.12);border:4px solid #ff6b35;cursor:pointer;box-shadow:0 0 32px rgba(255,107,53,.4);display:flex;align-items:center;justify-content:center;font-size:2.5rem;user-select:none;-webkit-user-select:none;touch-action:manipulation;transition:transform .06s,box-shadow .06s';
+      tapBtn.textContent = '👆';
+
+      const doTap = (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (!game || game.phase !== 'playing') return;
+        game.myScore++;
+        const ms = document.getElementById('tr-my-score');
+        if (ms) ms.textContent = game.myScore;
+        tapBtn.style.transform = 'scale(.82)';
+        tapBtn.style.boxShadow = '0 0 60px rgba(255,107,53,.9)';
+        setTimeout(() => { if(tapBtn) { tapBtn.style.transform = ''; tapBtn.style.boxShadow = '0 0 32px rgba(255,107,53,.4)'; } }, 70);
+        send(game.peerId, { type:'tap', score: game.myScore, to: game.peerUuid });
+      };
+      tapBtn.addEventListener('pointerdown', doTap);
+      tapArea.appendChild(tapBtn);
+      c.appendChild(tapArea);
+      return;
+    }
+
+    if (game.phase === 'result') {
+      const won  = game.myScore > game.theirScore;
+      const draw = game.myScore === game.theirScore;
+      const emoji = draw ? '🤝' : (won ? '🏆' : '😅');
+      const label = draw ? 'ÉGALITÉ !' : (won ? 'VICTOIRE !' : 'DÉFAITE');
+      const col   = draw ? 'var(--text-1)' : (won ? 'var(--accent)' : '#ff6b35');
+      const savedPid = game.peerId; const savedName = game.peerName; const savedUuid = game.peerUuid;
+      const w = document.createElement('div');
+      w.style.cssText = 'padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:12px';
+      w.innerHTML = `<div style="font-size:3.5rem">${emoji}</div><div style="font-size:1.1rem;font-weight:800;color:${col};font-family:var(--font-mono)">${label}</div><div style="display:flex;justify-content:space-around;width:100%;font-family:var(--font-mono)"><div style="text-align:center"><div style="font-size:.58rem;color:var(--accent);text-transform:uppercase">Vous</div><div style="font-size:2.2rem;font-weight:700;color:var(--accent)">${game.myScore}</div></div><div style="align-self:center;color:var(--text-3)">vs</div><div style="text-align:center"><div style="font-size:.58rem;color:var(--accent-2,#7c4dff);text-transform:uppercase">${game.peerName}</div><div style="font-size:2.2rem;font-weight:700;color:var(--accent-2,#7c4dff)">${game.theirScore}</div></div></div>`;
+      const btnRow = document.createElement('div');
+      btnRow.style.cssText = 'display:flex;gap:10px';
+      const again = document.createElement('button');
+      again.className = 'btn-accent'; again.textContent = '👆 Rejouer'; again.style.flex = '1';
+      again.onclick = () => {
+        game = { peerId: savedPid, peerName: savedName, peerUuid: savedUuid, myScore:0, theirScore:0, phase:'waiting', timerTO:null, cdIV:null };
+        send(savedPid, { type:'challenge', fromName: _YM.profile.name, to: savedUuid });
+        _YM.toast('👆 Nouveau défi envoyé !');
+        rerender();
+      };
+      const close = document.createElement('button');
+      close.className = 'btn-secondary'; close.textContent = 'Fermer'; close.style.flex = '1';
+      close.onclick = () => { cleanGame(); rerender(); };
+      btnRow.appendChild(again); btnRow.appendChild(close);
+      w.appendChild(btnRow);
+      c.appendChild(w);
+    }
   }
 
-  function renderCountdown(container) {
-    const w = frodon.makeElement('div','');
-    w.style.cssText = 'padding:24px 12px;text-align:center';
-    w.innerHTML = '<div style="font-size:5.5rem;font-family:var(--mono);font-weight:700;color:var(--warn);line-height:1;animation:spulse 1s ease-in-out infinite">'
-      + game.countdownVal + '</div>'
-      + '<div style="font-size:.72rem;color:var(--txt2);margin-top:8px">vs ' + game.peerName + ' · Préparez-vous !</div>';
-    container.appendChild(w);
-  }
-
-  function renderPlaying(container) {
-    const elapsed = Math.max(0, Math.min(1, (Date.now() - game.startTs) / 10000));
-
-    const scores = frodon.makeElement('div','');
-    scores.style.cssText = 'display:flex;justify-content:space-around;width:100%;font-family:var(--mono);padding:10px 12px 0';
-    scores.innerHTML =
-      '<div style="text-align:center"><div style="font-size:.58rem;color:var(--acc);text-transform:uppercase;margin-bottom:2px">Vous</div>'
-      + '<div id="tap-my-score" style="font-size:2.6rem;font-weight:700;color:var(--acc)">' + game.myScore + '</div></div>'
-      + '<div style="align-self:center;color:var(--txt3);font-size:.8rem">vs</div>'
-      + '<div style="text-align:center"><div style="font-size:.58rem;color:var(--acc2);text-transform:uppercase;margin-bottom:2px">' + game.peerName + '</div>'
-      + '<div id="tap-their-score" style="font-size:2.6rem;font-weight:700;color:var(--acc2)">' + game.theirScore + '</div></div>';
-    container.appendChild(scores);
-
-    const barWrap = frodon.makeElement('div','');
-    barWrap.style.cssText = 'width:calc(100% - 24px);height:6px;background:var(--bdr2);border-radius:4px;overflow:hidden;margin:8px 12px';
-    const barFill = frodon.makeElement('div','');
-    barFill.id = 'tap-timer-bar';
-    barFill.style.cssText = 'height:100%;width:' + Math.round((1-elapsed)*100) + '%;background:var(--warn);border-radius:4px;transition:width .25s linear';
-    barWrap.appendChild(barFill); container.appendChild(barWrap);
-
-    // Rafraîchir la barre chaque 250ms sans re-render complet
-    const barInterval = setInterval(() => {
-      const b = document.getElementById('tap-timer-bar');
-      if (!b || !game || game.phase !== 'playing') { clearInterval(barInterval); return; }
-      const e2 = Math.max(0, Math.min(1, (Date.now() - game.startTs) / 10000));
-      b.style.width = Math.round((1-e2)*100) + '%';
-    }, 250);
-
-    // Photo tapable de l'adversaire
-    const tapArea = frodon.makeElement('div','');
-    tapArea.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 12px 14px';
-
-    const hint = frodon.makeElement('div','');
-    hint.style.cssText = 'font-size:.6rem;color:var(--txt3);font-family:var(--mono)';
-    hint.textContent = '↓ Tapez sur la photo de ' + game.peerName;
-    tapArea.appendChild(hint);
-
-    const tapBtn = document.createElement('div');
-    tapBtn.style.cssText = 'width:120px;height:120px;border-radius:50%;overflow:hidden;border:4px solid var(--warn);cursor:pointer;box-shadow:0 0 28px rgba(255,107,53,.5);flex-shrink:0;user-select:none;-webkit-user-select:none;touch-action:manipulation;position:relative';
-    const tapImg = document.createElement('img');
-    tapImg.src = game.peerAvatar || '';
-    tapImg.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;pointer-events:none';
-    tapImg.onerror = () => { tapImg.style.display='none'; };
-    tapBtn.appendChild(tapImg);
-    // Initiales en fallback
-    const tapFallback = frodon.makeElement('div','');
-    tapFallback.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:3rem;font-family:var(--mono);background:var(--sur2);color:var(--acc2);z-index:-1';
-    tapFallback.textContent = (game.peerName[0]||'?').toUpperCase();
-    tapBtn.appendChild(tapFallback);
-    tapArea.appendChild(tapBtn);
-    container.appendChild(tapArea);
-
-    const doTap = (e) => {
-      e.preventDefault(); e.stopPropagation();
-      if (!game || game.phase !== 'playing') return;
-      game.myScore++;
-      // Mise à jour DOM directe
-      const ms = document.getElementById('tap-my-score');
-      if (ms) ms.textContent = game.myScore;
-      // Animation
-      tapBtn.style.transform = 'scale(.84)';
-      tapBtn.style.boxShadow = '0 0 48px rgba(255,107,53,.95)';
-      setTimeout(() => { tapBtn.style.transform=''; tapBtn.style.boxShadow='0 0 28px rgba(255,107,53,.5)'; }, 75);
-      // Sync chaque tap vers l'adversaire
-      frodon.sendDM(game.peerId, PLUGIN_ID, { type:'tap', score:game.myScore, _silent:true });
-    };
-    tapBtn.addEventListener('pointerdown', doTap);
-  }
-
-  function renderResult(container) {
-    const won  = game.myScore > game.theirScore;
-    const draw = game.myScore === game.theirScore;
-    const emoji = draw ? '🤝' : (won ? '🏆' : '😅');
-    const label = draw ? 'ÉGALITÉ !' : (won ? 'VICTOIRE !' : 'DÉFAITE');
-    const col   = draw ? 'var(--txt)' : (won ? 'var(--ok)' : 'var(--warn)');
-
-    const savedPeerId   = game.peerId;
-    const savedPeerName = game.peerName;
-    const savedPeerAv   = game.peerAvatar;
-
-    const w = frodon.makeElement('div','');
-    w.style.cssText = 'padding:16px 12px;display:flex;flex-direction:column;align-items:center;gap:10px';
-    w.innerHTML = '<div style="font-size:3.2rem">' + emoji + '</div>'
-      + '<div style="font-size:1.1rem;font-weight:800;color:' + col + ';font-family:var(--mono)">' + label + '</div>'
-      + '<div style="display:flex;justify-content:space-around;width:100%;font-family:var(--mono)">'
-      + '<div style="text-align:center"><div style="font-size:.56rem;color:var(--acc);text-transform:uppercase">Vous</div><div style="font-size:2rem;font-weight:700;color:var(--acc)">' + game.myScore + '</div></div>'
-      + '<div style="align-self:center;color:var(--txt3)">vs</div>'
-      + '<div style="text-align:center"><div style="font-size:.56rem;color:var(--acc2);text-transform:uppercase">' + game.peerName + '</div><div style="font-size:2rem;font-weight:700;color:var(--acc2)">' + game.theirScore + '</div></div>'
-      + '</div>';
-
-    const again = frodon.makeElement('button','plugin-action-btn acc','👆 Rejouer');
-    again.style.cssText += ';width:180px';
-    again.addEventListener('click', () => {
-      // Réinitialiser et envoyer un nouveau défi directement
-      const me = frodon.getMyProfile();
-      newGame(savedPeerId, savedPeerName, savedPeerAv);
-      frodon.sendDM(savedPeerId, PLUGIN_ID, {
-        type:'challenge', fromName:me.name, fromAvatar:me.avatar||'',
-        _label:'👆 Défi Tap Race !', _silent:false,
-      });
-      frodon.showToast('👆 Nouveau défi envoyé !');
-      frodon.refreshSphereTab(PLUGIN_ID);
-    });
-
-    const close = frodon.makeElement('button','plugin-action-btn','Fermer');
-    close.style.cssText += ';width:180px';
-    close.addEventListener('click', () => { cleanGame(); frodon.refreshSphereTab(PLUGIN_ID); });
-
-    w.appendChild(again); w.appendChild(close);
-    container.appendChild(w);
-  }
-
-  function renderPending(container) {
-    const w = frodon.makeElement('div','');
-    w.style.cssText = 'padding:20px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px';
-
-    const av = document.createElement('img');
-    av.src = pending.fromAvatar || '';
-    av.onerror = () => av.remove();
-    av.style.cssText = 'width:72px;height:72px;border-radius:50%;border:3px solid var(--warn);object-fit:cover;box-shadow:0 0 28px rgba(255,107,53,.5)';
-    w.appendChild(av);
-
-    const msg = frodon.makeElement('div','');
-    msg.style.cssText = 'font-size:.8rem;color:var(--txt);line-height:1.6';
-    msg.innerHTML = '<strong style="color:var(--warn)">' + pending.fromName + '</strong> vous défie !<br>'
-      + '<span style="font-size:.64rem;color:var(--txt2)">10 secondes · qui tapera le plus vite ?</span>';
-    w.appendChild(msg);
-
-    const row = frodon.makeElement('div','');
-    row.style.cssText = 'display:flex;gap:8px';
-
-    const accept = frodon.makeElement('button','plugin-action-btn acc','✔ Accepter');
-    accept.style.flex = '1';
-    accept.addEventListener('click', () => {
-      newGame(pending.fromId, pending.fromName, pending.fromAvatar);
-      pending = null;
-      frodon.sendDM(game.peerId, PLUGIN_ID, { type:'accept', _silent:true });
-      startCountdown();
-    });
-
-    const decline = frodon.makeElement('button','plugin-action-btn','✕ Refuser');
-    decline.style.flex = '1';
-    decline.addEventListener('click', () => {
-      frodon.sendDM(pending.fromId, PLUGIN_ID, { type:'decline', _silent:true });
-      pending = null; frodon.refreshSphereTab(PLUGIN_ID);
-    });
-
-    row.appendChild(accept); row.appendChild(decline);
-    w.appendChild(row);
-    container.appendChild(w);
-  }
-
-  function renderIdle(container) {
-    const w = frodon.makeElement('div','');
-    w.style.cssText = 'text-align:center;padding:28px 16px;color:var(--txt2);font-size:.76rem;line-height:1.8';
-    w.innerHTML = '<div style="font-size:2rem;margin-bottom:8px">👆</div>'
-      + 'Visitez un profil et cliquez<br><strong style="color:var(--warn)">👆 Tap Race</strong> pour lancer un défi !';
-    container.appendChild(w);
-  }
-
-  function renderHistory(container) {
-    const hist = store.get('history') || [];
+  function renderScores(c) {
+    const hist = store('history') || [];
     if (!hist.length) {
-      const em = frodon.makeElement('div','no-posts','Aucune partie jouée.');
-      em.style.padding = '20px 16px'; container.appendChild(em); return;
+      c.innerHTML = '<div style="text-align:center;padding:36px 20px;color:var(--text-2);font-size:.8rem"><div style="font-size:2rem;opacity:.2;margin-bottom:8px">🏆</div>Aucune partie jouée.</div>';
+      return;
     }
     const stats = hist.reduce((a,h) => { a[h.result]=(a[h.result]||0)+1; return a; }, {});
-    const banner = frodon.makeElement('div','');
-    banner.style.cssText = 'display:flex;gap:16px;padding:10px 12px;border-bottom:1px solid var(--bdr);justify-content:center;font-family:var(--mono)';
-    [['🏆',stats.win||0,'var(--ok)'],['🤝',stats.draw||0,'var(--txt2)'],['😅',stats.lose||0,'var(--warn)']].forEach(([e,n,c]) => {
-      const b = frodon.makeElement('div','');
-      b.style.cssText = 'text-align:center';
-      b.innerHTML = '<div style="font-size:.9rem">' + e + '</div><div style="font-size:.85rem;font-weight:700;color:' + c + '">' + n + '</div>';
-      banner.appendChild(b);
+    const banner = document.createElement('div');
+    banner.style.cssText = 'display:flex;gap:0;border-bottom:1px solid var(--border)';
+    [['🏆', stats.win||0, 'var(--accent)'], ['🤝', stats.draw||0, 'var(--text-2)'], ['😅', stats.lose||0, '#ff6b35']].forEach(([e,n,col],i) => {
+      const cell = document.createElement('div');
+      cell.style.cssText = `flex:1;text-align:center;padding:14px 4px;${i<2?'border-right:1px solid var(--border)':''}`;
+      cell.innerHTML = `<div style="font-size:1rem">${e}</div><div style="font-size:1.5rem;font-weight:700;font-family:var(--font-mono);color:${col}">${n}</div>`;
+      banner.appendChild(cell);
     });
-    container.appendChild(banner);
+    c.appendChild(banner);
     hist.slice(0,20).forEach(h => {
-      const row = frodon.makeElement('div','');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--bdr)';
-      const col = h.result==='win'?'var(--ok)':h.result==='draw'?'var(--txt)':'var(--warn)';
-      row.innerHTML = '<span style="font-size:1rem">' + (h.result==='win'?'🏆':h.result==='draw'?'🤝':'😅') + '</span>'
-        + '<span style="flex:1;font-size:.72rem;color:var(--txt)">' + h.peerName + '</span>'
-        + '<span style="font-family:var(--mono);font-size:.7rem;color:' + col + '">' + h.myScore + ' – ' + h.theirScore + '</span>'
-        + '<span class="mini-card-ts" style="margin-left:6px">' + frodon.formatTime(h.ts) + '</span>';
-      container.appendChild(row);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--border)';
+      const col = h.result==='win'?'var(--accent)':h.result==='draw'?'var(--text-1)':'#ff6b35';
+      row.innerHTML = `<span style="font-size:.9rem">${h.result==='win'?'🏆':h.result==='draw'?'🤝':'😅'}</span><span style="flex:1;font-size:.74rem;color:var(--text-1)">${h.peerName}</span><span style="font-family:var(--font-mono);font-size:.72rem;color:${col}">${h.myScore} – ${h.theirScore}</span><span style="font-size:.6rem;color:var(--text-3);margin-left:6px">${new Date(h.ts).toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})}</span>`;
+      c.appendChild(row);
     });
+    const rst = document.createElement('button');
+    rst.className = 'btn-secondary'; rst.style.cssText = 'font-size:.65rem;margin:10px 14px;width:calc(100% - 28px)';
+    rst.textContent = '↺ Remettre à zéro';
+    rst.onclick = () => { if (confirm('Remettre à zéro ?')) { localStorage.removeItem(KEY+'history'); rerender(); } };
+    c.appendChild(rst);
   }
 
-  /* ─────────────────── Panneau SPHERE ─────────────────── */
-  frodon.registerBottomPanel(PLUGIN_ID, [
-    {
-      id: 'game', label: '👆 Jeu',
-      render(container) {
-        if (pending)                          { renderPending(container);   return; }
-        if (!game)                            { renderIdle(container);      return; }
-        if (game.phase === 'waiting_accept')  { renderWaiting(container);   return; }
-        if (game.phase === 'countdown')       { renderCountdown(container); return; }
-        if (game.phase === 'playing')         { renderPlaying(container);   return; }
-        if (game.phase === 'result')          { renderResult(container);    return; }
-      }
-    },
-    {
-      id: 'history', label: '🏆 Scores',
-      render(container) { renderHistory(container); }
-    },
-  ]);
+  return {
+    name: 'jeux.tap-race',
+    icon: '👆',
+    description: 'Duel de tap P2P : tapez le plus vite en 10 secondes !',
 
-  return { destroy() { cleanGame(); } };
-});
+    // Called at app startup to register background listener (receive challenges when sphere is closed)
+    init(YM) {
+      _YM = YM;
+      if (YM.onData) YM.onData(ID, onMsg);
+    },
+
+    render(container, YM) {
+      _YM = YM;
+      if (!_hubBound) {
+        YM.onHub(onMsg);
+        _hubBound = true;
+      }
+      // Background listener: receive challenges even when sphere is closed
+      if (YM.onData) YM.onData(ID, onMsg);
+      _activeTab = 'game';
+      renderInto(container);
+    },
+
+    couple(peerId, container, YM) {
+      _YM = YM;
+      if (!_hubBound) { YM.onHub(onMsg); _hubBound = true; }
+      if (YM.onData) YM.onData(ID, onMsg);
+      const peer = YM.peers.find(p => p.peerId === peerId);
+      const peerUuid = peer?.uuid;
+      const pn = peer?.name || 'Pair';
+
+      const card = document.createElement('div');
+      card.style.cssText = 'background:linear-gradient(135deg,rgba(255,107,53,.1),rgba(124,77,255,.07));border:1px solid rgba(255,107,53,.3);border-radius:12px;padding:14px 16px;text-align:center';
+      card.innerHTML = `<div style="font-size:.62rem;color:#ff6b35;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px">👆 TAP RACE</div><div style="font-size:.78rem;color:var(--text-2);margin-bottom:12px">10 secondes · qui tapera le plus vite ?</div>`;
+      const btn = document.createElement('button');
+      btn.className = 'btn-accent'; btn.textContent = '👆 Défier ' + pn; btn.style.width = '100%';
+      btn.onclick = () => {
+        if (game && game.phase !== 'result') { _YM.toast('Tu as déjà une partie en cours !', 'error'); return; }
+        game = { peerId, peerName: pn, peerUuid, myScore:0, theirScore:0, phase:'waiting', timerTO:null, cdIV:null };
+        send(peerId, { type:'challenge', fromName: YM.profile.name, to: peerUuid });
+        _YM.toast('👆 Défi envoyé à ' + pn + ' !');
+        btn.textContent = '⏳ En attente…'; btn.disabled = true;
+        // Defer openSphere to avoid DOM mutation during onclick
+        setTimeout(() => YM.openSphere(ID), 50);
+      };
+      card.appendChild(btn);
+      container.appendChild(card);
+    },
+  };
+})();
