@@ -224,16 +224,28 @@ function renderLocked(hasWallet) {
   <div class="ym-panel-title">Wallet Solana</div>
   <div class="ym-wallet-unlock" id="mine-unlock-form">
     ${!hasWallet ? `
-      <div class="ym-notice info"><span>Créez un wallet pour commencer à miner.</span></div>
+      <div class="ym-notice info"><span>Créez un wallet ou importez une clé privée / passphrase existante.</span></div>
       <input class="ym-input" id="mine-passphrase" placeholder="Passphrase (optionnel)" type="password"/>
-      <input class="ym-input" id="mine-password" placeholder="Mot de passe" type="password"/>
+      <input class="ym-input" id="mine-privkey-import" placeholder="Clé privée Base58 ou JSON array (import)" type="password"/>
+      <input class="ym-input" id="mine-password" placeholder="Mot de passe de chiffrement" type="password"/>
       <input class="ym-input" id="mine-password2" placeholder="Confirmer mot de passe" type="password"/>
-      <button class="ym-btn ym-btn-accent" id="mine-create-btn" style="width:100%">Créer le wallet</button>
+      <div style="display:flex;gap:8px">
+        <button class="ym-btn ym-btn-accent" id="mine-create-btn" style="flex:1">Créer</button>
+        <button class="ym-btn" id="mine-import-btn" style="flex:1">Importer</button>
+      </div>
     ` : `
       <div class="ym-wallet-address" id="mine-pubkey-preview">${JSON.parse(localStorage.getItem('ym_wallet_v1') || '{}').pubkey || '…'}</div>
       <input class="ym-input" id="mine-password" placeholder="Mot de passe" type="password"/>
       <button class="ym-btn ym-btn-accent" id="mine-unlock-btn" style="width:100%">Déverrouiller</button>
-      <button class="ym-btn ym-btn-ghost" id="mine-reset-btn" style="width:100%;font-size:10px">Réinitialiser le wallet</button>
+      <details style="margin-top:4px">
+        <summary style="font-size:10px;color:var(--text3);cursor:pointer;letter-spacing:.5px">Importer un autre wallet</summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          <input class="ym-input" id="mine-privkey-import" placeholder="Clé privée Base58 ou JSON array" type="password"/>
+          <input class="ym-input" id="mine-import-pw" placeholder="Nouveau mot de passe" type="password"/>
+          <button class="ym-btn" id="mine-import-btn" style="width:100%">Importer et remplacer</button>
+        </div>
+      </details>
+      <button class="ym-btn ym-btn-ghost" id="mine-reset-btn" style="width:100%;font-size:10px;margin-top:4px">Supprimer le wallet local</button>
     `}
     <div id="mine-wallet-error" class="ym-notice error" style="display:none"></div>
   </div>`;
@@ -355,8 +367,31 @@ function wireWalletEvents() {
     }
   });
 
+  // Import wallet
+  body.querySelector('#mine-import-btn')?.addEventListener('click', async () => {
+    const raw = (body.querySelector('#mine-privkey-import')?.value || '').trim();
+    const pw  = (body.querySelector('#mine-import-pw') || body.querySelector('#mine-password2') || body.querySelector('#mine-password'))?.value || '';
+    if (!raw)  return showWalletError('Clé privée requise');
+    if (!pw)   return showWalletError('Mot de passe requis');
+    try {
+      const sol = window.solanaWeb3;
+      let kp;
+      if (raw.startsWith('[')) {
+        kp = sol.Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw)));
+      } else {
+        const bs = sol.bs58?.decode?.(raw);
+        if (bs) { kp = sol.Keypair.fromSecretKey(bs); }
+        else { throw new Error('Format non reconnu. Utilisez un JSON array [0,1,2,...] ou Base58.'); }
+      }
+      const secret = `privkey:${JSON.stringify(Array.from(kp.secretKey))}`;
+      const enc    = await encryptSecret(secret, pw);
+      localStorage.setItem(STORE_KEY, JSON.stringify({ pubkey: kp.publicKey.toString(), enc, created: Date.now() }));
+      await unlockWallet(pw);
+      render();
+    } catch(e) { showWalletError(e.message); }
+  });
+
   // Lock
-  body.querySelector('#mine-lock-btn')?.addEventListener('click', lockWallet);
 
   // Copy address
   body.querySelector('#mine-copy-addr')?.addEventListener('click', () => {
@@ -445,12 +480,14 @@ function updateBurnPreview() {
 }
 
 function updateBalanceUI() {
-  const s = $('mine-sol-bal');
-  const y = $('mine-ym-bal');
+  const s  = $('mine-sol-bal');
+  const y  = $('mine-ym-bal');
   const sl = $('mine-slot');
-  if (s) s.textContent = mineState.sol.toFixed(6);
-  if (y) y.textContent = mineState.ym.toFixed(4);
+  if (s)  s.textContent  = mineState.sol.toFixed(6);
+  if (y)  y.textContent  = mineState.ym.toFixed(4);
   if (sl) sl.textContent = mineState.slot;
+  // Le header affiche le claimable comme balance principale
+  window.YM_setClaimable?.(getClaimable());
 }
 
 function updateClaimableLoop() {
