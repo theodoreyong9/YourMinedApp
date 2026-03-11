@@ -7,7 +7,10 @@
  */
 
 // ════════════════════════════════════════════════════════
-//  social.browser.sphere.js — Near / Contact / Feed
+//  social.sphere.js — Near / Contact / Feed
+//  Réseaux extractibles sans backend :
+//  Mastodon (instance), Bluesky (AT Proto), Pixelfed,
+//  Twitter/X (PKCE token), Nostr (relais public)
 // ════════════════════════════════════════════════════════
 
 function init(container) {
@@ -111,17 +114,123 @@ function filterContacts() {
   });
 }
 
-// ── SOCIAL FEED ────────────────────────────────────────────
+// ── SOCIAL FEED — APIs extractibles sans backend ──────────
+// Chaque réseau expose une API publique ou supporte PKCE.
+// Le profil contient : socialNet, socialHandle, socialInstance (Mastodon/Pixelfed), socialToken (X/Nostr)
+
 async function fetchFeed(profile) {
-  if (!profile.socialNet || !profile.socialHandle) return [];
-  // PKCE OAuth would be needed for real — return placeholder
+  const net      = (profile.socialNet || '').toLowerCase();
+  const handle   = profile.socialHandle || '';
+  const instance = profile.socialInstance || '';  // ex: mastodon.social
+  const token    = profile.socialToken || '';
+
+  if (!net || !handle) return [];
+
+  try {
+    // ── MASTODON (API publique, pas de token requis pour posts publics) ──
+    if (net === 'mastodon') {
+      const host = instance || 'mastodon.social';
+      // Résoudre l'acct → id
+      const lookup = await fetch(`https://${host}/api/v1/accounts/lookup?acct=${encodeURIComponent(handle)}`);
+      if (!lookup.ok) return _placeholder(profile);
+      const acct = await lookup.json();
+      const r = await fetch(`https://${host}/api/v1/accounts/${acct.id}/statuses?limit=10&exclude_reblogs=true`);
+      if (!r.ok) return _placeholder(profile);
+      const statuses = await r.json();
+      return statuses.map(s => ({
+        id: s.id, ts: new Date(s.created_at).getTime(),
+        text: s.content.replace(/<[^>]+>/g,'').slice(0,280),
+        url: s.url, net: 'mastodon'
+      }));
+    }
+
+    // ── BLUESKY (AT Protocol, API publique pour comptes publics) ──
+    if (net === 'bluesky') {
+      const actor = handle.includes('.') ? handle : `${handle}.bsky.social`;
+      const r = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(actor)}&limit=10`);
+      if (!r.ok) return _placeholder(profile);
+      const data = await r.json();
+      return (data.feed || []).map(item => ({
+        id: item.post.uri, ts: new Date(item.post.record.createdAt).getTime(),
+        text: item.post.record.text?.slice(0,280) || '',
+        url: `https://bsky.app/profile/${actor}/post/${item.post.uri.split('/').pop()}`,
+        net: 'bluesky'
+      }));
+    }
+
+    // ── PIXELFED (API publique compatible Mastodon) ──
+    if (net === 'pixelfed') {
+      const host = instance || 'pixelfed.social';
+      const lookup = await fetch(`https://${host}/api/v1/accounts/lookup?acct=${encodeURIComponent(handle)}`);
+      if (!lookup.ok) return _placeholder(profile);
+      const acct = await lookup.json();
+      const r = await fetch(`https://${host}/api/v1/accounts/${acct.id}/statuses?limit=10`);
+      if (!r.ok) return _placeholder(profile);
+      const statuses = await r.json();
+      return statuses.map(s => ({
+        id: s.id, ts: new Date(s.created_at).getTime(),
+        text: s.content.replace(/<[^>]+>/g,'').slice(0,280),
+        url: s.url, net: 'pixelfed',
+        media: s.media_attachments?.[0]?.url
+      }));
+    }
+
+    // ── TWITTER/X (nécessite token Bearer PKCE — l'utilisateur fournit son token) ──
+    if (net === 'twitter' || net === 'x') {
+      if (!token) return _placeholder(profile, 'Token Bearer requis pour X/Twitter');
+      const r = await fetch(`https://api.twitter.com/2/users/by/username/${encodeURIComponent(handle)}?user.fields=id`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!r.ok) return _placeholder(profile);
+      const user = await r.json();
+      const tweets = await fetch(`https://api.twitter.com/2/users/${user.data.id}/tweets?max_results=10&tweet.fields=created_at,text`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!tweets.ok) return _placeholder(profile);
+      const data = await tweets.json();
+      return (data.data || []).map(t => ({
+        id: t.id, ts: new Date(t.created_at).getTime(),
+        text: t.text?.slice(0,280),
+        url: `https://x.com/${handle}/status/${t.id}`, net: 'x'
+      }));
+    }
+
+    // ── NOSTR (relais public WebSocket, NIP-01) ──
+    if (net === 'nostr') {
+      // handle = npub ou hex pubkey
+      return await new Promise(resolve => {
+        try {
+          const ws = new WebSocket('wss://relay.damus.io');
+          const posts = [];
+          const timeout = setTimeout(() => { ws.close(); resolve(posts); }, 5000);
+          ws.onopen = () => {
+            ws.send(JSON.stringify(['REQ','ym-feed',{ authors:[handle], kinds:[1], limit:10 }]));
+          };
+          ws.onmessage = e => {
+            const msg = JSON.parse(e.data);
+            if (msg[0]==='EVENT' && msg[2]?.kind===1) {
+              posts.push({ id:msg[2].id, ts:msg[2].created_at*1000, text:msg[2].content?.slice(0,280), url:`https://snort.social/e/${msg[2].id}`, net:'nostr' });
+            }
+            if (msg[0]==='EOSE') { clearTimeout(timeout); ws.close(); resolve(posts); }
+          };
+          ws.onerror = () => { clearTimeout(timeout); resolve(posts); };
+        } catch { resolve([]); }
+      });
+    }
+
+  } catch(e) { console.warn('[social feed]', net, e.message); }
+  return _placeholder(profile);
+}
+
+function _placeholder(profile, note = '') {
+  const net = profile.socialNet || '?';
+  const handle = profile.socialHandle || '';
   return [{
-    id: profile.uuid + '-placeholder',
-    text: `@${profile.socialHandle} sur ${profile.socialNet}`,
-    url: `https://${profile.socialNet}.com/${profile.socialHandle}`,
-    author: profile,
-    type: 'text',
-    ts: Date.now() - Math.random() * 3600000
+    id: profile.uuid + '-ph',
+    ts: Date.now(),
+    text: note || `Contenu de @${handle} sur ${net} (chargement impossible depuis ce navigateur)`,
+    url: `https://${net}.com/${handle}`,
+    net
   }];
 }
 
