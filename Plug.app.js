@@ -90,12 +90,14 @@ async function loadSpheres() {
 
   try {
     const files = await fetchJSON(REPO_API);
-    const sphereFiles = files.filter(f => f.name.match(/\.[a-z]+\.[a-z]+\.sphere\.js$/i));
+    // Accepte [cat].[nom].sphere.js ET [nom].sphere.js
+    const sphereFiles = files.filter(f => f.name.endsWith('.sphere.js'));
 
     allSpheres = sphereFiles.map(f => {
-      const parts = f.name.replace('.sphere.js','').split('.');
-      const name = parts[parts.length - 1];
-      const cat  = parts[parts.length - 2] || 'Autres';
+      const base  = f.name.replace('.sphere.js', '');
+      const parts = base.split('.');
+      const name  = parts.length >= 2 ? parts.slice(1).join('.') : parts[0];
+      const cat   = parts.length >= 2 ? parts[0] : 'autres';
       return { name, cat, file: f.name, url: REPO_RAW + f.name, info: null };
     });
 
