@@ -115,9 +115,9 @@ async function loadSpheres() {
   } catch(e) {
     // Fallback hardcoded spheres
     allSpheres = [
-      { name: 'Builder', cat: 'browser', file: 'browser.Builder.sphere.js', url: REPO_RAW + 'browser.Builder.sphere.js', info: { icon: '🔨', desc: 'Créez et publiez des Spheres et Thèmes' } },
-      { name: 'Social',  cat: 'browser', file: 'browser.social.sphere.js',  url: REPO_RAW + 'browser.social.sphere.js',  info: { icon: '📡', desc: 'Near • Contact • Feed' } },
-      { name: 'Feed',    cat: 'browser', file: 'browser.Feed.sphere.js',    url: REPO_RAW + 'browser.Feed.sphere.js',    info: { icon: '📰', desc: 'Flux social de vos contacts' } },
+      { name: 'builder', cat: 'builder', file: 'builder.sphere.js', url: REPO_RAW + 'builder.sphere.js', info: { icon: '🔨', desc: 'Créez et publiez des Spheres et Thèmes' } },
+      { name: 'social',  cat: 'social',  file: 'social.sphere.js',  url: REPO_RAW + 'social.sphere.js',  info: { icon: '📡', desc: 'Near • Contact • Feed' } },
+      { name: 'feed',    cat: 'social',   file: 'feed.sphere.js',    url: REPO_RAW + 'feed.sphere.js',    info: { icon: '📰', desc: 'Flux social de vos contacts' } },
     ];
     renderSphereList();
   }
