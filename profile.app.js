@@ -4,27 +4,33 @@
 
 (function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
 
+// Réseaux dont le contenu est extractible sans backend :
+// Mastodon & Pixelfed : API publique (instance variable)
+// Bluesky : AT Protocol public
+// Twitter/X : PKCE Bearer token
+// Nostr : relais public WebSocket
 const SOCIAL_NETWORKS = [
-  { id: 'twitter',   name: 'X / Twitter',   base: 'https://twitter.com/' },
-  { id: 'instagram', name: 'Instagram',      base: 'https://instagram.com/' },
-  { id: 'tiktok',    name: 'TikTok',         base: 'https://tiktok.com/@' },
-  { id: 'youtube',   name: 'YouTube',        base: 'https://youtube.com/@' },
-  { id: 'mastodon',  name: 'Mastodon',       base: '' },
-  { id: 'bluesky',   name: 'Bluesky',        base: 'https://bsky.app/profile/' },
+  { id: 'mastodon',  name: 'Mastodon',       needsInstance: true,  base: '' },
+  { id: 'bluesky',   name: 'Bluesky',        needsInstance: false, base: 'https://bsky.app/profile/' },
+  { id: 'pixelfed',  name: 'Pixelfed',       needsInstance: true,  base: '' },
+  { id: 'twitter',   name: 'X / Twitter',    needsInstance: false, base: 'https://x.com/', needsToken: true },
+  { id: 'nostr',     name: 'Nostr',          needsInstance: false, base: 'https://snort.social/p/', needsToken: false },
 ];
 
 function ensureProfile() {
   if (!YM.profile) {
     YM.profile = {
-      uuid:        crypto.randomUUID(),
-      name:        '',
-      photo:       null,
-      socialNet:   '',
-      socialHandle:'',
-      website:     '',
-      theme:       'default',
-      spheres:     { repo: [], creator: [], tester: [] },
-      gistId:      null,
+      uuid:            crypto.randomUUID(),
+      name:            '',
+      photo:           null,
+      socialNet:       '',
+      socialHandle:    '',
+      socialInstance:  '',   // ex: mastodon.social, pixelfed.social
+      socialToken:     '',   // Bearer token pour X/Twitter
+      website:         '',
+      theme:           'default',
+      spheres:         { repo: [], creator: [], tester: [] },
+      gistId:          null,
     };
     localStorage.setItem('ym_profile', JSON.stringify(YM.profile));
   }
@@ -176,7 +182,13 @@ function render() {
           <option value="">Réseau social</option>
           ${SOCIAL_NETWORKS.map(n=>`<option value="${n.id}" ${p.socialNet===n.id?'selected':''}>${n.name}</option>`).join('')}
         </select>
-        <input class="ym-input" id="profile-social-handle" placeholder="pseudo" value="${p.socialHandle||''}" style="flex:1"/>
+        <input class="ym-input" id="profile-social-handle" placeholder="pseudo / handle" value="${p.socialHandle||''}" style="flex:1"/>
+      </div>
+      <div id="profile-social-instance-wrap" style="${netObj?.needsInstance?'':'display:none'}">
+        <input class="ym-input" id="profile-social-instance" placeholder="Instance ex: mastodon.social" value="${p.socialInstance||''}"/>
+      </div>
+      <div id="profile-social-token-wrap" style="${netObj?.needsToken?'':'display:none'}">
+        <input class="ym-input" id="profile-social-token" type="password" placeholder="Bearer token (X/Twitter PKCE)" value="${p.socialToken||''}"/>
       </div>
       <input class="ym-input" id="profile-website" placeholder="Site web (https://…)" value="${p.website||''}"/>
       <button class="ym-btn ym-btn-accent" id="profile-save-btn">Enregistrer</button>
@@ -258,13 +270,22 @@ function wireProfileEvents() {
     if (av) av.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover"/>`;
   });
 
+  // Network select → show/hide instance & token fields
+  $('profile-social-net')?.addEventListener('change', e => {
+    const net = SOCIAL_NETWORKS.find(n => n.id === e.target.value);
+    $('profile-social-instance-wrap').style.display = net?.needsInstance  ? '' : 'none';
+    $('profile-social-token-wrap').style.display    = net?.needsToken     ? '' : 'none';
+  });
+
   // Save profile
   $('profile-save-btn')?.addEventListener('click', () => {
     const p = YM.profile;
-    p.name         = $('profile-name')?.value || '';
-    p.socialNet    = $('profile-social-net')?.value || '';
-    p.socialHandle = $('profile-social-handle')?.value || '';
-    p.website      = $('profile-website')?.value || '';
+    p.name            = $('profile-name')?.value || '';
+    p.socialNet       = $('profile-social-net')?.value || '';
+    p.socialHandle    = $('profile-social-handle')?.value || '';
+    p.socialInstance  = $('profile-social-instance')?.value?.trim() || '';
+    p.socialToken     = $('profile-social-token')?.value || '';
+    p.website         = $('profile-website')?.value || '';
     saveProfile();
     const btn = $('profile-save-btn');
     if (btn) { btn.textContent = '✓ Enregistré'; setTimeout(() => btn.textContent = 'Enregistrer', 2000); }
