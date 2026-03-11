@@ -198,12 +198,16 @@ function render() {
   <div class="ym-panel">
     <div class="ym-panel-title">Sauvegarde Gist</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <input class="ym-input" id="profile-gh-token" type="password" placeholder="Token GitHub (gist scope)"/>
+      <div class="ym-notice info"><span>Sauvegarde : UUID + liste UUID de vos contacts dans un Gist privé GitHub.</span></div>
+      <input class="ym-input" id="profile-gh-token" type="password" placeholder="Token GitHub (scope : gist)"/>
       <div style="display:flex;gap:8px">
         <button class="ym-btn ym-btn-accent" id="profile-save-gist" style="flex:1">Sauvegarder</button>
         <button class="ym-btn" id="profile-restore-gist" style="flex:1">Restaurer</button>
       </div>
-      <input class="ym-input" id="profile-gist-id" placeholder="Gist ID (pour restaurer)" value="${p.gistId||''}"/>
+      <div style="display:flex;gap:8px">
+        <input class="ym-input" id="profile-gist-id" placeholder="Gist ID (pour restaurer)" value="${p.gistId||''}" style="flex:1"/>
+        <button class="ym-btn ym-btn-ghost" id="profile-copy-gistid" data-tip="Copier Gist ID">⧉</button>
+      </div>
       <div id="profile-gist-status"></div>
     </div>
   </div>
@@ -211,9 +215,7 @@ function render() {
   <!-- Page de démarrage -->
   <div class="ym-panel">
     <div class="ym-panel-title">Page de démarrage</div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap" id="profile-start-page">
-      ${['plug','mine','profile'].map(a=>`<button class="ym-cat-btn${localStorage.getItem('ym_app')===a?' active':''}" data-app="${a}">${a}</button>`).join('')}
-    </div>
+    <div id="profile-start-page" style="display:flex;gap:6px;flex-wrap:wrap"></div>
   </div>
 
   <!-- Theme Builder -->
@@ -292,13 +294,29 @@ function wireProfileEvents() {
     } catch(e) { setStatus('profile-gist-status', e.message, true); }
   });
 
-  // Start page
-  $('profile-start-page')?.querySelectorAll('[data-app]').forEach(btn => {
-    btn.onclick = () => {
-      localStorage.setItem('ym_app', btn.dataset.app);
-      $('profile-start-page').querySelectorAll('[data-app]').forEach(b => b.classList.toggle('active', b.dataset.app === btn.dataset.app));
-    };
+  // Copy Gist ID
+  $('profile-copy-gistid')?.addEventListener('click', () => {
+    const id = YM.profile?.gistId;
+    if (id) navigator.clipboard.writeText(id).catch(()=>{});
   });
+
+  // Start page — construit dynamiquement à partir des apps disponibles
+  const startPageEl = $('profile-start-page');
+  if (startPageEl) {
+    const currentStart = localStorage.getItem('ym_start_app') || 'plug';
+    const apps = (YM?.apps?.length ? YM.apps : [{name:'plug'},{name:'mine'},{name:'profile'}]);
+    apps.forEach(a => {
+      const btn = document.createElement('button');
+      btn.className = 'ym-cat-btn' + (a.name === currentStart ? ' active' : '');
+      btn.dataset.app = a.name;
+      btn.textContent = a.name;
+      btn.onclick = () => {
+        localStorage.setItem('ym_start_app', a.name);
+        startPageEl.querySelectorAll('[data-app]').forEach(b => b.classList.toggle('active', b.dataset.app === a.name));
+      };
+      startPageEl.appendChild(btn);
+    });
+  }
 
   // Theme builder
   $('profile-code-theme-btn')?.addEventListener('click', () => {
