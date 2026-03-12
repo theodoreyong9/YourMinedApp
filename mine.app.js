@@ -49,8 +49,17 @@ async function decryptSecret(stored, password) {
 // ── WALLET OPERATIONS ─────────────────────────────────────
 async function createWallet(passphrase, password) {
   const sol = window.solanaWeb3;
-  const kp  = sol.Keypair.generate();
-  const secret = passphrase ? `phrase:${passphrase}` : `privkey:${Array.from(kp.secretKey)}`;
+  let kp;
+  let secret;
+  if (passphrase) {
+    // Dérive TOUJOURS depuis la passphrase — reproductible
+    const seed = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passphrase));
+    kp = sol.Keypair.fromSeed(new Uint8Array(seed).slice(0, 32));
+    secret = `phrase:${passphrase}`;
+  } else {
+    kp = sol.Keypair.generate();
+    secret = `privkey:${Array.from(kp.secretKey)}`;
+  }
   const enc = await encryptSecret(secret, password);
   const stored = { pubkey: kp.publicKey.toString(), enc, created: Date.now() };
   localStorage.setItem(STORE_KEY, JSON.stringify(stored));
@@ -85,6 +94,7 @@ async function unlockWallet(password) {
 
 function lockWallet() {
   walletState = { locked: true, keypair: null, pubkey: null };
+  window.YM_setDisconnected?.();
   window.yourMineApp?.walletManager?.handleWalletDisconnected?.().catch(() => {});
   renderWalletSection();
 }
@@ -216,6 +226,8 @@ function render() {
   if (!walletState.locked) {
     startCycle();
     updateClaimableLoop();
+  } else {
+    window.YM_setDisconnected?.();
   }
 }
 
@@ -324,7 +336,16 @@ function renderBurnClaim() {
 }
 
 function renderTransfer() {
+  const addr = walletState.pubkey || '';
   return `
+  <div class="ym-panel">
+    <div class="ym-panel-title">Recevoir</div>
+    <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
+      <div id="mine-receive-qr" style="background:#fff;padding:8px;border-radius:8px"></div>
+      <div class="ym-wallet-address" style="word-break:break-all;text-align:center;font-size:10px">${addr}</div>
+      <button class="ym-btn ym-btn-ghost" id="mine-copy-addr2" style="width:100%">⧉ Copier adresse</button>
+    </div>
+  </div>
   <div class="ym-panel">
     <div class="ym-panel-title">Envoyer</div>
     <div style="display:flex;flex-direction:column;gap:10px">
@@ -411,6 +432,16 @@ function wireWalletEvents() {
   body.querySelector('#mine-copy-addr')?.addEventListener('click', () => {
     navigator.clipboard.writeText(walletState.pubkey || '').catch(()=>{});
   });
+  body.querySelector('#mine-copy-addr2')?.addEventListener('click', () => {
+    navigator.clipboard.writeText(walletState.pubkey || '').catch(()=>{});
+  });
+
+  // QR code dans Recevoir
+  const qrEl = body.querySelector('#mine-receive-qr');
+  if (qrEl && walletState.pubkey && window.QRCode) {
+    qrEl.innerHTML = '';
+    new window.QRCode(qrEl, { text: walletState.pubkey, width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+  }
 
   // Rate slider
   const slider = body.querySelector('#mine-rate-slider');
