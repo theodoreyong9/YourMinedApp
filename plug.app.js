@@ -41,13 +41,8 @@ function render() {
     </div>
 
     <!-- Sphere list -->
-    <div id="plug-sphere-list" class="ym-stagger" style="display:flex;flex-direction:column;gap:4px;max-height:40dvh;overflow-y:auto;padding-right:4px"></div>
+    <div id="plug-sphere-list" class="ym-stagger" style="display:flex;flex-direction:column;gap:4px;max-height:55dvh;overflow-y:auto;padding-right:4px"></div>
 
-  </div>
-
-  <!-- Sphere content area -->
-  <div id="ym-sphere-content" class="ym-panel" style="min-height:220px;flex:1;align-items:center;justify-content:center;display:flex">
-    <span style="color:var(--text3);font-size:11px;letter-spacing:1.5px;text-transform:uppercase">Sélectionner une sphere</span>
   </div>
 
   <!-- My spheres -->
@@ -227,29 +222,9 @@ function updateSphereItemUI(itemEl, sp) {
 }
 
 // ── ACTIVATE SPHERE ────────────────────────────────────────
-async function activateSphere(sp) {
-  // Move to sphere tab
-  window.YM_addSphereTab?.(sp.name, () => openSphereContent(sp));
-  // Remove from list visually
-  renderSphereList();
-  // Open content immediately
-  openSphereContent(sp);
-}
-
-async function openSphereContent(sp) {
-  const area = $('ym-sphere-content');
-  if (!area) return;
-  area.innerHTML = `<div style="display:flex;gap:8px;align-items:center;color:var(--text3)"><div class="ym-loading"></div><span>Chargement ${sp.name}…</span></div>`;
-  try {
-    const code = await fetchText(sp.url);
-    // Each sphere gets its own sandboxed div
-    area.innerHTML = `<div id="sphere-sandbox-${sp.name}" style="width:100%;min-height:180px"></div>`;
-    const sandbox = document.getElementById(`sphere-sandbox-${sp.name}`);
-    const fn = new Function('YM','$','el','fetchText','fetchJSON','REPO_RAW','REPO_API','container', code + '\n;if(typeof init==="function")init(container);');
-    fn(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API, sandbox);
-  } catch(err) {
-    area.innerHTML = `<div class="ym-notice error" style="width:100%"><span>Erreur sphere: ${err.message}</span></div>`;
-  }
+function activateSphere(sp) {
+  // Ouvre la sphere en pleine page via le système de frames de index.html
+  window.YM_addSphereTab?.(sp.name, sp.url);
 }
 
 // ── MY SPHERES ─────────────────────────────────────────────
