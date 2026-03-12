@@ -1,5 +1,10 @@
 // ════════════════════════════════════════════════════════
-//  mine.app.js — YourMine Wallet + Mining Interface
+//  mine.app.js
+//  @icon ⛏
+//  @desc Wallet Solana + Proof of Sacrifice mining
+//  @author YourMine
+//  @cat core
+//  @score 100
 // ════════════════════════════════════════════════════════
 
 (function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
@@ -198,20 +203,41 @@ function render() {
   <!-- Transfer -->
   ${!walletState.locked ? renderTransfer() : ''}
 
-  <!-- Formula / About -->
-  <div class="ym-panel" style="margin-top:8px">
-    <div class="ym-panel-title">Formule YM</div>
-    <div class="ym-formula">
-      <div class="num">S · t<sup>α</sup></div>
-      <div class="sep">─────────────────────</div>
-      <div class="denom">[β(1−T)·ln(A) + ln(1 + C/A<sup>β(1−T)</sup>)]<sup>γ</sup></div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-      ${[['α','0.7','croissance temporelle'],['β','0.4','patience / âge'],['γ','1.2','compression'],['C','1e6','stabilisation']].map(([k,v,d])=>`
-        <div class="ym-card" style="flex:1;min-width:100px;cursor:default">
-          <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:var(--accent)">${k}</div>
-          <div style="font-size:10px;color:var(--text3)">${v} — ${d}</div>
-        </div>`).join('')}
+  <!-- Notre Projet -->
+  <div class="ym-panel">
+    <div class="ym-panel-title" style="cursor:pointer" id="mine-about-toggle">Notre Projet ▸</div>
+    <div id="mine-about-content" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:var(--text2);line-height:1.7">
+        <p style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text)">Value Engine — Proof of Sacrifice</p>
+        <p>YourMine est une <strong>infrastructure d'incitation économique P2P</strong> entièrement dans le navigateur. Pas de serveur, pas d'intermédiaire : juste des fichiers sur GitHub, un wallet Solana Devnet, et un réseau WebRTC via Trystero.</p>
+        <p>Le concept central : <em style="color:var(--accent)">Mine Per Clic</em>. Tu brûles du SOL (Proof of Sacrifice), et la formule déterministe ci-dessous calcule ta récompense en YM selon le temps d'attente et ton taux de patience.</p>
+
+        <!-- Formule -->
+        <div class="ym-formula" style="margin:4px 0">
+          <div class="num">S · t<sup>α</sup></div>
+          <div class="sep">─────────────────────</div>
+          <div class="denom">[β(1−T)·ln(A) + ln(1 + C/A<sup>β(1−T)</sup>)]<sup>γ</sup></div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${[['S','SOL brûlé'],['t','temps écoulé (s)'],['T','patience 0→40%'],['A','slot Solana'],['α','0.7'],['β','0.4'],['γ','1.2'],['C','1 000 000']].map(([k,v])=>`
+            <div style="background:var(--surface2,#0f0f1a);border-radius:6px;padding:4px 8px;font-size:10px">
+              <strong style="color:var(--accent)">${k}</strong> <span style="color:var(--text3)">${v}</span>
+            </div>`).join('')}
+        </div>
+
+        <div class="ym-divider"></div>
+
+        <p><strong style="color:var(--accent2,#a0c8f0)">Architecture</strong> — Un fichier <code>index.html</code> sur Firebase charge dynamiquement des <code>.app.js</code> et <code>.sphere.js</code> depuis GitHub via <code>eval()</code>. Les thèmes sont des <code>.theme.html</code> injectés dans <code>#ym-theme-root</code>. Tout est extensible sans déploiement.</p>
+
+        <p><strong style="color:var(--accent2,#a0c8f0)">P2P</strong> — Trystero (WebRTC via torrent tracker) connecte les utilisateurs en direct. Le leader (UUID le plus petit) synchronise les fichiers depuis GitHub et les propage aux autres. La géolocalisation alimente la fonctionnalité Near.</p>
+
+        <p><strong style="color:var(--accent2,#a0c8f0)">Sécurité wallet</strong> — La passphrase ne quitte jamais le navigateur. La clé privée est chiffrée en AES-GCM 256 bits avec PBKDF2 (100 000 itérations) avant d'être stockée dans localStorage. La passphrase dérive toujours la même clé via SHA-256 → <code>Keypair.fromSeed</code>.</p>
+
+        <p style="color:var(--accent3,#f0a0c8)">YourMine ne vend pas des apps. Ne vend pas un store. Ne vend pas une crypto. C'est une infrastructure d'incitation collective, ouverte et auto-confinée.</p>
+
+        <div class="ym-divider"></div>
+        <p style="font-size:11px;font-style:italic;color:var(--text3)">"Facebook a développé un réseau d'incitation sociale. WordPress a développé une plateforme de plugins. YourMine développe l'incitation économique dans un réseau de plugins."</p>
+      </div>
     </div>
   </div>
 
@@ -236,7 +262,7 @@ function renderLocked(hasWallet) {
   <div class="ym-panel-title">Wallet Solana</div>
   <div class="ym-wallet-unlock" id="mine-unlock-form">
     ${!hasWallet ? `
-      <div class="ym-notice info"><span>Créez un wallet avec une passphrase, ou importez une clé privée existante.</span></div>
+      <div class="ym-notice info"><span>Entrez une passphrase mémorisable — elle détermine votre adresse de façon reproductible. Ou importez une clé privée existante.</span></div>
       <div style="position:relative">
         <input class="ym-input" id="mine-passphrase" placeholder="Passphrase (mémorisable)" style="padding-right:36px"/>
         <button id="mine-pp-toggle" type="button" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">👁</button>
@@ -256,6 +282,7 @@ function renderLocked(hasWallet) {
       <div class="ym-wallet-address" id="mine-pubkey-preview">${JSON.parse(localStorage.getItem('ym_wallet_v1') || '{}').pubkey || '…'}</div>
       <input class="ym-input" id="mine-password" placeholder="Mot de passe" type="password"/>
       <button class="ym-btn ym-btn-accent" id="mine-unlock-btn" style="width:100%">Déverrouiller</button>
+      <div class="ym-notice info" style="font-size:10px"><span>⚠ Si vous aviez créé ce wallet <em>avant le 12 mars 2026</em>, il utilisait une clé aléatoire. Supprimez-le et recréez avec votre passphrase.</span></div>
       <details style="margin-top:4px">
         <summary style="font-size:10px;color:var(--text3);cursor:pointer;letter-spacing:.5px">Importer un autre wallet</summary>
         <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
@@ -497,6 +524,15 @@ function wireWalletEvents() {
   });
 
   updateBurnPreview();
+
+  // Notre Projet toggle
+  $('mine-about-toggle')?.addEventListener('click', () => {
+    const el2 = $('mine-about-content');
+    if (!el2) return;
+    const open = el2.style.display !== 'none';
+    el2.style.display = open ? 'none' : '';
+    $('mine-about-toggle').textContent = 'Notre Projet ' + (open ? '▸' : '▾');
+  });
 }
 
 function showWalletError(msg) {
