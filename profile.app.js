@@ -1,58 +1,38 @@
 // ════════════════════════════════════════════════════════
-//  profile.app.js — YourMine Profile Management
+//  profile.app.js — YourMine Profile
+//  @icon 👤
+//  @desc Identité, réseaux sociaux, sauvegarde Gist
+//  @author YourMine
+//  @cat core
 // ════════════════════════════════════════════════════════
 
 (function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
 
-// Réseaux dont le contenu est extractible sans backend :
-// - API publique JSON, RSS public, WebSocket, token optionnel
 const SOCIAL_NETWORKS = [
-  // ── Fediverse ──
-  { id: 'mastodon',   name: 'Mastodon',      needsInstance: true,  base: 'https://{instance}/@',          placeholder: 'mastodon.social',   type: 'api' },
-  { id: 'pixelfed',   name: 'Pixelfed',      needsInstance: true,  base: 'https://{instance}/@',          placeholder: 'pixelfed.social',   type: 'api' },
-  { id: 'misskey',    name: 'Misskey',       needsInstance: true,  base: 'https://{instance}/@',          placeholder: 'misskey.io',        type: 'api' },
-  { id: 'peertube',   name: 'PeerTube',      needsInstance: true,  base: 'https://{instance}/a/',         placeholder: 'video.blender.org', type: 'api' },
-  { id: 'lemmy',      name: 'Lemmy',         needsInstance: true,  base: 'https://{instance}/u/',         placeholder: 'lemmy.world',       type: 'api' },
-  { id: 'threads',    name: 'Threads',       needsInstance: false, base: 'https://www.threads.net/@',     placeholder: '',                  type: 'api' },
-  // ── Protocoles ouverts ──
-  { id: 'bluesky',    name: 'Bluesky',       needsInstance: false, base: 'https://bsky.app/profile/',     placeholder: '',                  type: 'api' },
-  { id: 'nostr',      name: 'Nostr',         needsInstance: false, base: 'https://snort.social/p/',       placeholder: '',                  type: 'ws'  },
-  { id: 'farcaster',  name: 'Farcaster',     needsInstance: false, base: 'https://warpcast.com/',         placeholder: '',                  type: 'api' },
-  // ── Blogs / Newsletters ──
-  { id: 'paragraph',  name: 'Paragraph',     needsInstance: false, base: 'https://paragraph.xyz/@',       placeholder: '',                  type: 'rss',     rssUrl: 'https://paragraph.xyz/@{handle}/feed' },
-  { id: 'substack',   name: 'Substack',      needsInstance: false, base: 'https://{handle}.substack.com', placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.substack.com/feed' },
-  { id: 'medium',     name: 'Medium',        needsInstance: false, base: 'https://medium.com/@',          placeholder: '',                  type: 'rss',     rssUrl: 'https://medium.com/feed/@{handle}' },
-  { id: 'ghost',      name: 'Ghost',         needsInstance: true,  base: 'https://{instance}/',           placeholder: 'monblog.ghost.io',  type: 'rss',     rssUrl: 'https://{instance}/rss/' },
-  { id: 'beehiiv',    name: 'Beehiiv',       needsInstance: false, base: 'https://{handle}.beehiiv.com',  placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.beehiiv.com/feed' },
-  { id: 'wordpress',  name: 'WordPress',     needsInstance: true,  base: 'https://{instance}/',           placeholder: 'monsite.com',       type: 'rss',     rssUrl: 'https://{instance}/feed/' },
-  { id: 'blogger',    name: 'Blogger',       needsInstance: false, base: 'https://{handle}.blogspot.com', placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.blogspot.com/feeds/posts/default' },
-  { id: 'tumblr',     name: 'Tumblr',        needsInstance: false, base: 'https://{handle}.tumblr.com',   placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.tumblr.com/rss' },
-  { id: 'youtube',    name: 'YouTube',       needsInstance: false, base: 'https://youtube.com/@',         placeholder: '',                  type: 'rss',     rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id={handle}', needsChannelId: true },
-  { id: 'podcast',    name: 'Podcast (RSS)', needsInstance: false, base: '',                              placeholder: 'https://feed.url',  type: 'rss',     rssUrl: '{handle}', isUrl: true },
-  { id: 'reddit',     name: 'Reddit',        needsInstance: false, base: 'https://reddit.com/user/',      placeholder: '',                  type: 'rss',     rssUrl: 'https://www.reddit.com/user/{handle}.rss' },
-  // ── Code / Tech ──
-  { id: 'devto',      name: 'Dev.to',        needsInstance: false, base: 'https://dev.to/',               placeholder: '',                  type: 'api',     apiUrl: 'https://dev.to/api/articles?username={handle}' },
-  { id: 'hashnode',   name: 'Hashnode',      needsInstance: false, base: 'https://hashnode.com/@',        placeholder: '',                  type: 'graphql' },
-  { id: 'github',     name: 'GitHub',        needsInstance: false, base: 'https://github.com/',           placeholder: '',                  type: 'api',     apiUrl: 'https://api.github.com/users/{handle}' },
-  // ── Token requis ──
-  { id: 'twitter',    name: 'X / Twitter',   needsInstance: false, base: 'https://x.com/',                placeholder: '',                  type: 'api',     needsToken: true },
+  { id: 'mastodon',   name: 'Mastodon',      needsInstance: true,  base: 'https://{instance}/@',          type: 'api' },
+  { id: 'pixelfed',   name: 'Pixelfed',      needsInstance: true,  base: 'https://{instance}/@',          type: 'api' },
+  { id: 'misskey',    name: 'Misskey',       needsInstance: true,  base: 'https://{instance}/@',          type: 'api' },
+  { id: 'peertube',   name: 'PeerTube',      needsInstance: true,  base: 'https://{instance}/a/',         type: 'api' },
+  { id: 'lemmy',      name: 'Lemmy',         needsInstance: true,  base: 'https://{instance}/u/',         type: 'api' },
+  { id: 'threads',    name: 'Threads',       needsInstance: false, base: 'https://www.threads.net/@',     type: 'api' },
+  { id: 'bluesky',    name: 'Bluesky',       needsInstance: false, base: 'https://bsky.app/profile/',     type: 'api' },
+  { id: 'nostr',      name: 'Nostr',         needsInstance: false, base: 'https://snort.social/p/',       type: 'ws'  },
+  { id: 'farcaster',  name: 'Farcaster',     needsInstance: false, base: 'https://warpcast.com/',         type: 'api' },
+  { id: 'paragraph',  name: 'Paragraph',     needsInstance: false, base: 'https://paragraph.xyz/@',       type: 'rss', rssUrl: 'https://paragraph.xyz/@{handle}/feed' },
+  { id: 'substack',   name: 'Substack',      needsInstance: false, base: 'https://{handle}.substack.com', type: 'rss', rssUrl: 'https://{handle}.substack.com/feed' },
+  { id: 'medium',     name: 'Medium',        needsInstance: false, base: 'https://medium.com/@',          type: 'rss', rssUrl: 'https://medium.com/feed/@{handle}' },
+  { id: 'ghost',      name: 'Ghost',         needsInstance: true,  base: 'https://{instance}/',           type: 'rss', rssUrl: 'https://{instance}/rss/' },
+  { id: 'beehiiv',    name: 'Beehiiv',       needsInstance: false, base: 'https://{handle}.beehiiv.com',  type: 'rss', rssUrl: 'https://{handle}.beehiiv.com/feed' },
+  { id: 'wordpress',  name: 'WordPress',     needsInstance: true,  base: 'https://{instance}/',           type: 'rss', rssUrl: 'https://{instance}/feed/' },
+  { id: 'youtube',    name: 'YouTube',       needsInstance: false, base: 'https://youtube.com/@',         type: 'rss', rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id={handle}' },
+  { id: 'reddit',     name: 'Reddit',        needsInstance: false, base: 'https://reddit.com/user/',      type: 'rss', rssUrl: 'https://www.reddit.com/user/{handle}.rss' },
+  { id: 'github',     name: 'GitHub',        needsInstance: false, base: 'https://github.com/',           type: 'api', apiUrl: 'https://api.github.com/users/{handle}' },
+  { id: 'twitter',    name: 'X / Twitter',   needsInstance: false, base: 'https://x.com/',                type: 'api', needsToken: true },
 ];
 
 function ensureProfile() {
   if (!YM.profile) {
-    YM.profile = {
-      uuid:            crypto.randomUUID(),
-      name:            '',
-      photo:           null,
-      socialNet:       '',
-      socialHandle:    '',
-      socialInstance:  '',   // ex: mastodon.social, pixelfed.social
-      socialToken:     '',   // Bearer token pour X/Twitter
-      website:         '',
-      theme:           'default',
-      spheres:         { repo: [], creator: [], tester: [] },
-      gistId:          null,
-    };
+    YM.profile = { uuid: crypto.randomUUID(), name: '', bio: '', photo: null, socialNet: '', socialHandle: '', socialInstance: '', socialToken: '', website: '', gistId: null };
     localStorage.setItem('ym_profile', JSON.stringify(YM.profile));
   }
   return YM.profile;
@@ -60,70 +40,49 @@ function ensureProfile() {
 
 function saveProfile() {
   localStorage.setItem('ym_profile', JSON.stringify(YM.profile));
-  YM.contacts = JSON.parse(localStorage.getItem('ym_contacts') || '[]');
+  window.YM_updateProfileIcon?.();
 }
 
-// ── PHOTO COMPRESS ────────────────────────────────────────
 function compressPhoto(file, maxW = 200) {
   return new Promise((res, rej) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
       const ratio = Math.min(1, maxW / img.width);
-      const w = Math.round(img.width * ratio);
-      const h = Math.round(img.height * ratio);
       const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      res(c.toDataURL('image/jpeg', 0.75));
+      c.width = Math.round(img.width * ratio); c.height = Math.round(img.height * ratio);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.75));
     };
-    img.onerror = rej;
-    img.src = url;
+    img.onerror = rej; img.src = url;
   });
 }
 
-// ── GIST SAVE / RESTORE ───────────────────────────────────
 async function saveToGist(token) {
   const p = YM.profile;
-  const payload = {
-    uuid:     p.uuid,
-    contacts: (YM.contacts || []).map(c => c.uuid),
-  };
-  const body = JSON.stringify({
-    description: 'YourMine profile backup',
-    public: false,
-    files: { 'yourmine.json': { content: JSON.stringify(payload, null, 2) } }
-  });
+  const payload = { uuid: p.uuid, contacts: (YM.contacts || []).map(c => c.uuid) };
+  const body = JSON.stringify({ description: 'YourMine profile backup', public: false, files: { 'yourmine.json': { content: JSON.stringify(payload, null, 2) } } });
   const url = p.gistId ? `https://api.github.com/gists/${p.gistId}` : 'https://api.github.com/gists';
-  const method = p.gistId ? 'PATCH' : 'POST';
-  const r = await fetch(url, { method, headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' }, body });
+  const r = await fetch(url, { method: p.gistId ? 'PATCH' : 'POST', headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' }, body });
   const data = await r.json();
   if (data.id) { p.gistId = data.id; saveProfile(); }
   return data.html_url;
 }
 
 async function restoreFromGist(token) {
-  // Cherche automatiquement le gist YourMine via le token — pas besoin de Gist ID
-  const r = await fetch('https://api.github.com/gists', {
-    headers: { Authorization: `token ${token}` }
-  });
+  const r = await fetch('https://api.github.com/gists', { headers: { Authorization: `token ${token}` } });
   const gists = await r.json();
   const found = gists.find(g => g.files?.['yourmine.json']);
-  if (!found) throw new Error('Aucun gist YourMine trouvé pour ce token');
-  const r2 = await fetch(`https://api.github.com/gists/${found.id}`, {
-    headers: { Authorization: `token ${token}` }
-  });
+  if (!found) throw new Error('Aucun gist YourMine trouvé');
+  const r2 = await fetch(`https://api.github.com/gists/${found.id}`, { headers: { Authorization: `token ${token}` } });
   const data = await r2.json();
   const content = data.files?.['yourmine.json']?.content;
   if (!content) throw new Error('Fichier yourmine.json introuvable');
   const payload = JSON.parse(content);
-  if (payload.uuid) { YM.profile.uuid = payload.uuid; }
+  if (payload.uuid) YM.profile.uuid = payload.uuid;
   if (Array.isArray(payload.contacts)) {
     const existing = YM.contacts || [];
-    payload.contacts.forEach(uuid => {
-      if (!existing.find(c => c.uuid === uuid)) existing.push({ uuid, name: uuid.slice(0,8) });
-    });
+    payload.contacts.forEach(uuid => { if (!existing.find(c => c.uuid === uuid)) existing.push({ uuid, name: uuid.slice(0,8) }); });
     YM.contacts = existing;
     localStorage.setItem('ym_contacts', JSON.stringify(YM.contacts));
   }
@@ -131,108 +90,65 @@ async function restoreFromGist(token) {
   saveProfile();
 }
 
-// ── QR CODE ───────────────────────────────────────────────
 function renderQR(uuid) {
   const container = $('profile-qr-container');
-  if (!container) return;
+  if (!container || !window.QRCode) return;
   container.innerHTML = '';
-  const profileUrl = `https://yourmine.app/u/${uuid}`;
   try {
-    new QRCode(container, { text: profileUrl, width: 140, height: 140, colorDark: '#c8f0a0', colorLight: '#050508', correctLevel: QRCode.CorrectLevel.M });
-  } catch { container.innerHTML = `<div class="ym-wallet-address" style="font-size:10px;word-break:break-all">${profileUrl}</div>`; }
+    new QRCode(container, { text: `https://yourmine-dapp.web.app/u/${uuid}`, width: 110, height: 110, colorDark: '#c8f0a0', colorLight: '#050508', correctLevel: QRCode.CorrectLevel.M });
+  } catch { container.innerHTML = `<div style="font-size:9px;word-break:break-all;color:var(--text3)">${uuid.slice(0,16)}…</div>`; }
 }
 
-// ── THEME BUILDER SECTION ─────────────────────────────────
-function renderThemeBuilder() {
-  return `
-  <div class="ym-panel" id="profile-theme-builder">
-    <div class="ym-panel-title">Builder de Thème</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="ym-notice info"><span>Générez ou codez un thème HTML+CSS. Les IDs existants ne doivent pas être supprimés.</span></div>
-      <div>
-        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Clé IA</label>
-        <div style="display:flex;gap:6px">
-          <select class="ym-input" id="profile-ai-provider" style="width:auto;flex-shrink:0">
-            <option value="anthropic">Anthropic</option>
-            <option value="openai">OpenAI</option>
-          </select>
-          <input class="ym-input" id="profile-ai-key" type="password" placeholder="sk-…" style="flex:1"/>
-        </div>
-      </div>
-      <div>
-        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Thème exemple (optionnel)</label>
-        <select class="ym-input" id="profile-theme-example">
-          <option value="">Aucun (thème default)</option>
-        </select>
-      </div>
-      <textarea class="ym-editor" id="profile-theme-prompt" placeholder="Décrivez le thème voulu : couleurs, typographie, ambiance…" rows="3"></textarea>
-      <div style="display:flex;gap:8px">
-        <button class="ym-btn ym-btn-accent" id="profile-gen-theme-btn" style="flex:1">Générer avec IA</button>
-        <button class="ym-btn" id="profile-code-theme-btn" style="flex:1">Éditer code</button>
-      </div>
-      <textarea class="ym-editor" id="profile-theme-code" placeholder="<!-- Code HTML+CSS du thème -->" rows="6" style="display:none"></textarea>
-      <div style="display:flex;gap:8px" id="profile-theme-actions" style="display:none">
-        <button class="ym-btn" id="profile-theme-preview-btn" style="flex:1">Prévisualiser</button>
-        <button class="ym-btn ym-btn-accent" id="profile-theme-publish-btn" style="flex:1">Publier</button>
-      </div>
-      <div id="profile-theme-status"></div>
-    </div>
-  </div>`;
-}
-
-// ── MAIN RENDER ────────────────────────────────────────────
 function render() {
   const body = $('ym-app-body');
   if (!body) return;
-
   const p = ensureProfile();
   const netObj = SOCIAL_NETWORKS.find(n => n.id === p.socialNet);
 
   body.innerHTML = `
-  <!-- Profile Card -->
-  <div class="ym-panel">
-    <div class="ym-profile-hero">
-      <div class="ym-profile-avatar" id="profile-avatar-display">
-        ${p.photo ? `<img src="${p.photo}" alt="" style="width:100%;height:100%;object-fit:cover"/>` : (p.name ? p.name[0].toUpperCase() : '?')}
-      </div>
-      <input type="file" id="profile-photo-input" accept="image/*" style="display:none"/>
-      <button class="ym-btn ym-btn-ghost" id="profile-photo-btn" style="font-size:10px">Changer photo</button>
-      <div style="font-family:var(--font-display);font-size:20px;font-weight:800">${p.name || 'Votre nom'}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-        <span class="ym-chip blue">${p.uuid.slice(0,8)}…</span>
-        ${p.socialNet ? `<span class="ym-chip">${netObj?.name || p.socialNet} @${p.socialHandle}</span>` : ''}
-      </div>
-    </div>
-
-    <!-- Edit form -->
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <input class="ym-input" id="profile-name" placeholder="Nom affiché" value="${p.name || ''}"/>
-      <div style="display:flex;gap:8px">
-        <select class="ym-input" id="profile-social-net" style="flex:1">
-          <option value="">Réseau social</option>
-          ${SOCIAL_NETWORKS.map(n=>`<option value="${n.id}" ${p.socialNet===n.id?'selected':''}>${n.name}</option>`).join('')}
-        </select>
-        <input class="ym-input" id="profile-social-handle" placeholder="pseudo / handle" value="${p.socialHandle||''}" style="flex:1"/>
-      </div>
-      <div id="profile-social-instance-wrap" style="${netObj?.needsInstance?'':'display:none'}">
-        <input class="ym-input" id="profile-social-instance" placeholder="Instance ex: mastodon.social" value="${p.socialInstance||''}"/>
-      </div>
-      <div id="profile-social-token-wrap" style="${netObj?.needsToken?'':'display:none'}">
-        <input class="ym-input" id="profile-social-token" type="password" placeholder="Bearer token (X/Twitter PKCE)" value="${p.socialToken||''}"/>
-      </div>
-      <input class="ym-input" id="profile-website" placeholder="Site web (https://…)" value="${p.website||''}"/>
-      <button class="ym-btn ym-btn-accent" id="profile-save-btn">Enregistrer</button>
-    </div>
-  </div>
-
-  <!-- UUID + QR -->
+  <!-- Identité (pleine largeur en col 1 sur PC) -->
   <div class="ym-panel">
     <div class="ym-panel-title">Identité</div>
-    <div class="ym-wallet-address" style="margin-bottom:12px">${p.uuid}</div>
-    <div id="profile-qr-container" class="ym-flex" style="display:flex;justify-content:center;margin-bottom:12px"></div>
-    <div style="display:flex;gap:8px">
-      <button class="ym-btn ym-btn-ghost" id="profile-copy-uuid" style="flex:1" data-tip="Copier UUID">Copier UUID</button>
-      <button class="ym-btn ym-btn-ghost" id="profile-copy-url" style="flex:1" data-tip="Copier URL">Copier URL</button>
+    <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+
+      <!-- Avatar + QR -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0">
+        <div style="position:relative">
+          <div id="profile-avatar-display" style="width:80px;height:80px;border-radius:50%;background:var(--surface2);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;overflow:hidden;cursor:pointer" title="Changer photo">
+            ${p.photo ? `<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover"/>` : (p.name ? p.name[0].toUpperCase() : '?')}
+          </div>
+          <button id="profile-photo-btn" style="position:absolute;bottom:-2px;right:-2px;width:24px;height:24px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:#050508">+</button>
+          <input type="file" id="profile-photo-input" accept="image/*" style="display:none"/>
+        </div>
+        <div id="profile-qr-container"></div>
+      </div>
+
+      <!-- Formulaire -->
+      <div style="flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px">
+        <input class="ym-input" id="profile-name" placeholder="Nom affiché" value="${p.name || ''}"/>
+        <textarea class="ym-input" id="profile-bio" placeholder="Bio courte…" style="resize:none;height:52px">${p.bio || ''}</textarea>
+        <input class="ym-input" id="profile-website" placeholder="Site web (https://…)" value="${p.website||''}"/>
+        <div style="display:flex;gap:8px">
+          <select class="ym-input" id="profile-social-net" style="flex:1">
+            <option value="">Réseau social principal</option>
+            ${SOCIAL_NETWORKS.map(n=>`<option value="${n.id}" ${p.socialNet===n.id?'selected':''}>${n.name}</option>`).join('')}
+          </select>
+          <input class="ym-input" id="profile-social-handle" placeholder="handle" value="${p.socialHandle||''}" style="flex:1"/>
+        </div>
+        <div id="profile-social-instance-wrap" style="${netObj?.needsInstance?'':'display:none'}">
+          <input class="ym-input" id="profile-social-instance" placeholder="Instance (ex: mastodon.social)" value="${p.socialInstance||''}"/>
+        </div>
+        <div id="profile-social-token-wrap" style="${netObj?.needsToken?'':'display:none'}">
+          <input class="ym-input" id="profile-social-token" type="password" placeholder="Bearer token" value="${p.socialToken||''}"/>
+        </div>
+        <div style="font-size:9px;color:var(--text3);word-break:break-all;padding:4px 0">${p.uuid}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="ym-btn ym-btn-ghost" id="profile-copy-uuid" style="font-size:9px;padding:4px 10px">⧉ UUID</button>
+          <button class="ym-btn ym-btn-ghost" id="profile-copy-url"  style="font-size:9px;padding:4px 10px">⧉ URL</button>
+          <button class="ym-btn ym-btn-accent" id="profile-save-btn" style="flex:1;min-width:120px">Enregistrer</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -240,8 +156,8 @@ function render() {
   <div class="ym-panel">
     <div class="ym-panel-title">Sauvegarde Gist</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="ym-notice info"><span>Sauvegarde de votre UUID et contacts dans un Gist privé GitHub. Le token suffit pour sauvegarder et restaurer.</span></div>
-      <input class="ym-input" id="profile-gh-token" type="password" placeholder="Token GitHub (scope : gist)"/>
+      <div class="ym-notice info"><span>Token GitHub (scope:gist) — sauvegarde et restaure UUID + contacts sur n'importe quel appareil. Le token suffit, pas besoin d'ID.</span></div>
+      <input class="ym-input" id="profile-gh-token" type="password" placeholder="ghp_… (scope : gist)"/>
       <div style="display:flex;gap:8px">
         <button class="ym-btn ym-btn-accent" id="profile-save-gist" style="flex:1">Sauvegarder</button>
         <button class="ym-btn" id="profile-restore-gist" style="flex:1">Restaurer</button>
@@ -253,234 +169,93 @@ function render() {
   <!-- Page de démarrage -->
   <div class="ym-panel">
     <div class="ym-panel-title">Page de démarrage</div>
+    <div class="ym-notice info" style="margin-bottom:10px"><span>App ou sphere active au lancement. La liste inclut les pills actuellement ouvertes.</span></div>
     <div id="profile-start-page" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-  </div>
-
-  <!-- Theme Builder -->
-  ${renderThemeBuilder()}
-
-  <!-- About YourMine -->
-  <div class="ym-panel">
-    <div class="ym-panel-title" style="cursor:pointer" id="about-toggle">Notre Projet ▸</div>
-    <div id="about-content" style="display:none">
-      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:var(--text2);line-height:1.7">
-        <p style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text)">Value Engine</p>
-        <p>Un moteur d'incitation économique dans un navigateur. Le App layer P2P de YourMine combine l'IA et une infrastructure ouverte et auto-confinée avec une adaptabilité extrême.</p>
-        <p>YourMine introduit le concept de <em style="color:var(--accent)">"Mine Per Clic"</em>. Les utilisateurs minent de la cryptomonnaie favorisés par leur fidélité grâce au <strong>Proof of Sacrifice</strong>.</p>
-        <p>Un système déterministe et désinflationiste de minage par burn. Commission volontaire au lieu d'être brûlée, déterminant également leur récompense.</p>
-        <p style="color:var(--accent3)">YourMine ne vend pas des apps. Ne vend pas un store. Ne vend pas une crypto. C'est une infrastructure d'incitation collective, ouverte et auto-confinée.</p>
-        <div class="ym-divider"></div>
-        <p style="font-size:11px;font-style:italic;color:var(--text3)">"Facebook a développé un réseau d'incitation sociale. WordPress a développé une plateforme de plugins. YourMine développe l'incitation économique dans un réseau de plugins."</p>
-      </div>
-    </div>
   </div>
   `;
 
   renderQR(p.uuid);
   wireProfileEvents();
-  loadThemeExamples();
 }
 
 function wireProfileEvents() {
-  const body = $('ym-app-body');
-  if (!body) return;
-
   // Photo
   $('profile-photo-btn')?.addEventListener('click', () => $('profile-photo-input')?.click());
+  $('profile-avatar-display')?.addEventListener('click', () => $('profile-photo-input')?.click());
   $('profile-photo-input')?.addEventListener('change', async e => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]; if (!file) return;
     const compressed = await compressPhoto(file);
     YM.profile.photo = compressed;
+    saveProfile();
     const av = $('profile-avatar-display');
-    if (av) av.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover"/>`;
+    if (av) av.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
   });
 
-  // Network select → show/hide instance & token fields
+  // Social net
   $('profile-social-net')?.addEventListener('change', e => {
     const net = SOCIAL_NETWORKS.find(n => n.id === e.target.value);
-    $('profile-social-instance-wrap').style.display = net?.needsInstance  ? '' : 'none';
-    $('profile-social-token-wrap').style.display    = net?.needsToken     ? '' : 'none';
+    $('profile-social-instance-wrap').style.display = net?.needsInstance ? '' : 'none';
+    $('profile-social-token-wrap').style.display    = net?.needsToken    ? '' : 'none';
   });
 
-  // Save profile
+  // Save
   $('profile-save-btn')?.addEventListener('click', () => {
     const p = YM.profile;
-    p.name            = $('profile-name')?.value || '';
-    p.socialNet       = $('profile-social-net')?.value || '';
-    p.socialHandle    = $('profile-social-handle')?.value || '';
-    p.socialInstance  = $('profile-social-instance')?.value?.trim() || '';
-    p.socialToken     = $('profile-social-token')?.value || '';
-    p.website         = $('profile-website')?.value || '';
+    p.name           = $('profile-name')?.value || '';
+    p.bio            = $('profile-bio')?.value || '';
+    p.socialNet      = $('profile-social-net')?.value || '';
+    p.socialHandle   = $('profile-social-handle')?.value || '';
+    p.socialInstance = $('profile-social-instance')?.value?.trim() || '';
+    p.socialToken    = $('profile-social-token')?.value || '';
+    p.website        = $('profile-website')?.value || '';
     saveProfile();
     const btn = $('profile-save-btn');
     if (btn) { btn.textContent = '✓ Enregistré'; setTimeout(() => btn.textContent = 'Enregistrer', 2000); }
   });
 
-  // Copy UUID / URL
-  $('profile-copy-uuid')?.addEventListener('click', () => navigator.clipboard.writeText(YM.profile.uuid));
-  $('profile-copy-url')?.addEventListener('click',  () => navigator.clipboard.writeText(`https://yourmine.app/u/${YM.profile.uuid}`));
+  // Copy
+  $('profile-copy-uuid')?.addEventListener('click', () => navigator.clipboard.writeText(YM.profile.uuid).catch(()=>{}));
+  $('profile-copy-url')?.addEventListener('click',  () => navigator.clipboard.writeText(`https://yourmine-dapp.web.app/u/${YM.profile.uuid}`).catch(()=>{}));
 
   // Gist
   $('profile-save-gist')?.addEventListener('click', async () => {
     const token = $('profile-gh-token')?.value;
-    if (!token) return setStatus('profile-gist-status', 'Token GitHub requis', true);
-    try {
-      const url = await saveToGist(token);
-      setStatus('profile-gist-status', 'Sauvegardé : ' + YM.profile.gistId);
-    } catch(e) { setStatus('profile-gist-status', e.message, true); }
+    if (!token) return setStatus('profile-gist-status', 'Token requis', true);
+    try { await saveToGist(token); setStatus('profile-gist-status', '✓ Sauvegardé'); }
+    catch(e) { setStatus('profile-gist-status', e.message, true); }
   });
-
   $('profile-restore-gist')?.addEventListener('click', async () => {
     const token = $('profile-gh-token')?.value?.trim();
-    if (!token) return setStatus('profile-gist-status', 'Token GitHub requis', true);
-    try {
-      await restoreFromGist(token);
-      setStatus('profile-gist-status', 'Restauré !');
-      render();
-    } catch(e) { setStatus('profile-gist-status', e.message, true); }
+    if (!token) return setStatus('profile-gist-status', 'Token requis', true);
+    try { await restoreFromGist(token); setStatus('profile-gist-status', '✓ Restauré'); render(); }
+    catch(e) { setStatus('profile-gist-status', e.message, true); }
   });
 
-  // Start page — construit dynamiquement à partir des apps disponibles
+  // Start page — apps + spheres ouvertes
   const startPageEl = $('profile-start-page');
   if (startPageEl) {
     const currentStart = localStorage.getItem('ym_start_app') || 'plug';
-    const apps = (YM?.apps?.length ? YM.apps : [{name:'plug'},{name:'mine'},{name:'profile'}]);
-    apps.forEach(a => {
+    const appItems = (YM?.apps?.length ? YM.apps : [{name:'plug'},{name:'mine'},{name:'profile'}]).map(a => ({ name: a.name, isSphere: false }));
+    const sphereItems = (YM?.sphereTabs || []).map(t => ({ name: t.name, isSphere: true }));
+    [...appItems, ...sphereItems].forEach(item => {
       const btn = document.createElement('button');
-      btn.className = 'ym-cat-btn' + (a.name === currentStart ? ' active' : '');
-      btn.dataset.app = a.name;
-      btn.textContent = a.name;
+      btn.className = 'ym-cat-btn' + (item.name === currentStart ? ' active' : '');
+      btn.dataset.name = item.name;
+      btn.textContent = (item.isSphere ? '◎ ' : '') + item.name;
       btn.onclick = () => {
-        localStorage.setItem('ym_start_app', a.name);
-        startPageEl.querySelectorAll('[data-app]').forEach(b => b.classList.toggle('active', b.dataset.app === a.name));
+        localStorage.setItem('ym_start_app', item.name);
+        startPageEl.querySelectorAll('[data-name]').forEach(b => b.classList.toggle('active', b.dataset.name === item.name));
       };
       startPageEl.appendChild(btn);
     });
   }
-
-  // Theme builder
-  $('profile-code-theme-btn')?.addEventListener('click', () => {
-    const editor = $('profile-theme-code');
-    const actions = $('profile-theme-actions');
-    if (editor) { editor.style.display = editor.style.display === 'none' ? '' : 'none'; }
-    if (actions) actions.style.display = '';
-  });
-
-  $('profile-gen-theme-btn')?.addEventListener('click', genThemeWithAI);
-  $('profile-theme-preview-btn')?.addEventListener('click', previewTheme);
-  $('profile-theme-publish-btn')?.addEventListener('click', publishTheme);
-
-  // About toggle
-  $('about-toggle')?.addEventListener('click', () => {
-    const c = $('about-content');
-    if (c) { const open = c.style.display !== 'none'; c.style.display = open ? 'none' : ''; $('about-toggle').textContent = 'Notre Projet ' + (open ? '▸' : '▾'); }
-  });
-}
-
-async function loadThemeExamples() {
-  const sel = $('profile-theme-example');
-  if (!sel) return;
-  try {
-    const files = await fetchJSON(REPO_API);
-    const themes = files.filter(f => f.name.endsWith('.theme.html'));
-    themes.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = t.name.replace('.theme.html','');
-      sel.appendChild(opt);
-    });
-  } catch {}
-}
-
-async function genThemeWithAI() {
-  const provider = $('profile-ai-provider')?.value;
-  const key      = $('profile-ai-key')?.value?.trim();
-  const prompt   = $('profile-theme-prompt')?.value?.trim();
-  const example  = $('profile-theme-example')?.value;
-
-  if (!key) return setStatus('profile-theme-status', 'Clé API requise', true);
-  if (!prompt) return setStatus('profile-theme-status', 'Prompt requis', true);
-
-  setStatus('profile-theme-status', 'Génération en cours…');
-  const btn = $('profile-gen-theme-btn');
-  btn.disabled = true;
-
-  let exampleCode = '';
-  if (example) {
-    try { exampleCode = await fetchText(REPO_RAW + example); } catch {}
-  }
-
-  const systemPrompt = `Tu es un expert en design CSS/HTML futuriste, organique, minimaliste pour l'app YourMine.
-Génère UNIQUEMENT le code HTML+CSS d'un thème.
-RÈGLE ABSOLUE : tu ne dois JAMAIS supprimer ou renommer les IDs existants : ym-root, ym-header, ym-logo, ym-balance-display, ym-balance-val, ym-main, ym-app-body, ym-btn-x, ym-btn-o, ym-x-menu, ym-o-menu, ym-theme-confirm.
-Tu peux jouer avec TOUT le reste : couleurs, typo, layout, animations, variables CSS.
-Le code commence par <style> et peut contenir des <template> HTML.
-NE PAS inclure de markdown, juste le code brut.`;
-
-  const userMsg = `Crée un thème HTML+CSS pour YourMine. Prompt: "${prompt}"${exampleCode ? `\n\nExemple de référence:\n${exampleCode.slice(0,3000)}` : ''}`;
-
-  try {
-    let code = '';
-    if (provider === 'anthropic') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: systemPrompt, messages: [{ role: 'user', content: userMsg }] })
-      });
-      const d = await r.json();
-      code = d.content?.[0]?.text || '';
-    } else {
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMsg }] })
-      });
-      const d = await r.json();
-      code = d.choices?.[0]?.message?.content || '';
-    }
-    // Strip markdown fences
-    code = code.replace(/```html|```css|```/g, '').trim();
-    const editor = $('profile-theme-code');
-    if (editor) { editor.value = code; editor.style.display = ''; }
-    const actions = $('profile-theme-actions');
-    if (actions) actions.style.display = '';
-    setStatus('profile-theme-status', 'Thème généré !');
-  } catch(e) {
-    setStatus('profile-theme-status', 'Erreur: ' + e.message, true);
-  }
-  btn.disabled = false;
-}
-
-function previewTheme() {
-  const code = $('profile-theme-code')?.value?.trim();
-  if (!code) return;
-  const root = $('ym-theme-root');
-  if (root) root.innerHTML = code;
-  const confirm = $('ym-theme-confirm');
-  if (confirm) confirm.classList.add('visible');
-}
-
-async function publishTheme() {
-  const code = $('profile-theme-code')?.value?.trim();
-  const token = $('profile-gh-token')?.value?.trim();
-  if (!code) return setStatus('profile-theme-status', 'Code requis', true);
-  // Propose a filename
-  const name = prompt('Nom du thème (sans .theme.html) :');
-  if (!name) return;
-  if (!token) return setStatus('profile-theme-status', 'Token GitHub requis pour publier', true);
-  // PR to repo (simplified: create fork + file)
-  setStatus('profile-theme-status', 'Publication: fonctionnalité PR en développement. Code copié dans le presse-papier.');
-  navigator.clipboard.writeText(code).catch(()=>{});
 }
 
 function setStatus(id, msg, isError = false) {
   const s = $(id);
-  if (!s) return;
-  s.innerHTML = `<div class="ym-notice ${isError?'error':'success'}" style="margin-top:4px"><span>${msg}</span></div>`;
+  if (s) s.innerHTML = `<div class="ym-notice ${isError?'error':'success'}" style="margin-top:4px"><span>${msg}</span></div>`;
 }
 
-// ── INIT ──────────────────────────────────────────────────
 render();
 return { cleanup: () => {} };
 
