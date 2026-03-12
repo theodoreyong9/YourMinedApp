@@ -1,467 +1,291 @@
 // ════════════════════════════════════════════════════════
-//  profile.app.js — YourMine Profile Management
+//  plug.app.js — YourMine Sphere Browser & Manager
+//  Injecte dans #ym-app-body
 // ════════════════════════════════════════════════════════
 
 (function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
 
-// Réseaux dont le contenu est extractible sans backend :
-// Mastodon & Pixelfed : API publique (instance variable)
-// Bluesky : AT Protocol public
-// Twitter/X : PKCE Bearer token
-// Nostr : relais public WebSocket
-const SOCIAL_NETWORKS = [
-  { id: 'mastodon',  name: 'Mastodon',       needsInstance: true,  base: '' },
-  { id: 'bluesky',   name: 'Bluesky',        needsInstance: false, base: 'https://bsky.app/profile/' },
-  { id: 'pixelfed',  name: 'Pixelfed',       needsInstance: true,  base: '' },
-  { id: 'twitter',   name: 'X / Twitter',    needsInstance: false, base: 'https://x.com/', needsToken: true },
-  { id: 'nostr',     name: 'Nostr',          needsInstance: false, base: 'https://snort.social/p/', needsToken: false },
-];
+const CATEGORIES = ['Autres', 'Commerce', 'Social', 'Transport', 'Jeux'];
+const SPHERE_FILTERS = ['browser', 'créateur', 'testeur'];
 
-function ensureProfile() {
-  if (!YM.profile) {
-    YM.profile = {
-      uuid:            crypto.randomUUID(),
-      name:            '',
-      photo:           null,
-      socialNet:       '',
-      socialHandle:    '',
-      socialInstance:  '',   // ex: mastodon.social, pixelfed.social
-      socialToken:     '',   // Bearer token pour X/Twitter
-      website:         '',
-      theme:           'default',
-      spheres:         { repo: [], creator: [], tester: [] },
-      gistId:          null,
-    };
-    localStorage.setItem('ym_profile', JSON.stringify(YM.profile));
-  }
-  return YM.profile;
-}
+let allSpheres = [];
+let activeCategory = 'all';
+let activeFilter   = 'browser';
+let searchQuery    = '';
 
-function saveProfile() {
-  localStorage.setItem('ym_profile', JSON.stringify(YM.profile));
-  YM.contacts = JSON.parse(localStorage.getItem('ym_contacts') || '[]');
-}
-
-// ── PHOTO COMPRESS ────────────────────────────────────────
-function compressPhoto(file, maxW = 200) {
-  return new Promise((res, rej) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const ratio = Math.min(1, maxW / img.width);
-      const w = Math.round(img.width * ratio);
-      const h = Math.round(img.height * ratio);
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      res(c.toDataURL('image/jpeg', 0.75));
-    };
-    img.onerror = rej;
-    img.src = url;
-  });
-}
-
-// ── GIST SAVE / RESTORE ───────────────────────────────────
-async function saveToGist(token) {
-  const p = YM.profile;
-  const payload = {
-    uuid:     p.uuid,
-    contacts: (YM.contacts || []).map(c => c.uuid),
-  };
-  const body = JSON.stringify({
-    description: 'YourMine profile backup',
-    public: false,
-    files: { 'yourmine.json': { content: JSON.stringify(payload, null, 2) } }
-  });
-  const url = p.gistId ? `https://api.github.com/gists/${p.gistId}` : 'https://api.github.com/gists';
-  const method = p.gistId ? 'PATCH' : 'POST';
-  const r = await fetch(url, { method, headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' }, body });
-  const data = await r.json();
-  if (data.id) { p.gistId = data.id; saveProfile(); }
-  return data.html_url;
-}
-
-async function restoreFromGist(gistId) {
-  const r = await fetch(`https://api.github.com/gists/${gistId}`);
-  const data = await r.json();
-  const content = data.files?.['yourmine.json']?.content;
-  if (!content) throw new Error('Fichier yourmine.json introuvable');
-  const payload = JSON.parse(content);
-  if (payload.uuid) { YM.profile.uuid = payload.uuid; }
-  if (Array.isArray(payload.contacts)) {
-    const existing = YM.contacts || [];
-    payload.contacts.forEach(uuid => {
-      if (!existing.find(c => c.uuid === uuid)) existing.push({ uuid, name: uuid.slice(0,8) });
-    });
-    YM.contacts = existing;
-    localStorage.setItem('ym_contacts', JSON.stringify(YM.contacts));
-  }
-  YM.profile.gistId = gistId;
-  saveProfile();
-}
-
-// ── QR CODE ───────────────────────────────────────────────
-function renderQR(uuid) {
-  const container = $('profile-qr-container');
-  if (!container) return;
-  container.innerHTML = '';
-  const profileUrl = `https://yourmine.app/u/${uuid}`;
-  try {
-    new QRCode(container, { text: profileUrl, width: 140, height: 140, colorDark: '#c8f0a0', colorLight: '#050508', correctLevel: QRCode.CorrectLevel.M });
-  } catch { container.innerHTML = `<div class="ym-wallet-address" style="font-size:10px;word-break:break-all">${profileUrl}</div>`; }
-}
-
-// ── THEME BUILDER SECTION ─────────────────────────────────
-function renderThemeBuilder() {
-  return `
-  <div class="ym-panel" id="profile-theme-builder">
-    <div class="ym-panel-title">Builder de Thème</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="ym-notice info"><span>Générez ou codez un thème HTML+CSS. Les IDs existants ne doivent pas être supprimés.</span></div>
-      <div>
-        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Clé IA</label>
-        <div style="display:flex;gap:6px">
-          <select class="ym-input" id="profile-ai-provider" style="width:auto;flex-shrink:0">
-            <option value="anthropic">Anthropic</option>
-            <option value="openai">OpenAI</option>
-          </select>
-          <input class="ym-input" id="profile-ai-key" type="password" placeholder="sk-…" style="flex:1"/>
-        </div>
-      </div>
-      <div>
-        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Thème exemple (optionnel)</label>
-        <select class="ym-input" id="profile-theme-example">
-          <option value="">Aucun (thème default)</option>
-        </select>
-      </div>
-      <textarea class="ym-editor" id="profile-theme-prompt" placeholder="Décrivez le thème voulu : couleurs, typographie, ambiance…" rows="3"></textarea>
-      <div style="display:flex;gap:8px">
-        <button class="ym-btn ym-btn-accent" id="profile-gen-theme-btn" style="flex:1">Générer avec IA</button>
-        <button class="ym-btn" id="profile-code-theme-btn" style="flex:1">Éditer code</button>
-      </div>
-      <textarea class="ym-editor" id="profile-theme-code" placeholder="<!-- Code HTML+CSS du thème -->" rows="6" style="display:none"></textarea>
-      <div style="display:flex;gap:8px" id="profile-theme-actions" style="display:none">
-        <button class="ym-btn" id="profile-theme-preview-btn" style="flex:1">Prévisualiser</button>
-        <button class="ym-btn ym-btn-accent" id="profile-theme-publish-btn" style="flex:1">Publier</button>
-      </div>
-      <div id="profile-theme-status"></div>
-    </div>
-  </div>`;
-}
-
-// ── MAIN RENDER ────────────────────────────────────────────
+// ── RENDER ROOT ──────────────────────────────────────────
 function render() {
   const body = $('ym-app-body');
   if (!body) return;
 
-  const p = ensureProfile();
-  const netObj = SOCIAL_NETWORKS.find(n => n.id === p.socialNet);
-
   body.innerHTML = `
-  <!-- Profile Card -->
-  <div class="ym-panel">
-    <div class="ym-profile-hero">
-      <div class="ym-profile-avatar" id="profile-avatar-display">
-        ${p.photo ? `<img src="${p.photo}" alt="" style="width:100%;height:100%;object-fit:cover"/>` : (p.name ? p.name[0].toUpperCase() : '?')}
+  <div class="ym-panel ym-stagger">
+
+    <!-- Top: search + filter type -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div class="ym-search-wrap" style="flex:1;min-width:180px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input class="ym-input" id="plug-search" placeholder="Rechercher une sphere…" value="${searchQuery}"/>
       </div>
-      <input type="file" id="profile-photo-input" accept="image/*" style="display:none"/>
-      <button class="ym-btn ym-btn-ghost" id="profile-photo-btn" style="font-size:10px">Changer photo</button>
-      <div style="font-family:var(--font-display);font-size:20px;font-weight:800">${p.name || 'Votre nom'}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-        <span class="ym-chip blue">${p.uuid.slice(0,8)}…</span>
-        ${p.socialNet ? `<span class="ym-chip">${netObj?.name || p.socialNet} @${p.socialHandle}</span>` : ''}
+      <div style="display:flex;gap:4px;flex-shrink:0" id="plug-filter-tabs">
+        ${SPHERE_FILTERS.map(f => `<button class="ym-cat-btn${f===activeFilter?' active':''}" data-filter="${f}">${f}</button>`).join('')}
       </div>
     </div>
 
-    <!-- Edit form -->
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <input class="ym-input" id="profile-name" placeholder="Nom affiché" value="${p.name || ''}"/>
-      <div style="display:flex;gap:8px">
-        <select class="ym-input" id="profile-social-net" style="flex:1">
-          <option value="">Réseau social</option>
-          ${SOCIAL_NETWORKS.map(n=>`<option value="${n.id}" ${p.socialNet===n.id?'selected':''}>${n.name}</option>`).join('')}
-        </select>
-        <input class="ym-input" id="profile-social-handle" placeholder="pseudo / handle" value="${p.socialHandle||''}" style="flex:1"/>
-      </div>
-      <div id="profile-social-instance-wrap" style="${netObj?.needsInstance?'':'display:none'}">
-        <input class="ym-input" id="profile-social-instance" placeholder="Instance ex: mastodon.social" value="${p.socialInstance||''}"/>
-      </div>
-      <div id="profile-social-token-wrap" style="${netObj?.needsToken?'':'display:none'}">
-        <input class="ym-input" id="profile-social-token" type="password" placeholder="Bearer token (X/Twitter PKCE)" value="${p.socialToken||''}"/>
-      </div>
-      <input class="ym-input" id="profile-website" placeholder="Site web (https://…)" value="${p.website||''}"/>
-      <button class="ym-btn ym-btn-accent" id="profile-save-btn">Enregistrer</button>
+    <!-- Category row -->
+    <div class="ym-cat-filter" id="plug-cats">
+      <button class="ym-cat-btn${activeCategory==='all'?' active':''}" data-cat="all">Toutes</button>
+      ${CATEGORIES.map(c=>`<button class="ym-cat-btn${activeCategory===c?' active':''}" data-cat="${c}">${c}</button>`).join('')}
     </div>
+
+    <!-- Sphere list -->
+    <div id="plug-sphere-list" class="ym-stagger" style="display:flex;flex-direction:column;gap:4px;max-height:40dvh;overflow-y:auto;padding-right:4px"></div>
+
   </div>
 
-  <!-- UUID + QR -->
-  <div class="ym-panel">
-    <div class="ym-panel-title">Identité</div>
-    <div class="ym-wallet-address" style="margin-bottom:12px">${p.uuid}</div>
-    <div id="profile-qr-container" class="ym-flex" style="display:flex;justify-content:center;margin-bottom:12px"></div>
-    <div style="display:flex;gap:8px">
-      <button class="ym-btn ym-btn-ghost" id="profile-copy-uuid" style="flex:1" data-tip="Copier UUID">Copier UUID</button>
-      <button class="ym-btn ym-btn-ghost" id="profile-copy-url" style="flex:1" data-tip="Copier URL">Copier URL</button>
-    </div>
+  <!-- Sphere content area -->
+  <div id="ym-sphere-content" class="ym-panel" style="min-height:220px;flex:1;align-items:center;justify-content:center;display:flex">
+    <span style="color:var(--text3);font-size:11px;letter-spacing:1.5px;text-transform:uppercase">Sélectionner une sphere</span>
   </div>
 
-  <!-- Gist Backup -->
-  <div class="ym-panel">
-    <div class="ym-panel-title">Sauvegarde Gist</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="ym-notice info"><span>Sauvegarde : UUID + liste UUID de vos contacts dans un Gist privé GitHub.</span></div>
-      <input class="ym-input" id="profile-gh-token" type="password" placeholder="Token GitHub (scope : gist)"/>
-      <div style="display:flex;gap:8px">
-        <button class="ym-btn ym-btn-accent" id="profile-save-gist" style="flex:1">Sauvegarder</button>
-        <button class="ym-btn" id="profile-restore-gist" style="flex:1">Restaurer</button>
-      </div>
-      <div style="display:flex;gap:8px">
-        <input class="ym-input" id="profile-gist-id" placeholder="Gist ID (pour restaurer)" value="${p.gistId||''}" style="flex:1"/>
-        <button class="ym-btn ym-btn-ghost" id="profile-copy-gistid" data-tip="Copier Gist ID">⧉</button>
-      </div>
-      <div id="profile-gist-status"></div>
-    </div>
-  </div>
-
-  <!-- Page de démarrage -->
-  <div class="ym-panel">
-    <div class="ym-panel-title">Page de démarrage</div>
-    <div id="profile-start-page" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-  </div>
-
-  <!-- Theme Builder -->
-  ${renderThemeBuilder()}
-
-  <!-- About YourMine -->
-  <div class="ym-panel">
-    <div class="ym-panel-title" style="cursor:pointer" id="about-toggle">Notre Projet ▸</div>
-    <div id="about-content" style="display:none">
-      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:var(--text2);line-height:1.7">
-        <p style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text)">Value Engine</p>
-        <p>Un moteur d'incitation économique dans un navigateur. Le App layer P2P de YourMine combine l'IA et une infrastructure ouverte et auto-confinée avec une adaptabilité extrême.</p>
-        <p>YourMine introduit le concept de <em style="color:var(--accent)">"Mine Per Clic"</em>. Les utilisateurs minent de la cryptomonnaie favorisés par leur fidélité grâce au <strong>Proof of Sacrifice</strong>.</p>
-        <p>Un système déterministe et désinflationiste de minage par burn. Commission volontaire au lieu d'être brûlée, déterminant également leur récompense.</p>
-        <p style="color:var(--accent3)">YourMine ne vend pas des apps. Ne vend pas un store. Ne vend pas une crypto. C'est une infrastructure d'incitation collective, ouverte et auto-confinée.</p>
-        <div class="ym-divider"></div>
-        <p style="font-size:11px;font-style:italic;color:var(--text3)">"Facebook a développé un réseau d'incitation sociale. WordPress a développé une plateforme de plugins. YourMine développe l'incitation économique dans un réseau de plugins."</p>
-      </div>
-    </div>
+  <!-- My spheres -->
+  <div class="ym-panel" id="plug-my-spheres-panel">
+    <div class="ym-panel-title">Mes Spheres</div>
+    <div id="plug-my-spheres" style="display:flex;flex-direction:column;gap:4px"></div>
   </div>
   `;
 
-  renderQR(p.uuid);
-  wireProfileEvents();
-  loadThemeExamples();
+  // Wire search
+  $('plug-search').oninput = e => { searchQuery = e.target.value; renderSphereList(); };
+
+  // Wire filter tabs
+  $('plug-filter-tabs').querySelectorAll('[data-filter]').forEach(btn => {
+    btn.onclick = () => {
+      activeFilter = btn.dataset.filter;
+      $('plug-filter-tabs').querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('active', b.dataset.filter === activeFilter));
+      renderSphereList();
+    };
+  });
+
+  // Wire category buttons
+  $('plug-cats').querySelectorAll('[data-cat]').forEach(btn => {
+    btn.onclick = () => {
+      activeCategory = btn.dataset.cat;
+      $('plug-cats').querySelectorAll('[data-cat]').forEach(b => b.classList.toggle('active', b.dataset.cat === activeCategory));
+      renderSphereList();
+    };
+  });
+
+  loadSpheres();
+  renderMySpheres();
 }
 
-function wireProfileEvents() {
-  const body = $('ym-app-body');
-  if (!body) return;
+// ── LOAD SPHERES FROM REPO ────────────────────────────────
+async function loadSpheres() {
+  const listEl = $('plug-sphere-list');
+  if (!listEl) return;
 
-  // Photo
-  $('profile-photo-btn')?.addEventListener('click', () => $('profile-photo-input')?.click());
-  $('profile-photo-input')?.addEventListener('change', async e => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const compressed = await compressPhoto(file);
-    YM.profile.photo = compressed;
-    const av = $('profile-avatar-display');
-    if (av) av.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover"/>`;
-  });
-
-  // Network select → show/hide instance & token fields
-  $('profile-social-net')?.addEventListener('change', e => {
-    const net = SOCIAL_NETWORKS.find(n => n.id === e.target.value);
-    $('profile-social-instance-wrap').style.display = net?.needsInstance  ? '' : 'none';
-    $('profile-social-token-wrap').style.display    = net?.needsToken     ? '' : 'none';
-  });
-
-  // Save profile
-  $('profile-save-btn')?.addEventListener('click', () => {
-    const p = YM.profile;
-    p.name            = $('profile-name')?.value || '';
-    p.socialNet       = $('profile-social-net')?.value || '';
-    p.socialHandle    = $('profile-social-handle')?.value || '';
-    p.socialInstance  = $('profile-social-instance')?.value?.trim() || '';
-    p.socialToken     = $('profile-social-token')?.value || '';
-    p.website         = $('profile-website')?.value || '';
-    saveProfile();
-    const btn = $('profile-save-btn');
-    if (btn) { btn.textContent = '✓ Enregistré'; setTimeout(() => btn.textContent = 'Enregistrer', 2000); }
-  });
-
-  // Copy UUID / URL
-  $('profile-copy-uuid')?.addEventListener('click', () => navigator.clipboard.writeText(YM.profile.uuid));
-  $('profile-copy-url')?.addEventListener('click',  () => navigator.clipboard.writeText(`https://yourmine.app/u/${YM.profile.uuid}`));
-
-  // Gist
-  $('profile-save-gist')?.addEventListener('click', async () => {
-    const token = $('profile-gh-token')?.value;
-    if (!token) return setStatus('profile-gist-status', 'Token GitHub requis', true);
-    try {
-      const url = await saveToGist(token);
-      setStatus('profile-gist-status', 'Sauvegardé : ' + YM.profile.gistId);
-    } catch(e) { setStatus('profile-gist-status', e.message, true); }
-  });
-
-  $('profile-restore-gist')?.addEventListener('click', async () => {
-    const gistId = $('profile-gist-id')?.value?.trim();
-    if (!gistId) return setStatus('profile-gist-status', 'Gist ID requis', true);
-    try {
-      await restoreFromGist(gistId);
-      setStatus('profile-gist-status', 'Restauré !');
-      render();
-    } catch(e) { setStatus('profile-gist-status', e.message, true); }
-  });
-
-  // Copy Gist ID
-  $('profile-copy-gistid')?.addEventListener('click', () => {
-    const id = YM.profile?.gistId;
-    if (id) navigator.clipboard.writeText(id).catch(()=>{});
-  });
-
-  // Start page — construit dynamiquement à partir des apps disponibles
-  const startPageEl = $('profile-start-page');
-  if (startPageEl) {
-    const currentStart = localStorage.getItem('ym_start_app') || 'plug';
-    const apps = (YM?.apps?.length ? YM.apps : [{name:'plug'},{name:'mine'},{name:'profile'}]);
-    apps.forEach(a => {
-      const btn = document.createElement('button');
-      btn.className = 'ym-cat-btn' + (a.name === currentStart ? ' active' : '');
-      btn.dataset.app = a.name;
-      btn.textContent = a.name;
-      btn.onclick = () => {
-        localStorage.setItem('ym_start_app', a.name);
-        startPageEl.querySelectorAll('[data-app]').forEach(b => b.classList.toggle('active', b.dataset.app === a.name));
-      };
-      startPageEl.appendChild(btn);
+  // Utilise YM.spheres déjà chargé par index.html — pas de double appel GitHub
+  if (YM.spheres && YM.spheres.length) {
+    allSpheres = YM.spheres.map(s => ({
+      name: s.name, cat: s.cat || 'autres', url: s.url, info: null
+    }));
+    renderSphereList();
+    // Charge les métadonnées de chaque sphere en arrière-plan
+    allSpheres.forEach(async sp => {
+      try {
+        const code = await fetchText(sp.url);
+        sp.info = extractSphereInfo(code);
+        const item = document.querySelector(`[data-sphere="${sp.name}"]`);
+        if (item) updateSphereItemUI(item, sp);
+      } catch {}
     });
+    return;
   }
 
-  // Theme builder
-  $('profile-code-theme-btn')?.addEventListener('click', () => {
-    const editor = $('profile-theme-code');
-    const actions = $('profile-theme-actions');
-    if (editor) { editor.style.display = editor.style.display === 'none' ? '' : 'none'; }
-    if (actions) actions.style.display = '';
-  });
-
-  $('profile-gen-theme-btn')?.addEventListener('click', genThemeWithAI);
-  $('profile-theme-preview-btn')?.addEventListener('click', previewTheme);
-  $('profile-theme-publish-btn')?.addEventListener('click', publishTheme);
-
-  // About toggle
-  $('about-toggle')?.addEventListener('click', () => {
-    const c = $('about-content');
-    if (c) { const open = c.style.display !== 'none'; c.style.display = open ? 'none' : ''; $('about-toggle').textContent = 'Notre Projet ' + (open ? '▸' : '▾'); }
-  });
-}
-
-async function loadThemeExamples() {
-  const sel = $('profile-theme-example');
-  if (!sel) return;
+  // Fallback : YM.spheres vide, on essaie l'API directement
+  listEl.innerHTML = `<div style="display:flex;gap:8px;align-items:center;color:var(--text3);padding:12px 0"><div class="ym-loading"></div><span>Chargement des spheres…</span></div>`;
   try {
     const files = await fetchJSON(REPO_API);
-    const themes = files.filter(f => f.name.endsWith('.theme.html'));
-    themes.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = t.name.replace('.theme.html','');
-      sel.appendChild(opt);
+    const sphereFiles = files.filter(f => f.name.endsWith('.sphere.js'));
+    allSpheres = sphereFiles.map(f => {
+      const base  = f.name.replace('.sphere.js', '');
+      const parts = base.split('.');
+      const name  = parts.length >= 2 ? parts.slice(1).join('.') : parts[0];
+      const cat   = parts.length >= 2 ? parts[0] : 'autres';
+      return { name, cat, url: REPO_RAW + f.name, info: null };
     });
-  } catch {}
-}
-
-async function genThemeWithAI() {
-  const provider = $('profile-ai-provider')?.value;
-  const key      = $('profile-ai-key')?.value?.trim();
-  const prompt   = $('profile-theme-prompt')?.value?.trim();
-  const example  = $('profile-theme-example')?.value;
-
-  if (!key) return setStatus('profile-theme-status', 'Clé API requise', true);
-  if (!prompt) return setStatus('profile-theme-status', 'Prompt requis', true);
-
-  setStatus('profile-theme-status', 'Génération en cours…');
-  const btn = $('profile-gen-theme-btn');
-  btn.disabled = true;
-
-  let exampleCode = '';
-  if (example) {
-    try { exampleCode = await fetchText(REPO_RAW + example); } catch {}
-  }
-
-  const systemPrompt = `Tu es un expert en design CSS/HTML futuriste, organique, minimaliste pour l'app YourMine.
-Génère UNIQUEMENT le code HTML+CSS d'un thème.
-RÈGLE ABSOLUE : tu ne dois JAMAIS supprimer ou renommer les IDs existants : ym-root, ym-header, ym-logo, ym-balance-display, ym-balance-val, ym-main, ym-app-body, ym-btn-x, ym-btn-o, ym-x-menu, ym-o-menu, ym-theme-confirm.
-Tu peux jouer avec TOUT le reste : couleurs, typo, layout, animations, variables CSS.
-Le code commence par <style> et peut contenir des <template> HTML.
-NE PAS inclure de markdown, juste le code brut.`;
-
-  const userMsg = `Crée un thème HTML+CSS pour YourMine. Prompt: "${prompt}"${exampleCode ? `\n\nExemple de référence:\n${exampleCode.slice(0,3000)}` : ''}`;
-
-  try {
-    let code = '';
-    if (provider === 'anthropic') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: systemPrompt, messages: [{ role: 'user', content: userMsg }] })
-      });
-      const d = await r.json();
-      code = d.content?.[0]?.text || '';
-    } else {
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMsg }] })
-      });
-      const d = await r.json();
-      code = d.choices?.[0]?.message?.content || '';
-    }
-    // Strip markdown fences
-    code = code.replace(/```html|```css|```/g, '').trim();
-    const editor = $('profile-theme-code');
-    if (editor) { editor.value = code; editor.style.display = ''; }
-    const actions = $('profile-theme-actions');
-    if (actions) actions.style.display = '';
-    setStatus('profile-theme-status', 'Thème généré !');
+    renderSphereList();
+    allSpheres.forEach(async sp => {
+      try {
+        const code = await fetchText(sp.url);
+        sp.info = extractSphereInfo(code);
+        const item = document.querySelector(`[data-sphere="${sp.name}"]`);
+        if (item) updateSphereItemUI(item, sp);
+      } catch {}
+    });
   } catch(e) {
-    setStatus('profile-theme-status', 'Erreur: ' + e.message, true);
+    // Fallback hardcoded
+    allSpheres = [
+      { name: 'builder', cat: 'builder', url: REPO_RAW + 'builder.sphere.js', info: { icon: '🔨', desc: 'Créez et publiez des Spheres et Thèmes' } },
+      { name: 'social',  cat: 'social',  url: REPO_RAW + 'social.sphere.js',  info: { icon: '📡', desc: 'Near • Contact • Feed' } },
+    ];
+    ];
+    renderSphereList();
   }
-  btn.disabled = false;
 }
 
-function previewTheme() {
-  const code = $('profile-theme-code')?.value?.trim();
-  if (!code) return;
-  const root = $('ym-theme-root');
-  if (root) root.innerHTML = code;
-  const confirm = $('ym-theme-confirm');
-  if (confirm) confirm.classList.add('visible');
+function extractSphereInfo(code) {
+  const info = {};
+  const meta = code.match(/\/\*\s*@sphere\s+([\s\S]*?)\*\//);
+  if (meta) {
+    const block = meta[1];
+    info.icon    = (block.match(/@icon\s+(.+)/)  || [])[1]?.trim();
+    info.desc    = (block.match(/@desc\s+(.+)/)  || [])[1]?.trim();
+    info.cat     = (block.match(/@cat\s+(.+)/)   || [])[1]?.trim();
+    info.web     = (block.match(/@web\s+(.+)/)   || [])[1]?.trim();
+    info.author  = (block.match(/@author\s+(.+)/)|| [])[1]?.trim();
+    info.uuid    = (block.match(/@uuid\s+(.+)/)  || [])[1]?.trim();
+    info.score   = parseFloat((block.match(/@score\s+([\d.]+)/)|| [])[1]) || 0;
+    info.imgUrl  = (block.match(/@img\s+(.+)/)   || [])[1]?.trim();
+  }
+  return info;
 }
 
-async function publishTheme() {
-  const code = $('profile-theme-code')?.value?.trim();
-  const token = $('profile-gh-token')?.value?.trim();
-  if (!code) return setStatus('profile-theme-status', 'Code requis', true);
-  // Propose a filename
-  const name = prompt('Nom du thème (sans .theme.html) :');
-  if (!name) return;
-  if (!token) return setStatus('profile-theme-status', 'Token GitHub requis pour publier', true);
-  // PR to repo (simplified: create fork + file)
-  setStatus('profile-theme-status', 'Publication: fonctionnalité PR en développement. Code copié dans le presse-papier.');
-  navigator.clipboard.writeText(code).catch(()=>{});
+// ── RENDER SPHERE LIST ────────────────────────────────────
+function renderSphereList() {
+  const listEl = $('plug-sphere-list');
+  if (!listEl) return;
+
+  let spheres = allSpheres;
+
+  // Filter by type
+  if (activeFilter === 'browser') {
+    spheres = spheres.filter(s => s.cat === 'browser' || !s.cat);
+  } else if (activeFilter === 'créateur') {
+    const myCreator = JSON.parse(localStorage.getItem('ym_creator_spheres') || '[]');
+    spheres = myCreator.map(s => ({ ...s, _own: true }));
+  } else if (activeFilter === 'testeur') {
+    const myTester = JSON.parse(localStorage.getItem('ym_tester_spheres') || '[]');
+    spheres = myTester.map(s => ({ ...s, _own: true, _tester: true }));
+  }
+
+  // Filter by category
+  if (activeCategory !== 'all') {
+    spheres = spheres.filter(s => s.cat?.toLowerCase() === activeCategory.toLowerCase() || (s.info?.cat?.toLowerCase() === activeCategory.toLowerCase()));
+  }
+
+  // Search
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    spheres = spheres.filter(s => s.name.toLowerCase().includes(q) || s.info?.desc?.toLowerCase().includes(q));
+  }
+
+  listEl.innerHTML = '';
+  if (!spheres.length) {
+    listEl.innerHTML = `<div style="padding:20px 0;color:var(--text3);text-align:center;font-size:11px">Aucune sphere trouvée</div>`;
+    return;
+  }
+
+  // Sort by score desc
+  spheres.sort((a, b) => (b.info?.score || 0) - (a.info?.score || 0));
+
+  spheres.forEach(sp => {
+    const item = buildSphereItem(sp);
+    listEl.appendChild(item);
+  });
 }
 
-function setStatus(id, msg, isError = false) {
-  const s = $(id);
-  if (!s) return;
-  s.innerHTML = `<div class="ym-notice ${isError?'error':'success'}" style="margin-top:4px"><span>${msg}</span></div>`;
+function buildSphereItem(sp) {
+  const icon = sp.info?.icon || sp.info?.imgUrl || '◎';
+  const desc = sp.info?.desc || '';
+  const isActive = YM.sphereTabs?.some(t => t.name === sp.name);
+
+  const div = el('div', `ym-sphere-item${isActive?' active':''}`, `
+    <div class="ym-sphere-icon">${icon.startsWith('http') ? `<img src="${icon}" alt=""/>` : icon}</div>
+    <div style="flex:1;overflow:hidden">
+      <div style="font-family:var(--font-display);font-size:13px;font-weight:600">${sp.name}</div>
+      ${desc ? `<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div>` : ''}
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      ${sp.info?.score ? `<span class="ym-chip gold">${sp.info.score.toFixed(0)}</span>` : ''}
+      ${isActive ? `<span class="ym-chip accent">actif</span>` : ''}
+    </div>
+  `);
+  div.dataset.sphere = sp.name;
+
+  div.onclick = () => activateSphere(sp);
+  return div;
+}
+
+function updateSphereItemUI(itemEl, sp) {
+  const icon = sp.info?.icon || sp.info?.imgUrl || '◎';
+  const desc = sp.info?.desc || '';
+  itemEl.querySelector('.ym-sphere-icon').innerHTML = icon.startsWith('http') ? `<img src="${icon}" alt=""/>` : icon;
+}
+
+// ── ACTIVATE SPHERE ────────────────────────────────────────
+async function activateSphere(sp) {
+  // Move to sphere tab
+  window.YM_addSphereTab?.(sp.name, () => openSphereContent(sp));
+  // Remove from list visually
+  renderSphereList();
+  // Open content immediately
+  openSphereContent(sp);
+}
+
+async function openSphereContent(sp) {
+  const area = $('ym-sphere-content');
+  if (!area) return;
+  area.innerHTML = `<div style="display:flex;gap:8px;align-items:center;color:var(--text3)"><div class="ym-loading"></div><span>Chargement ${sp.name}…</span></div>`;
+  try {
+    const code = await fetchText(sp.url);
+    // Each sphere gets its own sandboxed div
+    area.innerHTML = `<div id="sphere-sandbox-${sp.name}" style="width:100%;min-height:180px"></div>`;
+    const sandbox = document.getElementById(`sphere-sandbox-${sp.name}`);
+    const fn = new Function('YM','$','el','fetchText','fetchJSON','REPO_RAW','REPO_API','container', code + '\n;if(typeof init==="function")init(container);');
+    fn(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API, sandbox);
+  } catch(err) {
+    area.innerHTML = `<div class="ym-notice error" style="width:100%"><span>Erreur sphere: ${err.message}</span></div>`;
+  }
+}
+
+// ── MY SPHERES ─────────────────────────────────────────────
+function renderMySpheres() {
+  const panel = $('plug-my-spheres');
+  if (!panel) return;
+
+  const creatorSpheres = JSON.parse(localStorage.getItem('ym_creator_spheres') || '[]');
+  const testerSpheres  = JSON.parse(localStorage.getItem('ym_tester_spheres') || '[]');
+  const repoSpheres    = allSpheres.filter(() => false); // loaded from repo, shown in list
+
+  if (!creatorSpheres.length && !testerSpheres.length) {
+    panel.innerHTML = `<div style="color:var(--text3);font-size:11px;padding:8px 0">Aucune sphere personnelle. Utilisez le Builder pour en créer.</div>`;
+    return;
+  }
+
+  panel.innerHTML = '';
+  [...creatorSpheres.map(s=>({...s,_type:'créateur'})), ...testerSpheres.map(s=>({...s,_type:'testeur'}))]
+    .forEach(sp => {
+      const row = el('div', 'ym-sphere-item', `
+        <div class="ym-sphere-icon">◎</div>
+        <div style="flex:1">
+          <div style="font-family:var(--font-display);font-size:13px;font-weight:600">${sp.name}</div>
+          <div style="font-size:10px;color:var(--text3)">${sp._type}</div>
+        </div>
+        <span class="ym-chip ${sp._type==='créateur'?'accent':'blue'}">${sp._type}</span>
+      `);
+      row.onclick = () => activateSphere(sp);
+      panel.appendChild(row);
+    });
 }
 
 // ── INIT ──────────────────────────────────────────────────
 render();
+
+// Return cleanup
 return { cleanup: () => {} };
 
 });
