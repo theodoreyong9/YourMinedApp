@@ -5,16 +5,37 @@
 (function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
 
 // Réseaux dont le contenu est extractible sans backend :
-// Mastodon & Pixelfed : API publique (instance variable)
-// Bluesky : AT Protocol public
-// Twitter/X : PKCE Bearer token
-// Nostr : relais public WebSocket
+// - API publique JSON, RSS public, WebSocket, token optionnel
 const SOCIAL_NETWORKS = [
-  { id: 'mastodon',  name: 'Mastodon',       needsInstance: true,  base: '' },
-  { id: 'bluesky',   name: 'Bluesky',        needsInstance: false, base: 'https://bsky.app/profile/' },
-  { id: 'pixelfed',  name: 'Pixelfed',       needsInstance: true,  base: '' },
-  { id: 'twitter',   name: 'X / Twitter',    needsInstance: false, base: 'https://x.com/', needsToken: true },
-  { id: 'nostr',     name: 'Nostr',          needsInstance: false, base: 'https://snort.social/p/', needsToken: false },
+  // ── Fediverse ──
+  { id: 'mastodon',   name: 'Mastodon',      needsInstance: true,  base: 'https://{instance}/@',          placeholder: 'mastodon.social',   type: 'api' },
+  { id: 'pixelfed',   name: 'Pixelfed',      needsInstance: true,  base: 'https://{instance}/@',          placeholder: 'pixelfed.social',   type: 'api' },
+  { id: 'misskey',    name: 'Misskey',       needsInstance: true,  base: 'https://{instance}/@',          placeholder: 'misskey.io',        type: 'api' },
+  { id: 'peertube',   name: 'PeerTube',      needsInstance: true,  base: 'https://{instance}/a/',         placeholder: 'video.blender.org', type: 'api' },
+  { id: 'lemmy',      name: 'Lemmy',         needsInstance: true,  base: 'https://{instance}/u/',         placeholder: 'lemmy.world',       type: 'api' },
+  { id: 'threads',    name: 'Threads',       needsInstance: false, base: 'https://www.threads.net/@',     placeholder: '',                  type: 'api' },
+  // ── Protocoles ouverts ──
+  { id: 'bluesky',    name: 'Bluesky',       needsInstance: false, base: 'https://bsky.app/profile/',     placeholder: '',                  type: 'api' },
+  { id: 'nostr',      name: 'Nostr',         needsInstance: false, base: 'https://snort.social/p/',       placeholder: '',                  type: 'ws'  },
+  { id: 'farcaster',  name: 'Farcaster',     needsInstance: false, base: 'https://warpcast.com/',         placeholder: '',                  type: 'api' },
+  // ── Blogs / Newsletters ──
+  { id: 'paragraph',  name: 'Paragraph',     needsInstance: false, base: 'https://paragraph.xyz/@',       placeholder: '',                  type: 'rss',     rssUrl: 'https://paragraph.xyz/@{handle}/feed' },
+  { id: 'substack',   name: 'Substack',      needsInstance: false, base: 'https://{handle}.substack.com', placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.substack.com/feed' },
+  { id: 'medium',     name: 'Medium',        needsInstance: false, base: 'https://medium.com/@',          placeholder: '',                  type: 'rss',     rssUrl: 'https://medium.com/feed/@{handle}' },
+  { id: 'ghost',      name: 'Ghost',         needsInstance: true,  base: 'https://{instance}/',           placeholder: 'monblog.ghost.io',  type: 'rss',     rssUrl: 'https://{instance}/rss/' },
+  { id: 'beehiiv',    name: 'Beehiiv',       needsInstance: false, base: 'https://{handle}.beehiiv.com',  placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.beehiiv.com/feed' },
+  { id: 'wordpress',  name: 'WordPress',     needsInstance: true,  base: 'https://{instance}/',           placeholder: 'monsite.com',       type: 'rss',     rssUrl: 'https://{instance}/feed/' },
+  { id: 'blogger',    name: 'Blogger',       needsInstance: false, base: 'https://{handle}.blogspot.com', placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.blogspot.com/feeds/posts/default' },
+  { id: 'tumblr',     name: 'Tumblr',        needsInstance: false, base: 'https://{handle}.tumblr.com',   placeholder: '',                  type: 'rss',     rssUrl: 'https://{handle}.tumblr.com/rss' },
+  { id: 'youtube',    name: 'YouTube',       needsInstance: false, base: 'https://youtube.com/@',         placeholder: '',                  type: 'rss',     rssUrl: 'https://www.youtube.com/feeds/videos.xml?channel_id={handle}', needsChannelId: true },
+  { id: 'podcast',    name: 'Podcast (RSS)', needsInstance: false, base: '',                              placeholder: 'https://feed.url',  type: 'rss',     rssUrl: '{handle}', isUrl: true },
+  { id: 'reddit',     name: 'Reddit',        needsInstance: false, base: 'https://reddit.com/user/',      placeholder: '',                  type: 'rss',     rssUrl: 'https://www.reddit.com/user/{handle}.rss' },
+  // ── Code / Tech ──
+  { id: 'devto',      name: 'Dev.to',        needsInstance: false, base: 'https://dev.to/',               placeholder: '',                  type: 'api',     apiUrl: 'https://dev.to/api/articles?username={handle}' },
+  { id: 'hashnode',   name: 'Hashnode',      needsInstance: false, base: 'https://hashnode.com/@',        placeholder: '',                  type: 'graphql' },
+  { id: 'github',     name: 'GitHub',        needsInstance: false, base: 'https://github.com/',           placeholder: '',                  type: 'api',     apiUrl: 'https://api.github.com/users/{handle}' },
+  // ── Token requis ──
+  { id: 'twitter',    name: 'X / Twitter',   needsInstance: false, base: 'https://x.com/',                placeholder: '',                  type: 'api',     needsToken: true },
 ];
 
 function ensureProfile() {
