@@ -1,6 +1,10 @@
 // ════════════════════════════════════════════════════════
-//  plug.app.js — YourMine Sphere Browser & Manager
-//  Injecte dans #ym-app-body
+//  plug.app.js
+//  @icon ◎
+//  @desc Browser et gestionnaire de Spheres
+//  @author YourMine
+//  @cat core
+//  @score 100
 // ════════════════════════════════════════════════════════
 
 (function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
@@ -195,13 +199,21 @@ function renderSphereList() {
 
 function buildSphereItem(sp) {
   const isActive = YM.sphereTabs?.some(t => t.name === sp.name);
-  const icon   = sp.info?.icon || '◎';
-  const desc   = sp.info?.desc || '';
-  const author = sp.info?.author || '';
-  const score  = sp.info?.score || 0;
+  const info   = sp.info || {};
+  const imgUrl = info.imgUrl || '';
+  const icon   = info.icon || '◎';
+  const desc   = info.desc || '';
+  const author = info.author || '';
+  const score  = info.score || 0;
+  const peers  = typeof YM.peerCount === 'number' ? YM.peerCount : 1;
+
+  // Icône : image URL prioritaire sur emoji
+  const iconHtml = imgUrl
+    ? `<img src="${imgUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px"/>`
+    : icon;
 
   const div = el('div', `ym-sphere-item${isActive?' active':''}`, `
-    <div class="ym-sphere-icon">${icon.startsWith('http') ? `<img src="${icon}" alt=""/>` : icon}</div>
+    <div class="ym-sphere-icon">${iconHtml}</div>
     <div style="flex:1;overflow:hidden">
       <div style="font-family:var(--font-display);font-size:13px;font-weight:600">${sp.name}</div>
       ${desc ? `<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div>` : ''}
@@ -209,6 +221,7 @@ function buildSphereItem(sp) {
     </div>
     <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
       ${score ? `<span class="ym-chip gold">★ ${score}</span>` : ''}
+      ${peers > 1 ? `<span class="ym-chip blue">👥 ${peers}</span>` : ''}
       ${isActive ? `<span class="ym-chip accent">actif</span>` : ''}
     </div>
   `);
@@ -226,8 +239,10 @@ function updateSphereItemUI(itemEl, sp) {
 
 // ── ACTIVATE SPHERE ────────────────────────────────────────
 function activateSphere(sp) {
-  // Ouvre la sphere en pleine page via le système de frames de index.html
-  window.YM_addSphereTab?.(sp.name, sp.url);
+  // Ajoute la pills sans activer (autoActivate=false) — l'user clique sur la pill pour ouvrir
+  window.YM_addSphereTab?.(sp.name, sp.url, false);
+  // Feedback visuel dans la liste
+  renderSphereList();
 }
 
 // ── MY SPHERES ─────────────────────────────────────────────
