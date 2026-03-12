@@ -257,6 +257,6 @@ function setStatus(id, msg, isError = false) {
 }
 
 render();
-return { cleanup: () => {} };
+return { mountAs: 'profile-icon', cleanup: () => {} };
 
 });
