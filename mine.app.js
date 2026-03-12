@@ -224,15 +224,22 @@ function renderLocked(hasWallet) {
   <div class="ym-panel-title">Wallet Solana</div>
   <div class="ym-wallet-unlock" id="mine-unlock-form">
     ${!hasWallet ? `
-      <div class="ym-notice info"><span>Créez un wallet ou importez une clé privée / passphrase existante.</span></div>
-      <input class="ym-input" id="mine-passphrase" placeholder="Passphrase (optionnel)" type="password"/>
-      <input class="ym-input" id="mine-privkey-import" placeholder="Clé privée Base58 ou JSON array (import)" type="password"/>
-      <input class="ym-input" id="mine-password" placeholder="Mot de passe de chiffrement" type="password"/>
-      <input class="ym-input" id="mine-password2" placeholder="Confirmer mot de passe" type="password"/>
-      <div style="display:flex;gap:8px">
-        <button class="ym-btn ym-btn-accent" id="mine-create-btn" style="flex:1">Créer</button>
-        <button class="ym-btn" id="mine-import-btn" style="flex:1">Importer</button>
+      <div class="ym-notice info"><span>Créez un wallet avec une passphrase, ou importez une clé privée existante.</span></div>
+      <div style="position:relative">
+        <input class="ym-input" id="mine-passphrase" placeholder="Passphrase (mémorisable)" style="padding-right:36px"/>
+        <button id="mine-pp-toggle" type="button" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">👁</button>
       </div>
+      <input class="ym-input" id="mine-password" placeholder="Mot de passe de chiffrement local" type="password"/>
+      <input class="ym-input" id="mine-password2" placeholder="Confirmer mot de passe" type="password"/>
+      <button class="ym-btn ym-btn-accent" id="mine-create-btn" style="width:100%">Créer le wallet</button>
+      <details style="margin-top:4px">
+        <summary style="font-size:10px;color:var(--text3);cursor:pointer;letter-spacing:.5px">Importer une clé privée existante</summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          <input class="ym-input" id="mine-privkey-import" placeholder="Clé privée Base58 ou JSON array" type="password"/>
+          <input class="ym-input" id="mine-import-pw" placeholder="Mot de passe de chiffrement" type="password"/>
+          <button class="ym-btn" id="mine-import-btn" style="width:100%">Importer</button>
+        </div>
+      </details>
     ` : `
       <div class="ym-wallet-address" id="mine-pubkey-preview">${JSON.parse(localStorage.getItem('ym_wallet_v1') || '{}').pubkey || '…'}</div>
       <input class="ym-input" id="mine-password" placeholder="Mot de passe" type="password"/>
@@ -335,6 +342,13 @@ function renderTransfer() {
 function wireWalletEvents() {
   const body = $('ym-app-body');
   if (!body) return;
+
+  // Toggle passphrase visibility
+  body.querySelector('#mine-pp-toggle')?.addEventListener('click', () => {
+    const inp = body.querySelector('#mine-passphrase');
+    if (!inp) return;
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  });
 
   // Create wallet
   body.querySelector('#mine-create-btn')?.addEventListener('click', async () => {
