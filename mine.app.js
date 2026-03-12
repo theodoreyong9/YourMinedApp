@@ -567,8 +567,9 @@ function updateBalanceUI() {
   if (s)  s.textContent  = mineState.sol.toFixed(6);
   if (y)  y.textContent  = mineState.ym.toFixed(4);
   if (sl) sl.textContent = mineState.slot;
-  // Le header affiche le claimable comme balance principale
-  window.YM_setClaimable?.(getClaimable());
+  // Header : juste le chiffre claimable (⚡ est dans le CSS ::before)
+  const c = getClaimable();
+  window.YM_updateBalance?.(c);
 }
 
 function updateClaimableLoop() {
