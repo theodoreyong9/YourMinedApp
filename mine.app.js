@@ -2,7 +2,16 @@
 //  mine.app.js — YourMine Wallet + Mining Interface
 // ════════════════════════════════════════════════════════
 
-(function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
+(function() {
+const _name = 'mine';
+const _container = (window._YM_CONTAINERS || {})[_name];
+const YM = window.YM;
+const $ = id => id === 'ym-app-body' ? _container : document.getElementById(id);
+const el = window.el;
+const fetchText = window.fetchText;
+const fetchJSON = window.fetchJSON;
+const REPO_RAW = window.REPO_RAW;
+const REPO_API = window.REPO_API;
 
 const DEVNET   = 'https://api.devnet.solana.com';
 const YM_MINT  = 'k5KdweiLaLDR57YqVQ9WCWNdLDQm4wMTzz5zPRRPLMn';
@@ -521,4 +530,4 @@ return {
   cleanup: () => { clearInterval(cycleTimer); }
 };
 
-});
+})();
