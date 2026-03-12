@@ -279,6 +279,6 @@ function renderMySpheres() {
 render();
 
 // Return cleanup
-return { cleanup: () => {} };
+return { mountAs: 'pill', cleanup: () => {} };
 
 });
