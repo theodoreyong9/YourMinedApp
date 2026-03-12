@@ -162,7 +162,8 @@ function renderSphereList() {
 
   // Filter by type
   if (activeFilter === 'browser') {
-    spheres = spheres.filter(s => s.cat === 'browser' || !s.cat);
+    // "browser" = toutes les spheres du repo (pas de filtre cat)
+    spheres = allSpheres;
   } else if (activeFilter === 'créateur') {
     const myCreator = JSON.parse(localStorage.getItem('ym_creator_spheres') || '[]');
     spheres = myCreator.map(s => ({ ...s, _own: true }));
