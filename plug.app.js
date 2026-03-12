@@ -86,38 +86,51 @@ function render() {
 async function loadSpheres() {
   const listEl = $('plug-sphere-list');
   if (!listEl) return;
-  listEl.innerHTML = `<div style="display:flex;gap:8px;align-items:center;color:var(--text3);padding:12px 0"><div class="ym-loading"></div><span>Chargement des spheres…</span></div>`;
 
+  // Utilise YM.spheres déjà chargé par index.html — pas de double appel GitHub
+  if (YM.spheres && YM.spheres.length) {
+    allSpheres = YM.spheres.map(s => ({
+      name: s.name, cat: s.cat || 'autres', url: s.url, info: null
+    }));
+    renderSphereList();
+    // Charge les métadonnées de chaque sphere en arrière-plan
+    allSpheres.forEach(async sp => {
+      try {
+        const code = await fetchText(sp.url);
+        sp.info = extractSphereInfo(code);
+        const item = document.querySelector(`[data-sphere="${sp.name}"]`);
+        if (item) updateSphereItemUI(item, sp);
+      } catch {}
+    });
+    return;
+  }
+
+  // Fallback : YM.spheres vide, on essaie l'API directement
+  listEl.innerHTML = `<div style="display:flex;gap:8px;align-items:center;color:var(--text3);padding:12px 0"><div class="ym-loading"></div><span>Chargement des spheres…</span></div>`;
   try {
     const files = await fetchJSON(REPO_API);
-    // Accepte [cat].[nom].sphere.js ET [nom].sphere.js
     const sphereFiles = files.filter(f => f.name.endsWith('.sphere.js'));
-
     allSpheres = sphereFiles.map(f => {
       const base  = f.name.replace('.sphere.js', '');
       const parts = base.split('.');
       const name  = parts.length >= 2 ? parts.slice(1).join('.') : parts[0];
       const cat   = parts.length >= 2 ? parts[0] : 'autres';
-      return { name, cat, file: f.name, url: REPO_RAW + f.name, info: null };
+      return { name, cat, url: REPO_RAW + f.name, info: null };
     });
-
-    // Load metadata from each sphere async
     renderSphereList();
-    allSpheres.forEach(async (sp, i) => {
+    allSpheres.forEach(async sp => {
       try {
         const code = await fetchText(sp.url);
         sp.info = extractSphereInfo(code);
-        // Re-render lazily
         const item = document.querySelector(`[data-sphere="${sp.name}"]`);
         if (item) updateSphereItemUI(item, sp);
       } catch {}
     });
   } catch(e) {
-    // Fallback hardcoded spheres
+    // Fallback hardcoded
     allSpheres = [
-      { name: 'builder', cat: 'builder', file: 'builder.sphere.js', url: REPO_RAW + 'builder.sphere.js', info: { icon: '🔨', desc: 'Créez et publiez des Spheres et Thèmes' } },
-      { name: 'social',  cat: 'social',  file: 'social.sphere.js',  url: REPO_RAW + 'social.sphere.js',  info: { icon: '📡', desc: 'Near • Contact • Feed' } },
-      { name: 'feed',    cat: 'social',   file: 'feed.sphere.js',    url: REPO_RAW + 'feed.sphere.js',    info: { icon: '📰', desc: 'Flux social de vos contacts' } },
+      { name: 'builder', cat: 'builder', url: REPO_RAW + 'builder.sphere.js', info: { icon: '🔨', desc: 'Créez et publiez des Spheres et Thèmes' } },
+      { name: 'social',  cat: 'social',  url: REPO_RAW + 'social.sphere.js',  info: { icon: '📡', desc: 'Near • Contact • Feed' } },
     ];
     renderSphereList();
   }
