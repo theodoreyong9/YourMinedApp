@@ -103,9 +103,18 @@ async function saveToGist(token) {
   return data.html_url;
 }
 
-async function restoreFromGist(gistId) {
-  const r = await fetch(`https://api.github.com/gists/${gistId}`);
-  const data = await r.json();
+async function restoreFromGist(token) {
+  // Cherche automatiquement le gist YourMine via le token — pas besoin de Gist ID
+  const r = await fetch('https://api.github.com/gists', {
+    headers: { Authorization: `token ${token}` }
+  });
+  const gists = await r.json();
+  const found = gists.find(g => g.files?.['yourmine.json']);
+  if (!found) throw new Error('Aucun gist YourMine trouvé pour ce token');
+  const r2 = await fetch(`https://api.github.com/gists/${found.id}`, {
+    headers: { Authorization: `token ${token}` }
+  });
+  const data = await r2.json();
   const content = data.files?.['yourmine.json']?.content;
   if (!content) throw new Error('Fichier yourmine.json introuvable');
   const payload = JSON.parse(content);
@@ -118,7 +127,7 @@ async function restoreFromGist(gistId) {
     YM.contacts = existing;
     localStorage.setItem('ym_contacts', JSON.stringify(YM.contacts));
   }
-  YM.profile.gistId = gistId;
+  YM.profile.gistId = found.id;
   saveProfile();
 }
 
@@ -231,15 +240,11 @@ function render() {
   <div class="ym-panel">
     <div class="ym-panel-title">Sauvegarde Gist</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="ym-notice info"><span>Sauvegarde : UUID + liste UUID de vos contacts dans un Gist privé GitHub.</span></div>
+      <div class="ym-notice info"><span>Sauvegarde de votre UUID et contacts dans un Gist privé GitHub. Le token suffit pour sauvegarder et restaurer.</span></div>
       <input class="ym-input" id="profile-gh-token" type="password" placeholder="Token GitHub (scope : gist)"/>
       <div style="display:flex;gap:8px">
         <button class="ym-btn ym-btn-accent" id="profile-save-gist" style="flex:1">Sauvegarder</button>
         <button class="ym-btn" id="profile-restore-gist" style="flex:1">Restaurer</button>
-      </div>
-      <div style="display:flex;gap:8px">
-        <input class="ym-input" id="profile-gist-id" placeholder="Gist ID (pour restaurer)" value="${p.gistId||''}" style="flex:1"/>
-        <button class="ym-btn ym-btn-ghost" id="profile-copy-gistid" data-tip="Copier Gist ID">⧉</button>
       </div>
       <div id="profile-gist-status"></div>
     </div>
@@ -327,19 +332,13 @@ function wireProfileEvents() {
   });
 
   $('profile-restore-gist')?.addEventListener('click', async () => {
-    const gistId = $('profile-gist-id')?.value?.trim();
-    if (!gistId) return setStatus('profile-gist-status', 'Gist ID requis', true);
+    const token = $('profile-gh-token')?.value?.trim();
+    if (!token) return setStatus('profile-gist-status', 'Token GitHub requis', true);
     try {
-      await restoreFromGist(gistId);
+      await restoreFromGist(token);
       setStatus('profile-gist-status', 'Restauré !');
       render();
     } catch(e) { setStatus('profile-gist-status', e.message, true); }
-  });
-
-  // Copy Gist ID
-  $('profile-copy-gistid')?.addEventListener('click', () => {
-    const id = YM.profile?.gistId;
-    if (id) navigator.clipboard.writeText(id).catch(()=>{});
   });
 
   // Start page — construit dynamiquement à partir des apps disponibles
