@@ -1,467 +1,1726 @@
-// ════════════════════════════════════════════════════════
-//  profile.app.js — YourMine Profile Management
-// ════════════════════════════════════════════════════════
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#050508"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>YourMine</title>
+<link rel="manifest" href="manifest.json"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/trystero@0.21.0/torrent.js"></script>
+<!-- Style minimal de survie — le vrai CSS vient de default.theme.html -->
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:#050508;color:#e8e8f0;font-family:monospace;overflow-x:hidden;}
+/* Boot screen visible immédiatement — cache tout le reste pendant le chargement du theme */
+#ym-root{display:none;}
+#ym-boot{position:fixed;inset:0;background:#050508;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:9999;}
+#ym-boot-logo{font-size:28px;font-weight:800;letter-spacing:3px;color:#c8f0a0;}
+#ym-boot-bar{width:160px;height:2px;background:#1e1e2e;border-radius:2px;}
+#ym-boot-progress{height:100%;background:#c8f0a0;border-radius:2px;width:0%;transition:width .3s;}
+#ym-boot.hidden{display:none;}
+</style>
+</head>
+<body>
+<!-- Thème par défaut embarqué — évite tout fetch/CORS -->
+<div id="ym-theme-root"></div>
 
-(function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
+<!-- Boot splash -->
+<div id="ym-boot">
+  <div id="ym-boot-logo">YourMine</div>
+  <div id="ym-boot-bar"><div id="ym-boot-progress"></div></div>
+</div>
 
-// Réseaux dont le contenu est extractible sans backend :
-// Mastodon & Pixelfed : API publique (instance variable)
-// Bluesky : AT Protocol public
-// Twitter/X : PKCE Bearer token
-// Nostr : relais public WebSocket
-const SOCIAL_NETWORKS = [
-  { id: 'mastodon',  name: 'Mastodon',       needsInstance: true,  base: '' },
-  { id: 'bluesky',   name: 'Bluesky',        needsInstance: false, base: 'https://bsky.app/profile/' },
-  { id: 'pixelfed',  name: 'Pixelfed',       needsInstance: true,  base: '' },
-  { id: 'twitter',   name: 'X / Twitter',    needsInstance: false, base: 'https://x.com/', needsToken: true },
-  { id: 'nostr',     name: 'Nostr',          needsInstance: false, base: 'https://snort.social/p/', needsToken: false },
-];
+<!-- App shell -->
+<div id="ym-root" style="display:none">
+  <header id="ym-header">
+    <div id="ym-logo">YourMine <span class="dot"></span></div>
+    <div id="ym-balance-display" style="display:none">
+      <span id="ym-balance-val">non connecté</span>
+    </div>
+  </header>
+  <div id="ym-main">
+    <div id="ym-app-frames"></div>
+  </div>
+</div>
 
-function ensureProfile() {
-  if (!YM.profile) {
-    YM.profile = {
-      uuid:            crypto.randomUUID(),
-      name:            '',
-      photo:           null,
-      socialNet:       '',
-      socialHandle:    '',
-      socialInstance:  '',   // ex: mastodon.social, pixelfed.social
-      socialToken:     '',   // Bearer token pour X/Twitter
-      website:         '',
-      theme:           'default',
-      spheres:         { repo: [], creator: [], tester: [] },
-      gistId:          null,
-    };
-    localStorage.setItem('ym_profile', JSON.stringify(YM.profile));
+<!-- Barre fixe du bas : O | [onglets] | X -->
+<div id="ym-bottombar">
+  <button id="ym-btn-o" aria-label="Thèmes">○</button>
+  <div id="ym-tabs-zone"></div>
+  <button id="ym-btn-x" aria-label="Apps">✕</button>
+</div>
+
+<!-- Menu X (apps) -->
+<div class="ym-menu-backdrop" id="ym-x-backdrop">
+  <div class="ym-bottom-menu right" id="ym-x-menu">
+    <div class="ym-menu-inner">
+      <div class="ym-menu-title">Applications</div>
+      <div id="ym-app-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Menu O (thèmes) -->
+<div class="ym-menu-backdrop" id="ym-o-backdrop">
+  <div class="ym-bottom-menu left" id="ym-o-menu">
+    <div class="ym-menu-inner">
+      <div class="ym-menu-title">Thèmes</div>
+      <div id="ym-theme-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Barre confirmation thème -->
+<div id="ym-theme-confirm">
+  <p>Aperçu du thème — confirmer pour appliquer</p>
+  <div class="btns">
+    <button class="ym-btn ym-btn-ghost" id="ym-theme-cancel">Annuler</button>
+    <button class="ym-btn ym-btn-accent" id="ym-theme-confirm-btn">Confirmer</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+//  YourMine Bootstrap — index.html
+//  Responsabilités : thème, repo, tabs, boot.
+//  CSS : default.theme.html  |  Logique : *.app.js
+// ════════════════════════════════════════════════
+
+const REPO_RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
+const REPO_API = 'https://api.github.com/repos/theodoreyong9/YourMinedApp/contents/';
+
+// ── ÉTAT ─────────────────────────────────────
+const YM = {
+  theme:    localStorage.getItem('ym_theme') || 'default',
+  themePreview: null,
+  apps:     [],
+  themes:   [],
+  openApps: [],
+  activeApp: null,
+  sphereTabs: [],
+  balance:  0,
+  profile:  JSON.parse(localStorage.getItem('ym_profile') || 'null'),
+  contacts: JSON.parse(localStorage.getItem('ym_contacts') || '[]'),
+  p2p: null, room: null,
+  geo: null, // { lat, lng } — mis à jour en continu
+};
+
+const $ = id => document.getElementById(id);
+const el = (tag, cls, html) => {
+  const e = document.createElement(tag);
+  if (cls)  e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+};
+const fetchText = async url => { const r = await fetch(url,{cache:'no-cache'}); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); };
+const fetchJSON = async url => { const r = await fetch(url); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); };
+
+// Expose pour les modules
+window._YM=$; window._YM=YM; window._$=$; window._el=el;
+window._fetchText=fetchText; window._fetchJSON=fetchJSON;
+window._REPO_RAW=REPO_RAW; window._REPO_API=REPO_API;
+
+// ── THÈME ────────────────────────────────────
+async function injectDefaultTheme() {
+  const FALLBACK = `<!-- YourMine Default Theme — inject into #ym-theme-root -->
+<style id="ym-theme-css">
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap');
+
+  :root {
+    --bg: #050508;
+    --bg2: #0a0a10;
+    --bg3: #0f0f18;
+    --surface: rgba(255,255,255,0.03);
+    --surface2: rgba(255,255,255,0.06);
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --accent: #c8f0a0;
+    --accent2: #7ed4ff;
+    --accent3: #e8b4ff;
+    --text: #e8e8f0;
+    --text2: #8888a0;
+    --text3: #4a4a60;
+    --danger: #ff6b6b;
+    --gold: #f0c060;
+    --r: 12px;
+    --r2: 20px;
+    --r3: 32px;
+    --transition: cubic-bezier(0.16, 1, 0.3, 1);
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
   }
-  return YM.profile;
-}
 
-function saveProfile() {
-  localStorage.setItem('ym_profile', JSON.stringify(YM.profile));
-  YM.contacts = JSON.parse(localStorage.getItem('ym_contacts') || '[]');
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-// ── PHOTO COMPRESS ────────────────────────────────────────
-function compressPhoto(file, maxW = 200) {
-  return new Promise((res, rej) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const ratio = Math.min(1, maxW / img.width);
-      const w = Math.round(img.width * ratio);
-      const h = Math.round(img.height * ratio);
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      res(c.toDataURL('image/jpeg', 0.75));
-    };
-    img.onerror = rej;
-    img.src = url;
-  });
-}
-
-// ── GIST SAVE / RESTORE ───────────────────────────────────
-async function saveToGist(token) {
-  const p = YM.profile;
-  const payload = {
-    uuid:     p.uuid,
-    contacts: (YM.contacts || []).map(c => c.uuid),
-  };
-  const body = JSON.stringify({
-    description: 'YourMine profile backup',
-    public: false,
-    files: { 'yourmine.json': { content: JSON.stringify(payload, null, 2) } }
-  });
-  const url = p.gistId ? `https://api.github.com/gists/${p.gistId}` : 'https://api.github.com/gists';
-  const method = p.gistId ? 'PATCH' : 'POST';
-  const r = await fetch(url, { method, headers: { Authorization: `token ${token}`, 'Content-Type': 'application/json' }, body });
-  const data = await r.json();
-  if (data.id) { p.gistId = data.id; saveProfile(); }
-  return data.html_url;
-}
-
-async function restoreFromGist(gistId) {
-  const r = await fetch(`https://api.github.com/gists/${gistId}`);
-  const data = await r.json();
-  const content = data.files?.['yourmine.json']?.content;
-  if (!content) throw new Error('Fichier yourmine.json introuvable');
-  const payload = JSON.parse(content);
-  if (payload.uuid) { YM.profile.uuid = payload.uuid; }
-  if (Array.isArray(payload.contacts)) {
-    const existing = YM.contacts || [];
-    payload.contacts.forEach(uuid => {
-      if (!existing.find(c => c.uuid === uuid)) existing.push({ uuid, name: uuid.slice(0,8) });
-    });
-    YM.contacts = existing;
-    localStorage.setItem('ym_contacts', JSON.stringify(YM.contacts));
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
   }
-  YM.profile.gistId = gistId;
-  saveProfile();
-}
 
-// ── QR CODE ───────────────────────────────────────────────
-function renderQR(uuid) {
-  const container = $('profile-qr-container');
-  if (!container) return;
-  container.innerHTML = '';
-  const profileUrl = `https://yourmine.app/u/${uuid}`;
+  /* ── AMBIENT BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 20% 10%, rgba(200,240,160,0.04) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 50% at 80% 80%, rgba(126,212,255,0.03) 0%, transparent 70%),
+      radial-gradient(ellipse 80% 60% at 50% 50%, rgba(232,180,255,0.02) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── LAYOUT ── */
+  /* ── BOOT ── */
+  #ym-boot {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+    z-index: 99999;
+    transition: opacity .5s, visibility .5s;
+  }
+  #ym-boot.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  #ym-boot-logo { font-family: var(--font-display); font-size: 28px; font-weight: 900; letter-spacing: -1px; }
+  #ym-boot-bar { width: 120px; height: 2px; background: rgba(255,255,255,.06); border-radius: 1px; overflow: hidden; }
+  #ym-boot-progress { height: 100%; background: var(--accent); border-radius: 1px; animation: boot-fill 1.8s ease forwards; }
+  @keyframes boot-fill { from { width: 0 } to { width: 100% } }
+
+  /* ── ROOT ── */
+  #ym-root {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    min-height: 100dvh;
+    max-width: 1200px; margin: 0 auto;
+    padding: 0 16px;
+  }
+
+  /* ── HEADER ── */
+  #ym-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 0 20px;
+    flex-shrink: 0;
+  }
+
+  #ym-logo {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #ym-logo span.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse-dot 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  #ym-balance-display {
+    font-family: var(--font-display);
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  #ym-balance-display::before {
+    content: 'Claimable';
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  #ym-balance-display #ym-balance-val {
+    font-size: 18px;
+    color: var(--accent);
+    font-weight: 800;
+    transition: color .4s var(--transition);
+  }
+
+  #ym-balance-display::after {
+    content: 'YRM';
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--text3);
+  }
+
+  /* ── MAIN CONTENT AREA ── */
+  #ym-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 64px; /* espace pour la barre du bas */
+  }
+
+  /* ── BARRE FIXE DU BAS ── */
+  #ym-bottombar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 56px;
+    background: rgba(10,10,16,.97);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    z-index: 9000;
+    display: flex; align-items: center;
+    padding: 0 8px; gap: 6px;
+  }
+
+  #ym-tabs-zone {
+    flex: 1; display: flex; align-items: center; gap: 5px;
+    overflow-x: auto; padding: 0 4px; min-width: 0;
+  }
+  #ym-tabs-zone::-webkit-scrollbar { display: none; }
+
+  .ym-tab-pill {
+    display: inline-flex; align-items: center;
+    padding: 6px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text2); font-family: var(--font-mono); font-size: 11px;
+    cursor: pointer; white-space: nowrap;
+    transition: all .2s; flex-shrink: 0;
+  }
+  .ym-tab-pill:hover { color: var(--text); border-color: var(--border2); }
+  .ym-tab-pill.active-app { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+  .ym-tab-pill.sphere-pill { border-color: rgba(200,240,160,.2); color: var(--accent); }
+  .ym-tab-pill.sphere-pill.active-sphere { background: rgba(200,240,160,.08); border-color: var(--accent); }
+  .ym-tab-sep { color: var(--border2); font-size: 10px; padding: 0 2px; pointer-events: none; flex-shrink: 0; }
+
+  /* Boutons X et O dans la barre */
+  #ym-btn-x, #ym-btn-o {
+    flex-shrink: 0;
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid var(--border2); background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-family: var(--font-display); font-weight: 800;
+    transition: all .2s var(--transition);
+  }
+  #ym-btn-o { color: var(--accent2); font-size: 15px; }
+  #ym-btn-o:hover { background: rgba(126,212,255,.1); border-color: var(--accent2); }
+  #ym-btn-x { color: var(--accent); font-size: 13px; }
+  #ym-btn-x:hover { background: rgba(200,240,160,.1); border-color: var(--accent); transform: rotate(90deg); }
+
+  /* Fermer depuis la liste */
+  .ym-menu-close-btn {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text3); font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: all .15s;
+  }
+  .ym-menu-close-btn:hover { background: rgba(255,107,107,.15); border-color: var(--danger); color: var(--danger); }
+
+  /* app ouvert dans la liste */
+  .ym-menu-item.open-app { background: rgba(200,240,160,.06); border-color: rgba(200,240,160,.12); }
+
+  /* app frames */
+  #ym-app-frames { width: 100%; }
+  .ym-app-frame { display: none; }
+  .ym-app-frame.active { display: block; animation: fadeIn .3s var(--transition); }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+  /* ── APP PANEL ── */
+  .ym-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    padding: 24px;
+    margin-bottom: 12px;
+    backdrop-filter: blur(8px);
+    transition: border-color 0.3s ease;
+  }
+
+  .ym-panel:hover {
+    border-color: var(--border2);
+  }
+
+  .ym-panel-title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 16px;
+  }
+
+  /* ── BUTTONS ── */
+  .ym-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 20px;
+    border-radius: var(--r);
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s var(--transition);
+    white-space: nowrap;
+  }
+
+  .ym-btn:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.2);
+    transform: translateY(-1px);
+  }
+
+  .ym-btn:active { transform: translateY(0); }
+
+  .ym-btn-accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #050508;
+    font-weight: 600;
+  }
+
+  .ym-btn-accent:hover {
+    background: #dfffb8;
+    border-color: #dfffb8;
+    box-shadow: 0 0 24px rgba(200,240,160,0.3);
+  }
+
+  .ym-btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text2);
+  }
+
+  .ym-btn-ghost:hover {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  .ym-btn-danger {
+    border-color: rgba(255,107,107,0.3);
+    color: var(--danger);
+  }
+
+  .ym-btn-danger:hover {
+    background: rgba(255,107,107,0.1);
+    border-color: var(--danger);
+  }
+
+  /* ── INPUTS ── */
+  .ym-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    transition: border-color 0.2s ease;
+    outline: none;
+  }
+
+  .ym-input:focus {
+    border-color: rgba(200,240,160,0.4);
+    box-shadow: 0 0 0 3px rgba(200,240,160,0.05);
+  }
+
+  .ym-input::placeholder { color: var(--text3); }
+
+  /* ── SEARCH ── */
+  .ym-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .ym-search-wrap svg {
+    position: absolute;
+    left: 12px;
+    width: 14px;
+    height: 14px;
+    color: var(--text3);
+    pointer-events: none;
+  }
+
+  .ym-search-wrap .ym-input {
+    padding-left: 36px;
+  }
+
+  /* ── TABS ── */
+  .ym-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r3);
+    width: fit-content;
+  }
+
+  .ym-tab {
+    padding: 6px 16px;
+    border-radius: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s var(--transition);
+  }
+
+  .ym-tab.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 0 0 1px var(--border2);
+  }
+
+  .ym-tab:hover:not(.active) { color: var(--text); }
+
+  /* ── CARDS ── */
+  .ym-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    padding: 16px;
+    transition: all 0.2s var(--transition);
+    cursor: default;
+  }
+
+  .ym-card:hover {
+    border-color: var(--border2);
+    background: var(--surface2);
+    transform: translateY(-2px);
+  }
+
+  .ym-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  /* ── CHIP / TAG ── */
+  .ym-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+
+  .ym-chip.accent { background: rgba(200,240,160,0.1); border-color: rgba(200,240,160,0.2); color: var(--accent); }
+  .ym-chip.blue { background: rgba(126,212,255,0.1); border-color: rgba(126,212,255,0.2); color: var(--accent2); }
+  .ym-chip.purple { background: rgba(232,180,255,0.1); border-color: rgba(232,180,255,0.2); color: var(--accent3); }
+  .ym-chip.gold { background: rgba(240,192,96,0.1); border-color: rgba(240,192,96,0.2); color: var(--gold); }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* ── DIVIDER ── */
+  .ym-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  /* ── AVATAR ── */
+  .ym-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    object-fit: cover;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--text2);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* ── BADGE ── */
+  .ym-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: #050508;
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  /* ── TOOLTIP ── */
+  [data-tip] { position: relative; }
+  [data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 9999;
+  }
+  [data-tip]:hover::after { opacity: 1; }
+
+  /* ── LOADING ── */
+  .ym-loading {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .ym-shimmer {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--r);
+  }
+
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* ── MODAL ── */
+  .ym-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5,5,8,0.85);
+    backdrop-filter: blur(12px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .ym-modal-backdrop.open {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .ym-modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--r3);
+    padding: 28px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 80dvh;
+    overflow-y: auto;
+    transform: translateY(16px) scale(0.98);
+    transition: transform 0.3s var(--transition);
+  }
+
+  .ym-modal-backdrop.open .ym-modal {
+    transform: translateY(0) scale(1);
+  }
+
+  .ym-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .ym-modal-title {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  /* ── MENUS (surgissent au-dessus de la barre) ── */
+  .ym-menu-backdrop {
+    position: fixed; inset: 0; z-index: 8999; pointer-events: none;
+  }
+  .ym-menu-backdrop.open { pointer-events: all; }
+
+  .ym-bottom-menu {
+    position: fixed;
+    bottom: 62px; /* juste au-dessus de la barre */
+    border: 1px solid var(--border2);
+    background: rgba(10,10,16,.97);
+    backdrop-filter: blur(20px);
+    z-index: 9001; overflow: hidden;
+    opacity: 0; pointer-events: none;
+    transform: translateY(6px) scale(.97);
+    transition: opacity .2s, transform .22s var(--transition);
+  }
+  .ym-bottom-menu.right {
+    right: 6px; width: min(260px,90vw); max-height: 60dvh;
+    border-radius: var(--r2) var(--r2) var(--r) var(--r2);
+    transform-origin: bottom right;
+  }
+  .ym-bottom-menu.left {
+    left: 6px; width: min(240px,88vw); max-height: 60dvh;
+    border-radius: var(--r2) var(--r2) var(--r2) var(--r);
+    transform-origin: bottom left;
+  }
+  .ym-bottom-menu.open { opacity: 1; pointer-events: all; transform: translateY(0) scale(1); }
+
+  .ym-menu-inner { padding: 14px; overflow-y: auto; max-height: calc(60dvh - 14px); }
+
+  .ym-menu-title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text3);
+    margin-bottom: 12px;
+  }
+
+  /* ── MENU ITEM ── */
+  .ym-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: var(--r);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border: 1px solid transparent;
+  }
+
+  .ym-menu-item:hover {
+    background: var(--surface2);
+    border-color: var(--border);
+  }
+
+  .ym-menu-item.selected {
+    background: rgba(200,240,160,0.07);
+    border-color: rgba(200,240,160,0.15);
+  }
+
+  .ym-menu-item-name {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .ym-menu-item-sub {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* ── SPHERE PILL (onglet sphere dans la barre) ── */
+  .ym-sphere-tab {
+    position: fixed;
+    bottom: 72px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px 8px 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 24px;
+    backdrop-filter: blur(12px);
+    z-index: 650;
+    animation: slideInRight 0.3s var(--transition);
+    max-width: 200px;
+  }
+
+  @keyframes slideInRight {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  .ym-sphere-tab-name {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ym-sphere-tab-close {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 9px;
+    color: var(--text2);
+    transition: all 0.15s;
+  }
+
+  .ym-sphere-tab-close:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+  }
+
+  /* ── CATEGORY FILTER ── */
+  .ym-cat-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .ym-cat-btn {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .ym-cat-btn:hover, .ym-cat-btn.active {
+    background: var(--surface2);
+    border-color: var(--border2);
+    color: var(--text);
+  }
+
+  .ym-cat-btn.active {
+    border-color: rgba(200,240,160,0.3);
+    color: var(--accent);
+  }
+
+  /* ── SPHERE LIST ITEM ── */
+  .ym-sphere-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: var(--r);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .ym-sphere-item:hover {
+    background: var(--surface2);
+    border-color: var(--border);
+  }
+
+  .ym-sphere-item.active {
+    background: rgba(200,240,160,0.06);
+    border-color: rgba(200,240,160,0.2);
+  }
+
+  .ym-sphere-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .ym-sphere-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* ── QR CODE ── */
+  #ym-qr-container {
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  #ym-qr-container canvas, #ym-qr-container img {
+    border-radius: 12px;
+    border: 2px solid var(--border2);
+  }
+
+  /* ── STAT ROW ── */
+  .ym-stat-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ym-stat-row:last-child { border-bottom: none; }
+
+  .ym-stat-label {
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .ym-stat-value {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .ym-stat-value.accent { color: var(--accent); }
+  .ym-stat-value.blue { color: var(--accent2); }
+  .ym-stat-value.gold { color: var(--gold); }
+
+  /* ── RANGE SLIDER ── */
+  .ym-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border2);
+    outline: none;
+  }
+
+  .ym-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(200,240,160,0.4);
+    transition: transform 0.15s;
+  }
+
+  .ym-slider::-webkit-slider-thumb:hover { transform: scale(1.3); }
+
+  /* ── NOTICE / ALERT ── */
+  .ym-notice {
+    padding: 12px 16px;
+    border-radius: var(--r);
+    font-size: 11px;
+    line-height: 1.5;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .ym-notice.info {
+    background: rgba(126,212,255,0.07);
+    border: 1px solid rgba(126,212,255,0.15);
+    color: var(--accent2);
+  }
+
+  .ym-notice.success {
+    background: rgba(200,240,160,0.07);
+    border: 1px solid rgba(200,240,160,0.15);
+    color: var(--accent);
+  }
+
+  .ym-notice.warn {
+    background: rgba(240,192,96,0.07);
+    border: 1px solid rgba(240,192,96,0.15);
+    color: var(--gold);
+  }
+
+  .ym-notice.error {
+    background: rgba(255,107,107,0.07);
+    border: 1px solid rgba(255,107,107,0.15);
+    color: var(--danger);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    #ym-root { padding: 0 12px; }
+    #ym-header { padding: 18px 0 14px; }
+    #ym-logo { font-size: 18px; }
+    .ym-panel { padding: 16px; border-radius: var(--r2); }
+    .ym-card-grid { grid-template-columns: 1fr 1fr; }
+    .ym-bottom-menu.right { width: 92vw; }
+    .ym-bottom-menu.left  { width: 88vw; }
+  }
+
+  @media (min-width: 768px) {
+    #ym-root { padding: 0 32px; }
+    #ym-logo { font-size: 26px; }
+    .ym-card-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  }
+
+  /* PC : 2 colonnes dans les frames d'app */
+  @media (min-width: 900px) {
+    .ym-frame-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    .ym-frame-inner > .ym-panel:first-child,
+    .ym-frame-inner > .ym-full { grid-column: span 2; }
+  }
+
+  /* ── ANIMATIONS ── */
+  .ym-fade-in { animation: fadeIn 0.4s var(--transition) forwards; }
+  .ym-slide-up { animation: slideUp 0.4s var(--transition) forwards; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── STAGGER CHILDREN ── */
+  .ym-stagger > * { opacity: 0; animation: slideUp 0.4s var(--transition) forwards; }
+  .ym-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .ym-stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .ym-stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .ym-stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .ym-stagger > *:nth-child(5) { animation-delay: 240ms; }
+  .ym-stagger > *:nth-child(6) { animation-delay: 300ms; }
+  .ym-stagger > *:nth-child(7) { animation-delay: 360ms; }
+  .ym-stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+  /* ── FEED CARD ── */
+  .ym-feed-card {
+    border: 1px solid var(--border);
+    border-radius: var(--r2);
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .ym-feed-card:hover { border-color: var(--border2); }
+
+  .ym-feed-card-media {
+    width: 100%;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    background: var(--surface2);
+    display: block;
+  }
+
+  .ym-feed-card-body {
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ym-feed-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ── CONTACT ROW ── */
+  .ym-contact-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    border-radius: var(--r);
+    border: 1px solid transparent;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+
+  .ym-contact-row:hover {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+
+  .ym-contact-info { flex: 1; overflow: hidden; }
+
+  .ym-contact-name {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ym-contact-sub {
+    font-size: 10px;
+    color: var(--text3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── PROFILE PAGE ── */
+  .ym-profile-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 32px 0 24px;
+    text-align: center;
+  }
+
+  .ym-profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 2px solid var(--border2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    overflow: hidden;
+  }
+
+  .ym-profile-name {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  /* ── WALLET ── */
+  .ym-wallet-unlock {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+
+  .ym-wallet-address {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text3);
+    word-break: break-all;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+  }
+
+  /* ── FORMULA DISPLAY ── */
+  .ym-formula {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text2);
+    text-align: center;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    line-height: 2;
+    letter-spacing: 0.5px;
+  }
+
+  .ym-formula .num { color: var(--accent); font-weight: 600; }
+  .ym-formula .denom { color: var(--accent2); font-weight: 600; }
+  .ym-formula .sep { color: var(--text3); }
+
+  /* ── BUILDER EDITOR ── */
+  .ym-editor {
+    width: 100%;
+    min-height: 200px;
+    padding: 14px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.7;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    tab-size: 2;
+  }
+
+  .ym-editor:focus { border-color: rgba(200,240,160,0.3); }
+
+  /* ── HIDDEN BRIDGE (wallet bridge) ── */
+  #ym-wallet-bridge { display: none; }
+
+  /* ── THEME CONFIRM BAR ── */
+  #ym-theme-confirm {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 800;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(240,192,96,0.1);
+    border-bottom: 1px solid rgba(240,192,96,0.25);
+    backdrop-filter: blur(12px);
+    transform: translateY(-100%);
+    transition: transform 0.3s var(--transition);
+  }
+
+  #ym-theme-confirm.visible { transform: translateY(0); }
+
+  #ym-theme-confirm p {
+    font-size: 11px;
+    color: var(--gold);
+    flex: 1;
+  }
+
+  #ym-theme-confirm .btns { display: flex; gap: 8px; }
+
+  /* ── NEAR RADAR ── */
+  .ym-radar {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto;
+  }
+
+  .ym-radar-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid rgba(200,240,160,0.1);
+  }
+
+  .ym-radar-ring:nth-child(2) { inset: 25%; }
+  .ym-radar-ring:nth-child(3) { inset: 50%; }
+
+  .ym-radar-sweep {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg, rgba(200,240,160,0.08) 60deg, transparent 60deg);
+    animation: radar-sweep 3s linear infinite;
+  }
+
+  @keyframes radar-sweep { to { transform: rotate(360deg); } }
+
+  .ym-radar-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    transform: translate(-50%, -50%);
+  }
+
+  /* ── VOICE CALL ── */
+  .ym-call-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(200,240,160,0.1);
+    border: 1px solid rgba(200,240,160,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  .ym-call-btn:hover {
+    background: rgba(200,240,160,0.2);
+    box-shadow: 0 0 16px rgba(200,240,160,0.2);
+  }
+
+  /* ── SPHERE CONTENT AREA ── */
+  #ym-sphere-content {
+    flex: 1;
+    min-height: 200px;
+    border: 1px dashed var(--border);
+    border-radius: var(--r2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* ── GIST RESTORE ── */
+  .ym-gist-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .ym-gist-row .ym-input { flex: 1; }
+</style>
+
+
+
+`;
+  // Applique le fallback IMMÉDIATEMENT — zéro flash
+  $('ym-theme-root').innerHTML = FALLBACK;
+  // Tente de charger la version fraîche depuis GitHub en arrière-plan
   try {
-    new QRCode(container, { text: profileUrl, width: 140, height: 140, colorDark: '#c8f0a0', colorLight: '#050508', correctLevel: QRCode.CorrectLevel.M });
-  } catch { container.innerHTML = `<div class="ym-wallet-address" style="font-size:10px;word-break:break-all">${profileUrl}</div>`; }
+    const html = await fetchText(REPO_RAW + 'default.theme.html');
+    if (html && html.length > 100) $('ym-theme-root').innerHTML = html;
+  } catch { /* fallback déjà actif */ }
 }
 
-// ── THEME BUILDER SECTION ─────────────────────────────────
-function renderThemeBuilder() {
-  return `
-  <div class="ym-panel" id="profile-theme-builder">
-    <div class="ym-panel-title">Builder de Thème</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="ym-notice info"><span>Générez ou codez un thème HTML+CSS. Les IDs existants ne doivent pas être supprimés.</span></div>
-      <div>
-        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Clé IA</label>
-        <div style="display:flex;gap:6px">
-          <select class="ym-input" id="profile-ai-provider" style="width:auto;flex-shrink:0">
-            <option value="anthropic">Anthropic</option>
-            <option value="openai">OpenAI</option>
-          </select>
-          <input class="ym-input" id="profile-ai-key" type="password" placeholder="sk-…" style="flex:1"/>
+async function loadTheme(name, preview = false) {
+  const t = YM.themes.find(t => t.name === name);
+  try {
+    const html = await fetchText(t ? t.url : REPO_RAW + name + '.theme.html');
+    $('ym-theme-root').innerHTML = html;
+    if (preview) { YM.themePreview = {name,html}; $('ym-theme-confirm').classList.add('visible'); }
+    else $('ym-theme-confirm').classList.remove('visible');
+  } catch(e) { console.warn('[YM theme]', e.message); }
+}
+
+function confirmTheme() {
+  if (!YM.themePreview) return;
+  YM.theme = YM.themePreview.name;
+  localStorage.setItem('ym_theme', YM.theme);
+  YM.themePreview = null;
+  $('ym-theme-confirm').classList.remove('visible');
+}
+function cancelTheme() {
+  YM.themePreview = null;
+  loadTheme(YM.theme);
+  $('ym-theme-confirm').classList.remove('visible');
+}
+
+// ── REPO ─────────────────────────────────────
+// ── REPO — lecture directe GitHub API avec ETag (304 = gratuit) ──
+let _repoEtag = null;
+let _lastApiCall = 0;
+let _rawEtag = null;
+const API_MIN_INTERVAL = 72000; // max 50/heure
+
+async function listRepoFiles() {
+  const files = await _fetchRepoFiles();
+  if (files) _applyRepoFiles(files);
+  if (!YM.apps.length) _applyFallback();
+}
+
+async function _fetchRepoFiles() {
+  const now = Date.now();
+  if (now - _lastApiCall < API_MIN_INTERVAL) return null;
+  _lastApiCall = now;
+  try {
+    const headers = { 'Accept': 'application/vnd.github.v3+json' };
+    if (_repoEtag) headers['If-None-Match'] = _repoEtag;
+    const res = await fetch(REPO_API, { headers });
+    if (res.status === 304) return null;
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _repoEtag = res.headers.get('ETag') || null;
+    return await res.json();
+  } catch { return null; }
+}
+
+function _applyFallback() {
+  YM.apps = [
+    { name: 'plug',    url: REPO_RAW + 'plug.app.js' },
+    { name: 'mine',    url: REPO_RAW + 'mine.app.js' },
+    { name: 'profile', url: REPO_RAW + 'profile.app.js' },
+  ];
+  YM.themes = [{ name: 'default', url: REPO_RAW + 'default.theme.html' }];
+  YM.spheres = [
+    { name: 'social',  cat: 'social',  url: REPO_RAW + 'social.sphere.js' },
+    { name: 'builder', cat: 'builder', url: REPO_RAW + 'builder.sphere.js' },
+  ];
+}
+
+function _applyRepoFiles(files) {
+  YM.apps = files
+    .filter(f => f.type==='file' && f.name.endsWith('.app.js'))
+    .map(f => ({ name: f.name.replace('.app.js',''), url: REPO_RAW+f.name }));
+  YM.themes = files
+    .filter(f => f.type==='file' && f.name.endsWith('.theme.html'))
+    .map(f => ({ name: f.name.replace('.theme.html',''), url: REPO_RAW+f.name }));
+  YM.spheres = files
+    .filter(f => f.type==='file' && f.name.endsWith('.sphere.js'))
+    .map(f => ({ name: f.name.replace('.sphere.js',''), url: REPO_RAW+f.name }));
+}
+
+// Le polling GitHub est géré par le leader P2P dans initP2P()
+// Si P2P indisponible, le fallback hardcodé garantit le fonctionnement
+
+// ── BALANCE ───────────────────────────────────
+function updateBalanceDisplay() {
+  const display = $('ym-balance-display');
+  const val = $('ym-balance-val');
+  if (!display || !val) return;
+  const mineOpen = YM.openApps.includes('mine');
+  display.style.display = mineOpen ? '' : 'none';
+  if (mineOpen) val.textContent = YM.balance != null ? Number(YM.balance).toFixed(4) : 'non connecté';
+}
+window.YM_updateBalance = v => { YM.balance = v; updateBalanceDisplay(); };
+window.YM_setClaimable  = window.YM_updateBalance;
+window.YM_setDisconnected = () => { YM.balance = null; updateBalanceDisplay(); };
+
+// ── APPS CUMULABLES ───────────────────────────
+function openApp(name) {
+  if (YM.openApps.includes(name)) { activateApp(name); closeMenus(); return; }
+  YM.openApps.push(name);
+  _saveState();
+  _createFrame(name);
+  activateApp(name);
+  closeMenus();
+  updateBalanceDisplay();
+}
+
+function closeApp(name) {
+  const frame = $('ym-frame-'+name);
+  if (frame) { try{frame._cleanup?.();}catch{} frame.remove(); }
+  YM.openApps = YM.openApps.filter(n=>n!==name);
+  _saveState();
+  renderTabs();
+  renderAppMenu();
+  updateBalanceDisplay();
+  if (YM.activeApp===name) {
+    const next = YM.openApps.at(-1);
+    if (next) activateApp(next); else YM.activeApp=null;
+  }
+}
+
+function activateApp(name) {
+  YM.activeApp = name;
+  localStorage.setItem('ym_active_app', name);
+  document.querySelectorAll('.ym-app-frame').forEach(f=>f.classList.remove('active'));
+  $('ym-frame-'+name)?.classList.add('active');
+  renderTabs();
+}
+
+function _createFrame(name) {
+  const inner = el('div','ym-frame-inner');
+  inner.id = 'ym-app-body-'+name;
+  inner.innerHTML = `<div class="ym-panel ym-full" style="display:flex;align-items:center;gap:10px;color:#4a4a60">
+    <div class="ym-loading"></div><span>Chargement ${name}…</span></div>`;
+  const frame = el('div','ym-app-frame');
+  frame.id = 'ym-frame-'+name;
+  frame.appendChild(inner);
+  $('ym-app-frames').appendChild(frame);
+  renderTabs();
+  _loadCode(name, inner);
+}
+
+async function _loadCode(name, container) {
+  const app = YM.apps.find(a=>a.name===name);
+  if (!app) {
+    container.innerHTML = `<div class="ym-notice warn"><strong>"${name}" introuvable dans le repo.</strong></div>`; return;
+  }
+  let code = null;
+  try { code = await fetchText(app.url); } catch(e) {
+    container.innerHTML = `<div class="ym-notice error"><strong>404 — ${app.url}</strong></div>`; return;
+  }
+  try {
+    const local$ = id => id === 'ym-app-body' ? container : document.getElementById(id);
+    // new Function injecte les variables comme paramètres nommés — pas de wrapping fragile
+    const fn = new Function('YM','$','el','fetchText','fetchJSON','REPO_RAW','REPO_API', code);
+    fn(YM, local$, el, fetchText, fetchJSON, REPO_RAW, REPO_API);
+  } catch(err) {
+    container.innerHTML = `<div class="ym-notice error">
+      <strong>Erreur dans ${name}.app.js</strong><br/>
+      <code style="font-size:10px;word-break:break-all">${err.message}</code>
+    </div>`;
+    console.error('[YM]', name, err);
+  }
+}
+
+function _saveState() { localStorage.setItem('ym_open_apps', JSON.stringify(YM.openApps)); }
+
+// ── ONGLETS (apps + spheres dans la barre) ────
+function renderTabs() {
+  const zone = $('ym-tabs-zone');
+  if (!zone) return;
+  zone.innerHTML = '';
+  // Ordre d'activation — pas de sort
+  YM.openApps.forEach(name=>{
+      const pill = el('button','ym-tab-pill'+(name===YM.activeApp?' active-app':''));
+      pill.textContent = name;
+      pill.onclick = () => activateApp(name);
+      zone.appendChild(pill);
+    });
+  if (YM.openApps.length && YM.sphereTabs.length) {
+    const sep = el('span','ym-tab-sep','|'); zone.appendChild(sep);
+  }
+  YM.sphereTabs.forEach(tab=>{
+    const pill = el('button','ym-tab-pill sphere-pill'+(tab.active?' active-sphere':''));
+    pill.textContent = '◎ '+tab.name;
+    pill.onclick = ()=>{ tab.active=!tab.active; tab.onActivate?.(); renderTabs(); };
+    zone.appendChild(pill);
+  });
+}
+
+// ── SPHERE TABS ────────────────────────────────
+function addSphereTab(name, onActivate) {
+  if (YM.sphereTabs.find(t=>t.name===name)) return;
+  YM.sphereTabs.push({name, onActivate, active:false});
+  renderTabs();
+}
+function removeSphereTab(name) {
+  YM.sphereTabs = YM.sphereTabs.filter(t=>t.name!==name);
+  renderTabs();
+}
+window.YM_addSphereTab    = addSphereTab;
+window.YM_removeSphereTab = removeSphereTab;
+
+// ── MENUS ─────────────────────────────────────
+function renderAppMenu() {
+  const list = $('ym-app-list'); if(!list) return;
+  list.innerHTML = '';
+  if (!YM.apps.length) {
+    list.innerHTML = '<div style="color:#4a4a60;font-size:11px;padding:8px">Chargement…</div>';
+    return;
+  }
+  const ORDER = ['plug','mine','profile'];
+  [...YM.apps]
+    .sort((a,b)=>{const ai=ORDER.indexOf(a.name),bi=ORDER.indexOf(b.name);if(ai>-1&&bi>-1)return ai-bi;if(ai>-1)return -1;if(bi>-1)return 1;return a.name.localeCompare(b.name);})
+    .forEach(app=>{
+      const isOpen = YM.openApps.includes(app.name);
+      const item = el('div','ym-menu-item'+(isOpen?' open-app':''));
+      item.innerHTML = `
+        <div style="flex:1;min-width:0">
+          <div class="ym-menu-item-name">${app.name}</div>
+          ${isOpen?'<div class="ym-menu-item-sub">ouvert</div>':''}
         </div>
-      </div>
-      <div>
-        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Thème exemple (optionnel)</label>
-        <select class="ym-input" id="profile-theme-example">
-          <option value="">Aucun (thème default)</option>
-        </select>
-      </div>
-      <textarea class="ym-editor" id="profile-theme-prompt" placeholder="Décrivez le thème voulu : couleurs, typographie, ambiance…" rows="3"></textarea>
-      <div style="display:flex;gap:8px">
-        <button class="ym-btn ym-btn-accent" id="profile-gen-theme-btn" style="flex:1">Générer avec IA</button>
-        <button class="ym-btn" id="profile-code-theme-btn" style="flex:1">Éditer code</button>
-      </div>
-      <textarea class="ym-editor" id="profile-theme-code" placeholder="<!-- Code HTML+CSS du thème -->" rows="6" style="display:none"></textarea>
-      <div style="display:flex;gap:8px" id="profile-theme-actions" style="display:none">
-        <button class="ym-btn" id="profile-theme-preview-btn" style="flex:1">Prévisualiser</button>
-        <button class="ym-btn ym-btn-accent" id="profile-theme-publish-btn" style="flex:1">Publier</button>
-      </div>
-      <div id="profile-theme-status"></div>
-    </div>
-  </div>`;
-}
-
-// ── MAIN RENDER ────────────────────────────────────────────
-function render() {
-  const body = $('ym-app-body');
-  if (!body) return;
-
-  const p = ensureProfile();
-  const netObj = SOCIAL_NETWORKS.find(n => n.id === p.socialNet);
-
-  body.innerHTML = `
-  <!-- Profile Card -->
-  <div class="ym-panel">
-    <div class="ym-profile-hero">
-      <div class="ym-profile-avatar" id="profile-avatar-display">
-        ${p.photo ? `<img src="${p.photo}" alt="" style="width:100%;height:100%;object-fit:cover"/>` : (p.name ? p.name[0].toUpperCase() : '?')}
-      </div>
-      <input type="file" id="profile-photo-input" accept="image/*" style="display:none"/>
-      <button class="ym-btn ym-btn-ghost" id="profile-photo-btn" style="font-size:10px">Changer photo</button>
-      <div style="font-family:var(--font-display);font-size:20px;font-weight:800">${p.name || 'Votre nom'}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
-        <span class="ym-chip blue">${p.uuid.slice(0,8)}…</span>
-        ${p.socialNet ? `<span class="ym-chip">${netObj?.name || p.socialNet} @${p.socialHandle}</span>` : ''}
-      </div>
-    </div>
-
-    <!-- Edit form -->
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <input class="ym-input" id="profile-name" placeholder="Nom affiché" value="${p.name || ''}"/>
-      <div style="display:flex;gap:8px">
-        <select class="ym-input" id="profile-social-net" style="flex:1">
-          <option value="">Réseau social</option>
-          ${SOCIAL_NETWORKS.map(n=>`<option value="${n.id}" ${p.socialNet===n.id?'selected':''}>${n.name}</option>`).join('')}
-        </select>
-        <input class="ym-input" id="profile-social-handle" placeholder="pseudo / handle" value="${p.socialHandle||''}" style="flex:1"/>
-      </div>
-      <div id="profile-social-instance-wrap" style="${netObj?.needsInstance?'':'display:none'}">
-        <input class="ym-input" id="profile-social-instance" placeholder="Instance ex: mastodon.social" value="${p.socialInstance||''}"/>
-      </div>
-      <div id="profile-social-token-wrap" style="${netObj?.needsToken?'':'display:none'}">
-        <input class="ym-input" id="profile-social-token" type="password" placeholder="Bearer token (X/Twitter PKCE)" value="${p.socialToken||''}"/>
-      </div>
-      <input class="ym-input" id="profile-website" placeholder="Site web (https://…)" value="${p.website||''}"/>
-      <button class="ym-btn ym-btn-accent" id="profile-save-btn">Enregistrer</button>
-    </div>
-  </div>
-
-  <!-- UUID + QR -->
-  <div class="ym-panel">
-    <div class="ym-panel-title">Identité</div>
-    <div class="ym-wallet-address" style="margin-bottom:12px">${p.uuid}</div>
-    <div id="profile-qr-container" class="ym-flex" style="display:flex;justify-content:center;margin-bottom:12px"></div>
-    <div style="display:flex;gap:8px">
-      <button class="ym-btn ym-btn-ghost" id="profile-copy-uuid" style="flex:1" data-tip="Copier UUID">Copier UUID</button>
-      <button class="ym-btn ym-btn-ghost" id="profile-copy-url" style="flex:1" data-tip="Copier URL">Copier URL</button>
-    </div>
-  </div>
-
-  <!-- Gist Backup -->
-  <div class="ym-panel">
-    <div class="ym-panel-title">Sauvegarde Gist</div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="ym-notice info"><span>Sauvegarde : UUID + liste UUID de vos contacts dans un Gist privé GitHub.</span></div>
-      <input class="ym-input" id="profile-gh-token" type="password" placeholder="Token GitHub (scope : gist)"/>
-      <div style="display:flex;gap:8px">
-        <button class="ym-btn ym-btn-accent" id="profile-save-gist" style="flex:1">Sauvegarder</button>
-        <button class="ym-btn" id="profile-restore-gist" style="flex:1">Restaurer</button>
-      </div>
-      <div style="display:flex;gap:8px">
-        <input class="ym-input" id="profile-gist-id" placeholder="Gist ID (pour restaurer)" value="${p.gistId||''}" style="flex:1"/>
-        <button class="ym-btn ym-btn-ghost" id="profile-copy-gistid" data-tip="Copier Gist ID">⧉</button>
-      </div>
-      <div id="profile-gist-status"></div>
-    </div>
-  </div>
-
-  <!-- Page de démarrage -->
-  <div class="ym-panel">
-    <div class="ym-panel-title">Page de démarrage</div>
-    <div id="profile-start-page" style="display:flex;gap:6px;flex-wrap:wrap"></div>
-  </div>
-
-  <!-- Theme Builder -->
-  ${renderThemeBuilder()}
-
-  <!-- About YourMine -->
-  <div class="ym-panel">
-    <div class="ym-panel-title" style="cursor:pointer" id="about-toggle">Notre Projet ▸</div>
-    <div id="about-content" style="display:none">
-      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;color:var(--text2);line-height:1.7">
-        <p style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--text)">Value Engine</p>
-        <p>Un moteur d'incitation économique dans un navigateur. Le App layer P2P de YourMine combine l'IA et une infrastructure ouverte et auto-confinée avec une adaptabilité extrême.</p>
-        <p>YourMine introduit le concept de <em style="color:var(--accent)">"Mine Per Clic"</em>. Les utilisateurs minent de la cryptomonnaie favorisés par leur fidélité grâce au <strong>Proof of Sacrifice</strong>.</p>
-        <p>Un système déterministe et désinflationiste de minage par burn. Commission volontaire au lieu d'être brûlée, déterminant également leur récompense.</p>
-        <p style="color:var(--accent3)">YourMine ne vend pas des apps. Ne vend pas un store. Ne vend pas une crypto. C'est une infrastructure d'incitation collective, ouverte et auto-confinée.</p>
-        <div class="ym-divider"></div>
-        <p style="font-size:11px;font-style:italic;color:var(--text3)">"Facebook a développé un réseau d'incitation sociale. WordPress a développé une plateforme de plugins. YourMine développe l'incitation économique dans un réseau de plugins."</p>
-      </div>
-    </div>
-  </div>
-  `;
-
-  renderQR(p.uuid);
-  wireProfileEvents();
-  loadThemeExamples();
-}
-
-function wireProfileEvents() {
-  const body = $('ym-app-body');
-  if (!body) return;
-
-  // Photo
-  $('profile-photo-btn')?.addEventListener('click', () => $('profile-photo-input')?.click());
-  $('profile-photo-input')?.addEventListener('change', async e => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const compressed = await compressPhoto(file);
-    YM.profile.photo = compressed;
-    const av = $('profile-avatar-display');
-    if (av) av.innerHTML = `<img src="${compressed}" style="width:100%;height:100%;object-fit:cover"/>`;
-  });
-
-  // Network select → show/hide instance & token fields
-  $('profile-social-net')?.addEventListener('change', e => {
-    const net = SOCIAL_NETWORKS.find(n => n.id === e.target.value);
-    $('profile-social-instance-wrap').style.display = net?.needsInstance  ? '' : 'none';
-    $('profile-social-token-wrap').style.display    = net?.needsToken     ? '' : 'none';
-  });
-
-  // Save profile
-  $('profile-save-btn')?.addEventListener('click', () => {
-    const p = YM.profile;
-    p.name            = $('profile-name')?.value || '';
-    p.socialNet       = $('profile-social-net')?.value || '';
-    p.socialHandle    = $('profile-social-handle')?.value || '';
-    p.socialInstance  = $('profile-social-instance')?.value?.trim() || '';
-    p.socialToken     = $('profile-social-token')?.value || '';
-    p.website         = $('profile-website')?.value || '';
-    saveProfile();
-    const btn = $('profile-save-btn');
-    if (btn) { btn.textContent = '✓ Enregistré'; setTimeout(() => btn.textContent = 'Enregistrer', 2000); }
-  });
-
-  // Copy UUID / URL
-  $('profile-copy-uuid')?.addEventListener('click', () => navigator.clipboard.writeText(YM.profile.uuid));
-  $('profile-copy-url')?.addEventListener('click',  () => navigator.clipboard.writeText(`https://yourmine.app/u/${YM.profile.uuid}`));
-
-  // Gist
-  $('profile-save-gist')?.addEventListener('click', async () => {
-    const token = $('profile-gh-token')?.value;
-    if (!token) return setStatus('profile-gist-status', 'Token GitHub requis', true);
-    try {
-      const url = await saveToGist(token);
-      setStatus('profile-gist-status', 'Sauvegardé : ' + YM.profile.gistId);
-    } catch(e) { setStatus('profile-gist-status', e.message, true); }
-  });
-
-  $('profile-restore-gist')?.addEventListener('click', async () => {
-    const gistId = $('profile-gist-id')?.value?.trim();
-    if (!gistId) return setStatus('profile-gist-status', 'Gist ID requis', true);
-    try {
-      await restoreFromGist(gistId);
-      setStatus('profile-gist-status', 'Restauré !');
-      render();
-    } catch(e) { setStatus('profile-gist-status', e.message, true); }
-  });
-
-  // Copy Gist ID
-  $('profile-copy-gistid')?.addEventListener('click', () => {
-    const id = YM.profile?.gistId;
-    if (id) navigator.clipboard.writeText(id).catch(()=>{});
-  });
-
-  // Start page — construit dynamiquement à partir des apps disponibles
-  const startPageEl = $('profile-start-page');
-  if (startPageEl) {
-    const currentStart = localStorage.getItem('ym_start_app') || 'plug';
-    const apps = (YM?.apps?.length ? YM.apps : [{name:'plug'},{name:'mine'},{name:'profile'}]);
-    apps.forEach(a => {
-      const btn = document.createElement('button');
-      btn.className = 'ym-cat-btn' + (a.name === currentStart ? ' active' : '');
-      btn.dataset.app = a.name;
-      btn.textContent = a.name;
-      btn.onclick = () => {
-        localStorage.setItem('ym_start_app', a.name);
-        startPageEl.querySelectorAll('[data-app]').forEach(b => b.classList.toggle('active', b.dataset.app === a.name));
+        ${isOpen
+          ?`<button class="ym-menu-close-btn" title="Fermer">✕</button>`
+          :`<span style="font-size:10px;color:#4a4a60">→</span>`}`;
+      // Clic sur toute la ligne
+      item.onclick = (e) => {
+        const closeBtn = e.target.closest('.ym-menu-close-btn');
+        if (closeBtn) { closeApp(app.name); return; }
+        openApp(app.name);
       };
-      startPageEl.appendChild(btn);
+      list.appendChild(item);
     });
-  }
+}
 
-  // Theme builder
-  $('profile-code-theme-btn')?.addEventListener('click', () => {
-    const editor = $('profile-theme-code');
-    const actions = $('profile-theme-actions');
-    if (editor) { editor.style.display = editor.style.display === 'none' ? '' : 'none'; }
-    if (actions) actions.style.display = '';
-  });
-
-  $('profile-gen-theme-btn')?.addEventListener('click', genThemeWithAI);
-  $('profile-theme-preview-btn')?.addEventListener('click', previewTheme);
-  $('profile-theme-publish-btn')?.addEventListener('click', publishTheme);
-
-  // About toggle
-  $('about-toggle')?.addEventListener('click', () => {
-    const c = $('about-content');
-    if (c) { const open = c.style.display !== 'none'; c.style.display = open ? 'none' : ''; $('about-toggle').textContent = 'Notre Projet ' + (open ? '▸' : '▾'); }
+function renderThemeMenu() {
+  const list = $('ym-theme-list'); if(!list) return;
+  list.innerHTML = '';
+  YM.themes.forEach(t=>{
+    const item = el('div','ym-menu-item'+(t.name===YM.theme?' open-app':''));
+    item.innerHTML = `<div><div class="ym-menu-item-name">${t.name}</div><div class="ym-menu-item-sub">.theme.html</div></div>`;
+    item.onclick = ()=>{ closeMenus(); if(t.name!==YM.theme) loadTheme(t.name,true); };
+    list.appendChild(item);
   });
 }
 
-async function loadThemeExamples() {
-  const sel = $('profile-theme-example');
-  if (!sel) return;
-  try {
-    const files = await fetchJSON(REPO_API);
-    const themes = files.filter(f => f.name.endsWith('.theme.html'));
-    themes.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t.name;
-      opt.textContent = t.name.replace('.theme.html','');
-      sel.appendChild(opt);
-    });
-  } catch {}
+function toggleMenu(menuId, backdropId) {
+  const menu=$(menuId), back=$(backdropId);
+  const wasOpen = menu.classList.contains('open');
+  closeMenus();
+  if(!wasOpen){ menu.classList.add('open'); back.classList.add('open'); }
+}
+function closeMenus() {
+  ['ym-x-menu','ym-o-menu'].forEach(id=>$(id)?.classList.remove('open'));
+  ['ym-x-backdrop','ym-o-backdrop'].forEach(id=>$(id)?.classList.remove('open'));
 }
 
-async function genThemeWithAI() {
-  const provider = $('profile-ai-provider')?.value;
-  const key      = $('profile-ai-key')?.value?.trim();
-  const prompt   = $('profile-theme-prompt')?.value?.trim();
-  const example  = $('profile-theme-example')?.value;
+// ── GEO ──────────────────────────────────────
+function initGeo() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => { YM.geo = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
+    null,
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+  // Mise à jour continue
+  navigator.geolocation.watchPosition(
+    pos => { YM.geo = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
+    null,
+    { enableHighAccuracy: true, maximumAge: 5000 }
+  );
+}
 
-  if (!key) return setStatus('profile-theme-status', 'Clé API requise', true);
-  if (!prompt) return setStatus('profile-theme-status', 'Prompt requis', true);
-
-  setStatus('profile-theme-status', 'Génération en cours…');
-  const btn = $('profile-gen-theme-btn');
-  btn.disabled = true;
-
-  let exampleCode = '';
-  if (example) {
-    try { exampleCode = await fetchText(REPO_RAW + example); } catch {}
-  }
-
-  const systemPrompt = `Tu es un expert en design CSS/HTML futuriste, organique, minimaliste pour l'app YourMine.
-Génère UNIQUEMENT le code HTML+CSS d'un thème.
-RÈGLE ABSOLUE : tu ne dois JAMAIS supprimer ou renommer les IDs existants : ym-root, ym-header, ym-logo, ym-balance-display, ym-balance-val, ym-main, ym-app-body, ym-btn-x, ym-btn-o, ym-x-menu, ym-o-menu, ym-theme-confirm.
-Tu peux jouer avec TOUT le reste : couleurs, typo, layout, animations, variables CSS.
-Le code commence par <style> et peut contenir des <template> HTML.
-NE PAS inclure de markdown, juste le code brut.`;
-
-  const userMsg = `Crée un thème HTML+CSS pour YourMine. Prompt: "${prompt}"${exampleCode ? `\n\nExemple de référence:\n${exampleCode.slice(0,3000)}` : ''}`;
-
+// ── P2P ──────────────────────────────────────
+function initP2P() {
   try {
-    let code = '';
-    if (provider === 'anthropic') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: systemPrompt, messages: [{ role: 'user', content: userMsg }] })
-      });
-      const d = await r.json();
-      code = d.content?.[0]?.text || '';
-    } else {
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMsg }] })
-      });
-      const d = await r.json();
-      code = d.choices?.[0]?.message?.content || '';
+    if (typeof trystero==='undefined') return;
+    YM.room = trystero.joinRoom({appId:'yourmine-v1'},'lobby');
+
+    // Actions profil
+    const [sendProfile, onProfile] = YM.room.makeAction('profile');
+    YM.p2p = {sendProfile};
+    onProfile((data,peerId)=>{
+      if(!data?.uuid) return;
+      const cache = JSON.parse(sessionStorage.getItem('ym_near_cache')||'{}');
+      cache[data.uuid] = {...data,_ts:Date.now(),_peer:peerId};
+      sessionStorage.setItem('ym_near_cache', JSON.stringify(cache));
+    });
+    setInterval(()=>{ if(YM.profile) YM.p2p?.sendProfile(YM.profile); },5000);
+
+    // ── Leader election + repo sync ──────────
+    // Le leader = le peer avec le selfId le plus petit
+    // Seul le leader poll GitHub — les autres reçoivent via P2P
+    const [sendRepo, onRepo] = YM.room.makeAction('repo');
+    YM.p2p.sendRepo = sendRepo;
+
+    const peers = new Set();
+    let selfId = null;
+
+    YM.room.onPeerJoin(id => {
+      peers.add(id);
+      // Nouveau peer — si on est leader, on lui envoie l'état actuel
+      if (_isLeader()) sendRepo({ apps: YM.apps, themes: YM.themes, spheres: YM.spheres });
+    });
+    YM.room.onPeerLeave(id => peers.delete(id));
+
+    // Récupère notre propre selfId via le premier broadcast
+    const [sendHello, onHello] = YM.room.makeAction('hello');
+    YM.room.onPeerJoin(() => sendHello({ id: _getSelfId() }));
+    onHello((data) => { /* les autres nous envoient leur id — pas besoin de stocker */ });
+
+    function _getSelfId() {
+      if (!selfId) selfId = YM.profile?.uuid || Math.random().toString(36).slice(2);
+      return selfId;
     }
-    // Strip markdown fences
-    code = code.replace(/```html|```css|```/g, '').trim();
-    const editor = $('profile-theme-code');
-    if (editor) { editor.value = code; editor.style.display = ''; }
-    const actions = $('profile-theme-actions');
-    if (actions) actions.style.display = '';
-    setStatus('profile-theme-status', 'Thème généré !');
-  } catch(e) {
-    setStatus('profile-theme-status', 'Erreur: ' + e.message, true);
+
+    function _isLeader() {
+      const allIds = [_getSelfId(), ...peers];
+      return allIds.sort()[0] === _getSelfId();
+    }
+
+    // Reçoit la liste du repo depuis le leader
+    onRepo((data) => {
+      if (data?.apps?.length) {
+        YM.apps    = data.apps;
+        YM.themes  = data.themes  || YM.themes;
+        YM.spheres = data.spheres || YM.spheres;
+        renderAppMenu();
+      }
+    });
+
+    // Polling GitHub — seulement si on est leader
+    setInterval(async () => {
+      if (!_isLeader()) return; // followers ne font rien
+      try {
+        const res = await fetch(REPO_RAW + 'plug.app.js', { method: 'HEAD' });
+        const etag = res.headers.get('ETag') || res.headers.get('Last-Modified');
+        if (!etag || etag === _rawEtag) return;
+        _rawEtag = etag;
+        const files = await _fetchRepoFiles();
+        if (files) {
+          _applyRepoFiles(files);
+          renderAppMenu();
+          // Broadcast aux peers
+          sendRepo({ apps: YM.apps, themes: YM.themes, spheres: YM.spheres });
+        }
+      } catch {}
+    }, 5000);
+
+  } catch(e){ console.warn('[YM P2P]',e.message); }
+}
+
+// ── BOOT ─────────────────────────────────────
+async function boot() {
+  // 1. Thème appliqué IMMÉDIATEMENT (fallback embarqué) — pas d'await sur le fetch GitHub
+  injectDefaultTheme(); // ne pas await — le fallback est synchrone, GitHub rafraîchit en arrière-plan
+
+  // 2. Lister les fichiers du repo
+  await listRepoFiles();
+  renderAppMenu();
+  renderThemeMenu();
+
+  // 3. Thème sauvegardé
+  if (YM.theme!=='default') await loadTheme(YM.theme).catch(()=>{});
+
+  // 4. Afficher
+  $('ym-root').style.display = '';
+  $('ym-boot').classList.add('hidden');
+
+  // 5. Restaurer apps ouvertes ou ouvrir la page de démarrage
+  const startApp = localStorage.getItem('ym_start_app') || null;
+  const saved = JSON.parse(localStorage.getItem('ym_open_apps')||'[]')
+    .filter(n => YM.apps.find(a=>a.name===n));
+
+  if (YM.apps.length === 0) _applyFallback(); // ne devrait jamais arriver
+
+  YM.openApps = saved.length ? saved : [];  // rien au démarrage — l'user choisit via X
+  _saveState();
+  YM.openApps.forEach(name=>_createFrame(name));
+  const lastActive = localStorage.getItem('ym_active_app');
+  if (YM.openApps.length) {
+    activateApp((lastActive && YM.openApps.includes(lastActive)) ? lastActive : YM.openApps[0]);
   }
-  btn.disabled = false;
+
+  // 6. Géolocalisation
+  initGeo();
+
+  // 7. P2P + cycle
+  initP2P();
+  setInterval(()=>window.dispatchEvent(new CustomEvent('ym:cycle')),5000);
 }
 
-function previewTheme() {
-  const code = $('profile-theme-code')?.value?.trim();
-  if (!code) return;
-  const root = $('ym-theme-root');
-  if (root) root.innerHTML = code;
-  const confirm = $('ym-theme-confirm');
-  if (confirm) confirm.classList.add('visible');
-}
-
-async function publishTheme() {
-  const code = $('profile-theme-code')?.value?.trim();
-  const token = $('profile-gh-token')?.value?.trim();
-  if (!code) return setStatus('profile-theme-status', 'Code requis', true);
-  // Propose a filename
-  const name = prompt('Nom du thème (sans .theme.html) :');
-  if (!name) return;
-  if (!token) return setStatus('profile-theme-status', 'Token GitHub requis pour publier', true);
-  // PR to repo (simplified: create fork + file)
-  setStatus('profile-theme-status', 'Publication: fonctionnalité PR en développement. Code copié dans le presse-papier.');
-  navigator.clipboard.writeText(code).catch(()=>{});
-}
-
-function setStatus(id, msg, isError = false) {
-  const s = $(id);
-  if (!s) return;
-  s.innerHTML = `<div class="ym-notice ${isError?'error':'success'}" style="margin-top:4px"><span>${msg}</span></div>`;
-}
-
-// ── INIT ──────────────────────────────────────────────────
-render();
-return { cleanup: () => {} };
-
+// ── EVENTS ───────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+  $('ym-btn-x').onclick = ()=>{ renderAppMenu();  toggleMenu('ym-x-menu','ym-x-backdrop'); };
+  $('ym-btn-o').onclick = ()=>{ renderThemeMenu(); toggleMenu('ym-o-menu','ym-o-backdrop'); };
+  $('ym-x-backdrop').onclick = e=>{ if(e.target===$('ym-x-backdrop')) closeMenus(); };
+  $('ym-o-backdrop').onclick = e=>{ if(e.target===$('ym-o-backdrop')) closeMenus(); };
+  $('ym-theme-confirm-btn').onclick = confirmTheme;
+  $('ym-theme-cancel').onclick      = cancelTheme;
+  boot();
 });
+</script>
+</body>
+</html>
