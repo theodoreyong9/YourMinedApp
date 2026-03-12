@@ -599,6 +599,7 @@ if (savedMine) Object.assign(mineState, JSON.parse(savedMine));
 render();
 
 return {
+  mountAs: 'balance',
   cleanup: () => { clearInterval(cycleTimer); }
 };
 
