@@ -24,18 +24,11 @@ let nearFilter    = '';
 let contactSearch = '';
 let contactFilter = '';
 let feedFilter    = 'all';
-let myPos         = null;
 let cycleTimer    = null;
 let nearDiscoveries = {};
 
 // ── GEO ───────────────────────────────────────────────────
-function requestGeo() {
-  if (!navigator.geolocation) return;
-  navigator.geolocation.watchPosition(pos => {
-    myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    announceSelf();
-  }, null, { enableHighAccuracy: true, maximumAge: 5000 });
-}
+// geo gérée par index.html via YM.geo
 
 function haversine(a, b) {
   const R = 6371000;
@@ -47,9 +40,8 @@ function haversine(a, b) {
 
 // ── P2P ANNOUNCE ──────────────────────────────────────────
 function announceSelf() {
-  const YM = window._YM;
-  if (!YM?.profile || !myPos) return;
-  YM.p2p?.sendProfile?.({ ...YM.profile, _geo: myPos });
+    if (!YM?.profile || !YM.geo) return;
+  YM.p2p?.sendProfile?.({ ...YM.profile, _geo: YM.geo });
 }
 
 // ── NEAR CACHE ────────────────────────────────────────────
@@ -66,14 +58,13 @@ function getNearProfiles() {
 
 function filterNear() {
   const profiles = Object.values(getNearProfiles());
-  const YM = window._YM;
-  const selfUUID = YM?.profile?.uuid;
+    const selfUUID = YM?.profile?.uuid;
 
   return profiles
     .filter(p => p.uuid !== selfUUID)
     .filter(p => {
-      if (!myPos || !p._geo) return true; // show if no geo data
-      return haversine(myPos, p._geo) <= NEAR_RADIUS_M;
+      if (!YM.geo || !p._geo) return true; // show if no geo data
+      return haversine(YM.geo, p._geo) <= NEAR_RADIUS_M;
     })
     .filter(p => {
       if (!nearFilter) return true;
@@ -83,13 +74,11 @@ function filterNear() {
 
 // ── CONTACTS ──────────────────────────────────────────────
 function getContacts() {
-  const YM = window._YM;
-  return (YM?.contacts || JSON.parse(localStorage.getItem('ym_contacts') || '[]'));
+    return (YM?.contacts || JSON.parse(localStorage.getItem('ym_contacts') || '[]'));
 }
 
 function addContact(uuid, name, photo) {
-  const YM = window._YM;
-  const contacts = getContacts();
+    const contacts = getContacts();
   if (contacts.find(c => c.uuid === uuid)) return;
   contacts.push({ uuid, name: name || uuid.slice(0,8), photo: photo || null, added: Date.now() });
   YM.contacts = contacts;
@@ -98,8 +87,7 @@ function addContact(uuid, name, photo) {
 }
 
 function removeContact(uuid) {
-  const YM = window._YM;
-  YM.contacts = getContacts().filter(c => c.uuid !== uuid);
+    YM.contacts = getContacts().filter(c => c.uuid !== uuid);
   localStorage.setItem('ym_contacts', JSON.stringify(YM.contacts));
   renderContent();
 }
@@ -238,8 +226,7 @@ function _placeholder(profile, note = '') {
 let activeCall = null;
 
 async function startCall(contactUUID) {
-  const YM = window._YM;
-  // Check mutual contact
+    // Check mutual contact
   const cache = getNearProfiles();
   const contactData = Object.values(cache).find(p => p.uuid === contactUUID);
   const myContacts = getContacts().map(c => c.uuid);
@@ -339,10 +326,10 @@ function renderNear() {
         </div>
         <div>
           <div style="font-family:var(--font-display);font-size:14px;font-weight:700">${nearProfiles.length} Near</div>
-          <div style="font-size:10px;color:var(--text3)">Rayon ${NEAR_RADIUS_M}m ${myPos ? '· Géo active' : '· Géo non activée'}</div>
+          <div style="font-size:10px;color:var(--text3)">Rayon ${NEAR_RADIUS_M}m ${YM.geo ? '· Géo active' : '· Géo non activée'}</div>
         </div>
       </div>
-      ${!myPos ? `<button class="ym-btn ym-btn-accent" id="near-geo-btn">Activer géo</button>` : ''}
+      ${!YM.geo ? `<button class="ym-btn ym-btn-accent" id="near-geo-btn">Activer géo</button>` : ''}
     </div>
 
     <div class="ym-search-wrap">
@@ -355,7 +342,7 @@ function renderNear() {
     </div>
   </div>`;
 
-  area.querySelector('#near-geo-btn')?.addEventListener('click', requestGeo);
+  area.querySelector('#near-geo-btn')?.addEventListener('click', () => { if(YM.geo) announceSelf(); });
   area.querySelector('#near-filter')?.addEventListener('input', e => { nearFilter = e.target.value; renderNear(); });
   wireContactRowEvents(area, 'near');
 }
@@ -402,7 +389,7 @@ function renderContacts() {
 function renderContactRow(p, type) {
   const name = p.name || p.uuid?.slice(0,8) || 'Inconnu';
   const avatarContent = p.photo ? `<img src="${p.photo}" alt="" style="width:100%;height:100%;object-fit:cover"/>` : name[0].toUpperCase();
-  const dist = (myPos && p._geo) ? Math.round(haversine(myPos, p._geo)) + 'm' : '';
+  const dist = (YM.geo && p._geo) ? Math.round(haversine(YM.geo, p._geo)) + 'm' : '';
   return `<div class="ym-contact-row" data-uuid="${p.uuid || ''}" data-type="${type}">
     <div class="ym-avatar">${avatarContent}</div>
     <div class="ym-contact-info">
@@ -506,7 +493,7 @@ function openProfileModal(uuid) {
       </div>
     </div>
     <div class="ym-stat-row"><span class="ym-stat-label">UUID</span><span style="font-size:10px;color:var(--text3);word-break:break-all">${uuid}</span></div>
-    ${p._geo && myPos ? `<div class="ym-stat-row"><span class="ym-stat-label">Distance</span><span class="ym-stat-value">${Math.round(haversine(myPos, p._geo))}m</span></div>` : ''}
+    ${p._geo && YM.geo ? `<div class="ym-stat-row"><span class="ym-stat-label">Distance</span><span class="ym-stat-value">${Math.round(haversine(YM.geo, p._geo))}m</span></div>` : ''}
     <div class="ym-divider"></div>
     <div style="display:flex;gap:8px">
       <button class="ym-btn ym-btn-accent" id="modal-add-contact" style="flex:1">+ Contact</button>
@@ -541,7 +528,6 @@ function startCycle() {
 }
 
 // ── INIT ─────────────────────────────────────────────────
-requestGeo();
 renderContent();
 startCycle();
 announceSelf();
