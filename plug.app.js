@@ -194,18 +194,21 @@ function renderSphereList() {
 }
 
 function buildSphereItem(sp) {
-  const icon = sp.info?.icon || sp.info?.imgUrl || '◎';
-  const desc = sp.info?.desc || '';
   const isActive = YM.sphereTabs?.some(t => t.name === sp.name);
+  const icon   = sp.info?.icon || '◎';
+  const desc   = sp.info?.desc || '';
+  const author = sp.info?.author || '';
+  const score  = sp.info?.score || 0;
 
   const div = el('div', `ym-sphere-item${isActive?' active':''}`, `
     <div class="ym-sphere-icon">${icon.startsWith('http') ? `<img src="${icon}" alt=""/>` : icon}</div>
     <div style="flex:1;overflow:hidden">
       <div style="font-family:var(--font-display);font-size:13px;font-weight:600">${sp.name}</div>
       ${desc ? `<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${desc}</div>` : ''}
+      ${author ? `<div style="font-size:9px;color:var(--text3);opacity:.7">by ${author}</div>` : ''}
     </div>
-    <div style="display:flex;align-items:center;gap:6px">
-      ${sp.info?.score ? `<span class="ym-chip gold">${sp.info.score.toFixed(0)}</span>` : ''}
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+      ${score ? `<span class="ym-chip gold">★ ${score}</span>` : ''}
       ${isActive ? `<span class="ym-chip accent">actif</span>` : ''}
     </div>
   `);
