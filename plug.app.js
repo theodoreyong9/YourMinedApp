@@ -3,16 +3,7 @@
 //  Injecte dans #ym-app-body
 // ════════════════════════════════════════════════════════
 
-(function() {
-const _name = 'plug';
-const _container = (window._YM_CONTAINERS || {})[_name];
-const YM = window.YM;
-const $ = id => id === 'ym-app-body' ? _container : document.getElementById(id);
-const el = window.el;
-const fetchText = window.fetchText;
-const fetchJSON = window.fetchJSON;
-const REPO_RAW = window.REPO_RAW;
-const REPO_API = window.REPO_API;
+(function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) {
 
 const CATEGORIES = ['Autres', 'Commerce', 'Social', 'Transport', 'Jeux'];
 const SPHERE_FILTERS = ['browser', 'créateur', 'testeur'];
@@ -296,4 +287,4 @@ render();
 // Return cleanup
 return { cleanup: () => {} };
 
-})();
+});
