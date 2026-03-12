@@ -53,14 +53,26 @@
   }
 
   /* ── LAYOUT ── */
+  /* ── BOOT ── */
+  #ym-boot {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+    z-index: 99999;
+    transition: opacity .5s, visibility .5s;
+  }
+  #ym-boot.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  #ym-boot-logo { font-family: var(--font-display); font-size: 28px; font-weight: 900; letter-spacing: -1px; }
+  #ym-boot-bar { width: 120px; height: 2px; background: rgba(255,255,255,.06); border-radius: 1px; overflow: hidden; }
+  #ym-boot-progress { height: 100%; background: var(--accent); border-radius: 1px; animation: boot-fill 1.8s ease forwards; }
+  @keyframes boot-fill { from { width: 0 } to { width: 100% } }
+
+  /* ── ROOT ── */
   #ym-root {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
     min-height: 100dvh;
-    max-width: 1200px;
-    margin: 0 auto;
+    max-width: 1200px; margin: 0 auto;
     padding: 0 16px;
   }
 
@@ -100,21 +112,33 @@
 
   #ym-balance-display {
     font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text2);
     display: flex;
-    align-items: center;
-    gap: 6px;
-    letter-spacing: 0.5px;
+    align-items: baseline;
+    gap: 4px;
   }
 
-  #ym-balance-display .ym-val {
+  #ym-balance-display::before {
+    content: 'Claimable';
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+
+  #ym-balance-display #ym-balance-val {
     font-size: 18px;
     color: var(--accent);
     font-weight: 800;
-    font-family: var(--font-display);
-    transition: all 0.4s var(--transition);
+    transition: color .4s var(--transition);
+  }
+
+  #ym-balance-display::after {
+    content: 'YRM';
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--text3);
   }
 
   /* ── MAIN CONTENT AREA ── */
@@ -122,8 +146,73 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding-bottom: 80px;
+    padding-bottom: 64px; /* espace pour la barre du bas */
   }
+
+  /* ── BARRE FIXE DU BAS ── */
+  #ym-bottombar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 56px;
+    background: rgba(10,10,16,.97);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    z-index: 9000;
+    display: flex; align-items: center;
+    padding: 0 8px; gap: 6px;
+  }
+
+  #ym-tabs-zone {
+    flex: 1; display: flex; align-items: center; gap: 5px;
+    overflow-x: auto; padding: 0 4px; min-width: 0;
+  }
+  #ym-tabs-zone::-webkit-scrollbar { display: none; }
+
+  .ym-tab-pill {
+    display: inline-flex; align-items: center;
+    padding: 6px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text2); font-family: var(--font-mono); font-size: 11px;
+    cursor: pointer; white-space: nowrap;
+    transition: all .2s; flex-shrink: 0;
+  }
+  .ym-tab-pill:hover { color: var(--text); border-color: var(--border2); }
+  .ym-tab-pill.active-app { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+  .ym-tab-pill.sphere-pill { border-color: rgba(200,240,160,.2); color: var(--accent); }
+  .ym-tab-pill.sphere-pill.active-sphere { background: rgba(200,240,160,.08); border-color: var(--accent); }
+  .ym-tab-sep { color: var(--border2); font-size: 10px; padding: 0 2px; pointer-events: none; flex-shrink: 0; }
+
+  /* Boutons X et O dans la barre */
+  #ym-btn-x, #ym-btn-o {
+    flex-shrink: 0;
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid var(--border2); background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-family: var(--font-display); font-weight: 800;
+    transition: all .2s var(--transition);
+  }
+  #ym-btn-o { color: var(--accent2); font-size: 15px; }
+  #ym-btn-o:hover { background: rgba(126,212,255,.1); border-color: var(--accent2); }
+  #ym-btn-x { color: var(--accent); font-size: 13px; }
+  #ym-btn-x:hover { background: rgba(200,240,160,.1); border-color: var(--accent); transform: rotate(90deg); }
+
+  /* Fermer depuis la liste */
+  .ym-menu-close-btn {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: transparent; border: 1px solid transparent;
+    color: var(--text3); font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: all .15s;
+  }
+  .ym-menu-close-btn:hover { background: rgba(255,107,107,.15); border-color: var(--danger); color: var(--danger); }
+
+  /* app ouvert dans la liste */
+  .ym-menu-item.open-app { background: rgba(200,240,160,.06); border-color: rgba(200,240,160,.12); }
+
+  /* app frames */
+  #ym-app-frames { width: 100%; }
+  .ym-app-frame { display: none; }
+  .ym-app-frame.active { display: block; animation: fadeIn .3s var(--transition); }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 
   /* ── APP PANEL ── */
   .ym-panel {
@@ -472,54 +561,36 @@
     font-weight: 700;
   }
 
-  /* ── BOTTOM MENUS ── */
+  /* ── MENUS (surgissent au-dessus de la barre) ── */
   .ym-menu-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 500;
-    pointer-events: none;
+    position: fixed; inset: 0; z-index: 8999; pointer-events: none;
   }
-
   .ym-menu-backdrop.open { pointer-events: all; }
 
   .ym-bottom-menu {
     position: fixed;
+    bottom: 62px; /* juste au-dessus de la barre */
     border: 1px solid var(--border2);
-    background: var(--bg2);
+    background: rgba(10,10,16,.97);
     backdrop-filter: blur(20px);
-    border-radius: var(--r2) var(--r2) 0 0;
-    z-index: 600;
-    transition: transform 0.3s var(--transition);
-    overflow: hidden;
+    z-index: 9001; overflow: hidden;
+    opacity: 0; pointer-events: none;
+    transform: translateY(6px) scale(.97);
+    transition: opacity .2s, transform .22s var(--transition);
   }
-
   .ym-bottom-menu.right {
-    right: 0;
-    bottom: 0;
-    width: min(360px, 100vw);
-    max-height: 70dvh;
-    transform: translateX(100%);
-    border-radius: var(--r2) 0 0 0;
+    right: 6px; width: min(260px,90vw); max-height: 60dvh;
+    border-radius: var(--r2) var(--r2) var(--r) var(--r2);
+    transform-origin: bottom right;
   }
-
   .ym-bottom-menu.left {
-    left: 0;
-    bottom: 0;
-    width: min(300px, 100vw);
-    max-height: 60dvh;
-    transform: translateX(-100%);
-    border-radius: 0 var(--r2) 0 0;
+    left: 6px; width: min(240px,88vw); max-height: 60dvh;
+    border-radius: var(--r2) var(--r2) var(--r2) var(--r);
+    transform-origin: bottom left;
   }
+  .ym-bottom-menu.open { opacity: 1; pointer-events: all; transform: translateY(0) scale(1); }
 
-  .ym-bottom-menu.open {
-    transform: translateX(0);
-  }
-
-  .ym-menu-inner {
-    padding: 20px;
-    overflow-y: auto;
-    max-height: calc(70dvh - 20px);
-  }
+  .ym-menu-inner { padding: 14px; overflow-y: auto; max-height: calc(60dvh - 14px); }
 
   .ym-menu-title {
     font-family: var(--font-display);
@@ -566,55 +637,7 @@
     margin-top: 2px;
   }
 
-  /* ── BOTTOM CORNER BUTTONS ── */
-  #ym-btn-x, #ym-btn-o {
-    position: fixed;
-    bottom: 20px;
-    z-index: 700;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 1px solid var(--border2);
-    background: var(--bg2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 14px;
-    transition: all 0.2s var(--transition);
-    backdrop-filter: blur(8px);
-  }
-
-  #ym-btn-x {
-    right: 20px;
-    color: var(--accent);
-    box-shadow: 0 0 20px rgba(200,240,160,0.08);
-  }
-
-  #ym-btn-x:hover {
-    background: rgba(200,240,160,0.1);
-    border-color: var(--accent);
-    box-shadow: 0 0 28px rgba(200,240,160,0.2);
-    transform: rotate(90deg) scale(1.1);
-  }
-
-  #ym-btn-o {
-    left: 20px;
-    color: var(--accent2);
-    font-size: 16px;
-    box-shadow: 0 0 20px rgba(126,212,255,0.08);
-  }
-
-  #ym-btn-o:hover {
-    background: rgba(126,212,255,0.1);
-    border-color: var(--accent2);
-    box-shadow: 0 0 28px rgba(126,212,255,0.2);
-    transform: scale(1.1);
-  }
-
-  /* ── SPHERE PILL (onglet isolé) ── */
+  /* ── SPHERE PILL (onglet sphere dans la barre) ── */
   .ym-sphere-tab {
     position: fixed;
     bottom: 72px;
@@ -852,10 +875,8 @@
     #ym-logo { font-size: 18px; }
     .ym-panel { padding: 16px; border-radius: var(--r2); }
     .ym-card-grid { grid-template-columns: 1fr 1fr; }
-    .ym-bottom-menu.right { width: 100vw; border-radius: var(--r2) var(--r2) 0 0; }
-    .ym-bottom-menu.left { width: 85vw; border-radius: 0 var(--r2) var(--r2) 0; }
-    #ym-btn-x { bottom: 16px; right: 16px; }
-    #ym-btn-o { bottom: 16px; left: 16px; }
+    .ym-bottom-menu.right { width: 92vw; }
+    .ym-bottom-menu.left  { width: 88vw; }
   }
 
   @media (min-width: 768px) {
@@ -864,9 +885,11 @@
     .ym-card-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   }
 
-  @media (min-width: 1200px) {
-    #ym-main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    #ym-main > *:first-child { grid-column: span 2; }
+  /* PC : 2 colonnes dans les frames d'app */
+  @media (min-width: 900px) {
+    .ym-frame-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+    .ym-frame-inner > .ym-panel:first-child,
+    .ym-frame-inner > .ym-full { grid-column: span 2; }
   }
 
   /* ── ANIMATIONS ── */
