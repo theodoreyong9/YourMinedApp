@@ -1,4 +1,13 @@
-<!-- YourMine Default Theme — inject into #ym-theme-root -->
+<!-- YourMine Default Theme — inject into #ym-theme-root
+  @icon 🎨
+  @desc Thème sombre officiel YourMine
+  @author YourMine
+  @cat default
+  @score 100
+  @title YourMine
+  @bootLogo YourMine
+  @themeColor #c8f0a0
+-->
 <style id="ym-theme-css">
   @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap');
 
@@ -62,7 +71,7 @@
     transition: opacity .5s, visibility .5s;
   }
   #ym-boot.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-  #ym-boot-logo { font-family: var(--font-display); font-size: 28px; font-weight: 900; letter-spacing: -1px; }
+  #ym-boot-logo { font-family: var(--font-display); font-size: 28px; font-weight: 800; letter-spacing: 3px; color: #e8e8f0; }
   #ym-boot-bar { width: 120px; height: 2px; background: rgba(255,255,255,.06); border-radius: 1px; overflow: hidden; }
   #ym-boot-progress { height: 100%; background: var(--accent); border-radius: 1px; animation: boot-fill 1.8s ease forwards; }
   @keyframes boot-fill { from { width: 0 } to { width: 100% } }
@@ -1179,4 +1188,40 @@
   }
 
   .ym-gist-row .ym-input { flex: 1; }
+
+/* ── PROFILE 2 COLONNES PC ── */
+@media (min-width: 768px) {
+  .profile-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* ── NAVIGATEUR / PWA couleur ── */
+:root { color-scheme: dark; }
 </style>
+
+<script>
+(function(){
+  // Substitution du boot depuis le thème
+  const meta = {
+    title: 'YourMine',
+    bootLogo: 'YourMine',
+    themeColor: '#c8f0a0',
+  };
+  // Surcharge si définie dans le thème
+  const comment = document.currentScript?.previousSibling?.data || '';
+  const get = (tag) => { const m = comment.match(new RegExp('@'+tag+'\\s+(.+)')); return m?m[1].trim():null; };
+  const title = get('title') || meta.title;
+  const bootLogo = get('bootLogo') || meta.bootLogo;
+  const themeColor = get('themeColor') || meta.themeColor;
+
+  document.title = title;
+  const logoEl = document.getElementById('ym-boot-logo');
+  if (logoEl) logoEl.textContent = bootLogo;
+  const ymLogo = document.getElementById('ym-logo');
+  if (ymLogo) ymLogo.childNodes[0].textContent = title;
+  // Met à jour theme-color meta
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc) tc.content = themeColor;
+})();
+</script>
