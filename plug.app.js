@@ -274,4 +274,4 @@ render();
 // Return cleanup
 return { cleanup: () => {} };
 
-})(window._YM, window._$, window._el, window._fetchText, window._fetchJSON, window._REPO_RAW, window._REPO_API);
+});
