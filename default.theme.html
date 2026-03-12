@@ -102,52 +102,35 @@
     color: var(--text);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0;
   }
 
-  #ym-logo span.dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 12px var(--accent);
-    animation: pulse-dot 3s ease-in-out infinite;
-  }
-
-  @keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.7); }
-  }
+  #ym-logo .ym-logo-static { color: var(--text); }
+  #ym-logo .ym-logo-suffix { color: #e8e8f0; transition: color .4s ease; }
+  #ym-logo .ym-logo-suffix.alt { color: #c8f0a0; }
 
   #ym-balance-display {
     font-family: var(--font-display);
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 4px;
+    cursor: pointer;
   }
 
   #ym-balance-display::before {
-    content: 'Claimable';
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--text3);
+    content: '⚡';
+    font-size: 13px;
   }
 
   #ym-balance-display #ym-balance-val {
-    font-size: 18px;
+    font-size: 15px;
     color: var(--accent);
     font-weight: 800;
     transition: color .4s var(--transition);
   }
 
   #ym-balance-display::after {
-    content: 'YRM';
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    color: var(--text3);
+    content: '';
   }
 
   /* ── MAIN CONTENT AREA ── */
@@ -162,9 +145,8 @@
   #ym-bottombar {
     position: fixed; bottom: 0; left: 0; right: 0;
     height: 56px;
-    background: rgba(10,10,16,.97);
-    border-top: 1px solid var(--border);
-    backdrop-filter: blur(20px);
+    background: #c8f0a0;
+    border-top: none;
     z-index: 9000;
     display: flex; align-items: center;
     padding: 0 8px; gap: 6px;
@@ -179,30 +161,32 @@
   .ym-tab-pill {
     display: inline-flex; align-items: center;
     padding: 6px 14px; border-radius: 20px;
-    border: 1px solid var(--border); background: transparent;
-    color: var(--text2); font-family: var(--font-mono); font-size: 11px;
+    border: 1px solid rgba(5,5,8,.2); background: rgba(5,5,8,.1);
+    color: #1a2a0a; font-family: var(--font-mono); font-size: 11px;
     cursor: pointer; white-space: nowrap;
     transition: all .2s; flex-shrink: 0;
+    font-weight: 600;
   }
-  .ym-tab-pill:hover { color: var(--text); border-color: var(--border2); }
-  .ym-tab-pill.active-app { background: var(--surface2); color: var(--text); border-color: var(--border2); }
-  .ym-tab-pill.sphere-pill { border-color: rgba(200,240,160,.2); color: var(--accent); }
-  .ym-tab-pill.sphere-pill.active-sphere { background: rgba(200,240,160,.08); border-color: var(--accent); }
-  .ym-tab-sep { color: var(--border2); font-size: 10px; padding: 0 2px; pointer-events: none; flex-shrink: 0; }
+  .ym-tab-pill:hover { background: rgba(5,5,8,.18); border-color: rgba(5,5,8,.35); }
+  .ym-tab-pill.active-app { background: rgba(5,5,8,.22); color: #050508; border-color: rgba(5,5,8,.4); font-weight: 700; }
+  .ym-tab-pill.sphere-pill { border-color: rgba(5,5,8,.2); color: #1a3a0a; }
+  .ym-tab-pill.sphere-pill.active-sphere { background: rgba(5,5,8,.22); border-color: rgba(5,5,8,.4); }
+  .ym-tab-sep { color: rgba(5,5,8,.3); font-size: 10px; padding: 0 2px; pointer-events: none; flex-shrink: 0; }
 
   /* Boutons X et O dans la barre */
   #ym-btn-x, #ym-btn-o {
     flex-shrink: 0;
     width: 36px; height: 36px; border-radius: 50%;
-    border: 1px solid var(--border2); background: var(--surface);
+    border: 1px solid rgba(5,5,8,.25); background: rgba(5,5,8,.12);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer; font-family: var(--font-display); font-weight: 800;
     transition: all .2s var(--transition);
+    color: #050508;
   }
-  #ym-btn-o { color: var(--accent2); font-size: 15px; }
-  #ym-btn-o:hover { background: rgba(126,212,255,.1); border-color: var(--accent2); }
-  #ym-btn-x { color: var(--accent); font-size: 13px; }
-  #ym-btn-x:hover { background: rgba(200,240,160,.1); border-color: var(--accent); transform: rotate(90deg); }
+  #ym-btn-o { font-size: 15px; }
+  #ym-btn-o:hover { background: rgba(5,5,8,.22); border-color: rgba(5,5,8,.4); }
+  #ym-btn-x { font-size: 13px; }
+  #ym-btn-x:hover { background: rgba(5,5,8,.22); border-color: rgba(5,5,8,.4); transform: rotate(90deg); }
 
   /* Fermer depuis la liste */
   .ym-menu-close-btn {
@@ -1272,7 +1256,6 @@
     bootLogo: 'YourMine',
     themeColor: '#c8f0a0',
   };
-  // Surcharge si définie dans le thème
   const comment = document.currentScript?.previousSibling?.data || '';
   const get = (tag) => { const m = comment.match(new RegExp('@'+tag+'\\s+(.+)')); return m?m[1].trim():null; };
   const title = get('title') || meta.title;
@@ -1280,12 +1263,66 @@
   const themeColor = get('themeColor') || meta.themeColor;
 
   document.title = title;
-  const logoEl = document.getElementById('ym-boot-logo');
-  if (logoEl) logoEl.textContent = bootLogo;
-  const ymLogo = document.getElementById('ym-logo');
-  if (ymLogo) ymLogo.childNodes[0].textContent = title;
-  // Met à jour theme-color meta
   const tc = document.querySelector('meta[name="theme-color"]');
   if (tc) tc.content = themeColor;
+
+  // ── Boot logo animé ──
+  const bootEl = document.getElementById('ym-boot-logo');
+  if (bootEl) bootEl.textContent = bootLogo;
+
+  // ── Header logo animé : "Your" + span suffix alternant ──
+  function initLogoAnim() {
+    const ymLogo = document.getElementById('ym-logo');
+    if (!ymLogo) return;
+
+    // Séquence : [texte, couleur, durée ms]
+    // À partir de la 5e lettre (index 4) = "Mine", le suffix alterne
+    const PREFIX = title.slice(0, 4); // "Your"
+    const SEQ = [
+      ['Mine',  '#e8e8f0', 10000],
+      ['Web',   '#c8f0a0',  2000],
+      ['Mine',  '#e8e8f0',  3000],
+      ['World', '#c8f0a0',  2000],
+      ['Mine',  '#e8e8f0',  3000],
+      ['Rules', '#c8f0a0',  2000],
+      ['Mine',  '#e8e8f0',  3000],
+      ['Flow',  '#c8f0a0',  2000],
+    ];
+
+    ymLogo.innerHTML = `<span class="ym-logo-static">${PREFIX}</span><span class="ym-logo-suffix" id="ym-logo-suffix">Mine</span>`;
+    const suffixEl = document.getElementById('ym-logo-suffix');
+    if (!suffixEl) return;
+
+    let idx = 0;
+    function next() {
+      idx = (idx + 1) % SEQ.length;
+      const [text, color, dur] = SEQ[idx];
+      // Fade out
+      suffixEl.style.opacity = '0';
+      setTimeout(() => {
+        suffixEl.textContent = text;
+        suffixEl.style.color = color;
+        suffixEl.style.opacity = '1';
+        setTimeout(next, dur);
+      }, 300);
+    }
+
+    // Appliquer le style de transition
+    suffixEl.style.transition = 'opacity 0.3s ease, color 0.3s ease';
+    suffixEl.style.color = '#e8e8f0';
+    setTimeout(next, SEQ[0][2]);
+  }
+
+  // Lancer dès que le DOM header est prêt
+  if (document.getElementById('ym-logo')) {
+    initLogoAnim();
+  } else {
+    document.addEventListener('DOMContentLoaded', initLogoAnim);
+    // Fallback : observer si logo injecté après
+    const obs = new MutationObserver(() => {
+      if (document.getElementById('ym-logo')) { obs.disconnect(); initLogoAnim(); }
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
 })();
 </script>
