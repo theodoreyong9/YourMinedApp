@@ -1,92 +1,67 @@
-// mine.sphere.js — YourMine Wallet & Mining Sphere
-// Category: YourMine | Author: theodoreyong9
-(function(){
+// mine.sphere.js — YourMine · Proof of Sacrifice
+// @icon ⛏
+// @cat YourMine
+// @author theodoreyong9
+// @desc Solana wallet + on-chain Proof of Sacrifice mining
+(function () {
 'use strict';
 
-// ── CONSTANTS ─────────────────────────────────────────────
-const YM_TOKEN = 'k5KdweiLaLDR57YqVQ9WCWNdLDQm4wMTzz5zPRRPLMn';
-const STORAGE_KEY = 'ym_wallet_v1';
-const RPC = 'https://api.devnet.solana.com';
-const FEE = 0.001; // 0.1% burn fee
-// Formula constants
-const ALPHA = 0.6, BETA = 0.4, GAMMA = 1.2, C_CONST = 1000;
-
-// ── SPHERE REGISTRATION ───────────────────────────────────
 window.YM_S = window.YM_S || {};
 window.YM_S['mine.sphere.js'] = {
-  name: 'Mine',
+  name:   'Mine',
+  icon:   '⛏',
   category: 'YourMine',
   author: 'theodoreyong9',
-  description: 'Solana wallet, YM token management, burn & claim mining',
+  description: 'Solana wallet + Proof of Sacrifice on-chain mining',
 
   async activate(ctx) {
     this._ctx = ctx;
-    await loadSolanaSDK();
-    loadWalletState();
-
-    ctx.addPill('💎 Mine', body => renderMineUI(body, ctx));
-
-    ctx.addFigureTab('Wallet', el => renderWalletFigure(el, ctx), 0);
-
-    ctx.addProfileTab('Mine', el => renderMineProfile(el));
-
-    // Auto-refresh every 30s when active
-    this._timer = setInterval(() => refreshBalances(ctx), 30000);
+    await loadSolanaLib();
+    await loadQRLib();
+    ctx.addPill('⛏ Mine', body => render(body));
+    ctx.addFigureTab('Wallet', renderFigure, 0);
+    ctx.addProfileTab('Mine', renderProfileTab);
+    if (!walletState.locked) refreshBalances().then(() => updateFigure(ctx));
   },
 
   deactivate() {
-    clearInterval(this._timer);
+    clearInterval(_cycleTimer);
+    clearInterval(_claimTimer);
   },
 
   getBroadcastData() {
-    // Only share non-sensitive data
-    if (!WS.publicKey) return null;
+    if (!walletState.pubkey) return null;
     return {
-      uuid: window.YM?.getState?.()?.userData?.uuid,
-      publicKey: WS.publicKey,
-      lastClaimable: WS.claimableYM?.toFixed?.(4)
+      type: 'mine',
+      pubkey: walletState.pubkey,
+      claimable: calcClaimable().toFixed(4),
     };
-  }
+  },
 };
 
-// ── WALLET STATE ──────────────────────────────────────────
-const WS = {
-  publicKey: null,
-  keypair: null,
-  solBalance: 0,
-  ymBalance: 0,
-  lastBurn: 0,
-  patienceRate: 0.2,
-  lastActionTime: 0,
-  claimableYM: 0,
-  blockHeight: 0,
-  locked: true,
-};
+// ── CONFIG ────────────────────────────────────────────────
+const PROGRAM_ID      = '6ue88JtUXzKN5yrFkauU85EHpg4aSsM9QfarvHBQS7TZ';
+const CREATOR_ADDRESS = '7Cjt3kRF6FvQQ2XkfxcdsaU9hAZsz6odXWVaLUUhRLZ6';
+const YM_MINT         = 'k5KdweiLaLDR57YqVQ9WCWNdLDQm4wMTzz5zPRRPLMn';
+const DEVNET          = 'https://api.devnet.solana.com';
+const DEVNET2         = 'https://rpc.ankr.com/solana_devnet';
+const STORE_KEY       = 'ym_wallet_v1';
+const TOKEN_PROGRAM   = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+const ASSOC_TOKEN_PGM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+const REFERENCE_GENESIS = 111111111;
+const YRM_DECIMALS    = 1_000_000_000_000_000_000;
+const MIN_BURN_SOL    = 0.0001;
+const DEFAULT_TAX     = 20;
 
-function loadWalletState() {
-  try {
-    const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    WS.publicKey = d.publicKey || null;
-    WS.lastBurn = d.lastBurn || 0;
-    WS.patienceRate = d.patienceRate || 0.2;
-    WS.lastActionTime = d.lastActionTime || 0;
-    WS.encrypted = d.encrypted || null;
-  } catch {}
-}
+// ── STATE ─────────────────────────────────────────────────
+let walletState = { locked:true, keypair:null, pubkey:null, connection:null };
+let pdas = { globalState:null, yrmMint:null, solVault:null, userAccount:null, userToken:null };
+let mineState = { sol:0, ym:0, lastBurnLamports:0, lastActionSlot:0, taxRate:DEFAULT_TAX, totalBurned:0, currentSlot:0, programInitialized:false };
+let _cycleTimer = null;
+let _claimTimer = null;
 
-function saveWalletMeta() {
-  const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    ...existing,
-    publicKey: WS.publicKey,
-    lastBurn: WS.lastBurn,
-    patienceRate: WS.patienceRate,
-    lastActionTime: WS.lastActionTime,
-  }));
-}
-
-// ── SOLANA SDK LOADER ─────────────────────────────────────
-async function loadSolanaSDK() {
+// ── LIB LOADERS ───────────────────────────────────────────
+async function loadSolanaLib() {
   if (window.solanaWeb3) return;
   await new Promise((res, rej) => {
     const s = document.createElement('script');
@@ -94,632 +69,496 @@ async function loadSolanaSDK() {
     s.onload = res; s.onerror = rej;
     document.head.appendChild(s);
   });
-  await new Promise((res, rej) => {
+}
+async function loadQRLib() {
+  if (window.QRCode) return;
+  await new Promise((res) => {
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-    s.onload = res; s.onerror = () => res(); // optional
+    s.onload = res; s.onerror = res;
     document.head.appendChild(s);
   });
 }
 
-// ── CRYPTO HELPERS ────────────────────────────────────────
-async function encrypt(text, pass) {
-  const enc = new TextEncoder();
-  const km = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.deriveKey(
-    { name:'PBKDF2', salt, iterations:100000, hash:'SHA-256' },
-    km, { name:'AES-GCM', length:256 }, false, ['encrypt']
-  );
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(text));
-  const arr = [...salt, ...iv, ...new Uint8Array(ct)];
-  return btoa(String.fromCharCode(...arr));
+// ── BASE58 ────────────────────────────────────────────────
+const Base58 = (() => {
+  const A = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  const M = {}; for (let i=0;i<A.length;i++) M[A[i]]=BigInt(i);
+  return {
+    encode(buf){ let n=0n; for(const b of buf)n=(n<<8n)|BigInt(b); let s=''; while(n>0n){s=A[Number(n%58n)]+s;n/=58n} for(const b of buf){if(b!==0)break;s='1'+s} return s; },
+    decode(str){ let n=0n; for(const c of str){if(!(c in M))throw new Error('Invalid base58: '+c);n=n*58n+M[c]} const hex=n.toString(16).padStart(2,'0'); const bytes=Uint8Array.from((hex.length%2?'0'+hex:hex).match(/.{2}/g).map(b=>parseInt(b,16))); let l=0;for(const c of str){if(c==='1')l++;else break} const out=new Uint8Array(l+bytes.length);out.set(bytes,l);return out; },
+  };
+})();
+
+// ── BIP39 / SLIP-0010 ─────────────────────────────────────
+async function mnemonicToSeed(m) {
+  const e=new TextEncoder();const k=await crypto.subtle.importKey('raw',e.encode(m.normalize('NFKD')),'PBKDF2',false,['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode('mnemonic'),iterations:2048,hash:'SHA-512'},k,512));
+}
+async function deriveSlip10(seed, path) {
+  const mk=await crypto.subtle.importKey('raw',new TextEncoder().encode('ed25519 seed'),{name:'HMAC',hash:'SHA-512'},false,['sign']);
+  let I=new Uint8Array(await crypto.subtle.sign('HMAC',mk,seed)),kL=I.slice(0,32),kR=I.slice(32);
+  for(const seg of path.replace(/^m\//,'').split('/')){
+    const hard=seg.endsWith("'");const idx=((parseInt(seg)+(hard?0x80000000:0))>>>0);
+    const data=new Uint8Array(37);data[0]=0;data.set(kL,1);data[33]=(idx>>>24)&0xff;data[34]=(idx>>>16)&0xff;data[35]=(idx>>>8)&0xff;data[36]=idx&0xff;
+    const ck=await crypto.subtle.importKey('raw',kR,{name:'HMAC',hash:'SHA-512'},false,['sign']);
+    const ci=new Uint8Array(await crypto.subtle.sign('HMAC',ck,data));kL=ci.slice(0,32);kR=ci.slice(32);
+  }
+  return kL;
 }
 
-async function decrypt(cipher, pass) {
-  const data = new Uint8Array(atob(cipher).split('').map(c => c.charCodeAt(0)));
-  const salt = data.slice(0,16), iv = data.slice(16,28), ct = data.slice(28);
-  const enc = new TextEncoder();
-  const km = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey(
-    { name:'PBKDF2', salt, iterations:100000, hash:'SHA-256' },
-    km, { name:'AES-GCM', length:256 }, false, ['decrypt']
-  );
-  const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
+// ── AES-GCM encryption (200k PBKDF2) ─────────────────────
+async function _pwKey(pw, salt) {
+  const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function saveEncrypted(secret, pw, kp) {
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await _pwKey(pw,salt),ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(secret));
+  localStorage.setItem(STORE_KEY,JSON.stringify({salt:Array.from(salt),iv:Array.from(iv),ct:Array.from(new Uint8Array(ct)),hint:kp?kp.publicKey.toString().slice(0,8)+'…':''}));
+}
+async function loadEncrypted(pw) {
+  const raw=localStorage.getItem(STORE_KEY);if(!raw)throw new Error('No wallet saved');
+  const blob=JSON.parse(raw),salt=new Uint8Array(blob.salt),iv=new Uint8Array(blob.iv),ct=new Uint8Array(blob.ct);
+  let key;try{key=await _pwKey(pw,salt)}catch{throw new Error('Key derivation failed')}
+  let pt;try{pt=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ct)}catch{throw new Error('Wrong password')}
   return new TextDecoder().decode(pt);
 }
+function hasSaved(){return!!localStorage.getItem(STORE_KEY)}
+function savedHint(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}').hint||''}catch{return''}}
 
-// ── SOLANA RPC ────────────────────────────────────────────
-async function rpc(method, params=[]) {
-  const r = await fetch(RPC, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ jsonrpc:'2.0', id:1, method, params })
-  });
-  const d = await r.json();
-  if (d.error) throw new Error(d.error.message);
-  return d.result;
-}
-
-async function getSolBalance(pk) {
-  const lam = await rpc('getBalance', [pk, { commitment:'confirmed' }]);
-  return (lam?.value || 0) / 1e9;
-}
-
-async function getYMBalance(pk) {
-  try {
-    const r = await rpc('getTokenAccountsByOwner', [
-      pk,
-      { mint: YM_TOKEN },
-      { encoding:'jsonParsed', commitment:'confirmed' }
-    ]);
-    const acc = r?.value?.[0]?.account?.data?.parsed?.info?.tokenAmount;
-    return parseFloat(acc?.uiAmount || 0);
-  } catch { return 0; }
-}
-
-async function getSlot() {
-  try { return await rpc('getSlot', []); }
-  catch { return 300000000; }
-}
-
-// ── FORMULA ───────────────────────────────────────────────
-function calcImmediate(S, T) { return S * (1 - T) * (1 - FEE); }
-
-function calcClaimable(S, T, lastActionTime, blockHeight) {
-  if (!S || !blockHeight) return 0;
-  const t = (Date.now() - lastActionTime) / 1000;
-  if (t <= 0) return 0;
-  const bT = BETA * (1 - T);
-  const lnA = Math.log(blockHeight);
-  const inner = bT * lnA + Math.log(1 + C_CONST / Math.pow(blockHeight, bT));
-  if (!inner || isNaN(inner)) return 0;
-  const denom = Math.pow(inner, GAMMA);
-  return (S * Math.pow(t, ALPHA)) / denom;
-}
-
-// ── BALANCE REFRESH ───────────────────────────────────────
-async function refreshBalances(ctx) {
-  if (!WS.publicKey) return;
-  try {
-    const [sol, ym, slot] = await Promise.all([
-      getSolBalance(WS.publicKey),
-      getYMBalance(WS.publicKey),
-      getSlot()
-    ]);
-    WS.solBalance = sol;
-    WS.ymBalance = ym;
-    WS.blockHeight = slot;
-    WS.claimableYM = calcClaimable(WS.lastBurn, WS.patienceRate, WS.lastActionTime, slot);
-
-    // Update figure count with claimable
-    ctx?.updateFigureCount?.(parseFloat(WS.claimableYM.toFixed(2)));
-
-    // Update any open UI
-    document.querySelectorAll('[data-mine-refresh]').forEach(el => {
-      const key = el.getAttribute('data-mine-refresh');
-      if (key === 'sol') el.textContent = WS.solBalance.toFixed(4) + ' SOL';
-      else if (key === 'ym') el.textContent = WS.ymBalance.toFixed(4) + ' YM';
-      else if (key === 'claimable') el.textContent = WS.claimableYM.toFixed(4) + ' YM';
-    });
-  } catch(e) { console.warn('Refresh failed:', e); }
-}
-
-// ── WALLET OPERATIONS ─────────────────────────────────────
-async function createWallet(pass) {
-  const { Keypair } = solanaWeb3;
-  const kp = Keypair.generate();
-  await storeKeypair(kp, pass);
-  return kp;
-}
-
-async function importWallet(secret, pass) {
-  const { Keypair } = solanaWeb3;
-  let kp;
-  if (secret.startsWith('phrase:')) {
-    // BIP39 phrase → use simple derivation for demo
-    const phrase = secret.replace('phrase:','').trim();
-    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase));
-    const seed = new Uint8Array(hash).slice(0,32);
-    kp = Keypair.fromSeed(seed);
-  } else if (secret.startsWith('privkey:')) {
-    const pk = secret.replace('privkey:','').trim();
-    const bytes = JSON.parse(pk);
-    kp = Keypair.fromSecretKey(new Uint8Array(bytes));
-  } else {
-    throw new Error('Format: "phrase:…" or "privkey:[…]"');
+// ── KEYPAIR ───────────────────────────────────────────────
+async function keypairFromSecret(secret) {
+  const sol=window.solanaWeb3;if(!sol)throw new Error('solanaWeb3 not loaded');
+  if(secret.startsWith('phrase:')){
+    const words=secret.slice(7).trim().replace(/\s+/g,' ').toLowerCase().split(' ');
+    if(words.length!==12&&words.length!==24)throw new Error('Phrase must be 12 or 24 words');
+    const seed=await mnemonicToSeed(words.join(' '));
+    return sol.Keypair.fromSeed(await deriveSlip10(seed,"m/44'/501'/0'/0'"));
   }
-  await storeKeypair(kp, pass);
-  return kp;
+  if(secret.startsWith('privkey:')){
+    const raw=secret.slice(8).trim();let bytes;
+    try{bytes=Base58.decode(raw)}catch{if(/^[0-9a-fA-F]{64,128}$/.test(raw))bytes=Uint8Array.from(raw.match(/.{1,2}/g).map(b=>parseInt(b,16)));else if(raw.startsWith('['))bytes=new Uint8Array(JSON.parse(raw));else throw new Error('Unknown key format')}
+    if(bytes.length===64)return sol.Keypair.fromSecretKey(bytes);
+    if(bytes.length===32)return sol.Keypair.fromSeed(bytes);
+    throw new Error('Key must be 32 or 64 bytes');
+  }
+  throw new Error('Corrupted secret format');
 }
 
-async function storeKeypair(kp, pass) {
-  const secretStr = JSON.stringify(Array.from(kp.secretKey));
-  const encrypted = await encrypt(`privkey:${secretStr}`, pass);
-  const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...existing, encrypted, publicKey: kp.publicKey.toString() }));
-  WS.publicKey = kp.publicKey.toString();
-  WS.keypair = kp;
-  WS.locked = false;
-  WS.encrypted = encrypted;
-  saveWalletMeta();
+// ── CONNECTION ────────────────────────────────────────────
+async function getConnection() {
+  if(walletState.connection)return walletState.connection;
+  const sol=window.solanaWeb3;
+  for(const ep of[DEVNET,DEVNET2]){
+    try{const c=new sol.Connection(ep,'confirmed');await Promise.race([c.getLatestBlockhash(),new Promise((_,r)=>setTimeout(()=>r(),4000))]);walletState.connection=c;return c}catch{}
+  }
+  walletState.connection=new sol.Connection(DEVNET,'confirmed');return walletState.connection;
 }
 
-async function unlockWallet(pass) {
-  if (!WS.encrypted) throw new Error('No wallet stored');
-  const plain = await decrypt(WS.encrypted, pass);
-  const kp = await importWallet(plain, pass);
-  WS.keypair = kp;
-  WS.locked = false;
-  return kp;
+// ── PDAs ──────────────────────────────────────────────────
+async function computePDAs(pubkey) {
+  const sol=window.solanaWeb3,pg=new sol.PublicKey(PROGRAM_ID),enc=new TextEncoder();
+  const[globalState]=await sol.PublicKey.findProgramAddress([enc.encode('global_state')],pg);
+  const[yrmMint]=await sol.PublicKey.findProgramAddress([enc.encode('yrm_mint')],pg);
+  const[solVault]=await sol.PublicKey.findProgramAddress([enc.encode('sol_vault')],pg);
+  const[userAccount]=await sol.PublicKey.findProgramAddress([enc.encode('user_account'),pubkey.toBytes()],pg);
+  const[userToken]=await sol.PublicKey.findProgramAddress([pubkey.toBuffer(),new sol.PublicKey(TOKEN_PROGRAM).toBuffer(),yrmMint.toBuffer()],new sol.PublicKey(ASSOC_TOKEN_PGM));
+  pdas={globalState,yrmMint,solVault,userAccount,userToken};
 }
 
-function lockWallet() {
-  WS.keypair = null;
-  WS.locked = true;
+// ── INSTRUCTION SERIALIZATION ─────────────────────────────
+function serializeBurn(lamports, taxRate) {
+  const buf=new ArrayBuffer(17),view=new DataView(buf);
+  [203,142,66,81,199,170,67,130].forEach((b,i)=>new Uint8Array(buf)[i]=b);
+  view.setBigUint64(8,BigInt(lamports),true);view.setUint8(16,Math.round(taxRate));
+  return new Uint8Array(buf);
 }
+function serializeClaim(){return new Uint8Array([62,198,214,193,213,159,108,210])}
+function serializeInit(){return new Uint8Array([175,175,109,31,13,152,155,237])}
 
-// ── SEND ──────────────────────────────────────────────────
-async function sendSOL(toAddr, amount) {
-  if (!WS.keypair) throw new Error('Unlock wallet first');
-  const { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } = solanaWeb3;
-  const conn = new Connection(RPC, 'confirmed');
-  const tx = new Transaction().add(
-    SystemProgram.transfer({
-      fromPubkey: WS.keypair.publicKey,
-      toPubkey: new PublicKey(toAddr),
-      lamports: Math.floor(amount * LAMPORTS_PER_SOL)
-    })
-  );
-  const { blockhash } = await conn.getRecentBlockhash();
-  tx.recentBlockhash = blockhash;
-  tx.feePayer = WS.keypair.publicKey;
-  tx.sign(WS.keypair);
-  const sig = await conn.sendRawTransaction(tx.serialize());
+// ── TRANSACTIONS ──────────────────────────────────────────
+async function buildAndSend(tx) {
+  const conn=await getConnection(),kp=walletState.keypair;
+  if(!kp)throw new Error('Wallet locked');
+  const{blockhash}=await conn.getLatestBlockhash('confirmed');
+  tx.recentBlockhash=blockhash;tx.feePayer=kp.publicKey;tx.sign(kp);
+  const sig=await conn.sendRawTransaction(tx.serialize());
+  await conn.confirmTransaction(sig,'confirmed');
   return sig;
 }
-
-// ── UI HELPERS ────────────────────────────────────────────
-const CSS = `
-<style>
-.m-card{background:rgba(200,240,160,.04);border:1px solid rgba(200,240,160,.15);border-radius:12px;padding:16px;margin-bottom:12px}
-.m-label{font-family:var(--mono,'Space Mono',monospace);font-size:.68rem;color:rgba(200,240,160,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:4px}
-.m-val{font-family:var(--mono,'Space Mono',monospace);font-size:1rem;color:#e8e8f0;word-break:break-all}
-.m-val.big{font-size:1.5rem;color:#c8f0a0}
-.m-row{display:flex;gap:8px;margin-bottom:8px}
-.m-btn{flex:1;padding:10px;border-radius:8px;border:none;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:.88rem;font-weight:700;letter-spacing:.05em;transition:all .2s}
-.m-btn-p{background:#c8f0a0;color:#111113}
-.m-btn-p:hover{box-shadow:0 0 16px rgba(200,240,160,.4)}
-.m-btn-s{background:rgba(200,240,160,.08);border:1px solid rgba(200,240,160,.25);color:#e8e8f0}
-.m-input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(200,240,160,.2);border-radius:8px;padding:9px 12px;color:#e8e8f0;font-family:var(--mono,'Space Mono',monospace);font-size:.8rem;outline:none;margin-bottom:8px}
-.m-input:focus{border-color:rgba(200,240,160,.5)}
-.m-input::placeholder{color:rgba(232,232,240,.3)}
-.m-tabs{display:flex;border-bottom:1px solid rgba(200,240,160,.12);margin-bottom:12px}
-.m-tab{padding:10px 14px;background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,232,240,.4);font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .2s}
-.m-tab.on{color:#c8f0a0;border-bottom-color:#c8f0a0}
-.m-panel{display:none}.m-panel.on{display:block}
-.m-slider{width:100%;accent-color:#c8f0a0;margin:8px 0}
-.m-info{font-family:'Barlow Condensed',sans-serif;font-size:.82rem;color:rgba(232,232,240,.5);line-height:1.6;margin-bottom:8px}
-.m-qr{display:flex;justify-content:center;padding:16px;background:#fff;border-radius:8px;margin:10px 0}
-.m-addr{word-break:break-all;font-family:var(--mono,'Space Mono',monospace);font-size:.7rem;color:#c8f0a0;background:rgba(200,240,160,.06);padding:8px;border-radius:6px;cursor:pointer}
-.m-err{color:#ff6b6b;font-size:.78rem;margin-top:4px;font-family:var(--mono,'Space Mono',monospace)}
-.m-ok{color:#c8f0a0;font-size:.78rem;margin-top:4px;font-family:var(--mono,'Space Mono',monospace)}
-.m-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(200,240,160,.2);border-top-color:#c8f0a0;border-radius:50%;animation:mspin .7s linear infinite;vertical-align:middle;margin-right:6px}
-@keyframes mspin{to{transform:rotate(360deg)}}
-</style>
-`;
-
-// ── MAIN MINE UI (PILL CONTENT) ───────────────────────────
-function renderMineUI(body, ctx) {
-  body.innerHTML = CSS + `
-  <div style="padding:16px">
-    <div class="m-tabs">
-      <button class="m-tab on" onclick="mTab('wallet',this)">Wallet</button>
-      <button class="m-tab" onclick="mTab('mine',this)">Mine</button>
-      <button class="m-tab" onclick="mTab('send',this)">Send</button>
-      <button class="m-tab" onclick="mTab('receive',this)">Receive</button>
-    </div>
-
-    <!-- WALLET TAB -->
-    <div class="m-panel on" id="mp-wallet">
-      <div id="mp-wallet-inner"></div>
-    </div>
-
-    <!-- MINE TAB -->
-    <div class="m-panel" id="mp-mine">
-      <div id="mp-mine-inner"></div>
-    </div>
-
-    <!-- SEND TAB -->
-    <div class="m-panel" id="mp-send">
-      <div id="mp-send-inner"></div>
-    </div>
-
-    <!-- RECEIVE TAB -->
-    <div class="m-panel" id="mp-receive">
-      <div id="mp-receive-inner"></div>
-    </div>
-  </div>`;
-
-  renderWalletTab(ctx);
-  renderMineTab(ctx);
-  renderSendTab();
-  renderReceiveTab();
+async function ensureInitialized() {
+  if(mineState.programInitialized)return;
+  const conn=await getConnection(),sol=window.solanaWeb3;
+  const info=await conn.getAccountInfo(pdas.globalState);
+  if(info){mineState.programInitialized=true;return}
+  const tx=new sol.Transaction();
+  tx.add(new sol.TransactionInstruction({keys:[{pubkey:pdas.globalState,isSigner:false,isWritable:true},{pubkey:pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:walletState.keypair.publicKey,isSigner:true,isWritable:true},{pubkey:new sol.PublicKey(TOKEN_PROGRAM),isSigner:false,isWritable:false},{pubkey:sol.SystemProgram.programId,isSigner:false,isWritable:false}],programId:new sol.PublicKey(PROGRAM_ID),data:serializeInit()}));
+  await buildAndSend(tx);mineState.programInitialized=true;
+}
+async function performBurn(amtSOL, taxRatePct) {
+  if(!walletState.keypair)throw new Error('Wallet locked');
+  const sol=window.solanaWeb3,lamports=Math.floor(amtSOL*sol.LAMPORTS_PER_SOL);
+  await ensureInitialized();
+  const tx=new sol.Transaction();
+  tx.add(new sol.TransactionInstruction({keys:[{pubkey:pdas.globalState,isSigner:false,isWritable:true},{pubkey:pdas.userAccount,isSigner:false,isWritable:true},{pubkey:pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:pdas.userToken,isSigner:false,isWritable:true},{pubkey:pdas.solVault,isSigner:false,isWritable:true},{pubkey:new sol.PublicKey(CREATOR_ADDRESS),isSigner:false,isWritable:true},{pubkey:walletState.keypair.publicKey,isSigner:true,isWritable:true},{pubkey:new sol.PublicKey(TOKEN_PROGRAM),isSigner:false,isWritable:false},{pubkey:new sol.PublicKey(ASSOC_TOKEN_PGM),isSigner:false,isWritable:false},{pubkey:sol.SystemProgram.programId,isSigner:false,isWritable:false}],programId:new sol.PublicKey(PROGRAM_ID),data:serializeBurn(lamports,taxRatePct)}));
+  return buildAndSend(tx);
+}
+async function performClaim() {
+  if(!walletState.keypair)throw new Error('Wallet locked');
+  const sol=window.solanaWeb3,tx=new sol.Transaction();
+  tx.add(new sol.TransactionInstruction({keys:[{pubkey:pdas.globalState,isSigner:false,isWritable:true},{pubkey:pdas.userAccount,isSigner:false,isWritable:true},{pubkey:pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:pdas.userToken,isSigner:false,isWritable:true},{pubkey:walletState.keypair.publicKey,isSigner:true,isWritable:false},{pubkey:new sol.PublicKey(TOKEN_PROGRAM),isSigner:false,isWritable:false}],programId:new sol.PublicKey(PROGRAM_ID),data:serializeClaim()}));
+  return buildAndSend(tx);
 }
 
-function mTab(id, el) {
-  document.querySelectorAll('.m-tab').forEach(t => t.classList.remove('on'));
-  document.querySelectorAll('.m-panel').forEach(p => p.classList.remove('on'));
-  el.classList.add('on');
-  document.getElementById(`mp-${id}`)?.classList.add('on');
+// ── ON-CHAIN READ ─────────────────────────────────────────
+async function refreshBalances() {
+  if(!walletState.pubkey)return;
+  const sol=window.solanaWeb3,conn=await getConnection(),pk=new sol.PublicKey(walletState.pubkey);
+  try{mineState.sol=await conn.getBalance(pk)/sol.LAMPORTS_PER_SOL}catch{}
+  try{const info=await conn.getAccountInfo(pdas.userToken);if(info?.data){const view=new DataView(info.data.buffer);mineState.ym=Number(view.getBigUint64(64,true))/YRM_DECIMALS}}catch{}
+  try{mineState.currentSlot=await conn.getSlot()}catch{}
+  try{
+    const info=await conn.getAccountInfo(pdas.userAccount);
+    if(info?.data&&info.data.length>=65){const view=new DataView(info.data.buffer);let off=8+32;
+      mineState.taxRate=view.getUint8(off);off+=1;mineState.lastActionSlot=Number(view.getBigUint64(off,true));off+=8;mineState.totalBurned=Number(view.getBigUint64(off,true));off+=8;mineState.lastBurnLamports=Number(view.getBigUint64(off,true));
+    }
+  }catch{}
+  try{const info=await conn.getAccountInfo(pdas.globalState);mineState.programInitialized=!!info}catch{}
+  updateBalanceUI();
+  if(window.YM_S['mine.sphere.js']?._ctx)updateFigure(window.YM_S['mine.sphere.js']._ctx);
 }
 
-// ── WALLET TAB ────────────────────────────────────────────
-function renderWalletTab(ctx) {
-  const el = document.getElementById('mp-wallet-inner');
-  if (!el) return;
-
-  if (!WS.publicKey) {
-    el.innerHTML = `
-      <div class="m-info">No wallet found. Create a new one or import an existing wallet.</div>
-      <div class="m-row">
-        <button class="m-btn m-btn-p" onclick="mCreateWallet()">+ Create Wallet</button>
-        <button class="m-btn m-btn-s" onclick="mImportWallet()">↓ Import</button>
-      </div>
-      <div id="m-wallet-form"></div>
-    `;
-    return;
-  }
-
-  if (WS.locked) {
-    el.innerHTML = `
-      <div class="m-card">
-        <div class="m-label">Public Key</div>
-        <div class="m-addr" onclick="navigator.clipboard.writeText('${WS.publicKey}')">${WS.publicKey}</div>
-      </div>
-      <div class="m-label">Unlock Wallet</div>
-      <input class="m-input" type="password" id="m-pass-unlock" placeholder="Password">
-      <div class="m-row">
-        <button class="m-btn m-btn-p" onclick="mUnlock()">Unlock</button>
-        <button class="m-btn m-btn-s" onclick="mImportWallet()">Import other</button>
-      </div>
-      <div id="m-wallet-msg"></div>
-    `;
-    return;
-  }
-
-  el.innerHTML = `
-    <div class="m-card">
-      <div class="m-label">Public Key</div>
-      <div class="m-addr" onclick="navigator.clipboard.writeText('${WS.publicKey}');YM?.toast?.('Copied!')">
-        ${WS.publicKey}
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div class="m-card" style="margin:0">
-        <div class="m-label">SOL Balance</div>
-        <div class="m-val big" data-mine-refresh="sol">${WS.solBalance.toFixed(4)} SOL</div>
-      </div>
-      <div class="m-card" style="margin:0">
-        <div class="m-label">YM Balance</div>
-        <div class="m-val big" data-mine-refresh="ym">${WS.ymBalance.toFixed(4)} YM</div>
-      </div>
-    </div>
-    <div class="m-row">
-      <button class="m-btn m-btn-s" onclick="mRefresh()">⟳ Refresh</button>
-      <button class="m-btn m-btn-s" onclick="mLock()">🔒 Lock</button>
-    </div>
-    <div id="m-wallet-msg"></div>
-  `;
-
-  refreshBalances(ctx);
+// ── CLAIMABLE ─────────────────────────────────────────────
+function calcClaimable() {
+  const{lastBurnLamports,lastActionSlot,currentSlot,taxRate}=mineState;
+  if(!lastBurnLamports||!lastActionSlot||!currentSlot)return 0;
+  const dSlot=Math.max(1,currentSlot-lastActionSlot);
+  const dGenesis=Math.max(1,currentSlot-REFERENCE_GENESIS);
+  if(dSlot<30)return 0;
+  const burnSOL=lastBurnLamports/1e9,tau=Math.min(taxRate,40)/100;
+  const num=Math.pow(dSlot,1.1)*burnSOL;
+  const inner=Math.pow(dGenesis,2.2*(1-tau))+Math.pow(33,3);
+  if(inner<=1)return 0;
+  const denom=Math.pow(Math.log(inner),3.0);
+  if(denom<=0||!isFinite(denom)||!isFinite(num))return 0;
+  const r=num/denom;
+  return(r<0||!isFinite(r)||r>1e12)?0:r;
 }
 
-async function mCreateWallet() {
-  const form = document.getElementById('m-wallet-form');
-  if (!form) return;
-  form.innerHTML = `
-    <div class="m-label" style="margin-top:12px">Choose a password</div>
-    <input class="m-input" type="password" id="m-pass-new" placeholder="Strong password">
-    <input class="m-input" type="password" id="m-pass-new2" placeholder="Confirm password">
-    <button class="m-btn m-btn-p" onclick="mDoCreate()">Create</button>
-    <div id="m-wallet-msg2"></div>
-  `;
+// ── WALLET OPS ────────────────────────────────────────────
+async function createWallet(phrase, pw) {
+  const sol=window.solanaWeb3;if(!sol)throw new Error('solanaWeb3 not loaded');
+  let secret,kp;
+  if(phrase&&phrase.trim()){
+    const words=phrase.trim().replace(/\s+/g,' ').toLowerCase().split(' ');
+    if(words.length!==12&&words.length!==24)throw new Error('Phrase must be 12 or 24 words');
+    secret='phrase:'+words.join(' ');kp=await keypairFromSecret(secret);
+  }else{kp=sol.Keypair.generate();secret='privkey:'+Base58.encode(kp.secretKey)}
+  await saveEncrypted(secret,pw,kp);return kp;
 }
-
-async function mDoCreate() {
-  const p1 = document.getElementById('m-pass-new')?.value;
-  const p2 = document.getElementById('m-pass-new2')?.value;
-  if (!p1 || p1 !== p2) {
-    setMsg('m-wallet-msg2', 'Passwords do not match', 'err'); return;
-  }
-  try {
-    setMsg('m-wallet-msg2', '<span class="m-spinner"></span>Creating…', '');
-    const kp = await createWallet(p1);
-    WS.encrypted = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}').encrypted;
-    setMsg('m-wallet-msg2', `<div class="m-ok">Wallet created! Back up your key:<br><div class="m-addr">[${Array.from(kp.secretKey).join(',')}]</div></div>`, '');
-    renderWalletTab(window.YM_S['mine.sphere.js']._ctx);
-    YM?.toast?.('Wallet created!');
-  } catch(e) { setMsg('m-wallet-msg2', e.message, 'err'); }
+async function unlockWallet(pw) {
+  const secret=await loadEncrypted(pw);const kp=await keypairFromSecret(secret);
+  walletState={locked:false,keypair:kp,pubkey:kp.publicKey.toString(),connection:null};
+  await computePDAs(kp.publicKey);await refreshBalances();return kp;
 }
-
-async function mImportWallet() {
-  const form = document.getElementById('m-wallet-form');
-  if (!form) return;
-  form.innerHTML = `
-    <div class="m-label" style="margin-top:12px">Secret (phrase:… or privkey:[…])</div>
-    <textarea class="m-input" id="m-import-secret" rows="3" placeholder="phrase:word1 word2 … or privkey:[12,34,…]" style="resize:vertical"></textarea>
-    <div class="m-label">Password</div>
-    <input class="m-input" type="password" id="m-import-pass" placeholder="New password">
-    <button class="m-btn m-btn-p" onclick="mDoImport()">Import</button>
-    <div id="m-import-msg"></div>
-  `;
+function lockWallet() {
+  if(walletState.keypair?.secretKey)walletState.keypair.secretKey.fill(0);
+  walletState={locked:true,keypair:null,pubkey:null,connection:null};
+  pdas={globalState:null,yrmMint:null,solVault:null,userAccount:null,userToken:null};
+  clearInterval(_cycleTimer);clearInterval(_claimTimer);
 }
-
-async function mDoImport() {
-  const secret = document.getElementById('m-import-secret')?.value.trim();
-  const pass = document.getElementById('m-import-pass')?.value;
-  if (!secret || !pass) { setMsg('m-import-msg','Fill all fields','err'); return; }
-  try {
-    setMsg('m-import-msg','<span class="m-spinner"></span>Importing…','');
-    await importWallet(secret, pass);
-    WS.encrypted = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}').encrypted;
-    renderWalletTab(window.YM_S['mine.sphere.js']._ctx);
-    YM?.toast?.('Wallet imported!');
-  } catch(e) { setMsg('m-import-msg', e.message, 'err'); }
+async function importWallet(rawKey, pw) {
+  const sol=window.solanaWeb3;if(!sol)throw new Error('solanaWeb3 not loaded');
+  let kp;
+  if(rawKey.startsWith('[')){kp=sol.Keypair.fromSecretKey(new Uint8Array(JSON.parse(rawKey)))}
+  else{let bytes;try{bytes=Base58.decode(rawKey)}catch{if(/^[0-9a-fA-F]{64,128}$/.test(rawKey))bytes=Uint8Array.from(rawKey.match(/.{1,2}/g).map(b=>parseInt(b,16)));else throw new Error('Unknown format. Use JSON array [0,1,...] or Base58.')}if(bytes.length===64)kp=sol.Keypair.fromSecretKey(bytes);else if(bytes.length===32)kp=sol.Keypair.fromSeed(bytes);else throw new Error('Key must be 32 or 64 bytes')}
+  const secret='privkey:'+Base58.encode(kp.secretKey);
+  await saveEncrypted(secret,pw,kp);return kp;
 }
-
-async function mUnlock() {
-  const pass = document.getElementById('m-pass-unlock')?.value;
-  if (!pass) return;
-  try {
-    setMsg('m-wallet-msg','<span class="m-spinner"></span>Unlocking…','');
-    const d = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    WS.encrypted = d.encrypted;
-    const plain = await decrypt(WS.encrypted, pass);
-    const kp = plain.startsWith('privkey:') ?
-      solanaWeb3.Keypair.fromSecretKey(new Uint8Array(JSON.parse(plain.replace('privkey:','')))) :
-      null;
-    if (!kp) throw new Error('Could not derive keypair');
-    WS.keypair = kp; WS.locked = false;
-    renderWalletTab(window.YM_S['mine.sphere.js']._ctx);
-    YM?.toast?.('Unlocked ✓');
-  } catch(e) { setMsg('m-wallet-msg', 'Wrong password', 'err'); }
-}
-
-function mLock() { lockWallet(); renderWalletTab(window.YM_S['mine.sphere.js']._ctx); YM?.toast?.('Locked'); }
-async function mRefresh() { await refreshBalances(window.YM_S['mine.sphere.js']._ctx); YM?.toast?.('Refreshed'); }
-
-// ── MINE TAB ──────────────────────────────────────────────
-function renderMineTab(ctx) {
-  const el = document.getElementById('mp-mine-inner');
-  if (!el) return;
-
-  const claimable = WS.claimableYM.toFixed(4);
-  const elapsed = WS.lastActionTime ? Math.floor((Date.now()-WS.lastActionTime)/3600000) : 0;
-
-  el.innerHTML = `
-    <div class="m-card">
-      <div class="m-label">Claimable YM</div>
-      <div class="m-val big" data-mine-refresh="claimable">${claimable} YM</div>
-      <div class="m-info" style="margin-top:4px">Last action: ${elapsed}h ago · Patience: ${Math.round(WS.patienceRate*100)}%</div>
-    </div>
-
-    <div class="m-label">Burn Amount (SOL)</div>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-      <input class="m-input" style="margin:0;flex:1" type="number" id="m-burn-amt" min="0.001" step="0.001" max="10" value="${WS.lastBurn || 0.01}" oninput="mCalcPreview()">
-      <span style="font-family:var(--mono,'Space Mono',monospace);font-size:.8rem;color:rgba(200,240,160,.6)">SOL</span>
-    </div>
-
-    <div class="m-label">Patience Rate: <span id="m-patience-label">${Math.round(WS.patienceRate*100)}%</span></div>
-    <input class="m-slider" type="range" id="m-patience" min="0" max="40" step="1" value="${Math.round(WS.patienceRate*100)}" oninput="mCalcPreview()">
-
-    <div class="m-card" id="m-preview">
-      <div class="m-label">Burn preview</div>
-      <div style="display:flex;justify-content:space-between;font-family:var(--mono,'Space Mono',monospace);font-size:.78rem;margin-bottom:6px">
-        <span style="color:rgba(232,232,240,.5)">Immediate YM</span>
-        <span id="m-prev-immediate" style="color:#c8f0a0">—</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-family:var(--mono,'Space Mono',monospace);font-size:.78rem">
-        <span style="color:rgba(232,232,240,.5)">Protocol fee (0.1%)</span>
-        <span id="m-prev-fee" style="color:rgba(232,232,240,.4)">—</span>
-      </div>
-    </div>
-
-    <div class="m-row">
-      <button class="m-btn m-btn-p" onclick="mDoBurn()">🔥 Burn</button>
-      <button class="m-btn m-btn-s" onclick="mDoClaim()">⚡ Claim (${claimable} YM)</button>
-    </div>
-    <div id="m-mine-msg"></div>
-  `;
-  mCalcPreview();
-}
-
-function mCalcPreview() {
-  const S = parseFloat(document.getElementById('m-burn-amt')?.value || 0);
-  const T = parseFloat(document.getElementById('m-patience')?.value || 0) / 100;
-  if (document.getElementById('m-patience-label')) document.getElementById('m-patience-label').textContent = Math.round(T*100) + '%';
-  const immediate = calcImmediate(S, T);
-  const fee = S * 0.001;
-  if (document.getElementById('m-prev-immediate')) document.getElementById('m-prev-immediate').textContent = immediate.toFixed(4) + ' YM';
-  if (document.getElementById('m-prev-fee')) document.getElementById('m-prev-fee').textContent = fee.toFixed(5) + ' SOL';
-}
-
-async function mDoBurn() {
-  if (!WS.keypair) { YM?.toast?.('Unlock wallet first'); return; }
-  const S = parseFloat(document.getElementById('m-burn-amt')?.value || 0);
-  const T = parseFloat(document.getElementById('m-patience')?.value || 0) / 100;
-  if (!S || S < 0.001) { setMsg('m-mine-msg','Enter a burn amount','err'); return; }
-  if (S > WS.solBalance) { setMsg('m-mine-msg','Insufficient SOL balance','err'); return; }
-
-  const ok = await YM?.dialog?.('Confirm Burn', `Burn ${S} SOL with ${Math.round(T*100)}% patience? This resets your mining clock.`, 'Burn');
-  if (!ok) return;
-
-  try {
-    setMsg('m-mine-msg','<span class="m-spinner"></span>Broadcasting burn…','');
-    // Burn = send SOL to a designated program/burn address
-    const BURN_ADDR = '1nc1nerator11111111111111111111111111111111'; // solana incinerator
-    const sig = await sendSOL(BURN_ADDR, S);
-    WS.lastBurn = S;
-    WS.patienceRate = T;
-    WS.lastActionTime = Date.now();
-    saveWalletMeta();
-    setMsg('m-mine-msg', `<span class="m-ok">Burned! Sig: ${sig.slice(0,16)}…</span>`, '');
-    await refreshBalances(window.YM_S['mine.sphere.js']._ctx);
-    renderMineTab(window.YM_S['mine.sphere.js']._ctx);
-    YM?.toast?.('Burn confirmed!');
-  } catch(e) { setMsg('m-mine-msg', e.message, 'err'); }
-}
-
-async function mDoClaim() {
-  if (!WS.keypair) { YM?.toast?.('Unlock wallet first'); return; }
-  if (WS.claimableYM < 0.0001) { YM?.toast?.('Nothing to claim yet'); return; }
-  const ok = await YM?.dialog?.('Claim Rewards', `Claim ${WS.claimableYM.toFixed(4)} YM? This resets your mining clock.`, 'Claim');
-  if (!ok) return;
-  // Claim = call the YM bridge program (devnet)
-  setMsg('m-mine-msg','<span class="m-spinner"></span>Claiming…','');
-  // For devnet demo, simulate claim
-  setTimeout(() => {
-    WS.lastActionTime = Date.now();
-    WS.claimableYM = 0;
-    saveWalletMeta();
-    setMsg('m-mine-msg','<span class="m-ok">Claimed! (devnet simulation)</span>','');
-    renderMineTab(window.YM_S['mine.sphere.js']._ctx);
-    YM?.toast?.('Claimed!');
-  }, 1500);
-}
-
-// ── SEND TAB ──────────────────────────────────────────────
-function renderSendTab() {
-  const el = document.getElementById('mp-send-inner');
-  if (!el) return;
-  el.innerHTML = `
-    <div class="m-tabs" style="margin-bottom:10px">
-      <button class="m-tab on" onclick="mSendTab('sol',this)">SOL</button>
-      <button class="m-tab" onclick="mSendTab('ym',this)">YM</button>
-    </div>
-    <div id="ms-token" style="display:block">SOL</div>
-
-    <div class="m-label">Recipient Address</div>
-    <input class="m-input" id="m-send-to" placeholder="Solana address (Base58)">
-    <div class="m-label">Amount</div>
-    <input class="m-input" id="m-send-amt" type="number" min="0" step="0.001" placeholder="0.00">
-    <div class="m-row">
-      <button class="m-btn m-btn-p" onclick="mDoSend()">Send →</button>
-    </div>
-    <div id="m-send-msg"></div>
-  `;
-}
-
-let mSendToken = 'sol';
-function mSendTab(t, el) {
-  mSendToken = t;
-  document.querySelectorAll('#mp-send .m-tab').forEach(x => x.classList.remove('on'));
-  el.classList.add('on');
-}
-
-async function mDoSend() {
-  if (!WS.keypair) { YM?.toast?.('Unlock wallet first'); return; }
-  const to = document.getElementById('m-send-to')?.value.trim();
-  const amt = parseFloat(document.getElementById('m-send-amt')?.value || 0);
-  if (!to || !amt) { setMsg('m-send-msg','Fill all fields','err'); return; }
-  const ok = await YM?.dialog?.('Confirm Send', `Send ${amt} ${mSendToken.toUpperCase()} to ${to.slice(0,12)}…?`, 'Send');
-  if (!ok) return;
-  try {
-    setMsg('m-send-msg','<span class="m-spinner"></span>Sending…','');
-    const sig = mSendToken === 'sol' ? await sendSOL(to, amt) : 'YM_transfer_not_impl';
-    setMsg('m-send-msg', `<span class="m-ok">Sent! Sig: ${sig.slice(0,16)}…</span>`, '');
-    await refreshBalances(window.YM_S['mine.sphere.js']._ctx);
-  } catch(e) { setMsg('m-send-msg', e.message, 'err'); }
-}
-
-// ── RECEIVE TAB ───────────────────────────────────────────
-function renderReceiveTab() {
-  const el = document.getElementById('mp-receive-inner');
-  if (!el) return;
-  const addr = WS.publicKey || 'No wallet yet';
-  el.innerHTML = `
-    <div class="m-card">
-      <div class="m-label">Your Address</div>
-      <div class="m-addr" onclick="navigator.clipboard.writeText('${addr}');YM?.toast?.('Copied!')">${addr}</div>
-    </div>
-    <div id="m-qr-container"></div>
-    <div class="m-info" style="text-align:center">Tap address to copy · Valid on Solana devnet</div>
-  `;
-  if (addr && window.QRCode) {
-    new QRCode(document.getElementById('m-qr-container'), {
-      text: addr, width: 160, height: 160,
-      colorDark: '#111113', colorLight: '#c8f0a0',
-    });
-  } else if (addr) {
-    document.getElementById('m-qr-container').innerHTML = `<div class="m-qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(addr)}&bgcolor=111113&color=c8f0a0" style="border-radius:6px"></div>`;
-  }
+async function sendSOL(to, amtSOL) {
+  if(!walletState.keypair)throw new Error('Wallet locked');
+  const sol=window.solanaWeb3;
+  const tx=new sol.Transaction().add(sol.SystemProgram.transfer({fromPubkey:walletState.keypair.publicKey,toPubkey:new sol.PublicKey(to),lamports:Math.floor(amtSOL*sol.LAMPORTS_PER_SOL)}));
+  return buildAndSend(tx);
 }
 
 // ── FIGURE TAB ────────────────────────────────────────────
-function renderWalletFigure(el, ctx) {
-  el.innerHTML = CSS + `<div style="padding:16px">` + (WS.publicKey ? `
-    <div class="m-card">
-      <div class="m-label">Claimable YM</div>
-      <div class="m-val big" data-mine-refresh="claimable">${WS.claimableYM.toFixed(4)} YM</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div class="m-card" style="margin:0"><div class="m-label">SOL</div><div class="m-val" data-mine-refresh="sol">${WS.solBalance.toFixed(4)}</div></div>
-      <div class="m-card" style="margin:0"><div class="m-label">YM</div><div class="m-val" data-mine-refresh="ym">${WS.ymBalance.toFixed(4)}</div></div>
-    </div>
-    <div class="m-card">
-      <div class="m-label">Address</div>
-      <div class="m-addr" style="font-size:.68rem" onclick="navigator.clipboard.writeText('${WS.publicKey}');YM?.toast?.('Copied!')">${WS.publicKey}</div>
-    </div>
-    <div class="m-card">
-      <div class="m-label">Mining Stats</div>
-      <div style="font-family:var(--mono,'Space Mono',monospace);font-size:.78rem;color:rgba(232,232,240,.6);line-height:2">
-        Last burn: ${WS.lastBurn} SOL<br>
-        Patience rate: ${Math.round(WS.patienceRate*100)}%<br>
-        Clock started: ${WS.lastActionTime ? new Date(WS.lastActionTime).toLocaleDateString() : 'Never'}
-      </div>
-    </div>
-  ` : `<div class="m-info">No wallet connected. Open the Mine sphere to create or import.</div>`
-  ) + `</div>`;
-  refreshBalances(ctx);
+function updateFigure(ctx) {
+  ctx.updateFigureCount(mineState.ym > 0 ? 1 : 0);
 }
-
-// ── PROFILE TAB ───────────────────────────────────────────
-function renderMineProfile(el) {
-  // Hidden field: last known claimable YM balance
-  el.innerHTML = `<div style="padding:16px">
-    <div class="m-info">Mine data (kept private — not visible in your public profile)</div>
-    <div class="m-card">
-      <div class="m-label">Last Claimable YM</div>
-      <div class="m-val">${WS.claimableYM.toFixed(4)} YM</div>
+function renderFigure(el) {
+  const c=calcClaimable();
+  el.innerHTML=`<div style="padding:20px">
+    <div class="ym-panel">
+      <div class="ym-panel-title">Wallet Balances</div>
+      <div class="ym-stat-row"><span class="ym-stat-label">SOL</span><span class="ym-stat-value blue" id="fig-sol">${mineState.sol.toFixed(6)}</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">YRM</span><span class="ym-stat-value accent" id="fig-yrm">${mineState.ym.toFixed(4)}</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Claimable</span><span class="ym-stat-value gold" id="fig-claimable">${c.toFixed(6)}</span></div>
     </div>
-    <div class="m-card">
-      <div class="m-label">Public Key</div>
-      <div class="m-addr" style="font-size:.68rem">${WS.publicKey || 'No wallet'}</div>
+    <div class="ym-panel">
+      <div class="ym-panel-title">Mining Stats</div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Last Burn</span><span class="ym-stat-value" id="fig-last-burn">${mineState.lastBurnLamports?(mineState.lastBurnLamports/1e9).toFixed(4)+' SOL':'—'}</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Patience τ</span><span class="ym-stat-value">${mineState.taxRate??DEFAULT_TAX}%</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Slot</span><span class="ym-stat-value">${mineState.currentSlot||'—'}</span></div>
+      ${walletState.pubkey?`<div class="ym-stat-row"><span class="ym-stat-label">Address</span><span style="font-family:var(--font-mono);font-size:9px;color:var(--text3);word-break:break-all">${walletState.pubkey.slice(0,8)}…${walletState.pubkey.slice(-6)}</span></div>`:''}
     </div>
   </div>`;
 }
-
-// ── UTILS ─────────────────────────────────────────────────
-function setMsg(id, html, type) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.innerHTML = type === 'err' ? `<div class="m-err">${html}</div>` : `<div>${html}</div>`;
+function renderProfileTab(el) {
+  el.innerHTML=`<div style="padding:20px">
+    ${walletState.pubkey?`
+    <div class="ym-panel">
+      <div class="ym-panel-title">Public Key (Safe to Share)</div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--accent);word-break:break-all;cursor:pointer" onclick="navigator.clipboard.writeText('${walletState.pubkey}')">${walletState.pubkey}</div>
+    </div>
+    <div class="ym-panel">
+      <div class="ym-panel-title">Mining History</div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Total burned (lamports)</span><span class="ym-stat-value">${mineState.totalBurned||0}</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Last claimable YRM</span><span class="ym-stat-value gold">${calcClaimable().toFixed(6)}</span></div>
+    </div>`:'<div class="ym-notice info">Unlock your wallet to see mining data.</div>'}
+  </div>`;
 }
 
-// Expose for onclick handlers
-window.mTab = mTab;
-window.mSendTab = mSendTab;
-window.mCreateWallet = mCreateWallet;
-window.mDoCreate = mDoCreate;
-window.mImportWallet = mImportWallet;
-window.mDoImport = mDoImport;
-window.mUnlock = mUnlock;
-window.mLock = mLock;
-window.mRefresh = mRefresh;
-window.mCalcPreview = mCalcPreview;
-window.mDoBurn = mDoBurn;
-window.mDoClaim = mDoClaim;
-window.mDoSend = mDoSend;
+// ── RENDER (pill body) ────────────────────────────────────
+function render(body) {
+  // Inject sphere-local CSS once
+  if (!document.getElementById('mine-sphere-css')) {
+    const style = document.createElement('style');
+    style.id = 'mine-sphere-css';
+    style.textContent = `
+      .mine-wrap{padding:16px;display:flex;flex-direction:column;gap:10px}
+      .mine-addr{font-family:var(--font-mono);font-size:9px;color:var(--text3);word-break:break-all;margin-top:2px}
+    `;
+    document.head.appendChild(style);
+  }
+
+  if (walletState.locked) renderLocked(body);
+  else renderUnlocked(body);
+}
+
+function renderLocked(body) {
+  const has=hasSaved(),hint=savedHint();
+  body.innerHTML=`<div class="mine-wrap">
+    ${!has?`
+      <div class="ym-notice info">Enter a BIP39 phrase (12 or 24 words) — compatible with Phantom.</div>
+      <div style="position:relative">
+        <input class="ym-input" id="mine-phrase" placeholder="BIP39 phrase (12 or 24 words)" type="password" style="padding-right:36px"/>
+        <button id="mine-pp-btn" type="button" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:.9rem">👁</button>
+      </div>
+      <input class="ym-input" id="mine-pw"  placeholder="Encryption password" type="password"/>
+      <input class="ym-input" id="mine-pw2" placeholder="Confirm password" type="password"/>
+      <button class="ym-btn ym-btn-accent" id="mine-create-btn" style="width:100%">Create Wallet</button>
+      <details style="margin-top:4px">
+        <summary style="font-size:10px;color:var(--text3);cursor:pointer">Import private key</summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          <input class="ym-input" id="mine-import-key" placeholder="Base58 or JSON array [0,1,…]" type="password"/>
+          <input class="ym-input" id="mine-import-pw"  placeholder="Encryption password" type="password"/>
+          <button class="ym-btn" id="mine-import-btn" style="width:100%">Import</button>
+        </div>
+      </details>
+    `:`
+      ${hint?`<div style="font-size:10px;color:var(--text3);margin-bottom:4px">🔑 Saved wallet: ${hint}</div>`:''}
+      <input class="ym-input" id="mine-pw" placeholder="Password" type="password"/>
+      <button class="ym-btn ym-btn-accent" id="mine-unlock-btn" style="width:100%">Unlock</button>
+      <details style="margin-top:4px">
+        <summary style="font-size:10px;color:var(--text3);cursor:pointer">Import another wallet</summary>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          <input class="ym-input" id="mine-import-key" placeholder="Base58 or JSON array" type="password"/>
+          <input class="ym-input" id="mine-import-pw"  placeholder="New password" type="password"/>
+          <button class="ym-btn" id="mine-import-btn" style="width:100%">Import &amp; Replace</button>
+        </div>
+      </details>
+      <button class="ym-btn ym-btn-ghost" id="mine-reset-btn" style="width:100%;font-size:10px">Delete local wallet</button>
+    `}
+    <div id="mine-err" class="ym-notice error" style="display:none"></div>
+  </div>`;
+  wireLockedEvents(body);
+}
+
+function renderUnlocked(body) {
+  const c=calcClaimable();
+  const addr=walletState.pubkey||'';
+  body.innerHTML=`<div class="mine-wrap">
+
+    <!-- Wallet header -->
+    <div class="ym-panel" style="margin-bottom:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div>
+          <div class="ym-panel-title" style="margin-bottom:2px">Active Wallet</div>
+          <div class="mine-addr">${addr}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="ym-btn ym-btn-ghost" id="mine-copy-addr" style="padding:6px 10px;font-size:.9rem" title="Copy address">⧉</button>
+          <button class="ym-btn ym-btn-danger" id="mine-lock-btn" style="padding:6px 12px;font-size:11px">Lock</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Balances -->
+    <div class="ym-panel" id="mine-stats">
+      <div class="ym-panel-title">Balances</div>
+      <div class="ym-stat-row"><span class="ym-stat-label">SOL</span><span class="ym-stat-value blue" id="mine-sol-val">${mineState.sol.toFixed(6)}</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">YRM</span><span class="ym-stat-value accent" id="mine-yrm-val">${mineState.ym.toFixed(4)}</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Claimable</span><span class="ym-stat-value gold" id="mine-claim-val">${c.toFixed(6)}</span></div>
+      <div class="ym-stat-row"><span class="ym-stat-label">Slot</span><span class="ym-stat-value" id="mine-slot-val">${mineState.currentSlot||'—'}</span></div>
+    </div>
+
+    <!-- Burn & Claim -->
+    <div class="ym-panel">
+      <div class="ym-panel-title">Burn &amp; Claim</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div>
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">SOL to burn</div>
+          <input class="ym-input" id="mine-burn-amt" type="number" min="${MIN_BURN_SOL}" step="0.001" placeholder="${MIN_BURN_SOL}"/>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Patience τ</span>
+            <span style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--accent)" id="mine-rate-lbl">20%</span>
+          </div>
+          <input class="ym-slider" id="mine-rate-slider" type="range" min="0" max="40" step="1" value="20"/>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px;color:var(--text3)">
+            <span>0% — Fast</span><span>40% — Max bonus</span>
+          </div>
+        </div>
+        <div class="ym-notice info" style="font-size:10px">Team fee (0.1%): <strong id="mine-fee-lbl">—</strong> SOL</div>
+        <div style="display:flex;gap:8px">
+          <button class="ym-btn ym-btn-accent" id="mine-burn-btn" style="flex:1">🔥 Burn</button>
+          <button class="ym-btn" id="mine-claim-btn" style="flex:1">⚡ Claim <span id="mine-claim-amt">(${c.toFixed(4)})</span></button>
+        </div>
+        <div id="mine-tx-msg" class="ym-notice success" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- Receive -->
+    <div class="ym-panel">
+      <div class="ym-panel-title">Receive</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+        <div id="mine-qr" style="background:#fff;padding:8px;border-radius:8px;display:inline-block"></div>
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--text3);word-break:break-all;text-align:center">${addr}</div>
+        <button class="ym-btn ym-btn-ghost" id="mine-copy-addr2" style="width:100%">⧉ Copy address</button>
+      </div>
+    </div>
+
+    <!-- Send -->
+    <div class="ym-panel">
+      <div class="ym-panel-title">Send SOL</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input class="ym-input" id="mine-send-to"  placeholder="Recipient address"/>
+        <input class="ym-input" id="mine-send-amt" type="number" step="0.001" placeholder="Amount SOL"/>
+        <button class="ym-btn ym-btn-accent" id="mine-send-btn">Send</button>
+      </div>
+    </div>
+
+  </div>`;
+
+  // QR code
+  if (window.QRCode && addr) {
+    const qrEl=document.getElementById('mine-qr');
+    if(qrEl){qrEl.innerHTML='';new window.QRCode(qrEl,{text:addr,width:160,height:160,correctLevel:QRCode.CorrectLevel.M})}
+  }
+
+  updateFeePreview(body);
+  wireUnlockedEvents(body);
+  startCycles();
+}
+
+// ── WIRE EVENTS ───────────────────────────────────────────
+function wireLockedEvents(body) {
+  const $=id=>body.querySelector('#'+id);
+  $('mine-pp-btn')?.addEventListener('click',()=>{const i=$('mine-phrase');if(i)i.type=i.type==='password'?'text':'password'});
+  $('mine-create-btn')?.addEventListener('click',async()=>{
+    const phrase=$('mine-phrase')?.value||'',pw=$('mine-pw')?.value||'',pw2=$('mine-pw2')?.value||'';
+    if(!pw)return showErr(body,'Password required');if(pw!==pw2)return showErr(body,'Passwords differ');
+    try{await createWallet(phrase,pw);await unlockWallet(pw);renderUnlocked(body)}catch(e){showErr(body,e.message)}
+  });
+  $('mine-unlock-btn')?.addEventListener('click',async()=>{
+    const pw=$('mine-pw')?.value||'';
+    try{await unlockWallet(pw);renderUnlocked(body)}catch(e){showErr(body,e.message)}
+  });
+  $('mine-pw')?.addEventListener('keydown',e=>{if(e.key==='Enter')$('mine-unlock-btn')?.click()});
+  $('mine-import-btn')?.addEventListener('click',async()=>{
+    const raw=($('mine-import-key')?.value||'').trim(),pw=($('mine-import-pw')?.value||'').trim();
+    if(!raw)return showErr(body,'Key required');if(!pw)return showErr(body,'Password required');
+    try{await importWallet(raw,pw);await unlockWallet(pw);renderUnlocked(body)}catch(e){showErr(body,e.message)}
+  });
+  $('mine-reset-btn')?.addEventListener('click',()=>{
+    if(confirm('Delete local wallet? Make sure you have your phrase saved.'))
+    {localStorage.removeItem(STORE_KEY);renderLocked(body)}
+  });
+}
+
+function wireUnlockedEvents(body) {
+  const $=id=>body.querySelector('#'+id);
+  $('mine-lock-btn')?.addEventListener('click',()=>{lockWallet();renderLocked(body)});
+  $('mine-copy-addr')?.addEventListener('click',()=>navigator.clipboard?.writeText(walletState.pubkey||'').catch(()=>{}));
+  $('mine-copy-addr2')?.addEventListener('click',()=>navigator.clipboard?.writeText(walletState.pubkey||'').catch(()=>{}));
+
+  const slider=$('mine-rate-slider');
+  slider?.addEventListener('input',()=>{const l=$('mine-rate-lbl');if(l)l.textContent=slider.value+'%';updateFeePreview(body)});
+  $('mine-burn-amt')?.addEventListener('input',()=>updateFeePreview(body));
+
+  $('mine-burn-btn')?.addEventListener('click',async()=>{
+    const amt=parseFloat($('mine-burn-amt')?.value||'0');
+    const rate=parseInt($('mine-rate-slider')?.value||'20');
+    if(!amt||amt<MIN_BURN_SOL)return showTx(body,`Minimum: ${MIN_BURN_SOL} SOL`,true);
+    if(amt>mineState.sol)return showTx(body,'Insufficient SOL',true);
+    const btn=$('mine-burn-btn');btn.disabled=true;btn.textContent='⏳';
+    try{const sig=await performBurn(amt,rate);showTx(body,'Burn confirmed ✓ '+sig.slice(0,12)+'…');setTimeout(()=>refreshBalances(),2000)}
+    catch(e){showTx(body,e.message,true)}
+    finally{btn.disabled=false;btn.textContent='🔥 Burn'}
+  });
+
+  $('mine-claim-btn')?.addEventListener('click',async()=>{
+    const c=calcClaimable();if(c<=0)return showTx(body,'Nothing to claim yet',true);
+    const btn=$('mine-claim-btn');btn.disabled=true;btn.textContent='⏳';
+    try{const sig=await performClaim();showTx(body,'Claim confirmed ✓ '+sig.slice(0,12)+'…');setTimeout(()=>refreshBalances(),2000)}
+    catch(e){showTx(body,e.message,true)}
+    finally{btn.disabled=false;btn.textContent='⚡ Claim'}
+  });
+
+  $('mine-send-btn')?.addEventListener('click',async()=>{
+    const to=$('mine-send-to')?.value?.trim(),amt=parseFloat($('mine-send-amt')?.value||'0');
+    if(!to||!amt)return;
+    try{const sig=await sendSOL(to,amt);showTx(body,'Sent ✓ '+sig.slice(0,12)+'…');setTimeout(refreshBalances,2000)}
+    catch(e){showTx(body,e.message,true)}
+  });
+}
+
+function updateFeePreview(body) {
+  const amt=parseFloat(body.querySelector('#mine-burn-amt')?.value||'0');
+  const el=body.querySelector('#mine-fee-lbl');if(el)el.textContent=(amt*0.001).toFixed(6)+' SOL';
+}
+
+// ── LIVE UPDATES ──────────────────────────────────────────
+function updateBalanceUI() {
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('mine-sol-val', mineState.sol.toFixed(6));
+  set('mine-yrm-val', mineState.ym.toFixed(4));
+  set('mine-slot-val', mineState.currentSlot||'—');
+  // Also update figure tab if open
+  const fs=document.getElementById('fig-sol');if(fs)fs.textContent=mineState.sol.toFixed(6);
+  const fy=document.getElementById('fig-yrm');if(fy)fy.textContent=mineState.ym.toFixed(4);
+}
+
+function startCycles() {
+  clearInterval(_cycleTimer);clearInterval(_claimTimer);
+  _cycleTimer=setInterval(refreshBalances,15000);
+  _claimTimer=setInterval(()=>{
+    const c=calcClaimable();
+    const cv=document.getElementById('mine-claim-val');if(cv)cv.textContent=c.toFixed(6);
+    const ca=document.getElementById('mine-claim-amt');if(ca)ca.textContent=`(${c.toFixed(4)})`;
+    const fc=document.getElementById('fig-claimable');if(fc)fc.textContent=c.toFixed(6);
+  },2000);
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+function showErr(body, msg) {const e=body.querySelector('#mine-err');if(e){e.textContent=msg;e.style.display='flex'}}
+function showTx(body, msg, isErr=false) {
+  const el=document.getElementById('mine-tx-msg');if(!el)return;
+  el.textContent=msg;el.className='ym-notice '+(isErr?'error':'success');el.style.display='flex';
+  setTimeout(()=>{el.style.display='none'},5000);
+}
 
 })();
