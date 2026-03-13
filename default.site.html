@@ -1,447 +1,265 @@
-<!-- default.site.html — YourMine Default Site -->
+<!-- default.site.html — YourMine Default Theme & Landing Page -->
+<!-- Injected into #ym-site-frame by index.html -->
 <style>
-  #ym-default {
-    min-height: 100%;
-    font-family: var(--sans, 'Barlow Condensed', sans-serif);
-    color: var(--title, #e8e8f0);
-    overflow-x: hidden;
-  }
+/* ══ AMBIENT BACKGROUND ══ */
+#ym-root::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 10%,rgba(200,240,160,.04) 0%,transparent 70%),
+    radial-gradient(ellipse 50% 50% at 80% 80%,rgba(126,212,255,.03) 0%,transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 50%,rgba(232,180,255,.02) 0%,transparent 70%);
+}
 
-  .ym-hero {
-    padding: 40px 24px 32px;
-    text-align: center;
-    border-bottom: 1px solid var(--border, rgba(200,240,160,.15));
-  }
+/* ══ RICH COMPONENT STYLES ══ */
 
-  .ym-tagline {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .72rem;
-    color: var(--accent, #c8f0a0);
-    letter-spacing: .15em;
-    text-transform: uppercase;
-    margin-bottom: 16px;
-  }
+/* Cards */
+.ym-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:16px;transition:all .2s var(--ease)}
+.ym-card:hover{border-color:var(--border2);background:var(--surface2);transform:translateY(-2px)}
+.ym-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
 
-  .ym-headline {
-    font-size: 2.2rem;
-    font-weight: 900;
-    line-height: 1.1;
-    color: var(--title, #e8e8f0);
-    margin-bottom: 14px;
-  }
+/* Chips / tags */
+.ym-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);font-size:10px;letter-spacing:.5px;color:var(--text2);white-space:nowrap}
+.ym-chip.accent{background:rgba(200,240,160,.1);border-color:rgba(200,240,160,.2);color:var(--accent)}
+.ym-chip.blue{background:rgba(126,212,255,.1);border-color:rgba(126,212,255,.2);color:var(--accent2)}
+.ym-chip.purple{background:rgba(232,180,255,.1);border-color:rgba(232,180,255,.2);color:var(--accent3)}
+.ym-chip.gold{background:rgba(240,192,96,.1);border-color:rgba(240,192,96,.2);color:var(--gold)}
 
-  .ym-headline em {
-    font-style: normal;
-    color: var(--accent, #c8f0a0);
-  }
+/* Avatar */
+.ym-avatar{width:40px;height:40px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);object-fit:cover;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:14px;color:var(--text2);overflow:hidden;flex-shrink:0}
 
-  .ym-sub {
-    font-size: .95rem;
-    color: rgba(232,232,240,.55);
-    line-height: 1.7;
-    max-width: 360px;
-    margin: 0 auto 24px;
-    font-weight: 400;
-  }
+/* Badge */
+.ym-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:#050508;font-family:var(--font-display);font-size:10px;font-weight:800;line-height:1}
 
-  .ym-cta {
-    display: inline-flex;
-    gap: 8px;
-    align-items: center;
-    background: rgba(200,240,160,.1);
-    border: 1px solid rgba(200,240,160,.3);
-    color: var(--accent, #c8f0a0);
-    padding: 10px 20px;
-    border-radius: 24px;
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .78rem;
-    font-weight: 700;
-    letter-spacing: .08em;
-    cursor: pointer;
-    transition: all .2s;
-  }
-  .ym-cta:hover { background: rgba(200,240,160,.2); box-shadow: 0 0 20px rgba(200,240,160,.15); }
+/* Formula */
+.ym-formula{font-family:var(--font-mono);font-size:11px;color:var(--text2);text-align:center;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);line-height:2;letter-spacing:.5px}
+.ym-formula .num{color:var(--accent);font-weight:500}
+.ym-formula .denom{color:var(--accent2);font-weight:500}
 
-  /* COMPARISON BLOCK */
-  .ym-section { padding: 28px 24px; border-bottom: 1px solid var(--border, rgba(200,240,160,.15)); }
-  .ym-section-title {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .7rem;
-    color: rgba(200,240,160,.5);
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    margin-bottom: 16px;
-  }
+/* Stagger animation */
+.ym-stagger>*{opacity:0;animation:slideUp .4s var(--ease) forwards}
+.ym-stagger>*:nth-child(1){animation-delay:0ms}.ym-stagger>*:nth-child(2){animation-delay:60ms}.ym-stagger>*:nth-child(3){animation-delay:120ms}.ym-stagger>*:nth-child(4){animation-delay:180ms}.ym-stagger>*:nth-child(5){animation-delay:240ms}.ym-stagger>*:nth-child(6){animation-delay:300ms}
+@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
-  .ym-compare-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
+/* ══ LANDING PAGE STYLES ══ */
+.site-wrap{padding:24px 24px 40px;max-width:720px;margin:0 auto}
 
-  @media (max-width: 400px) {
-    .ym-compare-grid { grid-template-columns: 1fr; }
-  }
+.site-hero{padding:40px 0 32px;text-align:center}
+.site-hero h1{font-family:var(--font-display);font-size:clamp(2.2rem,8vw,3.8rem);font-weight:900;letter-spacing:-2px;line-height:1.1;color:var(--text);margin-bottom:16px}
+.site-hero h1 em{color:var(--accent);font-style:normal}
+.site-hero p{font-size:.95rem;color:var(--text2);line-height:1.8;max-width:480px;margin:0 auto 24px}
+.site-cta-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 
-  .ym-compare-card {
-    background: rgba(255,255,255,.025);
-    border: 1px solid rgba(200,240,160,.1);
-    border-radius: 10px;
-    padding: 14px;
-  }
-  .ym-compare-card.featured {
-    border-color: rgba(200,240,160,.35);
-    background: rgba(200,240,160,.04);
-    grid-column: 1 / -1;
-  }
+.site-section{margin-bottom:32px}
+.site-section-title{font-family:var(--font-display);font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--text3);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.site-section-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-  .ym-compare-brand {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .78rem;
-    font-weight: 700;
-    color: var(--accent, #c8f0a0);
-    margin-bottom: 4px;
-  }
-  .ym-compare-desc {
-    font-size: .82rem;
-    color: rgba(232,232,240,.5);
-    line-height: 1.5;
-  }
+/* Comparison table */
+.compare-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.compare-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:14px;transition:all .2s}
+.compare-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.compare-card.ours{border-color:rgba(200,240,160,.3);background:rgba(200,240,160,.04)}
+.compare-card-name{font-family:var(--font-display);font-size:12px;font-weight:700;margin-bottom:6px;color:var(--text)}
+.compare-card.ours .compare-card-name{color:var(--accent)}
+.compare-card-desc{font-size:10px;color:var(--text3);line-height:1.6}
 
-  /* FORMULA */
-  .ym-formula-wrap {
-    background: rgba(200,240,160,.03);
-    border: 1px solid rgba(200,240,160,.12);
-    border-radius: 12px;
-    padding: 20px;
-    margin-bottom: 16px;
-    text-align: center;
-  }
+/* Steps */
+.steps{display:flex;flex-direction:column;gap:10px}
+.step{display:flex;gap:14px;align-items:flex-start}
+.step-num{width:28px;height:28px;border-radius:50%;background:rgba(200,240,160,.1);border:1px solid rgba(200,240,160,.25);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:11px;font-weight:800;color:var(--accent);flex-shrink:0;margin-top:2px}
+.step-body{flex:1}
+.step-title{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px}
+.step-desc{font-size:11px;color:var(--text3);line-height:1.6}
 
-  .ym-formula {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .88rem;
-    color: var(--title, #e8e8f0);
-    line-height: 2.2;
-  }
+/* Formula block */
+.formula-block{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:20px;margin-bottom:10px}
+.formula-display{text-align:center;padding:16px 0}
+.formula-num{font-family:var(--font-display);font-size:1.1rem;color:var(--accent);font-weight:700;letter-spacing:.5px}
+.formula-line{height:1px;background:rgba(200,240,160,.3);margin:8px auto;width:80%}
+.formula-den{font-family:var(--font-display);font-size:.85rem;color:var(--accent2)}
+.formula-vars{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.fvar{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:10px}
+.fvar strong{color:var(--accent)}
+.fvar span{color:var(--text3)}
 
-  .ym-formula .num { color: var(--accent, #c8f0a0); }
-  .ym-formula .den { border-top: 1px solid rgba(232,232,240,.3); padding-top: 4px; }
+/* Calculator */
+.calc-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:16px}
+.calc-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.calc-label{display:flex;justify-content:space-between;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.calc-label strong{color:var(--text2);font-size:11px}
+.calc-result{background:var(--bg2);border:1px solid rgba(200,240,160,.2);border-radius:var(--r);padding:14px;display:flex;justify-content:space-between;align-items:baseline}
+.calc-result-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+.calc-result-val{font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--accent)}
 
-  .ym-vars {
-    display: grid;
-    gap: 6px;
-  }
-  .ym-var {
-    display: flex;
-    gap: 10px;
-    align-items: baseline;
-  }
-  .ym-var-key {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .8rem;
-    color: var(--accent, #c8f0a0);
-    min-width: 14px;
-  }
-  .ym-var-desc {
-    font-size: .82rem;
-    color: rgba(232,232,240,.6);
-  }
+/* Law cards */
+.law-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.law-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;transition:border-color .2s}
+.law-card:hover{border-color:var(--border2)}
+.law-name{font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px}
+.law-formula{font-family:var(--font-mono);font-size:10px;color:var(--accent);margin-bottom:4px}
+.law-desc{font-size:10px;color:var(--text3);line-height:1.5}
 
-  /* LAWS */
-  .ym-laws {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .ym-law {
-    padding: 12px;
-    background: rgba(255,255,255,.02);
-    border: 1px solid rgba(200,240,160,.08);
-    border-radius: 8px;
-  }
-  .ym-law-name {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .72rem;
-    color: var(--accent, #c8f0a0);
-    margin-bottom: 4px;
-    letter-spacing: .06em;
-  }
-  .ym-law-desc { font-size: .78rem; color: rgba(232,232,240,.45); line-height: 1.4; }
+/* Asset classes */
+.asset-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.asset-card{border-radius:var(--r2);padding:16px;border:1px solid}
+.asset-card.soul{background:rgba(232,180,255,.04);border-color:rgba(232,180,255,.2)}
+.asset-card.liquid{background:rgba(200,240,160,.04);border-color:rgba(200,240,160,.2)}
+.asset-card-title{font-family:var(--font-display);font-size:12px;font-weight:800;margin-bottom:4px}
+.asset-card.soul .asset-card-title{color:var(--accent3)}
+.asset-card.liquid .asset-card-title{color:var(--accent)}
+.asset-card-desc{font-size:10px;color:var(--text3);line-height:1.6}
 
-  /* ASSET CLASSES */
-  .ym-assets {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .ym-asset {
-    padding: 16px;
-    border-radius: 10px;
-    border: 1px solid rgba(200,240,160,.15);
-    background: rgba(200,240,160,.03);
-  }
-  .ym-asset-label {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .65rem;
-    color: rgba(200,240,160,.5);
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .ym-asset-name {
-    font-size: 1rem;
-    font-weight: 800;
-    color: var(--title, #e8e8f0);
-    margin-bottom: 6px;
-  }
-  .ym-asset-desc { font-size: .8rem; color: rgba(232,232,240,.5); line-height: 1.5; }
-
-  /* HOW IT WORKS STEPS */
-  .ym-steps { display: grid; gap: 8px; }
-  .ym-step {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-    padding: 12px;
-    background: rgba(255,255,255,.02);
-    border-radius: 8px;
-    border: 1px solid rgba(200,240,160,.06);
-  }
-  .ym-step-n {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .7rem;
-    font-weight: 700;
-    color: var(--accent, #c8f0a0);
-    min-width: 18px;
-    padding-top: 1px;
-  }
-  .ym-step-text { font-size: .85rem; color: rgba(232,232,240,.65); line-height: 1.5; }
-  .ym-step-text strong { color: var(--title, #e8e8f0); }
-
-  /* FOOTER */
-  .ym-footer {
-    padding: 32px 24px 48px;
-    text-align: center;
-  }
-  .ym-footer-text {
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .72rem;
-    color: rgba(232,232,240,.25);
-    letter-spacing: .08em;
-    line-height: 2;
-  }
-
-  /* ANIMATED FORMULA DEMO */
-  .ym-demo {
-    background: rgba(17,17,19,.8);
-    border: 1px solid rgba(200,240,160,.15);
-    border-radius: 10px;
-    padding: 16px;
-    font-family: var(--mono, 'Space Mono', monospace);
-    font-size: .78rem;
-  }
-  .ym-demo-row { display: flex; justify-content: space-between; margin-bottom: 6px; color: rgba(232,232,240,.5); }
-  .ym-demo-row span:last-child { color: var(--accent, #c8f0a0); }
-  .ym-demo-total {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid rgba(200,240,160,.15);
-    font-size: .88rem;
-    display: flex;
-    justify-content: space-between;
-    color: var(--title, #e8e8f0);
-  }
-  .ym-demo-total span:last-child { color: var(--accent, #c8f0a0); font-size: 1rem; }
+/* Quote */
+.site-quote{font-family:var(--font-mono);font-size:11px;color:var(--text3);border-left:2px solid rgba(200,240,160,.3);padding:10px 16px;margin:16px 0;font-style:italic;line-height:1.8}
 </style>
 
-<div id="ym-default">
+<div class="site-wrap ym-stagger">
+
   <!-- HERO -->
-  <div class="ym-hero">
-    <div class="ym-tagline">YourMine Protocol · Devnet</div>
-    <div class="ym-headline">Mine<br>to <em>Build</em>.</div>
-    <div class="ym-sub">
-      A decentralized runtime as light as a simple push.
-      Burn · Wait · Claim · Create.
+  <div class="site-hero">
+    <h1>Mine to <em>Build</em><br>The New Web</h1>
+    <p>A decentralized economic incentive engine. Burn SOL, earn YRM, shape the network. No servers. No intermediaries. Just math.</p>
+    <div class="site-cta-row">
+      <button class="ym-btn ym-btn-accent" onclick="YM?.openSpheres?.()">✕ Activate Spheres</button>
+      <button class="ym-btn" onclick="YM?.openSites?.()">○ Explore Sites</button>
     </div>
-    <button class="ym-cta" onclick="YM.openSpheres()">
-      <span>⚡</span> Activate a Sphere
-    </button>
   </div>
 
-  <!-- CONTEXT -->
-  <div class="ym-section">
-    <div class="ym-section-title">What came before</div>
-    <div class="ym-compare-grid">
-      <div class="ym-compare-card">
-        <div class="ym-compare-brand">Google</div>
-        <div class="ym-compare-desc">Built an automated search engine</div>
+  <!-- WHY YOURMINE -->
+  <div class="site-section">
+    <div class="site-section-title">Why YourMine</div>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <div class="compare-card-name">Google</div>
+        <div class="compare-card-desc">Social incentive network. Extracts value from users.</div>
       </div>
-      <div class="ym-compare-card">
-        <div class="ym-compare-brand">Facebook</div>
-        <div class="ym-compare-desc">Built a social incentive network</div>
+      <div class="compare-card">
+        <div class="compare-card-name">Facebook</div>
+        <div class="compare-card-desc">Attention graph. You are the product.</div>
       </div>
-      <div class="ym-compare-card">
-        <div class="ym-compare-brand">WordPress</div>
-        <div class="ym-compare-desc">Built a plugin platform</div>
+      <div class="compare-card">
+        <div class="compare-card-name">WordPress</div>
+        <div class="compare-card-desc">Plugin platform. Centralized hosting.</div>
       </div>
-      <div class="ym-compare-card">
-        <div class="ym-compare-brand">Bitcoin</div>
-        <div class="ym-compare-desc">Built a decentralized proof of work</div>
+      <div class="compare-card">
+        <div class="compare-card-name">Bitcoin</div>
+        <div class="compare-card-desc">Proof of Work. Energy into security.</div>
       </div>
-      <div class="ym-compare-card featured">
-        <div class="ym-compare-brand">YourMine</div>
-        <div class="ym-compare-desc">Building a <strong style="color:var(--accent)">mine-to-build economic incentive engine</strong> — a runtime as light as a simple push. Spheres are plugins. Sites are layers. The formula is the law.</div>
+      <div class="compare-card ours">
+        <div class="compare-card-name">YourMine</div>
+        <div class="compare-card-desc">Economic incentive in a plugin network. Sacrifice to earn.</div>
       </div>
     </div>
   </div>
 
   <!-- HOW IT WORKS -->
-  <div class="ym-section">
-    <div class="ym-section-title">How it works</div>
-    <div class="ym-steps">
-      <div class="ym-step"><span class="ym-step-n">1</span><div class="ym-step-text">A user <strong>burns</strong> an amount <em>x</em> of SOL and selects a <strong>patience rate</strong> T (0–40%).</div></div>
-      <div class="ym-step"><span class="ym-step-n">2</span><div class="ym-step-text"><strong>Immediate reward:</strong> x(1−T) YM is distributed instantly.</div></div>
-      <div class="ym-step"><span class="ym-step-n">3</span><div class="ym-step-text">The rest becomes a <strong>claimable bonus</strong> that grows over time — depending only on amount burned, patience rate, and time elapsed.</div></div>
-      <div class="ym-step"><span class="ym-step-n">4</span><div class="ym-step-text">Every burn or claim <strong>resets your personal clock</strong>. We take 0.1% of each burn to sustain the project.</div></div>
+  <div class="site-section">
+    <div class="site-section-title">How It Works</div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-body"><div class="step-title">🔥 Burn SOL</div><div class="step-desc">Send SOL to the incinerator. This is your Proof of Sacrifice — permanent, irreversible, on-chain.</div></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-body"><div class="step-title">⚡ Immediate reward</div><div class="step-desc">A fraction of YRM is minted immediately based on your burn amount.</div></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-body"><div class="step-title">⏳ Claimable grows</div><div class="step-desc">As slots pass, your claimable YRM increases. More patience (τ) = more bonus. Reset resets the clock.</div></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-body"><div class="step-title">♻ Claim & repeat</div><div class="step-desc">Claim your YRM anytime. The protocol resets. Burn again to continue mining.</div></div></div>
     </div>
   </div>
 
   <!-- FORMULA -->
-  <div class="ym-section">
-    <div class="ym-section-title">The YourMine Formula</div>
-    <div class="ym-formula-wrap">
-      <div class="ym-formula">
-        <div class="num">S · t<sup>α</sup></div>
-        <div class="den">[β(1−T)·ln(A) + ln(1 + C/A<sup>β(1−T)</sup>)]<sup>γ</sup></div>
+  <div class="site-section">
+    <div class="site-section-title">The Formula</div>
+    <div class="formula-block">
+      <div class="formula-display">
+        <div class="formula-num">S · Δslot<sup style="font-size:.7em">1.1</sup></div>
+        <div class="formula-line"></div>
+        <div class="formula-den">ln( Δgenesis<sup style="font-size:.7em">2.2·(1−τ)</sup> + 33³ )<sup style="font-size:.7em">3</sup></div>
       </div>
-    </div>
-    <div class="ym-vars">
-      <div class="ym-var"><span class="ym-var-key">S</span><span class="ym-var-desc">Amount of the last burn</span></div>
-      <div class="ym-var"><span class="ym-var-key">t</span><span class="ym-var-desc">Time elapsed since last action</span></div>
-      <div class="ym-var"><span class="ym-var-key">T</span><span class="ym-var-desc">Patience rate chosen (0 to 0.4)</span></div>
-      <div class="ym-var"><span class="ym-var-key">A</span><span class="ym-var-desc">Protocol age (Solana block height)</span></div>
-      <div class="ym-var"><span class="ym-var-key">C</span><span class="ym-var-desc">Stabilisation constant</span></div>
-      <div class="ym-var"><span class="ym-var-key">α</span><span class="ym-var-desc">Temporal growth exponent</span></div>
-      <div class="ym-var"><span class="ym-var-key">β</span><span class="ym-var-desc">Patience / age interaction</span></div>
-      <div class="ym-var"><span class="ym-var-key">γ</span><span class="ym-var-desc">Concentration compression</span></div>
+      <div class="formula-vars">
+        <div class="fvar"><strong>S</strong> <span>SOL burned (lamports)</span></div>
+        <div class="fvar"><strong>Δslot</strong> <span>slots since burn</span></div>
+        <div class="fvar"><strong>τ</strong> <span>patience 0→40%</span></div>
+        <div class="fvar"><strong>Δgenesis</strong> <span>slots since genesis</span></div>
+        <div class="fvar"><strong>min delay</strong> <span>30 slots</span></div>
+      </div>
     </div>
 
-    <!-- LIVE DEMO CALCULATOR -->
-    <div style="margin-top:16px">
-      <div class="ym-section-title" style="margin-bottom:8px">Test the formula</div>
-      <div class="ym-demo" id="ym-calc">
-        <div class="ym-demo-row"><span>Last burn (SOL)</span><span id="dc-s">0.1</span></div>
-        <div class="ym-demo-row"><span>Patience rate T</span><span id="dc-t">20%</span></div>
-        <div class="ym-demo-row"><span>Hours elapsed</span><span id="dc-h">24</span></div>
-        <div class="ym-demo-row"><span>Block height (A)</span><span id="dc-a">—</span></div>
-        <div class="ym-demo-total"><span>Claimable YM</span><span id="dc-r">—</span></div>
+    <!-- Calculator -->
+    <div class="calc-block">
+      <div style="font-family:var(--font-display);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:14px">Live Calculator</div>
+      <div class="calc-row">
+        <div class="calc-label">Burn amount <strong id="calc-sol-val">0.01 SOL</strong></div>
+        <input class="ym-slider" id="calc-sol" type="range" min="1" max="1000" value="10" oninput="ymCalc()">
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
-        <div>
-          <div class="ym-section-title">Burn (SOL)</div>
-          <input type="range" min="0.01" max="1" step="0.01" value="0.1" id="dc-burn" oninput="ymCalc()" style="width:100%;accent-color:var(--accent)">
-        </div>
-        <div>
-          <div class="ym-section-title">Patience (0–40%)</div>
-          <input type="range" min="0" max="40" step="1" value="20" id="dc-patience" oninput="ymCalc()" style="width:100%;accent-color:var(--accent)">
-        </div>
-        <div>
-          <div class="ym-section-title">Hours elapsed</div>
-          <input type="range" min="1" max="720" step="1" value="24" id="dc-hours" oninput="ymCalc()" style="width:100%;accent-color:var(--accent)">
-        </div>
+      <div class="calc-row">
+        <div class="calc-label">Patience rate τ <strong id="calc-tau-val">20%</strong></div>
+        <input class="ym-slider" id="calc-tau" type="range" min="0" max="40" value="20" oninput="ymCalc()">
+      </div>
+      <div class="calc-row">
+        <div class="calc-label">Hours elapsed <strong id="calc-hrs-val">24h</strong></div>
+        <input class="ym-slider" id="calc-hrs" type="range" min="1" max="720" value="24" oninput="ymCalc()">
+      </div>
+      <div class="calc-result">
+        <span class="calc-result-label">Estimated claimable YRM</span>
+        <span class="calc-result-val" id="calc-out">—</span>
       </div>
     </div>
   </div>
 
   <!-- NATURAL LAWS -->
-  <div class="ym-section">
-    <div class="ym-section-title">Why this structure?</div>
-    <div class="ym-laws">
-      <div class="ym-law">
-        <div class="ym-law-name">Pareto</div>
-        <div class="ym-law-desc">Economic distributions follow a power law. The protocol integrates this while stabilising it.</div>
-      </div>
-      <div class="ym-law">
-        <div class="ym-law-name">Zipf</div>
-        <div class="ym-law-desc">In self-organised systems, ranks follow a 1/rk hierarchy. Miner hierarchies emerge naturally.</div>
-      </div>
-      <div class="ym-law">
-        <div class="ym-law-name">Boltzmann</div>
-        <div class="ym-law-desc">Exponential distributions are naturally compressed by the logarithm — hence the log compression.</div>
-      </div>
-      <div class="ym-law">
-        <div class="ym-law-name">Odum</div>
-        <div class="ym-law-desc">In energy systems, efficiency decreases with age. A sustainable system must integrate time-based damping.</div>
-      </div>
+  <div class="site-section">
+    <div class="site-section-title">Natural Laws Embedded</div>
+    <div class="law-grid">
+      <div class="law-card"><div class="law-name">Pareto</div><div class="law-formula">80/20 distribution</div><div class="law-desc">Early adopters earn disproportionately more. The curve follows natural distribution.</div></div>
+      <div class="law-card"><div class="law-name">Zipf</div><div class="law-formula">1/r rank law</div><div class="law-desc">Protocol engagement follows rank-frequency. Top miners dominate logarithmically.</div></div>
+      <div class="law-card"><div class="law-name">Boltzmann</div><div class="law-formula">e<sup>−E/kT</sup></div><div class="law-desc">Patience τ mirrors thermodynamic temperature. Low τ = fast decay, high τ = slow release.</div></div>
+      <div class="law-card"><div class="law-name">Odum</div><div class="law-formula">MaxEmPower</div><div class="law-desc">Systems that burn real resources to organize information hold lasting value.</div></div>
     </div>
   </div>
 
   <!-- ASSET CLASSES -->
-  <div class="ym-section">
-    <div class="ym-section-title">A new asset class</div>
-    <div class="ym-assets">
-      <div class="ym-asset">
-        <div class="ym-asset-label">Soulbound</div>
-        <div class="ym-asset-name">Position NFT</div>
-        <div class="ym-asset-desc">Non-transferable. Holds your last burn, patience rate, personal clock, and production rights.</div>
+  <div class="site-section">
+    <div class="site-section-title">Two Asset Classes</div>
+    <div class="asset-grid">
+      <div class="asset-card soul">
+        <div class="asset-card-title">⬡ Soulbound Position</div>
+        <div class="asset-card-desc">Non-transferable NFT tied to your wallet. Records your sacrifice history and patience score.</div>
       </div>
-      <div class="ym-asset">
-        <div class="ym-asset-label">Liquid</div>
-        <div class="ym-asset-name">YM Token</div>
-        <div class="ym-asset-desc">Claimed rewards become standard transferable tokens. Exchangeable, usable in spheres, freely transferable.</div>
+      <div class="asset-card liquid">
+        <div class="asset-card-title">◎ Liquid YRM</div>
+        <div class="asset-card-desc">Transferable ERC-20 style token. Claimable after the patience delay. Tradeable on DEXes.</div>
       </div>
     </div>
   </div>
 
-  <!-- FOOTER -->
-  <div class="ym-footer">
-    <div class="ym-footer-text">
-      YourMine · Devnet Beta<br>
-      Production depends solely on sacrifice, time, and a public formula.<br>
-      <span style="opacity:.4">soulbound (production) + liquid token (circulation)</span>
-    </div>
-  </div>
+  <!-- QUOTE -->
+  <div class="site-quote">"Facebook built a social incentive network. WordPress built a plugin platform. YourMine builds economic incentive into a plugin network."</div>
+
 </div>
 
 <script>
-// Formula constants
-const YM_ALPHA = 0.6, YM_BETA = 0.4, YM_GAMMA = 1.2, YM_C = 1000;
+// Calculator
+function ymCalc(){
+  const solRaw = parseFloat(document.getElementById('calc-sol')?.value||10);
+  const tau    = parseFloat(document.getElementById('calc-tau')?.value||20)/100;
+  const hrs    = parseFloat(document.getElementById('calc-hrs')?.value||24);
 
-function ymCalcClaimable(S, t_hours, T, A) {
-  if (!S || !A) return 0;
-  const t_secs = t_hours * 3600;
-  const bT = YM_BETA * (1 - T);
-  const lnA = Math.log(A);
-  // Numerically stable form
-  const denom = Math.pow(bT * lnA + Math.log(1 + YM_C / Math.pow(A, bT)), YM_GAMMA);
-  if (!denom || isNaN(denom)) return 0;
-  return (S * Math.pow(t_secs, YM_ALPHA)) / denom;
+  const solAmt = solRaw / 1000; // slider 1-1000 → 0.001-1 SOL
+  document.getElementById('calc-sol-val').textContent = solAmt.toFixed(3)+' SOL';
+  document.getElementById('calc-tau-val').textContent = Math.round(tau*100)+'%';
+  document.getElementById('calc-hrs-val').textContent = hrs+'h';
+
+  // Approximate: ~2 slots/sec → 7200 slots/hr
+  const SLOTS_PER_HR = 7200;
+  const dSlot    = hrs * SLOTS_PER_HR;
+  const dGenesis = 200000000 + dSlot; // rough genesis offset
+  const LAMPORTS = solAmt * 1e9;
+
+  if(dSlot < 30){document.getElementById('calc-out').textContent='<30 slots';return}
+
+  const num   = Math.pow(dSlot, 1.1) * LAMPORTS;
+  const inner = Math.pow(dGenesis, 2.2*(1-tau)) + Math.pow(33,3);
+  const denom = Math.pow(Math.log(Math.max(inner,1.001)), 3.0);
+  const result = (denom>0&&isFinite(num)&&isFinite(denom)) ? num/denom/1e9 : 0;
+
+  document.getElementById('calc-out').textContent = result>0&&isFinite(result) ? result.toFixed(4)+' YRM' : '—';
 }
-
-async function ymCalc() {
-  const S = parseFloat(document.getElementById('dc-burn')?.value || 0.1);
-  const T = parseFloat(document.getElementById('dc-patience')?.value || 20) / 100;
-  const h = parseFloat(document.getElementById('dc-hours')?.value || 24);
-  if (document.getElementById('dc-s')) document.getElementById('dc-s').textContent = S.toFixed(2);
-  if (document.getElementById('dc-t')) document.getElementById('dc-t').textContent = Math.round(T*100) + '%';
-  if (document.getElementById('dc-h')) document.getElementById('dc-h').textContent = h + 'h';
-
-  let A = 0;
-  try {
-    const r = await fetch('https://api.devnet.solana.com', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getSlot', params:[] })
-    });
-    const d = await r.json();
-    A = d.result || 300000000;
-  } catch { A = 300000000; }
-
-  if (document.getElementById('dc-a')) document.getElementById('dc-a').textContent = A.toLocaleString();
-  const claimable = ymCalcClaimable(S, h, T, A);
-  if (document.getElementById('dc-r')) document.getElementById('dc-r').textContent = claimable.toFixed(4) + ' YM';
-}
-
-// Run on load
-setTimeout(ymCalc, 100);
+ymCalc();
 </script>
