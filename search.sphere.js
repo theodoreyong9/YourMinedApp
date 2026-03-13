@@ -1,417 +1,317 @@
-// ════════════════════════════════════════════════════════
-//  search.sphere.js — YourMine Search
-//  @icon 🔍
-//  @desc Recherche globale dans vos spheres, apps et contenus reçus
-//  @author YourMine
-//  @cat core
-//  @score 95
-// ════════════════════════════════════════════════════════
+// search.sphere.js — YourMine Search Sphere
+// Category: YourMine | Author: theodoreyong9
+(function(){
+'use strict';
 
-function init(container) {
+window.YM_S = window.YM_S || {};
+window.YM_S['search.sphere.js'] = {
+  name: 'Search',
+  category: 'YourMine',
+  author: 'theodoreyong9',
+  description: 'Full-text search across all active sphere data, with AI idea generator',
 
-const YM       = window.YM       || {};
-const REPO_RAW = window.REPO_RAW || 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
-const ft       = window.fetchText|| (url => fetch(url).then(r=>r.text()));
+  activate(ctx) {
+    this._ctx = ctx;
+    ctx.addPill('🔍 Search', body => renderSearchUI(body, ctx));
+    // Index data received from other spheres
+    ctx.p2p.onReceive((data, peerId) => indexP2PData(data, peerId));
+  },
 
-// ── ÉTAT ─────────────────────────────────────────────────
-let query      = '';
-let results    = [];        // [{id, type, title, excerpt, url, meta, _source}]
-let selected   = new Set(); // ids sélectionnés
-let aiPanel    = false;
-let aiLoading  = false;
-let aiResponse = '';
+  deactivate() {},
 
-// ── INDEX DES SOURCES ────────────────────────────────────
-// On indexe :
-//   1. Spheres et apps installées (méta + code partiel)
-//   2. Contenus reçus via window.YM_SEARCH_INDEX (APIs tierces)
-//   3. Contacts, profil, near cache P2P
-//   4. localStorage connu (gist, open apps…)
+  getBroadcastData() { return null; }
+};
 
-function buildIndex() {
-  const idx = [];
+// ── INDEX ─────────────────────────────────────────────────
+const IDX = []; // [{ id, text, meta, sphere, ts, data }]
 
-  // 1. Apps
-  (YM.apps || []).forEach(app => {
-    const info = app.info || {};
-    idx.push({
-      id:      'app:' + app.name,
-      type:    'app',
-      title:   app.name + '.app.js',
-      excerpt: info.desc || app.url,
-      url:     app.url,
-      meta:    { icon: info.icon||'⬡', author: info.author||'', cat: 'app', mountAs: app._mountAs||'pill' },
-      _source: app,
-    });
-  });
-
-  // 2. Spheres
-  (YM.spheres || []).forEach(sp => {
-    const info = sp.info || {};
-    idx.push({
-      id:      'sphere:' + sp.name,
-      type:    'sphere',
-      title:   sp.name + '.sphere.js',
-      excerpt: info.desc || sp.url,
-      url:     sp.url,
-      meta:    { icon: info.icon||'◎', author: info.author||'', cat: info.cat||'autres' },
-      _source: sp,
-    });
-  });
-
-  // 3. Themes
-  (YM.themes || []).forEach(t => {
-    const info = t.info || {};
-    idx.push({
-      id:      'theme:' + t.name,
-      type:    'theme',
-      title:   t.name + '.theme.html',
-      excerpt: info.desc || t.url,
-      url:     t.url,
-      meta:    { icon: '🎨', author: info.author||'' },
-      _source: t,
-    });
-  });
-
-  // 4. Contacts
-  (YM.contacts || []).forEach(c => {
-    idx.push({
-      id:      'contact:' + c.uuid,
-      type:    'contact',
-      title:   c.name || c.uuid.slice(0,12),
-      excerpt: c.socialHandle ? '@'+c.socialHandle : c.uuid,
-      url:     null,
-      meta:    { icon: '👤', cat: 'contact' },
-      _source: c,
-    });
-  });
-
-  // 5. Near cache P2P
-  try {
-    const near = JSON.parse(sessionStorage.getItem('ym_near_cache') || '{}');
-    Object.values(near).forEach(p => {
-      if (!p.name && !p.uuid) return;
-      idx.push({
-        id:      'near:' + (p.uuid||p._peer),
-        type:    'near',
-        title:   p.name || ('Peer ' + (p._peer||'').slice(0,8)),
-        excerpt: p.bio || (p.socialHandle ? '@'+p.socialHandle : 'Peer P2P'),
-        url:     null,
-        meta:    { icon: '📡', cat: 'near', ts: p._ts },
-        _source: p,
-      });
-    });
-  } catch {}
-
-  // 6. URL spheres sauvegardées
-  try {
-    const urls = JSON.parse(localStorage.getItem('ym_url_spheres') || '[]');
-    urls.forEach(u => {
-      idx.push({
-        id:      'url:' + u.url,
-        type:    'url',
-        title:   u.name,
-        excerpt: u.url,
-        url:     u.url,
-        meta:    { icon: '🔗', cat: 'url' },
-        _source: u,
-      });
-    });
-  } catch {}
-
-  // 7. Index externe — les spheres/apps peuvent pousser leurs données ici :
-  //    window.YM_SEARCH_INDEX = [{id, type, title, excerpt, url, meta}]
-  if (Array.isArray(window.YM_SEARCH_INDEX)) {
-    window.YM_SEARCH_INDEX.forEach(item => {
-      idx.push({ ...item, _external: true });
-    });
-  }
-
-  return idx;
+function addToIndex(entry) {
+  const id = entry.id || Date.now() + Math.random();
+  if (IDX.find(e => e.id === id)) return;
+  IDX.unshift({ ...entry, id, ts: Date.now() });
+  if (IDX.length > 2000) IDX.pop();
+  if (document.getElementById('srch-results')) renderResults(SQ.q, SQ.selected);
 }
+
+function indexP2PData(data, peerId) {
+  if (!data || typeof data !== 'object') return;
+  // Index any readable text from incoming p2p packets
+  let text = '';
+  if (data.type === 'profile') text = [data.displayName, data.bio, data.uuid].filter(Boolean).join(' ');
+  else if (data.content) text = data.content;
+  else text = JSON.stringify(data).slice(0, 400);
+
+  if (text.trim()) addToIndex({
+    id: (data.uuid || peerId) + '-' + Date.now(),
+    text,
+    meta: { source: 'p2p', peerId, sphere: data.sphere || 'unknown' },
+    sphere: data.sphere || 'p2p',
+  });
+}
+
+// Index data from active spheres periodically
+function scanSpheres() {
+  for (const [fn, sphere] of Object.entries(window.YM_S || {})) {
+    if (!sphere || fn === 'search.sphere.js') continue;
+    try {
+      const broadcastData = sphere.getBroadcastData?.();
+      if (broadcastData) addToIndex({
+        id: fn + '-self-' + Math.floor(Date.now()/5000),
+        text: JSON.stringify(broadcastData).replace(/[{}"]/g,' '),
+        meta: { source: 'sphere', sphere: fn },
+        sphere: fn,
+        data: broadcastData
+      });
+    } catch {}
+  }
+}
+setInterval(scanSpheres, 5000);
+
+// ── SEARCH STATE ──────────────────────────────────────────
+const SQ = { q: '', selected: new Set(), aiPrompt: '' };
 
 function search(q) {
-  if (!q || q.trim().length < 2) return [];
+  if (!q.trim()) return [...IDX].slice(0, 60);
   const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const idx   = buildIndex();
-  const scored = idx.map(item => {
-    const haystack = [item.title, item.excerpt, item.type, item.meta?.cat, item.meta?.author, item.meta?.icon]
-      .filter(Boolean).join(' ').toLowerCase();
-    let score = 0;
-    for (const t of terms) {
-      if (haystack.includes(t)) score += (item.title.toLowerCase().includes(t) ? 3 : 1);
-    }
-    return { ...item, _score: score };
-  }).filter(i => i._score > 0);
-  scored.sort((a,b) => b._score - a._score);
-  return scored;
-}
-
-// ── RENDER ────────────────────────────────────────────────
-function render() {
-  container.innerHTML = `
-  <div style="display:flex;flex-direction:column;gap:10px">
-
-    <!-- Barre de recherche -->
-    <div class="ym-panel" style="padding:14px">
-      <div class="ym-search-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-        </svg>
-        <input class="ym-input" id="search-input" placeholder="Rechercher dans vos spheres, apps, contacts, contenus…" value="${escHtml(query)}" autofocus style="padding-left:36px"/>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;flex-wrap:wrap;gap:6px">
-        <div style="font-size:10px;color:var(--text3)">
-          ${results.length ? `${results.length} résultat${results.length>1?'s':''} — ${selected.size} sélectionné${selected.size>1?'s':''}` : query.length>1 ? 'Aucun résultat' : 'Tapez au moins 2 caractères'}
-        </div>
-        ${selected.size ? `
-          <div style="display:flex;gap:6px">
-            <button class="ym-btn ym-btn-ghost" id="search-deselect-all" style="font-size:10px">Tout désélectionner</button>
-            <button class="ym-btn ym-btn-accent" id="search-ai-btn" style="font-size:10px">✦ Générer idée sphere / app</button>
-          </div>` : ''}
-      </div>
-    </div>
-
-    <!-- Résultats -->
-    ${results.length ? `
-    <div style="display:flex;flex-direction:column;gap:4px;max-height:50dvh;overflow-y:auto" id="search-results">
-      ${results.map(r => renderResult(r)).join('')}
-    </div>` : ''}
-
-    <!-- Panneau IA -->
-    ${aiPanel ? renderAIPanel() : ''}
-
-  </div>`;
-
-  wireEvents();
-}
-
-function renderResult(r) {
-  const isSel = selected.has(r.id);
-  const typeColors = { app: 'blue', sphere: 'accent', theme: 'purple', contact: '', near: 'gold', url: '' };
-  const col = typeColors[r.type] || '';
-  return `
-  <div class="ym-sphere-item${isSel?' active':''}" data-result-id="${escHtml(r.id)}" style="cursor:pointer;user-select:none">
-    <div style="width:20px;height:20px;border-radius:4px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;background:${isSel?'var(--accent)':'transparent'};color:${isSel?'#050508':'var(--text3)'};font-size:11px;transition:all .15s">
-      ${isSel?'✓':''}
-    </div>
-    <div class="ym-sphere-icon" style="font-size:16px">${r.meta?.icon||'◎'}</div>
-    <div style="flex:1;overflow:hidden">
-      <div style="font-family:var(--font-display);font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.title)}</div>
-      <div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.excerpt||'')}</div>
-    </div>
-    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
-      <span class="ym-chip ${col}" style="font-size:8px">${r.type}</span>
-      ${r.url ? `<button class="ym-btn ym-btn-ghost" data-goto="${escHtml(r.id)}" style="font-size:9px;padding:2px 8px">→ Ouvrir</button>` : ''}
-    </div>
-  </div>`;
-}
-
-function renderAIPanel() {
-  const selResults = results.filter(r => selected.has(r.id));
-  return `
-  <div class="ym-panel" style="padding:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="ym-panel-title" style="margin:0">✦ Générer une idée de sphere / app</div>
-      <button class="ym-btn ym-btn-ghost" id="search-ai-close" style="font-size:10px">Fermer</button>
-    </div>
-    <div style="font-size:10px;color:var(--text2);margin-bottom:8px">
-      Éléments sélectionnés : ${selResults.map(r=>`<span class="ym-chip" style="font-size:9px">${escHtml(r.title)}</span>`).join(' ')}
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input class="ym-input" id="search-ai-key" type="password" placeholder="Clé API Anthropic ou OpenAI" value="${localStorage.getItem('ym_builder_key')||''}" style="flex:1"/>
-      <select class="ym-input" id="search-ai-provider" style="width:auto">
-        <option value="anthropic">Claude</option>
-        <option value="openai">GPT-4o</option>
-      </select>
-    </div>
-    <textarea class="ym-editor" id="search-ai-prompt" rows="3" placeholder="Décrivez l'idée que vous souhaitez explorer… (laissez vide pour laisser l'IA proposer)"></textarea>
-    <button class="ym-btn ym-btn-accent" id="search-ai-generate" style="width:100%;margin-top:8px">
-      ${aiLoading ? '<div class="ym-loading"></div>' : '✦ Générer'}
-    </button>
-    ${aiResponse ? `
-      <div style="margin-top:12px">
-        <div class="ym-panel-title">Résultat</div>
-        <div style="font-size:11px;color:var(--text2);white-space:pre-wrap;line-height:1.7;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;max-height:280px;overflow-y:auto">${escHtml(aiResponse)}</div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="ym-btn" id="search-ai-copy" style="flex:1">⧉ Copier</button>
-          <button class="ym-btn ym-btn-accent" id="search-ai-to-builder" style="flex:1">→ Ouvrir dans Builder</button>
-        </div>
-      </div>` : ''}
-  </div>`;
-}
-
-// ── EVENTS ────────────────────────────────────────────────
-function wireEvents() {
-  // Recherche
-  const inp = container.querySelector('#search-input');
-  if (inp) {
-    inp.oninput = e => {
-      query = e.target.value;
-      results = search(query);
-      selected.clear();
-      render();
-    };
-    // Focus auto
-    setTimeout(() => inp.focus(), 80);
-  }
-
-  // Résultats — clic = sélectionner/désélectionner
-  container.querySelectorAll('[data-result-id]').forEach(row => {
-    row.onclick = e => {
-      if (e.target.closest('[data-goto]')) return; // bouton ouvrir géré séparément
-      const id = row.dataset.resultId;
-      if (selected.has(id)) selected.delete(id); else selected.add(id);
-      render();
-    };
-  });
-
-  // Bouton ouvrir
-  container.querySelectorAll('[data-goto]').forEach(btn => {
-    btn.onclick = e => {
-      e.stopPropagation();
-      const r = results.find(x => x.id === btn.dataset.goto);
-      if (!r) return;
-      openResult(r);
-    };
-  });
-
-  // Tout désélectionner
-  container.querySelector('#search-deselect-all')?.addEventListener('click', () => {
-    selected.clear(); render();
-  });
-
-  // Ouvrir panneau IA
-  container.querySelector('#search-ai-btn')?.addEventListener('click', () => {
-    aiPanel = true; aiResponse = ''; render();
-  });
-  container.querySelector('#search-ai-close')?.addEventListener('click', () => {
-    aiPanel = false; render();
-  });
-
-  // Générer
-  container.querySelector('#search-ai-generate')?.addEventListener('click', generateIdea);
-
-  // Copier résultat IA
-  container.querySelector('#search-ai-copy')?.addEventListener('click', () => {
-    navigator.clipboard.writeText(aiResponse).catch(()=>{});
-  });
-
-  // Envoyer dans builder
-  container.querySelector('#search-ai-to-builder')?.addEventListener('click', () => {
-    // Stocker dans localStorage pour que builder le récupère
-    localStorage.setItem('ym_builder_prefill', aiResponse);
-    // Ouvrir la sphere builder si disponible
-    const builderSphere = (YM.spheres||[]).find(s=>s.name==='builder');
-    if (builderSphere) window.YM_addSphereTab?.('builder', builderSphere.url, true);
-    else alert('Ouvrez la sphere builder pour utiliser ce prompt.');
-  });
-
-  // Clé IA auto-save
-  container.querySelector('#search-ai-key')?.addEventListener('input', e => {
-    localStorage.setItem('ym_builder_key', e.target.value);
-  });
-}
-
-// ── OUVRIR UN RÉSULTAT ────────────────────────────────────
-function openResult(r) {
-  if (r.type === 'sphere') {
-    window.YM_addSphereTab?.(r._source.name, r._source.url, true);
-  } else if (r.type === 'app') {
-    // Ouvrir l'app (dispatch event que index.html écoute)
-    window.dispatchEvent(new CustomEvent('ym:openapp', { detail: { name: r._source.name, url: r._source.url } }));
-  } else if (r.type === 'url') {
-    window.open(r.url, '_blank', 'noopener');
-  } else if (r.type === 'near' || r.type === 'contact') {
-    // Ouvrir l'app profile ou contacts si disponible
-    window.dispatchEvent(new CustomEvent('ym:openapp', { detail: { name: 'profile' } }));
-  } else if (r._external && r.url) {
-    window.open(r.url, '_blank', 'noopener');
-  }
-}
-
-// ── GÉNÉRATION IA ─────────────────────────────────────────
-async function generateIdea() {
-  const key      = container.querySelector('#search-ai-key')?.value?.trim() || localStorage.getItem('ym_builder_key') || '';
-  const provider = container.querySelector('#search-ai-provider')?.value || 'anthropic';
-  const userPrompt = container.querySelector('#search-ai-prompt')?.value?.trim();
-  if (!key) { alert('Clé API requise'); return; }
-
-  // Contexte : les éléments sélectionnés
-  const selItems = results.filter(r => selected.has(r.id));
-  const contextStr = selItems.map(r =>
-    `[${r.type}] ${r.title}\n  Desc: ${r.excerpt}\n  Cat: ${r.meta?.cat||''}\n  URL: ${r.url||'local'}`
-  ).join('\n\n');
-
-  // Si des fichiers sont des spheres/apps → essayer de récupérer leurs entêtes
-  const fileContexts = await Promise.all(
-    selItems.filter(r => r.url && (r.type==='sphere'||r.type==='app'||r.type==='theme')).map(async r => {
-      try {
-        const code = await ft(r.url);
-        const header = code.split('\n').slice(0,30).join('\n');
-        return `\n// Entête de ${r.title}:\n${header}`;
-      } catch { return ''; }
+  return IDX.filter(e => terms.every(t => (e.text || '').toLowerCase().includes(t)))
+    .sort((a, b) => {
+      // Boost exact phrase match
+      const aScore = (a.text.toLowerCase().includes(q.toLowerCase()) ? 2 : 0) + (terms.filter(t => a.text.toLowerCase().includes(t)).length);
+      const bScore = (b.text.toLowerCase().includes(q.toLowerCase()) ? 2 : 0) + (terms.filter(t => b.text.toLowerCase().includes(t)).length);
+      return bScore - aScore;
     })
-  );
-  const filesCtx = fileContexts.filter(Boolean).join('\n');
+    .slice(0, 100);
+}
 
-  const system = `Tu es expert en création de Spheres et Apps pour YourMine, une PWA P2P extensible.
-Une sphere = fichier JS function init(container){} avec accès à window.YM, window.REPO_RAW, window.fetchText, window.YM_addSphereTab, window.YM_updateBalance.
-Une app = IIFE (function(YM,$,el,fetchText,fetchJSON,REPO_RAW,REPO_API){ … }) qui retourne { mountAs, cleanup }.
-Génère une proposition détaillée (nom, description, fonctionnalités, architecture, pseudo-code) de sphere ou app basée sur les éléments fournis.
-Sois créatif et pratique. Indique clairement le type (sphere ou app), le mountAs si app, et les APIs/sources de données utilisées.`;
+// ── CSS ───────────────────────────────────────────────────
+const CSS = `<style>
+.srch-input{width:100%;background:rgba(17,17,19,.9);border:1.5px solid rgba(200,240,160,.3);border-radius:10px;padding:11px 14px;color:#e8e8f0;font-family:'Space Mono',monospace;font-size:.82rem;outline:none;box-sizing:border-box;transition:border-color .2s}
+.srch-input:focus{border-color:#c8f0a0;box-shadow:0 0 16px rgba(200,240,160,.08)}
+.srch-input::placeholder{color:rgba(232,232,240,.3)}
+.srch-result{display:flex;gap:10px;padding:11px 12px;border:1px solid rgba(200,240,160,.1);border-radius:9px;margin-bottom:6px;cursor:pointer;transition:all .2s;background:rgba(17,17,19,.7);align-items:flex-start}
+.srch-result:hover{border-color:rgba(200,240,160,.3);background:rgba(200,240,160,.04)}
+.srch-result.selected{border-color:#c8f0a0;background:rgba(200,240,160,.08)}
+.srch-check{width:16px;height:16px;border:1.5px solid rgba(200,240,160,.3);border-radius:4px;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#c8f0a0;transition:all .2s}
+.srch-result.selected .srch-check{background:rgba(200,240,160,.2);border-color:#c8f0a0}
+.srch-body{flex:1;min-width:0}
+.srch-sphere{font-family:'Space Mono',monospace;font-size:.62rem;color:rgba(200,240,160,.5);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+.srch-text{font-family:'Barlow Condensed',sans-serif;font-size:.88rem;color:#e8e8f0;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srch-text mark{background:rgba(200,240,160,.25);color:#c8f0a0;border-radius:2px;padding:0 2px}
+.srch-meta{font-size:.72rem;color:rgba(232,232,240,.35);margin-top:2px;font-family:'Space Mono',monospace}
+.srch-btn{padding:8px 14px;border-radius:8px;border:none;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.04em;transition:all .2s}
+.srch-btn-p{background:#c8f0a0;color:#111113}
+.srch-btn-s{background:rgba(200,240,160,.08);border:1px solid rgba(200,240,160,.25);color:#e8e8f0}
+.srch-btn-p:hover{box-shadow:0 0 14px rgba(200,240,160,.35)}
+.srch-ai-box{background:rgba(17,17,19,.9);border:1px solid rgba(200,240,160,.15);border-radius:10px;padding:12px;margin-top:10px}
+.srch-ai-msg{background:rgba(200,240,160,.04);border:1px solid rgba(200,240,160,.1);border-radius:8px;padding:10px;margin-bottom:6px}
+.srch-ai-role{font-family:'Space Mono',monospace;font-size:.62rem;color:rgba(200,240,160,.5);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.srch-ai-text{font-family:'Barlow Condensed',sans-serif;font-size:.85rem;color:#e8e8f0;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.srch-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(200,240,160,.2);border-top-color:#c8f0a0;border-radius:50%;animation:sspin .7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes sspin{to{transform:rotate(360deg)}}
+.srch-empty{text-align:center;padding:28px 16px;color:rgba(232,232,240,.3);font-family:'Space Mono',monospace;font-size:.75rem;line-height:2}
+.srch-sel-bar{display:flex;align-items:center;gap:8px;padding:8px 0;margin-bottom:8px}
+.srch-count{font-family:'Space Mono',monospace;font-size:.72rem;color:rgba(200,240,160,.6)}
+</style>`;
 
-  const userContent = `Éléments sélectionnés dans YourMine:\n${contextStr}\n${filesCtx}\n\n${userPrompt || 'Propose une idée de sphere ou app innovante qui exploite ces éléments ensemble.'}`;
+// ── MAIN UI ───────────────────────────────────────────────
+function renderSearchUI(body, ctx) {
+  body.innerHTML = CSS + `
+  <div style="padding:12px 16px">
+    <div style="margin-bottom:10px">
+      <input class="srch-input" id="srch-q" placeholder="Search across spheres, profiles, content…" oninput="srchQuery(this.value)">
+    </div>
 
-  aiLoading = true;
-  render();
+    <div class="srch-sel-bar" id="srch-sel-bar" style="display:none">
+      <span class="srch-count" id="srch-sel-count">0 selected</span>
+      <button class="srch-btn srch-btn-s" style="font-size:.76rem" onclick="srchClearSel()">Clear</button>
+      <button class="srch-btn srch-btn-p" style="font-size:.76rem;margin-left:auto" onclick="srchOpenAI()">✦ Build Sphere Idea</button>
+    </div>
+
+    <div id="srch-results"></div>
+
+    <!-- AI Panel -->
+    <div id="srch-ai-panel" style="display:none">
+      <div style="border-top:1px solid rgba(200,240,160,.12);margin:12px 0"></div>
+      <div class="srch-ai-box">
+        <div style="font-family:'Space Mono',monospace;font-size:.68rem;color:rgba(200,240,160,.6);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Sphere/App Idea Generator</div>
+        <div id="srch-ai-history"></div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;color:rgba(232,232,240,.45);margin-bottom:6px;line-height:1.4" id="srch-ai-context-hint"></div>
+        <textarea id="srch-ai-prompt" style="width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(200,240,160,.2);border-radius:8px;padding:9px 12px;color:#e8e8f0;font-family:'Space Mono',monospace;font-size:.75rem;resize:vertical;min-height:70px;outline:none;box-sizing:border-box" placeholder="Refine the idea or describe what you want to build…"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="srch-btn srch-btn-p" style="flex:1" id="srch-ai-send" onclick="srchAISend()">✦ Generate Idea</button>
+          <button class="srch-btn srch-btn-s" onclick="srchAIToBuild()">→ Build</button>
+          <button class="srch-btn srch-btn-s" onclick="srchCloseAI()">×</button>
+        </div>
+        <div id="srch-ai-msg"></div>
+      </div>
+    </div>
+  </div>`;
+
+  renderResults('', new Set());
+}
+
+function srchQuery(q) {
+  SQ.q = q;
+  renderResults(q, SQ.selected);
+}
+window.srchQuery = srchQuery;
+
+function renderResults(q, selected) {
+  const el = document.getElementById('srch-results');
+  if (!el) return;
+  const results = search(q);
+
+  if (!results.length) {
+    el.innerHTML = q
+      ? '<div class="srch-empty">No results for "' + escHtml(q) + '"</div>'
+      : `<div class="srch-empty">Index is empty.<br>Activate spheres and receive<br>P2P data to populate.</div>`;
+    return;
+  }
+
+  el.innerHTML = results.map(r => {
+    const isSel = selected.has(r.id);
+    const highlighted = highlightText(r.text, q);
+    return `<div class="srch-result${isSel?' selected':''}" onclick="srchToggle('${escAttr(r.id)}')">
+      <div class="srch-check">${isSel ? '✓' : ''}</div>
+      <div class="srch-body">
+        <div class="srch-sphere">${escHtml(r.sphere || 'unknown')}</div>
+        <div class="srch-text">${highlighted}</div>
+        <div class="srch-meta">${timeAgo(r.ts)}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  updateSelBar();
+}
+
+window.srchToggle = function(id) {
+  if (SQ.selected.has(id)) SQ.selected.delete(id);
+  else SQ.selected.add(id);
+  renderResults(SQ.q, SQ.selected);
+  updateSelBar();
+};
+
+function updateSelBar() {
+  const bar = document.getElementById('srch-sel-bar');
+  const count = document.getElementById('srch-sel-count');
+  if (!bar) return;
+  const n = SQ.selected.size;
+  bar.style.display = n > 0 ? 'flex' : 'none';
+  if (count) count.textContent = n + ' selected';
+}
+
+window.srchClearSel = function() { SQ.selected.clear(); renderResults(SQ.q, SQ.selected); updateSelBar(); };
+
+window.srchOpenAI = function() {
+  const panel = document.getElementById('srch-ai-panel');
+  if (panel) panel.style.display = 'block';
+  // Pre-fill context hint
+  const selected = IDX.filter(e => SQ.selected.has(e.id));
+  const hint = document.getElementById('srch-ai-context-hint');
+  if (hint) hint.textContent = `Using ${selected.length} selected item${selected.length!==1?'s':''} as context.`;
+};
+
+window.srchCloseAI = function() {
+  const panel = document.getElementById('srch-ai-panel');
+  if (panel) panel.style.display = 'none';
+};
+
+const srchAIHistory = [];
+
+window.srchAISend = async function() {
+  const promptEl = document.getElementById('srch-ai-prompt');
+  const userPrompt = promptEl?.value.trim();
+  if (!userPrompt) { YM?.toast?.('Enter a prompt'); return; }
+
+  // Get Claude key from build sphere
+  const claudeKey = JSON.parse(localStorage.getItem('ym_build') || '{}').claudeKey || '';
+  if (!claudeKey) { YM?.toast?.('Enter Claude API key in the Build sphere → Keys'); return; }
+
+  // Gather selected context
+  const contextItems = IDX.filter(e => SQ.selected.has(e.id));
+  const contextText = contextItems.map(e => `[${e.sphere}] ${e.text}`).join('\n');
+
+  const systemPrompt = `You are a creative advisor helping design YourMine spheres and mini-apps.
+YourMine is a decentralized PWA with P2P networking. Spheres are plugins (sphere.js files). Sites are mini-apps (site.html files).
+Given data from the user's active spheres, generate a concrete, implementable idea for a new sphere or site.
+Include: sphere name, category (social/commerce/transport/jeux/autres/YourMine), what it does, what P2P data it uses, key features, suggested sphere API calls.
+Keep it concise and actionable.${contextText ? '\n\nUser context data:\n' + contextText.slice(0,2000) : ''}`;
+
+  srchAIHistory.push({ role: 'user', content: userPrompt });
+  if (promptEl) promptEl.value = '';
+
+  const sendBtn = document.getElementById('srch-ai-send');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = '<span class="srch-spinner"></span>Thinking…'; }
+
+  renderAIHistory2();
 
   try {
-    let response = '';
-    if (provider === 'anthropic') {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2048,
-          system,
-          messages: [{ role: 'user', content: userContent }]
-        })
-      });
-      const d = await r.json();
-      response = d.content?.[0]?.text || d.error?.message || 'Erreur';
-    } else {
-      const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: system }, { role: 'user', content: userContent }] })
-      });
-      const d = await r.json();
-      response = d.choices?.[0]?.message?.content || d.error?.message || 'Erreur';
-    }
-    aiResponse = response;
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: srchAIHistory.map(m => ({ role: m.role, content: m.content }))
+      })
+    });
+    const d = await r.json();
+    const reply = d.content?.[0]?.text || 'No response';
+    srchAIHistory.push({ role: 'assistant', content: reply });
   } catch(e) {
-    aiResponse = 'Erreur: ' + e.message;
+    srchAIHistory.push({ role: 'assistant', content: `Error: ${e.message}` });
+  } finally {
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '✦ Generate Idea'; }
+    renderAIHistory2();
   }
+};
 
-  aiLoading = false;
-  render();
+function renderAIHistory2() {
+  const el = document.getElementById('srch-ai-history');
+  if (!el) return;
+  el.innerHTML = srchAIHistory.map(m => `
+    <div class="srch-ai-msg">
+      <div class="srch-ai-role">${m.role === 'user' ? 'You' : 'AI'}</div>
+      <div class="srch-ai-text">${escHtml(m.content)}</div>
+    </div>`).join('');
+  el.scrollTop = el.scrollHeight;
 }
+
+window.srchAIToBuild = function() {
+  const last = [...srchAIHistory].reverse().find(m => m.role === 'assistant');
+  if (!last) { YM?.toast?.('No AI response yet'); return; }
+  // Send to build sphere if active
+  const buildSphere = window.YM_S?.['build.sphere.js'];
+  if (buildSphere?._ctx) {
+    localStorage.setItem('ym_build_idea', last.content);
+    YM?.toast?.('Idea saved — open Build sphere AI tab');
+  } else {
+    YM?.toast?.('Activate the Build sphere to continue');
+  }
+};
 
 // ── UTILS ─────────────────────────────────────────────────
-function escHtml(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function highlightText(text, q) {
+  const safe = escHtml(text.slice(0, 120));
+  if (!q.trim()) return safe;
+  try {
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+    return safe.replace(re, '<mark>$1</mark>');
+  } catch { return safe; }
 }
 
-// ── INDEX EXTERNE — API publique ──────────────────────────
-// D'autres spheres/apps peuvent enregistrer leurs données :
-//   window.YM_SEARCH_INDEX = window.YM_SEARCH_INDEX || [];
-//   window.YM_SEARCH_INDEX.push({ id, type, title, excerpt, url, meta:{icon,cat} });
-// La search sphere l'indexe automatiquement.
-window.YM_SEARCH_INDEX = window.YM_SEARCH_INDEX || [];
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function timeAgo(ts) {
+  const s = Math.floor((Date.now()-ts)/1000);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
 
-// ── INIT ──────────────────────────────────────────────────
-render();
+// Public for use by other spheres: add items to the search index
+window.YM_searchIndex = function(entry) { addToIndex(entry); };
 
-} // end init
+})();
