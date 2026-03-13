@@ -1,532 +1,501 @@
-// ════════════════════════════════════════════════════════
-//  builder.sphere.js — YourMine Builder IA
-//  @icon 🔨
-//  @desc Builder IA — Créez Spheres, Thèmes et Apps
-//  @author YourMine
-//  @cat core
-//  @score 100
-// ════════════════════════════════════════════════════════
+// build.sphere.js — YourMine Build Sphere
+// Category: YourMine | Author: theodoreyong9
+(function(){
+'use strict';
 
-function init(container) {
+window.YM_S = window.YM_S || {};
+window.YM_S['build.sphere.js'] = {
+  name: 'Build',
+  category: 'YourMine',
+  author: 'theodoreyong9',
+  description: 'Code, test and publish spheres & sites with AI assistance',
 
-const YM       = window.YM || window._YM || {};
-const REPO_RAW = window.REPO_RAW || window._REPO_RAW || 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
-const REPO_API = window.REPO_API || window._REPO_API || 'https://api.github.com/repos/theodoreyong9/YourMinedApp/contents/';
-const ft       = window.fetchText || window._fetchText || (url => fetch(url).then(r=>r.text()));
-const fj       = window.fetchJSON || window._fetchJSON || (url => fetch(url).then(r=>r.json()));
+  async activate(ctx) {
+    this._ctx = ctx;
+    loadBuildState();
+    ctx.addPill('🛠 Build', body => renderBuildUI(body, ctx));
+  },
 
-let mode       = 'sphere'; // 'sphere' | 'theme' | 'app'
-let subMode    = 'code';   // 'code' | 'ai' | 'doc'
-let aiProvider = 'anthropic';
-let aiHistory  = []; // [{role, content}] — conversation itérable
-let ctxDocs    = []; // [{label, content}] — chips supprimables
+  deactivate() {},
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  getBroadcastData() {
+    if (!BS.testCode) return null;
+    return { type: 'test-request', name: BS.testName, requestId: BS.testRequestId };
+  }
+};
+
+// ── STATE ─────────────────────────────────────────────────
+const BS = {
+  ghToken: '',
+  openaiKey: '',
+  claudeKey: '',
+  codeType: 'sphere', // 'sphere' | 'site'
+  fileName: '',
+  code: '',
+  aiPrompt: '',
+  aiHistory: [],
+  testCode: null,
+  testName: '',
+  testRequestId: null,
+  linkedDocs: [],
+};
+
+function loadBuildState() {
+  try {
+    const d = JSON.parse(localStorage.getItem('ym_build') || '{}');
+    BS.ghToken = d.ghToken || '';
+    BS.openaiKey = d.openaiKey || '';
+    BS.claudeKey = d.claudeKey || '';
+    BS.code = d.code || '';
+    BS.fileName = d.fileName || '';
+    BS.codeType = d.codeType || 'sphere';
+  } catch {}
 }
 
-// ── RENDER ────────────────────────────────────────────────
-function render() {
-  container.innerHTML = `
-  <div style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <div class="ym-tabs">
-        <button class="ym-tab${mode==='sphere'?' active':''}" data-mode="sphere">◎ Sphere</button>
-        <button class="ym-tab${mode==='theme' ?' active':''}" data-mode="theme">🎨 Thème</button>
-        <button class="ym-tab${mode==='app'   ?' active':''}" data-mode="app">⬡ App</button>
-      </div>
-      <div class="ym-tabs" style="margin-left:auto">
-        <button class="ym-tab${subMode==='code'?' active':''}" data-sub="code">Code</button>
-        <button class="ym-tab${subMode==='ai'  ?' active':''}" data-sub="ai">✦ IA</button>
-        <button class="ym-tab${subMode==='doc' ?' active':''}" data-sub="doc">📖 Doc</button>
-      </div>
+function saveBuildState() {
+  try { localStorage.setItem('ym_build', JSON.stringify({ ghToken: BS.ghToken, openaiKey: BS.openaiKey, claudeKey: BS.claudeKey, code: BS.code, fileName: BS.fileName, codeType: BS.codeType })); } catch {}
+}
+
+// ── YRM ACCESS LEVEL ──────────────────────────────────────
+function getYRMBalance() {
+  // Read from mine sphere if active
+  return window.YM_S?.['mine.sphere.js'] ? (parseFloat(localStorage.getItem('ym_last_claimable') || '0')) : 0;
+}
+
+function canPublish() { return true; } // for now: all can publish (0 YRM threshold)
+function canJoinOrg() { return BS.ghToken.length > 5; }
+
+// ── CSS ───────────────────────────────────────────────────
+const CSS = `<style>
+.b-tabs{display:flex;border-bottom:1px solid rgba(200,240,160,.12);margin-bottom:12px;overflow-x:auto;scrollbar-width:none}
+.b-tab{padding:10px 14px;background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,232,240,.4);font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .2s;white-space:nowrap}
+.b-tab.on{color:#c8f0a0;border-bottom-color:#c8f0a0}
+.b-panel{display:none}.b-panel.on{display:block}
+.b-input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(200,240,160,.2);border-radius:8px;padding:9px 12px;color:#e8e8f0;font-family:'Space Mono',monospace;font-size:.78rem;outline:none;margin-bottom:8px;box-sizing:border-box}
+.b-input:focus{border-color:rgba(200,240,160,.5)}
+.b-input::placeholder{color:rgba(232,232,240,.3)}
+.b-textarea{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(200,240,160,.15);border-radius:8px;padding:10px 12px;color:#c8f0a0;font-family:'Space Mono',monospace;font-size:.72rem;outline:none;resize:vertical;min-height:160px;line-height:1.6;box-sizing:border-box}
+.b-textarea:focus{border-color:rgba(200,240,160,.35)}
+.b-textarea::placeholder{color:rgba(200,240,160,.25)}
+.b-btn{padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.04em;transition:all .2s}
+.b-btn-p{background:#c8f0a0;color:#111113}
+.b-btn-s{background:rgba(200,240,160,.08);border:1px solid rgba(200,240,160,.25);color:#e8e8f0}
+.b-btn-p:hover{box-shadow:0 0 14px rgba(200,240,160,.35)}
+.b-btn-p:disabled,.b-btn-s:disabled{opacity:.4;cursor:not-allowed}
+.b-label{font-family:'Space Mono',monospace;font-size:.67rem;color:rgba(200,240,160,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
+.b-card{background:rgba(200,240,160,.04);border:1px solid rgba(200,240,160,.12);border-radius:10px;padding:13px;margin-bottom:10px}
+.b-msg-ai{background:rgba(17,17,19,.9);border:1px solid rgba(200,240,160,.12);border-radius:8px;padding:10px 12px;margin-bottom:6px}
+.b-msg-user{background:rgba(200,240,160,.06);border:1px solid rgba(200,240,160,.2);border-radius:8px;padding:10px 12px;margin-bottom:6px}
+.b-msg-role{font-family:'Space Mono',monospace;font-size:.62rem;color:rgba(200,240,160,.5);margin-bottom:4px;letter-spacing:.08em;text-transform:uppercase}
+.b-msg-text{font-family:'Barlow Condensed',sans-serif;font-size:.85rem;color:#e8e8f0;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.b-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(200,240,160,.2);border-top-color:#c8f0a0;border-radius:50%;animation:bspin .7s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes bspin{to{transform:rotate(360deg)}}
+.b-toggle-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.b-toggle-label{font-family:'Barlow Condensed',sans-serif;font-size:.85rem;color:#e8e8f0;flex:1}
+.b-seg{display:flex;border:1px solid rgba(200,240,160,.2);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.b-seg-btn{flex:1;padding:8px;background:none;border:none;color:rgba(232,232,240,.4);font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.04em}
+.b-seg-btn.on{background:rgba(200,240,160,.15);color:#c8f0a0}
+.b-doc-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid rgba(200,240,160,.1);border-radius:7px;margin-bottom:5px;font-family:'Space Mono',monospace;font-size:.72rem;color:#e8e8f0}
+.b-doc-item button{background:none;border:none;color:rgba(255,100,100,.6);cursor:pointer;font-size:.9rem;margin-left:auto}
+</style>`;
+
+// ── MAIN UI ───────────────────────────────────────────────
+function renderBuildUI(body, ctx) {
+  body.innerHTML = CSS + `
+  <div style="padding:12px 16px">
+    <div class="b-tabs">
+      <button class="b-tab on" onclick="bTab('editor',this)">Editor</button>
+      <button class="b-tab" onclick="bTab('ai',this)">AI</button>
+      <button class="b-tab" onclick="bTab('publish',this)">Publish</button>
+      <button class="b-tab" onclick="bTab('settings',this)">Keys</button>
     </div>
-    ${subMode==='doc' ? renderDocPanel() : subMode==='ai' ? renderAIPanel() : renderCodePanel()}
+
+    <div class="b-panel on" id="bp-editor"></div>
+    <div class="b-panel" id="bp-ai"></div>
+    <div class="b-panel" id="bp-publish"></div>
+    <div class="b-panel" id="bp-settings"></div>
   </div>`;
-  wireEvents();
+
+  renderEditor();
+  renderAI(ctx);
+  renderPublish();
+  renderSettings();
 }
 
-// ── DOC API INDEX.HTML ────────────────────────────────────
-function renderDocPanel() {
-  return `<div class="ym-panel" style="padding:16px">
-    <div class="ym-panel-title">Documentation API — ce qui est accessible depuis un fichier app/sphere/theme</div>
-    <div style="font-size:11px;color:var(--text2);line-height:1.9">${getIndexDoc()}</div>
-  </div>`;
+function bTab(id, el) {
+  document.querySelectorAll('.b-tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.b-panel').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('bp-' + id)?.classList.add('on');
 }
+window.bTab = bTab;
 
-function getIndexDoc() {
-  return `<strong style="color:var(--accent)">État global window.YM</strong><br/>
-<code>YM.profile</code> — <code>{uuid, name, bio, photo, socialNet, socialHandle, website, gistId}</code><br/>
-<code>YM.contacts</code> — <code>[{uuid, name}]</code><br/>
-<code>YM.apps</code> — <code>[{name, url, info, _mountAs}]</code><br/>
-<code>YM.themes</code>, <code>YM.spheres</code> — idem<br/>
-<code>YM.openApps</code>, <code>YM.activeApp</code>, <code>YM.theme</code><br/>
-<code>YM.sphereTabs</code> — <code>[{name, url}]</code> — <code>YM.activeSphere</code><br/>
-<code>YM.balance</code> — solde claimable YRM<br/>
-<code>YM.geo</code> — <code>{lat, lng}</code> ou null<br/>
-<code>YM.peerCount</code>, <code>YM.p2p</code> — <code>{sendProfile(data)}</code><br/>
-<code>YM.room</code> — room Trystero (<code>makeAction</code>, <code>onPeerJoin</code>, <code>onPeerLeave</code>)<br/><br/>
-
-<strong style="color:var(--accent2)">Fonctions utilitaires</strong><br/>
-<code>window.fetchText(url)</code> → Promise&lt;string&gt;<br/>
-<code>window.fetchJSON(url)</code> → Promise&lt;any&gt;<br/>
-<code>window.el(tag, cls?, html?)</code> → HTMLElement<br/>
-<code>window.REPO_RAW</code>, <code>window.REPO_API</code><br/><br/>
-
-<strong style="color:var(--accent2)">Fonctions UI</strong><br/>
-<code>window.YM_addSphereTab(name, url, autoActivate?)</code><br/>
-<code>window.YM_removeSphereTab(name)</code><br/>
-<code>window.YM_updateBalance(val)</code> — met à jour ⚡ header<br/>
-<code>window.YM_setDisconnected()</code><br/>
-<code>window.YM_updateProfileIcon()</code><br/><br/>
-
-<strong style="color:var(--accent2)">Signature app (IIFE)</strong><br/>
-<code>(function(YM, $, el, fetchText, fetchJSON, REPO_RAW, REPO_API) { … })</code><br/>
-<code>$('ym-app-body')</code> = container de l'app<br/>
-<code>return { mountAs: 'pill'|'profile-icon'|'balance', cleanup: ()=>{} }</code><br/>
-mountAs: <b>pill</b> = pill visible barre, <b>profile-icon</b> = pill invisible raccourci 👤, <b>balance</b> = pill invisible raccourci ⚡<br/><br/>
-
-<strong style="color:var(--accent2)">Signature sphere</strong><br/>
-<code>function init(container) { … }</code><br/><br/>
-
-<strong style="color:var(--accent2)">Gist — brancher sur la sauvegarde profil</strong><br/>
-<code>window.YM_GIST_CONTRIBUTORS = window.YM_GIST_CONTRIBUTORS || {};</code><br/>
-<code>window.YM_GIST_CONTRIBUTORS['ma_cle'] = () =&gt; monData;</code><br/>
-<code>window.YM_GIST_RESTORE = window.YM_GIST_RESTORE || {};</code><br/>
-<code>window.YM_GIST_RESTORE['ma_cle'] = (data) =&gt; restaurer(data);</code><br/><br/>
-
-<strong style="color:var(--accent2)">sessionStorage P2P</strong><br/>
-<code>sessionStorage.getItem('ym_near_cache')</code> — JSON des profils peers proches<br/><br/>
-
-<strong style="color:var(--danger)">IDs protégés — NE JAMAIS TOUCHER</strong><br/>
-<code>ym-root, ym-header, ym-logo, ym-balance-display, ym-balance-val, ym-main</code><br/>
-<code>ym-app-frames, ym-bottombar, ym-tabs-zone, ym-btn-x, ym-btn-o</code><br/>
-<code>ym-x-menu, ym-o-menu, ym-x-backdrop, ym-o-backdrop, ym-app-filters</code><br/>
-<code>ym-theme-confirm, ym-theme-root, ym-boot, ym-boot-logo, ym-boot-bar, ym-boot-progress</code><br/>
-<code>ym-profile-icon</code>`;
-}
-
-// ── PANNEAU IA ────────────────────────────────────────────
-function renderAIPanel() {
-  const histHTML = aiHistory.map(m => `
-    <div style="margin-bottom:10px">
-      <div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:${m.role==='user'?'var(--accent2)':'var(--accent)'};margin-bottom:4px">
-        ${m.role==='user' ? 'Vous' : '✦ IA'}
-      </div>
-      <div style="font-size:11px;color:var(--text2);white-space:pre-wrap;line-height:1.6;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px;max-height:200px;overflow-y:auto">${escHtml(m.content.slice(0,1000))}${m.content.length>1000?'…':''}</div>
-    </div>`).join('');
-
-  const chips = ctxDocs.map((d,i) =>
-    `<span class="ym-chip accent" style="cursor:pointer" data-rmctx="${i}">✕ ${escHtml(d.label)}</span>`
-  ).join('');
-
-  return `
-  <div class="ym-panel" style="padding:14px">
-    <div class="ym-panel-title">Config IA</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-      <select class="ym-input" id="builder-ai-provider" style="width:auto">
-        <option value="anthropic" ${aiProvider==='anthropic'?'selected':''}>Anthropic (Claude)</option>
-        <option value="openai"    ${aiProvider==='openai'   ?'selected':''}>OpenAI (GPT-4o)</option>
-      </select>
-      <input class="ym-input" id="builder-ai-key" type="password" placeholder="Clé API…" value="${localStorage.getItem('ym_builder_key')||''}" style="flex:1;min-width:160px"/>
+// ── EDITOR ────────────────────────────────────────────────
+function renderEditor() {
+  const el = document.getElementById('bp-editor');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="b-label">Type</div>
+    <div class="b-seg" style="margin-bottom:10px">
+      <button class="b-seg-btn${BS.codeType==='sphere'?' on':''}" onclick="bSetType('sphere',this)">Sphere (.sphere.js)</button>
+      <button class="b-seg-btn${BS.codeType==='site'?' on':''}" onclick="bSetType('site',this)">Site (.site.html)</button>
     </div>
-    ${renderAIFields()}
-  </div>
-
-  ${aiHistory.length ? `<div class="ym-panel" style="padding:14px;max-height:320px;overflow-y:auto">${histHTML}</div>` : ''}
-
-  ${chips ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 2px"><span style="font-size:10px;color:var(--text3);align-self:center">Contexte :</span>${chips}</div>` : ''}
-
-  <div class="ym-panel" style="padding:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
-      <div class="ym-panel-title" style="margin:0">${aiHistory.length ? 'Continuer la conversation' : 'Prompt'}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="ym-btn ym-btn-ghost" id="builder-add-ctx-btn" style="font-size:10px">+ Fichier contexte</button>
-        ${aiHistory.length ? `<button class="ym-btn ym-btn-ghost" id="builder-clear-history" style="font-size:10px;color:var(--danger)">Effacer conv.</button>` : ''}
-      </div>
-    </div>
-    <textarea class="ym-editor" id="builder-prompt" rows="4" placeholder="${getPromptPlaceholder()}"></textarea>
+    <div class="b-label">File name</div>
+    <input class="b-input" id="b-fname" value="${BS.fileName}" placeholder="${BS.codeType==='sphere'?'my-sphere':'my-site'}" oninput="BS&&(BS.fileName=this.value)">
+    <div class="b-label">Code</div>
+    <textarea class="b-textarea" id="b-code" rows="14" placeholder="// Paste or generate your code here…" oninput="bCodeChange(this.value)">${escHtml(BS.code)}</textarea>
     <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="ym-btn ym-btn-accent" id="builder-gen-btn" style="flex:1">✦ ${aiHistory.length ? 'Continuer' : 'Générer'}</button>
-      ${aiHistory.length ? `<button class="ym-btn" id="builder-use-last" style="flex:1">← Injecter code</button>` : ''}
+      <button class="b-btn b-btn-s" style="flex:1" onclick="bLoadFile()">📂 Load File</button>
+      <button class="b-btn b-btn-s" style="flex:1" onclick="bSaveLocal()">💾 Save Draft</button>
+      <button class="b-btn b-btn-s" style="flex:1" onclick="bLiveTest()">▶ Test</button>
     </div>
-    <div id="builder-ai-status" style="margin-top:6px"></div>
-  </div>`;
+    <div id="b-editor-msg"></div>
+    <input type="file" id="b-file-input" accept=".js,.html" style="display:none" onchange="bHandleFile(this)">
+  `;
 }
 
-function renderAIFields() {
-  if (mode==='sphere') return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <input class="ym-input" id="ai-icon"   placeholder="@icon (ex: 🚀)"/>
-    <input class="ym-input" id="ai-cat"    placeholder="@cat (ex: social)"/>
-    <input class="ym-input" id="ai-author" placeholder="@author"/>
-    <input class="ym-input" id="ai-desc"   placeholder="@desc courte"/>
-  </div>`;
-  if (mode==='app') return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <input class="ym-input" id="ai-icon"   placeholder="@icon (ex: ⬡)"/>
-    <select class="ym-input" id="ai-mount">
-      <option value="pill">mountAs: pill</option>
-      <option value="balance">mountAs: balance</option>
-      <option value="profile-icon">mountAs: profile-icon</option>
-    </select>
-    <input class="ym-input" id="ai-author" placeholder="@author"/>
-    <input class="ym-input" id="ai-desc"   placeholder="@desc"/>
-  </div>`;
-  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <input class="ym-input" id="ai-title"       placeholder="@title"/>
-    <input class="ym-input" id="ai-themeColor"  placeholder="@themeColor (#c8f0a0)"/>
-    <input class="ym-input" id="ai-bootLogo"    placeholder="@bootLogo"/>
-    <input class="ym-input" id="ai-author"      placeholder="@author"/>
-  </div>`;
-}
+window.bSetType = function(type, el) {
+  BS.codeType = type;
+  document.querySelectorAll('.b-seg-btn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  const fn = document.getElementById('b-fname');
+  if (fn && !fn.value) fn.placeholder = type === 'sphere' ? 'my-sphere' : 'my-site';
+};
 
-function getPromptPlaceholder() {
-  if (mode==='sphere') return 'Décrivez la sphere : comportement, interface, données…';
-  if (mode==='app')    return "Décrivez l'app : ce qu'elle fait, son mountAs, son interface…";
-  return 'Décrivez le thème : couleurs, typographie, ambiance…';
-}
+window.bCodeChange = function(v) { BS.code = v; };
 
-// ── PANNEAU CODE ──────────────────────────────────────────
-function renderCodePanel() {
-  const chips = ctxDocs.map((d,i) =>
-    `<span class="ym-chip accent" style="cursor:pointer" data-rmctx="${i}">✕ ${escHtml(d.label)}</span>`
-  ).join('');
-
-  return `
-  <div class="ym-panel" style="padding:14px">
-    <div class="ym-panel-title">Fichier existant → sa doc intégrée</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <select class="ym-input" id="builder-file-picker" style="flex:1">
-        <option value="">Choisir un fichier…</option>
-        <option value="__index__">index.html (doc API)</option>
-        ${buildFilePicker()}
-      </select>
-      <button class="ym-btn" id="builder-load-doc-btn">Voir doc</button>
-      <button class="ym-btn ym-btn-ghost" id="builder-add-ctx-code" style="font-size:10px">+ Prompt contexte</button>
-    </div>
-    <div id="builder-file-doc" style="display:none;margin-top:10px;font-size:11px;color:var(--text2);line-height:1.8;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;max-height:260px;overflow-y:auto"></div>
-  </div>
-
-  ${chips ? `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 2px"><span style="font-size:10px;color:var(--text3);align-self:center">Contexte prompt :</span>${chips}</div>` : ''}
-
-  <div class="ym-panel" style="padding:14px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">
-      <div class="ym-panel-title" style="margin:0">Éditeur</div>
-      <button class="ym-btn ym-btn-ghost" id="builder-clear-btn" style="font-size:10px;color:var(--danger)">Effacer</button>
-    </div>
-    <textarea class="ym-editor" id="builder-code" rows="16" placeholder="${escHtml(getPlaceholder())}"></textarea>
-  </div>
-
-  <div class="ym-panel" style="padding:14px">
-    ${mode==='sphere' ? `
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input class="ym-input" id="builder-name" placeholder="Nom de la sphere" style="flex:2;min-width:140px"/>
-        <input class="ym-input" id="builder-cat"  placeholder="Catégorie (ex: social)" style="flex:1;min-width:100px"/>
-      </div>` : mode==='app' ? `
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input class="ym-input" id="builder-name"  placeholder="Nom de l'app" style="flex:2;min-width:140px"/>
-        <select class="ym-input" id="builder-mount" style="flex:1;min-width:140px">
-          <option value="pill">pill — barre</option>
-          <option value="balance">balance — ⚡</option>
-          <option value="profile-icon">profile — 👤</option>
-        </select>
-      </div>` : `
-      <input class="ym-input" id="builder-name" placeholder="Nom du thème"/>`}
-  </div>
-
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <button class="ym-btn ym-btn-accent" id="builder-test-btn"       style="flex:1">▶ Tester</button>
-    <button class="ym-btn"               id="builder-save-local-btn" style="flex:1">⊕ Local</button>
-    <button class="ym-btn"               id="builder-publish-btn"    style="flex:1">↑ Publier</button>
-  </div>
-  <div id="builder-status"></div>
-  <div id="builder-preview" style="display:none" class="ym-panel">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="ym-panel-title" style="margin:0">Aperçu</div>
-      <button class="ym-btn ym-btn-ghost" id="builder-close-preview" style="font-size:10px">Fermer</button>
-    </div>
-    <div id="builder-preview-sandbox" style="min-height:80px"></div>
-  </div>`;
-}
-
-function buildFilePicker() {
-  const all = [
-    ...(YM.apps    || []).map(a => ({label: a.name+'.app.js',    url: a.url})),
-    ...(YM.spheres || []).map(s => ({label: s.name+'.sphere.js', url: s.url})),
-    ...(YM.themes  || []).map(t => ({label: t.name+'.theme.html',url: t.url})),
-  ];
-  return all.map(f => `<option value="${escHtml(f.url||'')}">${escHtml(f.label)}</option>`).join('');
-}
-
-function getPlaceholder() {
-  if (mode==='sphere') return `// @icon 🚀\n// @desc Ma sphere\n// @author pseudo\n// @cat social\n\nfunction init(container) {\n  container.innerHTML = '<div style="padding:16px">Hello</div>';\n}`;
-  if (mode==='app')    return `// @icon ⬡\n// @desc Mon app\n\n(function(YM,$,el,fetchText,fetchJSON,REPO_RAW,REPO_API){\n  const body=$('ym-app-body');\n  if(body) body.innerHTML='<div class=\"ym-panel\">Hello</div>';\n  return { mountAs: 'pill', cleanup: ()=>{} };\n});`;
-  return `<!-- @title YourMine @themeColor #c8f0a0 -->\n<style id="ym-theme-css">\n  :root { --accent: #c8f0a0; }\n</style>`;
-}
-
-// ── EVENTS ────────────────────────────────────────────────
-function wireEvents() {
-  container.querySelectorAll('[data-mode]').forEach(btn => {
-    btn.onclick = () => { mode = btn.dataset.mode; render(); };
-  });
-  container.querySelectorAll('[data-sub]').forEach(btn => {
-    btn.onclick = () => { subMode = btn.dataset.sub; render(); };
-  });
-
-  container.querySelector('#builder-ai-provider')?.addEventListener('change', e => { aiProvider = e.target.value; });
-  container.querySelector('#builder-ai-key')?.addEventListener('input', e => localStorage.setItem('ym_builder_key', e.target.value));
-
-  container.querySelectorAll('[data-rmctx]').forEach(chip => {
-    chip.onclick = () => { ctxDocs.splice(parseInt(chip.dataset.rmctx), 1); render(); };
-  });
-
-  container.querySelector('#builder-gen-btn')?.addEventListener('click', generate);
-  container.querySelector('#builder-clear-history')?.addEventListener('click', () => { aiHistory = []; render(); });
-  container.querySelector('#builder-use-last')?.addEventListener('click', injectLastCode);
-  container.querySelector('#builder-add-ctx-btn')?.addEventListener('click', addCtxFromPrompt);
-  container.querySelector('#builder-add-ctx-code')?.addEventListener('click', addCtxFromPickerSelection);
-  container.querySelector('#builder-load-doc-btn')?.addEventListener('click', loadFileDoc);
-  container.querySelector('#builder-clear-btn')?.addEventListener('click', () => {
-    if (confirm('Effacer ?')) { const ta = container.querySelector('#builder-code'); if (ta) ta.value = ''; }
-  });
-  container.querySelector('#builder-test-btn')?.addEventListener('click', testCode);
-  container.querySelector('#builder-save-local-btn')?.addEventListener('click', saveLocal);
-  container.querySelector('#builder-publish-btn')?.addEventListener('click', publish);
-  container.querySelector('#builder-close-preview')?.addEventListener('click', () => {
-    const p = container.querySelector('#builder-preview');
-    if (p) { p.style.display='none'; p.querySelector('#builder-preview-sandbox').innerHTML=''; }
-  });
-}
-
-function injectLastCode() {
-  const last = [...aiHistory].reverse().find(m => m.role==='assistant');
-  if (!last) return;
-  const code = last.content.replace(/```(?:javascript|js|html|css)?\n?/g,'').replace(/```/g,'').trim();
-  subMode = 'code'; render();
-  const ta = container.querySelector('#builder-code');
-  if (ta) ta.value = code;
-}
-
-// ── AJOUTER DOC EN CONTEXTE ───────────────────────────────
-async function addCtxFromPrompt() {
-  const name = prompt('Nom du fichier à ajouter (ex: mine.app.js) ou URL :');
-  if (!name) return;
-  const url = name.startsWith('http') ? name : REPO_RAW + name;
-  try {
-    const code = await ft(url);
-    const docLines = code.split('\n').filter(l => l.trim().startsWith('//') || l.trim().startsWith('*') || l.trim().startsWith('/*')).slice(0, 80);
-    ctxDocs.push({ label: name.split('/').pop(), content: docLines.join('\n') || code.slice(0,2000) });
-    render();
-  } catch(e) { alert('Erreur: ' + e.message); }
-}
-
-async function addCtxFromPickerSelection() {
-  const picker = container.querySelector('#builder-file-picker');
-  const val = picker?.value;
-  const label = picker?.options[picker?.selectedIndex]?.text || 'fichier';
-  if (!val) return;
-  if (val === '__index__') {
-    ctxDocs.push({ label: 'index.html doc', content: getIndexDoc().replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>') });
-    render(); return;
-  }
-  try {
-    const code = await ft(val);
-    const docLines = code.split('\n').filter(l => l.trim().startsWith('//') || l.trim().startsWith('*') || l.trim().startsWith('/*')).slice(0, 80);
-    ctxDocs.push({ label, content: docLines.join('\n') || code.slice(0,2000) });
-    render();
-  } catch(e) { alert('Erreur: ' + e.message); }
-}
-
-async function loadFileDoc() {
-  const picker = container.querySelector('#builder-file-picker');
-  const val = picker?.value;
-  const docEl = container.querySelector('#builder-file-doc');
-  if (!docEl) return;
-  if (!val) { docEl.style.display='none'; return; }
-  if (val === '__index__') {
-    docEl.innerHTML = getIndexDoc();
-    docEl.style.display = '';
-    return;
-  }
-  docEl.innerHTML = '<div class="ym-loading"></div> Chargement…';
-  docEl.style.display = '';
-  try {
-    const code = await ft(val);
-    const lines = code.split('\n');
-    // Cherche un bloc de doc structuré (lignes de commentaires en tête + après les séparateurs ═)
-    let docLines = [];
-    for (const line of lines) {
-      const t = line.trim();
-      if (t === '' && docLines.length > 5) break;
-      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*') || t.startsWith('*/')) {
-        docLines.push(line);
-      } else if (docLines.length > 0) {
-        break;
-      }
-      if (docLines.length > 120) break;
-    }
-    if (docLines.length < 3) docLines = lines.slice(0,40);
-    docEl.innerHTML = `<pre style="white-space:pre-wrap;word-break:break-all;font-size:10px;color:var(--accent)">${escHtml(docLines.join('\n'))}</pre>`;
-  } catch(e) {
-    docEl.innerHTML = `<div class="ym-notice error"><span>${escHtml(e.message)}</span></div>`;
-  }
-}
-
-// ── GENERATE IA ───────────────────────────────────────────
-async function generate() {
-  const key    = (container.querySelector('#builder-ai-key')?.value || localStorage.getItem('ym_builder_key')||'').trim();
-  const prompt = container.querySelector('#builder-prompt')?.value?.trim();
-  if (!key)    return setAIStatus('Clé API requise', true);
-  if (!prompt) return setAIStatus('Prompt requis', true);
-
-  const getF = id => container.querySelector('#'+id)?.value?.trim() || '';
-  let fieldCtx = '';
-  if (mode==='sphere') fieldCtx = `Métadonnées : @icon ${getF('ai-icon')||'◎'} @cat ${getF('ai-cat')||'autres'} @author ${getF('ai-author')||'unknown'} @desc ${getF('ai-desc')||''}`;
-  else if (mode==='app') fieldCtx = `Métadonnées : @icon ${getF('ai-icon')||'⬡'} mountAs: ${container.querySelector('#ai-mount')?.value||'pill'} @author ${getF('ai-author')||'unknown'} @desc ${getF('ai-desc')||''}`;
-  else fieldCtx = `Thème : @title ${getF('ai-title')||'YourMine'} @bootLogo ${getF('ai-bootLogo')||'YourMine'} @themeColor ${getF('ai-themeColor')||'#c8f0a0'} @author ${getF('ai-author')||'unknown'}`;
-
-  const ctxContent = ctxDocs.map(d => `\n\n// === Contexte: ${d.label} ===\n${d.content}`).join('');
-
-  const SYSTEMS = {
-    sphere: `Tu es expert en création de Spheres YourMine. Sphere = fichier JS avec function init(container){}.
-Variables: window.YM, window.REPO_RAW, window.fetchText, window.fetchJSON, window.el, window.YM_addSphereTab, window.YM_updateBalance.
-Classes CSS: ym-panel, ym-btn, ym-btn-accent, ym-input, ym-notice, ym-loading, ym-card, ym-chip, ym-tabs, ym-tab, ym-stat-row.
-Génère UNIQUEMENT le code JS, sans markdown.`,
-    app: `Tu es expert en création d'Apps YourMine. App = IIFE (function(YM,$,el,fetchText,fetchJSON,REPO_RAW,REPO_API){}).
-Return DOIT inclure mountAs et cleanup. $('ym-app-body') = container.
-IDs protégés: ym-root, ym-header, ym-logo, ym-balance-display, ym-balance-val, ym-main, ym-btn-x, ym-btn-o, ym-profile-icon.
-Classes CSS: ym-panel, ym-btn, ym-btn-accent, ym-input, ym-notice, ym-loading, ym-card, ym-chip.
-Génère UNIQUEMENT le code JS, sans markdown.`,
-    theme: `Tu es expert en design CSS pour YourMine. Thème = fichier HTML avec <style id="ym-theme-css">.
-IDs PROTÉGÉS: ym-root, ym-header, ym-logo, ym-balance-display, ym-balance-val, ym-main, ym-app-frames, ym-btn-x, ym-btn-o, ym-bottombar, ym-tabs-zone, ym-x-menu, ym-o-menu, ym-theme-confirm, ym-theme-root, ym-boot, ym-boot-logo, ym-boot-bar, ym-boot-progress, ym-profile-icon.
-Variables CSS: --bg, --bg2, --bg3, --surface, --surface2, --border, --border2, --accent, --accent2, --accent3, --text, --text2, --text3, --danger, --gold, --r, --r2, --r3, --transition, --font-display, --font-mono.
-Génère UNIQUEMENT HTML+CSS, sans markdown.`
+window.bLoadFile = function() { document.getElementById('b-file-input')?.click(); };
+window.bHandleFile = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    BS.code = e.target.result;
+    BS.fileName = file.name.replace(/\.(sphere\.js|site\.html)$/, '');
+    BS.codeType = file.name.endsWith('.html') ? 'site' : 'sphere';
+    const ta = document.getElementById('b-code');
+    if (ta) ta.value = BS.code;
+    const fn = document.getElementById('b-fname');
+    if (fn) fn.value = BS.fileName;
+    saveBuildState();
   };
+  reader.readAsText(file);
+};
 
-  const userContent = aiHistory.length === 0
-    ? `${fieldCtx}\n${ctxContent}\n\n${prompt}`
-    : prompt;
+window.bSaveLocal = function() { BS.code = document.getElementById('b-code')?.value || BS.code; BS.fileName = document.getElementById('b-fname')?.value || BS.fileName; saveBuildState(); YM?.toast?.('Draft saved'); };
 
-  aiHistory.push({ role: 'user', content: userContent });
+window.bLiveTest = function() {
+  const code = document.getElementById('b-code')?.value || BS.code;
+  const name = (document.getElementById('b-fname')?.value || 'test') + (BS.codeType==='sphere'?'.sphere.js':'.site.html');
+  if (!code) { YM?.toast?.('No code to test'); return; }
+  if (BS.codeType === 'sphere') {
+    try {
+      eval(code);
+      const sphere = window.YM_S?.[name];
+      if (sphere?.activate) sphere.activate(window.YM?.getCtx?.(name));
+      YM?.toast?.('Sphere loaded in sandbox ✓');
+    } catch(e) {
+      const msg = document.getElementById('b-editor-msg');
+      if (msg) msg.innerHTML = `<div style="color:#ff6b6b;font-family:'Space Mono',monospace;font-size:.72rem;margin-top:6px;white-space:pre-wrap">${e.message}</div>`;
+    }
+  } else {
+    // Open site in a new overlay
+    const blob = new Blob([code], { type:'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  }
+};
 
-  setAIStatus('Génération…');
-  const btn = container.querySelector('#builder-gen-btn');
-  if (btn) { btn.disabled=true; btn.innerHTML='<div class="ym-loading"></div>'; }
+// ── AI ────────────────────────────────────────────────────
+function renderAI(ctx) {
+  const el = document.getElementById('bp-ai');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="b-card" style="margin-bottom:10px">
+      <div class="b-label">AI Provider</div>
+      <div class="b-seg" style="margin:6px 0">
+        <button class="b-seg-btn on" id="b-ai-claude" onclick="bAIProvider('claude',this)">Claude</button>
+        <button class="b-seg-btn" id="b-ai-openai" onclick="bAIProvider('openai',this)">OpenAI</button>
+      </div>
+      <div class="b-label">Context: active spheres API docs</div>
+      <div id="b-docs-list"></div>
+      <button class="b-btn b-btn-s" style="font-size:.78rem;margin-top:4px" onclick="bAddDoc()">+ Add sphere/doc</button>
+    </div>
+
+    <div id="b-ai-history" style="max-height:280px;overflow-y:auto;margin-bottom:8px"></div>
+
+    <div class="b-label">Prompt</div>
+    <textarea class="b-textarea" id="b-ai-prompt" rows="4" placeholder="Describe the sphere or site you want to build…\ne.g. 'A commerce sphere that shows nearby vendors with Solana payment integration'"></textarea>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button class="b-btn b-btn-p" style="flex:1" id="b-ai-send" onclick="bAISend()">✦ Generate</button>
+      <button class="b-btn b-btn-s" onclick="bAIClear()">Clear</button>
+      <button class="b-btn b-btn-s" onclick="bUseCode()">→ Editor</button>
+    </div>
+    <div id="b-ai-msg"></div>
+  `;
+  renderDocsList();
+  renderAIHistory();
+}
+
+let bAIProviderKey = 'claude';
+window.bAIProvider = function(p, el) {
+  bAIProviderKey = p;
+  document.querySelectorAll('#bp-ai .b-seg-btn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+};
+
+function renderDocsList() {
+  const el = document.getElementById('b-docs-list');
+  if (!el) return;
+  if (!BS.linkedDocs.length) { el.innerHTML = '<div style="color:rgba(232,232,240,.35);font-size:.76rem;font-family:\'Space Mono\',monospace;margin-bottom:4px">No docs linked</div>'; return; }
+  el.innerHTML = BS.linkedDocs.map((d,i) => `<div class="b-doc-item">${d.name}<button onclick="bRemoveDoc(${i})">×</button></div>`).join('');
+}
+
+window.bAddDoc = function() {
+  const name = prompt('Sphere filename (e.g. mine.sphere.js):');
+  if (!name) return;
+  BS.linkedDocs.push({ name, content: `// API docs for ${name} would be embedded here` });
+  renderDocsList();
+};
+window.bRemoveDoc = function(i) { BS.linkedDocs.splice(i,1); renderDocsList(); };
+
+function buildSystemPrompt() {
+  const type = BS.codeType === 'sphere' ? 'sphere (.sphere.js)' : 'site (.site.html)';
+  let sys = `You are helping build a YourMine ${type}. 
+
+YourMine is a decentralized PWA with P2P networking via Trystero. Spheres are self-contained JS files that register via window.YM_S['filename.sphere.js'] = { name, category, author, description, activate(ctx), deactivate(), getBroadcastData() }.
+
+The ctx object provided to activate() has:
+- ctx.addPill(label, renderFn) — adds bottom nav pill
+- ctx.addProfileTab(label, renderFn) — adds profile tab
+- ctx.addFigureTab(label, renderFn, count) — adds figure/counter tab
+- ctx.updateFigureCount(n)
+- ctx.toast(msg) / ctx.dialog(title, body, ok)
+- ctx.p2p.send(data) / ctx.p2p.onReceive(cb)
+- ctx.getProfile() / ctx.saveProfile(data)
+
+The category must be one of: YourMine, social, commerce, transport, jeux, autres.
+Use dark theme CSS vars: --bg:#111113, --accent:#c8f0a0, --title:#e8e8f0, --border:rgba(200,240,160,.15).
+Font: 'Space Mono' monospace + 'Barlow Condensed' sans-serif.
+Return ONLY the complete file code, no markdown fences.`;
+
+  if (BS.linkedDocs.length) {
+    sys += '\n\nLinked context:\n' + BS.linkedDocs.map(d => `--- ${d.name} ---\n${d.content}`).join('\n\n');
+  }
+  return sys;
+}
+
+function renderAIHistory() {
+  const el = document.getElementById('b-ai-history');
+  if (!el) return;
+  if (!BS.aiHistory.length) { el.innerHTML = ''; return; }
+  el.innerHTML = BS.aiHistory.map(m => `
+    <div class="${m.role==='user'?'b-msg-user':'b-msg-ai'}">
+      <div class="b-msg-role">${m.role==='user'?'You':'AI'}</div>
+      <div class="b-msg-text">${escHtml(m.content.slice(0,800))}${m.content.length>800?'…':''}</div>
+    </div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+window.bAIClear = function() { BS.aiHistory = []; renderAIHistory(); };
+
+window.bUseCode = function() {
+  // Find last AI message with code
+  const last = [...BS.aiHistory].reverse().find(m => m.role === 'assistant');
+  if (last) {
+    BS.code = last.content;
+    const ta = document.getElementById('b-code');
+    if (ta) ta.value = BS.code;
+    saveBuildState();
+    YM?.toast?.('Code copied to editor');
+  }
+};
+
+window.bAISend = async function() {
+  const prompt = document.getElementById('b-ai-prompt')?.value.trim();
+  if (!prompt) { YM?.toast?.('Enter a prompt'); return; }
+
+  const hasKey = bAIProviderKey === 'claude' ? BS.claudeKey : BS.openaiKey;
+  if (!hasKey) { YM?.toast?.(`Enter ${bAIProviderKey === 'claude' ? 'Claude' : 'OpenAI'} API key in Keys tab`); return; }
+
+  BS.aiHistory.push({ role: 'user', content: prompt });
+  document.getElementById('b-ai-prompt').value = '';
+  const sendBtn = document.getElementById('b-ai-send');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = '<span class="b-spinner"></span>Generating…'; }
+
+  renderAIHistory();
 
   try {
-    const prov = container.querySelector('#builder-ai-provider')?.value || aiProvider;
-    let code = '';
-    if (prov === 'anthropic') {
+    let reply = '';
+    if (bAIProviderKey === 'claude') {
+      const messages = BS.aiHistory.map(m => ({ role: m.role, content: m.content }));
       const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: SYSTEMS[mode], messages: aiHistory.map(m=>({role:m.role,content:m.content})) })
+        method:'POST',
+        headers:{ 'x-api-key': BS.claudeKey, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
+        body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:4096, system: buildSystemPrompt(), messages })
       });
       const d = await r.json();
-      code = d.content?.[0]?.text || d.error?.message || 'Erreur';
+      reply = d.content?.[0]?.text || JSON.stringify(d);
     } else {
+      const messages = [{ role:'system', content: buildSystemPrompt() }, ...BS.aiHistory.map(m => ({ role:m.role, content:m.content }))];
       const r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'gpt-4o', messages: [{role:'system',content:SYSTEMS[mode]}, ...aiHistory.map(m=>({role:m.role,content:m.content}))] })
+        method:'POST',
+        headers:{ Authorization: `Bearer ${BS.openaiKey}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ model:'gpt-4o', messages, max_tokens:4096 })
       });
       const d = await r.json();
-      code = d.choices?.[0]?.message?.content || d.error?.message || 'Erreur';
+      reply = d.choices?.[0]?.message?.content || JSON.stringify(d);
     }
-    aiHistory.push({ role: 'assistant', content: code });
-    const ta = container.querySelector('#builder-prompt');
-    if (ta) ta.value = '';
-    render();
-    setAIStatus('✓ Réponse reçue — cliquez "Injecter code" pour l\'utiliser');
+    BS.aiHistory.push({ role: 'assistant', content: reply });
+    renderAIHistory();
   } catch(e) {
-    aiHistory.push({ role: 'assistant', content: 'Erreur: ' + e.message });
-    render();
-    setAIStatus('Erreur: ' + e.message, true);
+    BS.aiHistory.push({ role: 'assistant', content: `Error: ${e.message}` });
+    renderAIHistory();
+  } finally {
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '✦ Generate'; }
   }
-}
-
-function setAIStatus(msg, isError=false) {
-  const s = container.querySelector('#builder-ai-status');
-  if (!s) return;
-  s.innerHTML = `<div class="ym-notice ${isError?'error':'success'}" style="margin-top:4px"><span>${msg}</span></div>`;
-}
-
-// ── TEST ──────────────────────────────────────────────────
-function testCode() {
-  const code = container.querySelector('#builder-code')?.value?.trim();
-  if (!code) return setStatus('Aucun code', true);
-  const preview = container.querySelector('#builder-preview');
-  const sandbox = container.querySelector('#builder-preview-sandbox');
-  if (!preview || !sandbox) return;
-  sandbox.innerHTML = '';
-  preview.style.display = '';
-  try {
-    if (mode==='sphere') {
-      const fn = new Function('container', code + '\n;if(typeof init==="function")init(container);');
-      fn(sandbox);
-    } else if (mode==='app') {
-      const fn = (0,eval)('('+code.trimEnd().replace(/;+$/,'')+')');
-      const oid = sandbox.id; sandbox.id='ym-app-body';
-      fn(YM, id=>id==='ym-app-body'?sandbox:document.getElementById(id), window.el||((t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h)e.innerHTML=h;return e;}), ft, fj, REPO_RAW, REPO_API);
-      sandbox.id = oid;
-    } else {
-      const root = document.getElementById('ym-theme-root');
-      if (root) root.innerHTML = code;
-      sandbox.innerHTML = '<div class="ym-notice success"><span>Thème appliqué.</span></div>';
-    }
-    setStatus('✓ Test OK');
-  } catch(e) {
-    sandbox.innerHTML = `<div class="ym-notice error"><span>${escHtml(e.message)}</span></div>`;
-    setStatus('Erreur: '+e.message, true);
-  }
-}
-
-// ── SAVE LOCAL ────────────────────────────────────────────
-function saveLocal() {
-  const code = container.querySelector('#builder-code')?.value?.trim();
-  if (!code) return setStatus('Aucun code', true);
-  const name = container.querySelector('#builder-name')?.value?.trim() || (mode+'-'+Date.now());
-  const key = mode==='sphere'?'ym_local_spheres':mode==='app'?'ym_local_apps':'ym_local_themes';
-  const list = JSON.parse(localStorage.getItem(key)||'[]');
-  const i = list.findIndex(s=>s.name===name);
-  const entry = { name, code, _local: true };
-  if (mode==='sphere') entry.cat = container.querySelector('#builder-cat')?.value?.trim()||'autres';
-  if (i>=0) list[i]=entry; else list.push(entry);
-  localStorage.setItem(key, JSON.stringify(list));
-  setStatus(`✓ "${name}" sauvegardé`);
-}
+};
 
 // ── PUBLISH ───────────────────────────────────────────────
-async function publish() {
-  const code  = container.querySelector('#builder-code')?.value?.trim();
-  const token = localStorage.getItem('ym_gh_token') || prompt('Token GitHub (Contents: Write) :');
-  if (!code)  return setStatus('Aucun code', true);
-  if (!token) return;
-  localStorage.setItem('ym_gh_token', token);
-  const name = container.querySelector('#builder-name')?.value?.trim();
-  if (!name) return setStatus('Nom requis', true);
-  const ext = mode==='sphere'?'.sphere.js':mode==='app'?'.app.js':'.theme.html';
-  const filename = name+ext;
-  setStatus('Publication…');
+function renderPublish() {
+  const el = document.getElementById('bp-publish');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="b-card">
+      <div class="b-label">Repository</div>
+      <div style="font-family:'Space Mono',monospace;font-size:.75rem;color:#c8f0a0;margin-bottom:8px">theodoreyong9/YourMinedApp</div>
+      <div class="b-label">File to publish</div>
+      <div style="font-family:'Space Mono',monospace;font-size:.78rem;color:#e8e8f0;margin-bottom:12px" id="b-pub-fname">
+        ${BS.fileName ? (BS.fileName + (BS.codeType==='sphere'?'.sphere.js':'.site.html')) : 'Set file name in Editor tab'}
+      </div>
+    </div>
+
+    <div class="b-card">
+      <div class="b-label">Publish Mode</div>
+      <div class="b-seg" style="margin:6px 0">
+        <button class="b-seg-btn on" id="bpm-direct" onclick="bSetPubMode('direct',this)">Direct Push</button>
+        <button class="b-seg-btn" id="bpm-test" onclick="bSetPubMode('test',this)">Test First</button>
+      </div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.82rem;color:rgba(232,232,240,.5);line-height:1.5;margin-top:6px" id="b-pub-mode-desc">
+        Push directly to the YourMine repository. Requires a valid GitHub token with repo access.
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px">
+      <div class="b-label">Commit message</div>
+      <input class="b-input" id="b-commit-msg" value="Add sphere via YourMine Build" placeholder="What does this add/change?">
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <button class="b-btn b-btn-p" style="flex:1" onclick="bDoPublish()">🚀 Publish</button>
+      <button class="b-btn b-btn-s" style="flex:1" onclick="bJoinOrg()">Join Org</button>
+    </div>
+    <div id="b-publish-msg"></div>
+  `;
+}
+
+let bPubMode = 'direct';
+window.bSetPubMode = function(mode, el) {
+  bPubMode = mode;
+  document.querySelectorAll('#bp-publish .b-seg-btn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  const desc = document.getElementById('b-pub-mode-desc');
+  if (desc) desc.textContent = mode === 'direct'
+    ? 'Push directly to the YourMine repository. Requires a valid GitHub token with repo access.'
+    : 'Submit for testing via P2P. Nearby contacts can request the code and test together before publishing.';
+};
+
+window.bDoPublish = async function() {
+  const code = BS.code || document.getElementById('b-code')?.value;
+  const name = BS.fileName || document.getElementById('b-fname')?.value;
+  const ext = BS.codeType === 'sphere' ? '.sphere.js' : '.site.html';
+  const filename = name.endsWith(ext) ? name : name + ext;
+  const msg = document.getElementById('b-commit-msg')?.value || 'Add file';
+
+  if (!code) { YM?.toast?.('No code to publish'); return; }
+  if (!name) { YM?.toast?.('Set a file name'); return; }
+  if (!BS.ghToken) { YM?.toast?.('Enter GitHub token in Keys tab'); return; }
+
+  if (bPubMode === 'test') {
+    BS.testCode = code; BS.testName = filename; BS.testRequestId = Date.now().toString();
+    YM?.toast?.('Test request broadcast to peers');
+    return;
+  }
+
+  const ok = await YM?.dialog?.('Publish to GitHub', `Publish "${filename}" to theodoreyong9/YourMinedApp?`, 'Publish');
+  if (!ok) return;
+
   try {
-    const existing = await fj(REPO_API).catch(()=>[]);
-    if (Array.isArray(existing) && existing.find(f=>f.name===filename)) return setStatus(`⚠ "${filename}" existe déjà`, true);
-    const content = btoa(unescape(encodeURIComponent(code)));
+    const setMsg = (html) => { const el = document.getElementById('b-publish-msg'); if (el) el.innerHTML = html; };
+    setMsg('<div style="font-family:\'Space Mono\',monospace;font-size:.75rem;color:rgba(200,240,160,.7);margin-top:8px"><span class="b-spinner"></span>Publishing…</div>');
+
+    // Check if file exists (to get SHA for update)
+    let sha = null;
+    try {
+      const check = await fetch(`https://api.github.com/repos/theodoreyong9/YourMinedApp/contents/${filename}`,
+        { headers:{ Authorization:`token ${BS.ghToken}`, Accept:'application/vnd.github.v3+json' } });
+      if (check.ok) { const d = await check.json(); sha = d.sha; }
+    } catch {}
+
+    const body = { message: msg, content: btoa(unescape(encodeURIComponent(code))), branch: 'main' };
+    if (sha) body.sha = sha;
+
     const r = await fetch(`https://api.github.com/repos/theodoreyong9/YourMinedApp/contents/${filename}`, {
       method:'PUT',
-      headers:{ Authorization:`token ${token}`, 'Content-Type':'application/json' },
-      body: JSON.stringify({ message:`Add ${filename}`, content })
+      headers:{ Authorization:`token ${BS.ghToken}`, 'Content-Type':'application/json', Accept:'application/vnd.github.v3+json' },
+      body: JSON.stringify(body)
     });
-    if (r.status===201) setStatus(`✓ "${filename}" publié !`);
-    else { const e=await r.json(); setStatus('Erreur: '+(e.message||r.status), true); }
-  } catch(e) { setStatus('Erreur: '+e.message, true); }
+
+    if (r.ok) {
+      setMsg('<div style="color:#c8f0a0;font-family:\'Space Mono\',monospace;font-size:.75rem;margin-top:8px">✓ Published successfully!</div>');
+      YM?.toast?.('Published ✓');
+    } else {
+      const err = await r.json();
+      setMsg(`<div style="color:#ff6b6b;font-family:'Space Mono',monospace;font-size:.72rem;margin-top:8px">${err.message || 'Publish failed'}</div>`);
+    }
+  } catch(e) {
+    const el = document.getElementById('b-publish-msg');
+    if (el) el.innerHTML = `<div style="color:#ff6b6b;font-family:'Space Mono',monospace;font-size:.72rem;margin-top:8px">${e.message}</div>`;
+  }
+};
+
+window.bJoinOrg = function() {
+  if (!BS.ghToken) { YM?.toast?.('Enter GitHub token first'); return; }
+  YM?.toast?.('Org invite sent via bot (devnet)');
+};
+
+// ── SETTINGS ──────────────────────────────────────────────
+function renderSettings() {
+  const el = document.getElementById('bp-settings');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="b-card">
+      <div class="b-label">GitHub Personal Access Token</div>
+      <input class="b-input" type="password" id="b-gh-token" value="${BS.ghToken}" placeholder="ghp_…">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;color:rgba(232,232,240,.35);line-height:1.5">
+        Needs repo + contents:write scope. Used to publish files.
+      </div>
+    </div>
+    <div class="b-card">
+      <div class="b-label">Claude API Key</div>
+      <input class="b-input" type="password" id="b-claude-key" value="${BS.claudeKey}" placeholder="sk-ant-…">
+    </div>
+    <div class="b-card">
+      <div class="b-label">OpenAI API Key</div>
+      <input class="b-input" type="password" id="b-openai-key" value="${BS.openaiKey}" placeholder="sk-…">
+    </div>
+    <button class="b-btn b-btn-p" style="width:100%;margin-top:4px" onclick="bSaveKeys()">Save Keys</button>
+  `;
 }
 
-function setStatus(msg, isError=false) {
-  const s = container.querySelector('#builder-status');
-  if (!s) return;
-  s.innerHTML = `<div class="ym-notice ${isError?'error':'success'}" style="margin-top:4px"><span>${msg}</span></div>`;
-  if (!isError) setTimeout(()=>{ s.innerHTML=''; }, 5000);
-}
+window.bSaveKeys = function() {
+  BS.ghToken = document.getElementById('b-gh-token')?.value.trim() || '';
+  BS.claudeKey = document.getElementById('b-claude-key')?.value.trim() || '';
+  BS.openaiKey = document.getElementById('b-openai-key')?.value.trim() || '';
+  saveBuildState();
+  YM?.toast?.('Keys saved ✓');
+};
 
-render();
-} // end init
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+})();
