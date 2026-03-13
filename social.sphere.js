@@ -1,538 +1,416 @@
-/* @sphere
- * @icon 📡
- * @cat Social
- * @desc Near • Contact • Feed — Découvrez vos voisins, gérez vos contacts, suivez leur contenu
- * @author theodoreyong9
- * @web https://yourmine.app
- */
+// social.sphere.js — YourMine Social Sphere
+// Category: YourMine | Author: theodoreyong9
+(function(){
+'use strict';
 
-// ════════════════════════════════════════════════════════
-//  social.sphere.js — Near / Contact / Feed
-//  Réseaux extractibles sans backend :
-//  Mastodon (instance), Bluesky (AT Proto), Pixelfed,
-//  Twitter/X (PKCE token), Nostr (relais public)
-// ════════════════════════════════════════════════════════
+window.YM_S = window.YM_S || {};
+window.YM_S['social.sphere.js'] = {
+  name: 'Social',
+  category: 'YourMine',
+  author: 'theodoreyong9',
+  description: 'Near discovery, contacts, profile feed',
 
-function init(container) {
+  async activate(ctx) {
+    this._ctx = ctx;
+    loadSocialState(ctx);
+    ctx.addPill('👥 Social', body => renderSocialUI(body, ctx));
+    ctx.addProfileTab('Social', el => renderSocialProfile(el, ctx));
+    ctx.p2p.onReceive((data, peerId) => onPeerData(data, peerId, ctx));
+    startGeo();
+    this._gossipTimer = setInterval(cleanGossips, 60000);
+  },
 
-const NEAR_RADIUS_M   = 100;
-const GOSSIP_TTL_MS   = 15 * 60 * 1000;
-const CYCLE_MS        = 5000;
+  deactivate() {
+    clearInterval(this._gossipTimer);
+    if (this._geoWatch) navigator.geolocation.clearWatch(this._geoWatch);
+  },
 
-let activeTab     = 'near';
-let nearFilter    = '';
-let contactSearch = '';
-let contactFilter = '';
-let feedFilter    = 'all';
-let cycleTimer    = null;
-let nearDiscoveries = {};
+  getBroadcastData() {
+    const p = SS.myProfile;
+    if (!p.uuid) return null;
+    return {
+      type: 'profile',
+      uuid: p.uuid,
+      displayName: p.displayName || 'Anonymous',
+      bio: p.bio || '',
+      activeSpheres: p.activeSpheres || [],
+      coords: SS.myCoords ? {
+        lat: SS.myCoords.latitude + (Math.random() - 0.5) * 0.0001,
+        lon: SS.myCoords.longitude + (Math.random() - 0.5) * 0.0001
+      } : null
+    };
+  }
+};
+
+// ── STATE ─────────────────────────────────────────────────
+const SS = {
+  myProfile: {},
+  myCoords: null,
+  near: {},       // uuid → { profile, lastSeen, distance }
+  contacts: [],   // [{ uuid, displayName, bio, … }]
+  gossips: {},    // uuid → { profile, seenAt }
+  feed: [],
+};
+
+function loadSocialState(ctx) {
+  try {
+    const d = JSON.parse(localStorage.getItem('ym_social') || '{}');
+    SS.myProfile = d.myProfile || {};
+    SS.contacts = d.contacts || [];
+    if (!SS.myProfile.uuid) SS.myProfile.uuid = ctx.getProfile().uuid;
+  } catch {}
+}
+
+function saveState() {
+  try { localStorage.setItem('ym_social', JSON.stringify({ myProfile: SS.myProfile, contacts: SS.contacts })); } catch {}
+}
 
 // ── GEO ───────────────────────────────────────────────────
-// geo gérée par index.html via YM.geo
-
-function haversine(a, b) {
-  const R = 6371000;
-  const dLat = (b.lat - a.lat) * Math.PI / 180;
-  const dLng = (b.lng - a.lng) * Math.PI / 180;
-  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+function startGeo() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(p => { SS.myCoords = p.coords; }, () => {});
+  window.YM_S['social.sphere.js']._geoWatch = navigator.geolocation.watchPosition(p => { SS.myCoords = p.coords; }, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
 }
 
-// ── P2P ANNOUNCE ──────────────────────────────────────────
-function announceSelf() {
-    if (!YM?.profile || !YM.geo) return;
-  YM.p2p?.sendProfile?.({ ...YM.profile, _geo: YM.geo });
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// ── NEAR CACHE ────────────────────────────────────────────
-function getNearProfiles() {
-  const raw = sessionStorage.getItem('ym_near_cache') || '{}';
-  const cache = JSON.parse(raw);
+function distanceTo(coords) {
+  if (!SS.myCoords || !coords) return Infinity;
+  return haversine(SS.myCoords.latitude, SS.myCoords.longitude, coords.lat, coords.lon);
+}
+
+function isNearby(coords) { return distanceTo(coords) <= 100; }
+
+function cleanGossips() {
   const now = Date.now();
-  const valid = {};
-  Object.entries(cache).forEach(([uuid, p]) => {
-    if (now - p._ts < GOSSIP_TTL_MS) valid[uuid] = p;
-  });
-  return valid;
+  for (const [uuid, g] of Object.entries(SS.gossips)) {
+    if (now - g.seenAt > 15 * 60 * 1000) delete SS.gossips[uuid];
+  }
 }
 
-function filterNear() {
-  const profiles = Object.values(getNearProfiles());
-    const selfUUID = YM?.profile?.uuid;
+// ── P2P ───────────────────────────────────────────────────
+function onPeerData(data, peerId, ctx) {
+  if (!data?.uuid || data.type !== 'profile') return;
+  const { uuid } = data;
+  const near = isNearby(data.coords);
+  const isContact = SS.contacts.find(c => c.uuid === uuid);
 
-  return profiles
-    .filter(p => p.uuid !== selfUUID)
-    .filter(p => {
-      if (!YM.geo || !p._geo) return true; // show if no geo data
-      return haversine(YM.geo, p._geo) <= NEAR_RADIUS_M;
-    })
-    .filter(p => {
-      if (!nearFilter) return true;
-      return p.spheres?.repo?.includes(nearFilter) || p.spheres?.creator?.some(s => s.name?.includes(nearFilter));
-    });
+  if (near) {
+    SS.near[uuid] = { profile: data, lastSeen: Date.now(), distance: Math.round(distanceTo(data.coords)) };
+  }
+  // Gossip: seen by peers, not by us directly, not already known
+  if (!near && !isContact && !SS.near[uuid] && !SS.gossips[uuid]) {
+    SS.gossips[uuid] = { profile: data, seenAt: Date.now() };
+  }
+  if (data.content) {
+    SS.feed.unshift({ uuid, content: data.content, displayName: data.displayName, ts: Date.now(), near });
+    if (SS.feed.length > 200) SS.feed.pop();
+  }
+  refreshLiveLists();
+}
+
+function refreshLiveLists() {
+  if (document.getElementById('soc-near-list')) renderNearList();
+  if (document.getElementById('soc-feed-list')) renderFeedList();
+}
+
+// ── CSS ───────────────────────────────────────────────────
+const CSS = `<style>
+.s-tab{padding:10px 14px;background:none;border:none;border-bottom:2px solid transparent;color:rgba(232,232,240,.4);font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;letter-spacing:.05em;text-transform:uppercase;transition:all .2s;white-space:nowrap;flex-shrink:0}
+.s-tab.on{color:#c8f0a0;border-bottom-color:#c8f0a0}
+.s-panel{display:none}.s-panel.on{display:block}
+.s-input{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(200,240,160,.2);border-radius:8px;padding:9px 12px;color:#e8e8f0;font-family:'Space Mono',monospace;font-size:.8rem;outline:none;margin-bottom:8px;box-sizing:border-box}
+.s-input:focus{border-color:rgba(200,240,160,.5)}
+.s-input::placeholder{color:rgba(232,232,240,.3)}
+.s-btn{padding:9px 16px;border-radius:8px;border:none;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;transition:all .2s}
+.s-btn-p{background:#c8f0a0;color:#111113}
+.s-btn-s{background:rgba(200,240,160,.08);border:1px solid rgba(200,240,160,.25);color:#e8e8f0}
+.s-person{display:flex;gap:10px;align-items:center;padding:11px 12px;border:1px solid rgba(200,240,160,.12);border-radius:10px;margin-bottom:7px;cursor:pointer;transition:all .2s;background:rgba(17,17,19,.6)}
+.s-person:hover{border-color:rgba(200,240,160,.3);background:rgba(200,240,160,.04)}
+.s-avatar{width:38px;height:38px;border-radius:50%;background:rgba(200,240,160,.12);border:1px solid rgba(200,240,160,.25);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;overflow:hidden}
+.s-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.s-pname{font-weight:700;font-size:.9rem;color:#e8e8f0;font-family:'Barlow Condensed',sans-serif}
+.s-pmeta{font-size:.74rem;color:rgba(232,232,240,.4);margin-top:1px;font-family:'Barlow Condensed',sans-serif}
+.s-badge{font-family:'Space Mono',monospace;font-size:.62rem;padding:2px 7px;border-radius:8px;border:1px solid rgba(200,240,160,.3);color:#c8f0a0;white-space:nowrap;flex-shrink:0}
+.s-card{background:rgba(200,240,160,.04);border:1px solid rgba(200,240,160,.15);border-radius:12px;padding:14px;margin-bottom:10px}
+.s-label{font-family:'Space Mono',monospace;font-size:.67rem;color:rgba(200,240,160,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
+.s-feed-item{padding:12px;border:1px solid rgba(200,240,160,.1);border-radius:10px;margin-bottom:8px;background:rgba(17,17,19,.6)}
+.s-feed-who{font-family:'Space Mono',monospace;font-size:.67rem;color:rgba(200,240,160,.6);margin-bottom:4px}
+.s-feed-text{font-size:.85rem;color:#e8e8f0;line-height:1.5;font-family:'Barlow Condensed',sans-serif}
+.s-empty{text-align:center;padding:32px 16px;color:rgba(232,232,240,.3);font-family:'Space Mono',monospace;font-size:.76rem;line-height:2}
+.s-chip{padding:3px 10px;border-radius:12px;border:1px solid rgba(200,240,160,.2);background:none;color:rgba(200,240,160,.6);font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;letter-spacing:.04em;text-transform:uppercase;transition:all .2s}
+.s-chip.on{border-color:rgba(200,240,160,.5);color:#c8f0a0;background:rgba(200,240,160,.08)}
+.s-photo{width:72px;height:72px;border-radius:50%;background:rgba(200,240,160,.1);border:2px solid rgba(200,240,160,.3);display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 12px;overflow:hidden;cursor:pointer}
+.s-photo img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+</style>`;
+
+// ── MAIN UI ───────────────────────────────────────────────
+function renderSocialUI(body, ctx) {
+  body.innerHTML = CSS + `
+  <div style="padding:12px 16px">
+    <div style="display:flex;border-bottom:1px solid rgba(200,240,160,.12);margin-bottom:12px;overflow-x:auto;scrollbar-width:none">
+      <button class="s-tab on" onclick="sTab('near',this)">Near</button>
+      <button class="s-tab" onclick="sTab('contacts',this)">Contacts</button>
+      <button class="s-tab" onclick="sTab('feed',this)">Feed</button>
+    </div>
+    <div class="s-panel on" id="sp-near"><div id="soc-near-list"></div></div>
+    <div class="s-panel" id="sp-contacts"><div id="soc-contacts-list"></div></div>
+    <div class="s-panel" id="sp-feed"><div id="soc-feed-list"></div></div>
+  </div>`;
+  renderNearList();
+  renderContactsList(ctx);
+  renderFeedList();
+}
+
+function sTab(id, el) {
+  document.querySelectorAll('.s-tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.s-panel').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('sp-' + id)?.classList.add('on');
+}
+
+// ── NEAR ──────────────────────────────────────────────────
+function renderNearList() {
+  const el = document.getElementById('soc-near-list');
+  if (!el) return;
+  const now = Date.now();
+  const list = Object.values(SS.near).filter(n => now - n.lastSeen < 120000);
+  const gossipList = Object.values(SS.gossips).filter(g => now - g.seenAt < 15*60000);
+
+  let html = `<div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">
+    ${!SS.myCoords ? `<span style="font-family:'Space Mono',monospace;font-size:.72rem;color:rgba(255,200,100,.7)">⚠ Location disabled — enable to discover nearby peers</span>` : `<span style="font-family:'Space Mono',monospace;font-size:.72rem;color:rgba(200,240,160,.5)">📍 Scanning 100m radius</span>`}
+  </div>`;
+
+  if (list.length) {
+    html += `<div class="s-label">Nearby (${list.length})</div>`;
+    html += list.map(n => personCard(n.profile, `${n.distance}m`, true, () => openProfile(n.profile))).join('');
+  } else {
+    html += `<div class="s-empty">No one nearby yet.<br>P2P peers appear here<br>within 100m.</div>`;
+  }
+
+  if (gossipList.length) {
+    html += `<div class="s-label" style="margin-top:14px">Gossips · seen by peers (${gossipList.length})</div>`;
+    html += gossipList.map(g => personCard(g.profile, 'via peer', false, () => openProfile(g.profile))).join('');
+  }
+  el.innerHTML = html;
 }
 
 // ── CONTACTS ──────────────────────────────────────────────
-function getContacts() {
-    return (YM?.contacts || JSON.parse(localStorage.getItem('ym_contacts') || '[]'));
+function renderContactsList(ctx) {
+  const el = document.getElementById('soc-contacts-list');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="margin-bottom:10px;display:flex;gap:6px">
+      <button class="s-btn s-btn-s" style="flex:1;font-size:.78rem" onclick="addContactDialog()">+ Add Contact</button>
+    </div>
+    ${SS.contacts.length
+      ? SS.contacts.map(c => personCard(c, '', false, () => openProfile(c))).join('')
+      : '<div class="s-empty">No contacts yet.<br>Add by UUID, URL or QR code.</div>'
+    }`;
 }
 
-function addContact(uuid, name, photo) {
-    const contacts = getContacts();
-  if (contacts.find(c => c.uuid === uuid)) return;
-  contacts.push({ uuid, name: name || uuid.slice(0,8), photo: photo || null, added: Date.now() });
-  YM.contacts = contacts;
-  localStorage.setItem('ym_contacts', JSON.stringify(contacts));
-  renderContent();
+async function addContactDialog() {
+  const uuid = prompt('Enter contact UUID or address:');
+  if (!uuid) return;
+  const existing = SS.contacts.find(c => c.uuid === uuid);
+  if (existing) { YM?.toast?.('Already in contacts'); return; }
+  const nearProfile = SS.near[uuid]?.profile || SS.gossips[uuid]?.profile;
+  if (nearProfile) {
+    SS.contacts.push(nearProfile);
+    saveState();
+    YM?.toast?.(`${nearProfile.displayName || 'Contact'} added`);
+  } else {
+    SS.contacts.push({ uuid, displayName: uuid.slice(0,8) + '…', bio: 'Manual add' });
+    saveState();
+    YM?.toast?.('Contact added');
+  }
+  renderContactsList(window.YM_S['social.sphere.js']._ctx);
 }
 
-function removeContact(uuid) {
-    YM.contacts = getContacts().filter(c => c.uuid !== uuid);
-  localStorage.setItem('ym_contacts', JSON.stringify(YM.contacts));
-  renderContent();
-}
+window.addContactDialog = addContactDialog;
 
-function filterContacts() {
-  return getContacts().filter(c => {
-    if (contactSearch) {
-      const q = contactSearch.toLowerCase();
-      if (!c.name?.toLowerCase().includes(q) && !c.uuid.includes(q)) return false;
-    }
-    return true;
-  });
-}
-
-// ── SOCIAL FEED — APIs extractibles sans backend ──────────
-// Chaque réseau expose une API publique ou supporte PKCE.
-// Le profil contient : socialNet, socialHandle, socialInstance (Mastodon/Pixelfed), socialToken (X/Nostr)
-
-async function fetchFeed(profile) {
-  const net      = (profile.socialNet || '').toLowerCase();
-  const handle   = profile.socialHandle || '';
-  const instance = profile.socialInstance || '';  // ex: mastodon.social
-  const token    = profile.socialToken || '';
-
-  if (!net || !handle) return [];
-
-  try {
-    // ── MASTODON (API publique, pas de token requis pour posts publics) ──
-    if (net === 'mastodon') {
-      const host = instance || 'mastodon.social';
-      // Résoudre l'acct → id
-      const lookup = await fetch(`https://${host}/api/v1/accounts/lookup?acct=${encodeURIComponent(handle)}`);
-      if (!lookup.ok) return _placeholder(profile);
-      const acct = await lookup.json();
-      const r = await fetch(`https://${host}/api/v1/accounts/${acct.id}/statuses?limit=10&exclude_reblogs=true`);
-      if (!r.ok) return _placeholder(profile);
-      const statuses = await r.json();
-      return statuses.map(s => ({
-        id: s.id, ts: new Date(s.created_at).getTime(),
-        text: s.content.replace(/<[^>]+>/g,'').slice(0,280),
-        url: s.url, net: 'mastodon'
-      }));
-    }
-
-    // ── BLUESKY (AT Protocol, API publique pour comptes publics) ──
-    if (net === 'bluesky') {
-      const actor = handle.includes('.') ? handle : `${handle}.bsky.social`;
-      const r = await fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(actor)}&limit=10`);
-      if (!r.ok) return _placeholder(profile);
-      const data = await r.json();
-      return (data.feed || []).map(item => ({
-        id: item.post.uri, ts: new Date(item.post.record.createdAt).getTime(),
-        text: item.post.record.text?.slice(0,280) || '',
-        url: `https://bsky.app/profile/${actor}/post/${item.post.uri.split('/').pop()}`,
-        net: 'bluesky'
-      }));
-    }
-
-    // ── PIXELFED (API publique compatible Mastodon) ──
-    if (net === 'pixelfed') {
-      const host = instance || 'pixelfed.social';
-      const lookup = await fetch(`https://${host}/api/v1/accounts/lookup?acct=${encodeURIComponent(handle)}`);
-      if (!lookup.ok) return _placeholder(profile);
-      const acct = await lookup.json();
-      const r = await fetch(`https://${host}/api/v1/accounts/${acct.id}/statuses?limit=10`);
-      if (!r.ok) return _placeholder(profile);
-      const statuses = await r.json();
-      return statuses.map(s => ({
-        id: s.id, ts: new Date(s.created_at).getTime(),
-        text: s.content.replace(/<[^>]+>/g,'').slice(0,280),
-        url: s.url, net: 'pixelfed',
-        media: s.media_attachments?.[0]?.url
-      }));
-    }
-
-    // ── TWITTER/X (nécessite token Bearer PKCE — l'utilisateur fournit son token) ──
-    if (net === 'twitter' || net === 'x') {
-      if (!token) return _placeholder(profile, 'Token Bearer requis pour X/Twitter');
-      const r = await fetch(`https://api.twitter.com/2/users/by/username/${encodeURIComponent(handle)}?user.fields=id`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!r.ok) return _placeholder(profile);
-      const user = await r.json();
-      const tweets = await fetch(`https://api.twitter.com/2/users/${user.data.id}/tweets?max_results=10&tweet.fields=created_at,text`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!tweets.ok) return _placeholder(profile);
-      const data = await tweets.json();
-      return (data.data || []).map(t => ({
-        id: t.id, ts: new Date(t.created_at).getTime(),
-        text: t.text?.slice(0,280),
-        url: `https://x.com/${handle}/status/${t.id}`, net: 'x'
-      }));
-    }
-
-    // ── NOSTR (relais public WebSocket, NIP-01) ──
-    if (net === 'nostr') {
-      // handle = npub ou hex pubkey
-      return await new Promise(resolve => {
-        try {
-          const ws = new WebSocket('wss://relay.damus.io');
-          const posts = [];
-          const timeout = setTimeout(() => { ws.close(); resolve(posts); }, 5000);
-          ws.onopen = () => {
-            ws.send(JSON.stringify(['REQ','ym-feed',{ authors:[handle], kinds:[1], limit:10 }]));
-          };
-          ws.onmessage = e => {
-            const msg = JSON.parse(e.data);
-            if (msg[0]==='EVENT' && msg[2]?.kind===1) {
-              posts.push({ id:msg[2].id, ts:msg[2].created_at*1000, text:msg[2].content?.slice(0,280), url:`https://snort.social/e/${msg[2].id}`, net:'nostr' });
-            }
-            if (msg[0]==='EOSE') { clearTimeout(timeout); ws.close(); resolve(posts); }
-          };
-          ws.onerror = () => { clearTimeout(timeout); resolve(posts); };
-        } catch { resolve([]); }
-      });
-    }
-
-  } catch(e) { console.warn('[social feed]', net, e.message); }
-  return _placeholder(profile);
-}
-
-function _placeholder(profile, note = '') {
-  const net = profile.socialNet || '?';
-  const handle = profile.socialHandle || '';
-  return [{
-    id: profile.uuid + '-ph',
-    ts: Date.now(),
-    text: note || `Contenu de @${handle} sur ${net} (chargement impossible depuis ce navigateur)`,
-    url: `https://${net}.com/${handle}`,
-    net
-  }];
-}
-
-// ── VOICE CALL ─────────────────────────────────────────────
-let activeCall = null;
-
-async function startCall(contactUUID) {
-    // Check mutual contact
-  const cache = getNearProfiles();
-  const contactData = Object.values(cache).find(p => p.uuid === contactUUID);
-  const myContacts = getContacts().map(c => c.uuid);
-  const theirContacts = contactData?._contacts || [];
-  const isMutual = theirContacts.includes(YM?.profile?.uuid) && myContacts.includes(contactUUID);
-
-  if (!isMutual) {
-    showNotice('Appel vocal disponible uniquement avec contacts réciproques', 'warn');
+// ── FEED ──────────────────────────────────────────────────
+function renderFeedList() {
+  const el = document.getElementById('soc-feed-list');
+  if (!el) return;
+  if (!SS.feed.length) {
+    el.innerHTML = '<div class="s-empty">Feed is empty.<br>Content from Near and<br>Contacts will appear here.</div>';
     return;
   }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    activeCall = { uuid: contactUUID, stream };
-    showNotice('Appel en cours…', 'info');
-  } catch(e) {
-    showNotice('Microphone requis pour les appels', 'warn');
-  }
+  el.innerHTML = SS.feed.slice(0,50).map(item => `
+    <div class="s-feed-item">
+      <div class="s-feed-who">
+        ${item.displayName || item.uuid?.slice(0,12) || '?'}
+        ${item.near ? '<span class="s-badge" style="margin-left:6px">Near</span>' : ''}
+        <span style="float:right;opacity:.4">${timeAgo(item.ts)}</span>
+      </div>
+      <div class="s-feed-text">${escHtml(item.content || '')}</div>
+    </div>
+  `).join('');
 }
 
-// ── QR SCANNER ─────────────────────────────────────────────
-function scanQR(callback) {
-  const modal = document.createElement('div');
-  modal.className = 'ym-modal-backdrop open';
-  modal.innerHTML = `
-    <div class="ym-modal" style="text-align:center">
-      <div class="ym-modal-header"><span class="ym-modal-title">Scanner QR</span><button class="ym-btn ym-btn-ghost" id="qr-close">✕</button></div>
-      <video id="qr-video" style="width:100%;border-radius:12px;max-height:250px" autoplay playsinline></video>
-      <div id="qr-status" style="margin-top:8px;color:var(--text3);font-size:11px">Pointez vers un QR code YourMine</div>
+// ── PERSON CARD ───────────────────────────────────────────
+function personCard(p, badge, showDist, onClick) {
+  const initials = (p.displayName || '?').charAt(0).toUpperCase();
+  const photoHtml = p.photo
+    ? `<img src="${p.photo}" alt="">`
+    : initials;
+  const id = 'pc-' + (p.uuid || Math.random()).toString().replace(/\W/g,'');
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    if (el && onClick) el.onclick = onClick;
+  }, 0);
+  return `<div class="s-person" id="${id}">
+    <div class="s-avatar">${photoHtml}</div>
+    <div style="flex:1;min-width:0">
+      <div class="s-pname">${escHtml(p.displayName || 'Anonymous')}</div>
+      <div class="s-pmeta">${escHtml(p.bio || '')}${p.activeSpheres?.length ? ' · '+p.activeSpheres.join(', ') : ''}</div>
+    </div>
+    ${badge ? `<span class="s-badge">${badge}</span>` : ''}
+  </div>`;
+}
+
+// ── PROFILE DETAIL ────────────────────────────────────────
+function openProfile(p) {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;inset:0;background:var(--bg,#111113);z-index:500;overflow-y:auto;padding:20px';
+  d.innerHTML = CSS + `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+      <button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:rgba(232,232,240,.5);font-size:1.4rem;cursor:pointer;line-height:1">×</button>
+      <span style="font-family:'Space Mono',monospace;font-size:.8rem;color:#c8f0a0;letter-spacing:.08em;text-transform:uppercase">Profile</span>
+    </div>
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="s-photo" style="margin:0 auto 12px">${p.photo ? `<img src="${p.photo}">` : (p.displayName||'?').charAt(0).toUpperCase()}</div>
+      <div style="font-size:1.3rem;font-weight:800;color:#e8e8f0">${escHtml(p.displayName||'Anonymous')}</div>
+      <div style="font-size:.82rem;color:rgba(232,232,240,.5);margin-top:4px">${escHtml(p.bio||'')}</div>
+    </div>
+    <div class="s-card">
+      <div class="s-label">UUID</div>
+      <div style="font-family:'Space Mono',monospace;font-size:.68rem;color:#c8f0a0;word-break:break-all">${p.uuid||'?'}</div>
+    </div>
+    ${p.website ? `<div class="s-card"><div class="s-label">Website</div><div style="color:#c8f0a0;font-size:.85rem"><a href="${p.website}" target="_blank" style="color:inherit">${p.website}</a></div></div>` : ''}
+    ${p.activeSpheres?.length ? `<div class="s-card"><div class="s-label">Active Spheres</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">${p.activeSpheres.map(s=>`<span class="s-badge">${s}</span>`).join('')}</div></div>` : ''}
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="s-btn s-btn-p" style="flex:1" onclick="sAddContact('${p.uuid}')">+ Add Contact</button>
     </div>`;
-  document.body.appendChild(modal);
-  modal.querySelector('#qr-close').onclick = () => { stream?.getTracks().forEach(t=>t.stop()); modal.remove(); };
+  document.body.appendChild(d);
+}
 
-  let stream;
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(s => {
-    stream = s;
-    const video = modal.querySelector('#qr-video');
-    video.srcObject = s;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const scan = () => {
-      if (!modal.isConnected) return;
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = window.jsQR?.(img.data, img.width, img.height);
-        if (code?.data) {
-          stream.getTracks().forEach(t=>t.stop());
-          modal.remove();
-          callback(code.data);
-          return;
-        }
-      }
-      requestAnimationFrame(scan);
+window.sAddContact = function(uuid) {
+  if (SS.contacts.find(c => c.uuid === uuid)) { YM?.toast?.('Already a contact'); return; }
+  const p = SS.near[uuid]?.profile || SS.gossips[uuid]?.profile || { uuid };
+  SS.contacts.push(p); saveState();
+  YM?.toast?.('Contact added ✓');
+};
+
+// ── PROFILE TAB (in Profile overlay) ─────────────────────
+function renderSocialProfile(el, ctx) {
+  const p = SS.myProfile;
+  el.innerHTML = CSS + `<div style="padding:16px">
+    <div style="text-align:center;margin-bottom:16px">
+      <div class="s-photo" id="s-photo-btn" onclick="sPickPhoto()">
+        ${p.photo ? `<img src="${p.photo}" id="s-photo-img">` : `<span id="s-photo-init">${(p.displayName||'Y').charAt(0)}</span>`}
+      </div>
+    </div>
+    <div class="s-label">Display Name</div>
+    <input class="s-input" id="sp-name" value="${escAttr(p.displayName||'')}" placeholder="Your name">
+    <div class="s-label">Short Bio</div>
+    <input class="s-input" id="sp-bio" value="${escAttr(p.bio||'')}" placeholder="A few words about you…">
+    <div class="s-label">Website</div>
+    <input class="s-input" id="sp-web" value="${escAttr(p.website||'')}" placeholder="https://…">
+
+    <div class="s-label" style="margin-top:8px">Social Networks (PKCE/public)</div>
+    ${['twitter','mastodon','github','youtube','lens'].map(net => `
+      <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+        <span style="font-family:'Space Mono',monospace;font-size:.72rem;color:rgba(200,240,160,.6);min-width:70px;text-transform:uppercase">${net}</span>
+        <input class="s-input" style="margin:0;flex:1" id="sp-net-${net}" value="${escAttr(p.networks?.[net]||'')}" placeholder="@handle or URL">
+      </div>`).join('')}
+
+    <div class="s-label" style="margin-top:12px">UUID</div>
+    <div style="font-family:'Space Mono',monospace;font-size:.68rem;color:#c8f0a0;word-break:break-all;margin-bottom:12px">${p.uuid||'…'}</div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:16px">
+      <div id="s-qr-me" style="background:#fff;padding:8px;border-radius:8px;display:inline-block"></div>
+    </div>
+
+    <button class="s-btn s-btn-p" style="width:100%" onclick="sSaveProfile()">Save Profile</button>
+    <div id="s-prof-msg"></div>
+    <input type="file" id="s-photo-input" accept="image/*" style="display:none" onchange="sHandlePhoto(this)">
+  </div>`;
+
+  // Generate QR
+  if (p.uuid) {
+    const qrData = JSON.stringify({ uuid: p.uuid, displayName: p.displayName, type: 'ym-profile' });
+    const qrEl = document.getElementById('s-qr-me');
+    if (window.QRCode && qrEl) {
+      new QRCode(qrEl, { text: qrData, width: 120, height: 120, colorDark: '#111113', colorLight: '#c8f0a0' });
+    } else if (qrEl) {
+      qrEl.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrData)}&bgcolor=111113&color=c8f0a0" style="border-radius:4px">`;
+    }
+  }
+}
+
+window.sPickPhoto = function() { document.getElementById('s-photo-input')?.click(); };
+window.sHandlePhoto = function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    // Compress
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 128;
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > MAX) { h = h*MAX/w; w = MAX; } } else { if (h > MAX) { w = w*MAX/h; h = MAX; } }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      SS.myProfile.photo = canvas.toDataURL('image/jpeg', 0.7);
+      saveState();
+      const btn = document.getElementById('s-photo-btn');
+      if (btn) btn.innerHTML = `<img src="${SS.myProfile.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
     };
-    scan();
-  }).catch(() => { modal.querySelector('#qr-status').textContent = 'Caméra non disponible'; });
-}
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
 
-// ── RENDER ─────────────────────────────────────────────────
-function renderContent() {
-  container.innerHTML = `
-  <div style="display:flex;flex-direction:column;gap:10px">
-
-    <!-- Tabs -->
-    <div class="ym-tabs">
-      ${['near','contacts','feed'].map(t => `<button class="ym-tab${activeTab===t?' active':''}" data-tab="${t}">${{near:'◎ Near',contacts:'✦ Contacts',feed:'⊞ Feed'}[t]}</button>`).join('')}
-    </div>
-
-    <!-- Content -->
-    <div id="social-content"></div>
-  </div>`;
-
-  container.querySelectorAll('[data-tab]').forEach(btn => {
-    btn.onclick = () => { activeTab = btn.dataset.tab; renderContent(); };
+window.sSaveProfile = function() {
+  SS.myProfile.displayName = document.getElementById('sp-name')?.value.trim();
+  SS.myProfile.bio = document.getElementById('sp-bio')?.value.trim();
+  SS.myProfile.website = document.getElementById('sp-web')?.value.trim();
+  SS.myProfile.networks = {};
+  ['twitter','mastodon','github','youtube','lens'].forEach(net => {
+    const v = document.getElementById(`sp-net-${net}`)?.value.trim();
+    if (v) SS.myProfile.networks[net] = v;
   });
+  saveState();
+  window.YM_S['social.sphere.js']._ctx?.saveProfile?.({ socialProfile: SS.myProfile });
+  const msg = document.getElementById('s-prof-msg');
+  if (msg) { msg.innerHTML = `<div style="color:#c8f0a0;font-family:'Space Mono',monospace;font-size:.75rem;margin-top:8px;text-align:center">Saved ✓</div>`; setTimeout(() => { msg.innerHTML=''; }, 2000); }
+  YM?.toast?.('Profile saved');
+};
 
-  if (activeTab === 'near') renderNear();
-  else if (activeTab === 'contacts') renderContacts();
-  else renderFeed();
+// ── UTILS ─────────────────────────────────────────────────
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return String(s).replace(/"/g,'&quot;'); }
+function timeAgo(ts) {
+  const s = Math.floor((Date.now()-ts)/1000);
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm';
+  if (s < 86400) return Math.floor(s/3600) + 'h';
+  return Math.floor(s/86400) + 'd';
 }
 
-function renderNear() {
-  const area = container.querySelector('#social-content');
-  const nearProfiles = filterNear();
+window.sTab = function(id, el) {
+  document.querySelectorAll('.s-tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.s-panel').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('sp-' + id)?.classList.add('on');
+};
 
-  area.innerHTML = `
-  <div style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <div class="ym-radar" style="width:60px;height:60px;flex-shrink:0">
-          <div class="ym-radar-ring"></div>
-          <div class="ym-radar-ring"></div>
-          <div class="ym-radar-ring"></div>
-          <div class="ym-radar-sweep"></div>
-        </div>
-        <div>
-          <div style="font-family:var(--font-display);font-size:14px;font-weight:700">${nearProfiles.length} Near</div>
-          <div style="font-size:10px;color:var(--text3)">Rayon ${NEAR_RADIUS_M}m ${YM.geo ? '· Géo active' : '· Géo non activée'}</div>
-        </div>
-      </div>
-      ${!YM.geo ? `<button class="ym-btn ym-btn-accent" id="near-geo-btn">Activer géo</button>` : ''}
-    </div>
-
-    <div class="ym-search-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-      <input class="ym-input" id="near-filter" placeholder="Filtrer par sphere…" value="${nearFilter}"/>
-    </div>
-
-    <div id="near-list" style="display:flex;flex-direction:column;gap:6px">
-      ${nearProfiles.length ? nearProfiles.map(p => renderContactRow(p, 'near')).join('') : `<div style="color:var(--text3);text-align:center;padding:20px;font-size:11px">Aucun utilisateur proche détecté</div>`}
-    </div>
-  </div>`;
-
-  area.querySelector('#near-geo-btn')?.addEventListener('click', () => { if(YM.geo) announceSelf(); });
-  area.querySelector('#near-filter')?.addEventListener('input', e => { nearFilter = e.target.value; renderNear(); });
-  wireContactRowEvents(area, 'near');
-}
-
-function renderContacts() {
-  const area = container.querySelector('#social-content');
-  const contacts = filterContacts();
-
-  area.innerHTML = `
-  <div style="display:flex;flex-direction:column;gap:10px">
-    <div class="ym-search-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-      <input class="ym-input" id="contact-search" placeholder="Rechercher…" value="${contactSearch}"/>
-    </div>
-
-    <!-- Add contact -->
-    <div style="display:flex;gap:6px">
-      <input class="ym-input" id="contact-add-input" placeholder="UUID ou URL profil" style="flex:1"/>
-      <button class="ym-btn" id="contact-add-btn">+</button>
-      <button class="ym-btn ym-btn-ghost" id="contact-scan-btn" data-tip="Scanner QR">⊡</button>
-    </div>
-
-    <div id="contact-list" style="display:flex;flex-direction:column;gap:6px">
-      ${contacts.length ? contacts.map(c => renderContactRow(c, 'contact')).join('') : `<div style="color:var(--text3);text-align:center;padding:20px;font-size:11px">Aucun contact. Ajoutez des proches ou scannez leur QR.</div>`}
-    </div>
-  </div>`;
-
-  area.querySelector('#contact-search')?.addEventListener('input', e => { contactSearch = e.target.value; renderContacts(); });
-  area.querySelector('#contact-add-btn')?.addEventListener('click', () => {
-    const val = area.querySelector('#contact-add-input')?.value?.trim();
-    if (!val) return;
-    const uuid = val.includes('/u/') ? val.split('/u/')[1].split('?')[0] : val;
-    addContact(uuid);
-  });
-  area.querySelector('#contact-scan-btn')?.addEventListener('click', () => {
-    scanQR(data => {
-      const uuid = data.includes('/u/') ? data.split('/u/')[1].split('?')[0] : data;
-      addContact(uuid);
-    });
-  });
-  wireContactRowEvents(area, 'contact');
-}
-
-function renderContactRow(p, type) {
-  const name = p.name || p.uuid?.slice(0,8) || 'Inconnu';
-  const avatarContent = p.photo ? `<img src="${p.photo}" alt="" style="width:100%;height:100%;object-fit:cover"/>` : name[0].toUpperCase();
-  const dist = (YM.geo && p._geo) ? Math.round(haversine(YM.geo, p._geo)) + 'm' : '';
-  return `<div class="ym-contact-row" data-uuid="${p.uuid || ''}" data-type="${type}">
-    <div class="ym-avatar">${avatarContent}</div>
-    <div class="ym-contact-info">
-      <div class="ym-contact-name">${name}</div>
-      <div class="ym-contact-sub">${dist ? `${dist} · ` : ''}${p.socialNet && p.socialHandle ? `@${p.socialHandle}` : p.uuid?.slice(0,12) + '…'}</div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center">
-      ${type === 'near' ? `<button class="ym-btn ym-btn-ghost contact-action-add" data-uuid="${p.uuid}" style="font-size:10px;padding:5px 8px">+ Contact</button>` : ''}
-      <button class="ym-call-btn contact-action-call" data-uuid="${p.uuid}" title="Appel vocal">☎</button>
-      ${type === 'contact' ? `<button class="ym-btn ym-btn-ghost contact-action-remove" data-uuid="${p.uuid}" style="font-size:10px;color:var(--danger);border-color:transparent">✕</button>` : ''}
-    </div>
-  </div>`;
-}
-
-function wireContactRowEvents(area, type) {
-  area.querySelectorAll('.contact-action-add').forEach(btn => {
-    btn.onclick = e => { e.stopPropagation(); const uuid = btn.dataset.uuid; const cache = getNearProfiles(); const p = Object.values(cache).find(x => x.uuid === uuid); addContact(uuid, p?.name, p?.photo); };
-  });
-  area.querySelectorAll('.contact-action-call').forEach(btn => {
-    btn.onclick = e => { e.stopPropagation(); startCall(btn.dataset.uuid); };
-  });
-  area.querySelectorAll('.contact-action-remove').forEach(btn => {
-    btn.onclick = e => { e.stopPropagation(); removeContact(btn.dataset.uuid); };
-  });
-  area.querySelectorAll('.ym-contact-row').forEach(row => {
-    row.onclick = () => openProfileModal(row.dataset.uuid);
-  });
-}
-
-async function renderFeed() {
-  const area = container.querySelector('#social-content');
-  area.innerHTML = `
-  <div style="display:flex;flex-direction:column;gap:10px">
-    <div class="ym-tabs">
-      ${['all','near','contacts'].map(f=>`<button class="ym-tab${feedFilter===f?' active':''}" data-feed="${f}">${{all:'Tout',near:'Near',contacts:'Contacts'}[f]}</button>`).join('')}
-    </div>
-    <div id="feed-list" style="display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;gap:8px;align-items:center;color:var(--text3);padding:20px;justify-content:center"><div class="ym-loading"></div><span>Chargement…</span></div>
-    </div>
-  </div>`;
-
-  area.querySelectorAll('[data-feed]').forEach(btn => {
-    btn.onclick = () => { feedFilter = btn.dataset.feed; renderFeed(); };
-  });
-
-  const feedList = area.querySelector('#feed-list');
-  const sources = feedFilter === 'near' ? Object.values(getNearProfiles())
-    : feedFilter === 'contacts' ? getContacts().map(c => ({ ...c, ...(Object.values(getNearProfiles()).find(p => p.uuid === c.uuid) || {}) }))
-    : [...Object.values(getNearProfiles()), ...getContacts()];
-
-  const items = [];
-  for (const p of sources.slice(0, 10)) {
-    try { const posts = await fetchFeed(p); items.push(...posts.map(post => ({...post, _profile: p}))); } catch {}
-  }
-
-  if (!items.length) {
-    feedList.innerHTML = `<div style="color:var(--text3);text-align:center;padding:20px;font-size:11px">Aucun contenu. Vos contacts doivent renseigner leur réseau social.</div>`;
-    return;
-  }
-
-  items.sort((a,b) => b.ts - a.ts);
-  feedList.innerHTML = items.map(item => `
-  <div class="ym-feed-card">
-    <div class="ym-feed-card-body">
-      <div class="ym-feed-card-meta">
-        <div class="ym-avatar" style="width:28px;height:28px;font-size:11px">${item._profile?.name?.[0]?.toUpperCase() || '?'}</div>
-        <div style="flex:1">
-          <div style="font-family:var(--font-display);font-size:12px;font-weight:600">${item._profile?.name || 'Inconnu'}</div>
-          <div style="font-size:9px;color:var(--text3)">${new Date(item.ts).toLocaleTimeString()}</div>
-        </div>
-      </div>
-      <div style="font-size:12px;color:var(--text2)">${item.text}</div>
-      <div style="display:flex;gap:8px">
-        <a href="${item.url}" target="_blank" rel="noopener" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:4px 10px">Source externe ↗</a>
-        <button class="ym-btn ym-btn-ghost" data-uuid="${item._profile?.uuid}" style="font-size:10px;padding:4px 10px" onclick="document.dispatchEvent(new CustomEvent('ym:openProfile',{detail:'${item._profile?.uuid}'}))">Profil</button>
-      </div>
-    </div>
-  </div>`).join('');
-}
-
-function openProfileModal(uuid) {
-  const cache = getNearProfiles();
-  const contacts = getContacts();
-  const p = Object.values(cache).find(x => x.uuid === uuid) || contacts.find(c => c.uuid === uuid);
-  if (!p) return;
-
-  const modal = document.createElement('div');
-  modal.className = 'ym-modal-backdrop open';
-  modal.innerHTML = `
-  <div class="ym-modal">
-    <div class="ym-modal-header">
-      <span class="ym-modal-title">${p.name || uuid.slice(0,8)}</span>
-      <button class="ym-btn ym-btn-ghost" id="modal-close">✕</button>
-    </div>
-    <div class="ym-profile-hero">
-      <div class="ym-profile-avatar">${p.photo ? `<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover"/>` : (p.name?.[0]?.toUpperCase()||'?')}</div>
-      <div class="ym-profile-name">${p.name || '—'}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
-        ${p.socialHandle ? `<span class="ym-chip">@${p.socialHandle}</span>` : ''}
-        ${p.website ? `<a href="${p.website}" target="_blank" class="ym-chip blue">↗ site</a>` : ''}
-      </div>
-    </div>
-    <div class="ym-stat-row"><span class="ym-stat-label">UUID</span><span style="font-size:10px;color:var(--text3);word-break:break-all">${uuid}</span></div>
-    ${p._geo && YM.geo ? `<div class="ym-stat-row"><span class="ym-stat-label">Distance</span><span class="ym-stat-value">${Math.round(haversine(YM.geo, p._geo))}m</span></div>` : ''}
-    <div class="ym-divider"></div>
-    <div style="display:flex;gap:8px">
-      <button class="ym-btn ym-btn-accent" id="modal-add-contact" style="flex:1">+ Contact</button>
-      <button class="ym-call-btn" id="modal-call" style="width:40px">☎</button>
-    </div>
-  </div>`;
-
-  document.body.appendChild(modal);
-  modal.querySelector('#modal-close').onclick = () => modal.remove();
-  modal.querySelector('#modal-add-contact').onclick = () => { addContact(uuid, p.name, p.photo); modal.remove(); };
-  modal.querySelector('#modal-call').onclick = () => { startCall(uuid); modal.remove(); };
-  modal.onclick = e => { if (e.target === modal) modal.remove(); };
-}
-
-function showNotice(msg, type = 'info') {
-  const n = document.createElement('div');
-  n.className = `ym-notice ${type}`;
-  n.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9998;white-space:nowrap;';
-  n.textContent = msg;
-  document.body.appendChild(n);
-  setTimeout(() => n.remove(), 3000);
-}
-
-// ── CYCLE ────────────────────────────────────────────────
-function startCycle() {
-  clearInterval(cycleTimer);
-  cycleTimer = setInterval(() => {
-    announceSelf();
-    if (activeTab === 'near') renderNear();
-    else if (activeTab === 'contacts') renderContacts();
-  }, CYCLE_MS);
-}
-
-// ── INIT ─────────────────────────────────────────────────
-renderContent();
-startCycle();
-announceSelf();
-
-// Cleanup
-container._cleanup = () => clearInterval(cycleTimer);
-
-} // end init
+})();
