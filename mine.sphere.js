@@ -32,7 +32,7 @@ window.YM_S['mine.sphere.js']={
 const PID='6ue88JtUXzKN5yrFkauU85EHpg4aSsM9QfarvHBQS7TZ';
 const CREATOR='7Cjt3kRF6FvQQ2XkfxcdsaU9hAZsz6odXWVaLUUhRLZ6';
 const TOKEN_PGM='TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-const ASSOC_PGM='ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+const ASSOC_PGM='ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1brs';
 const DEVNET='https://api.devnet.solana.com',DEVNET2='https://rpc.ankr.com/solana_devnet';
 const STORE_KEY='ym_wallet_v1';
 const MIN_BURN=0.0001;
@@ -248,8 +248,7 @@ function startCycles(body){
   },2000);
 }
 function _updateUI(){
-  const $id=id=>{const e=document.getElementById(id);return e};
-  const set=(id,v)=>{const e=$id(id);if(e)e.textContent=v};
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
   set('mine-sol',_mineState.sol.toFixed(6));set('mine-yrm',_mineState.ym.toFixed(4));set('mine-slot',_mineState.currentSlot||'—');
   set('fig-sol',_mineState.sol.toFixed(6));set('fig-yrm',_mineState.ym.toFixed(4));
 }
