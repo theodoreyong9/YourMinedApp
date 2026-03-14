@@ -355,7 +355,7 @@ window.YM_S['social.sphere.js'] = {
       });
       row.appendChild(lbl); row.appendChild(inp); container.appendChild(row);
     });
-  },,
+  },
 
   // Tab badge counts for notification indicators
   getTabBadges(){
