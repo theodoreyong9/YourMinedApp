@@ -1,0 +1,12 @@
+{
+  "name": "YourMine",
+  "short_name": "YourMine",
+  "description": "Mine to Build — Decentralized interaction engine",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08080f",
+  "theme_color": "#08080f",
+  "icons": [],
+  "categories": ["productivity", "social", "finance"]
+}
