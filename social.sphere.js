@@ -296,6 +296,41 @@ window.YM_S['social.sphere.js'] = {
   getBroadcastData(){
     const p=_ctx?.loadProfile?.()??{};
     return p.uuid?{type:'social:presence',uuid:p.uuid,name:p.name,bio:p.bio,avatar:p.avatar,spheres:p.spheres}:null;
+  },
+
+  // Called from Profile panel Spheres tab
+  profileSection(container){
+    const SOCIAL_NET_LABEL = 'Social Networks';
+    const state=loadState();
+    const networks=state.networks||[];
+    const allNets = SOCIAL_NETWORKS.map(n=>{
+      const saved=networks.find(x=>x.id===n.id)||{};
+      return {id:n.id, label:n.label, hint:n.hint, handle:saved.handle||''};
+    });
+    const el=document.createElement('div');
+    el.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-d,monospace)">'+SOCIAL_NET_LABEL+'</div>';
+    allNets.forEach(n=>{
+      const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
+      row.innerHTML='<div style="width:80px;font-size:11px;color:var(--text2);flex-shrink:0">'+n.label+'</div>';
+      const inp=document.createElement('input');inp.className='ym-input';inp.placeholder=n.hint;inp.value=n.handle;inp.style.cssText='flex:1;font-size:11px';inp.dataset.networkId=n.id;
+      inp.addEventListener('change',()=>{
+        const cur=loadState().networks||[];const idx=cur.findIndex(x=>x.id===n.id);
+        if(inp.value.trim()){if(idx>=0)cur[idx].handle=inp.value.trim();else cur.push({id:n.id,handle:inp.value.trim()});}
+        else{if(idx>=0)cur.splice(idx,1);}
+        saveState({networks:cur});
+      });
+      row.appendChild(inp);el.appendChild(row);
+    });
+    container.appendChild(el);
+  },
+
+  // Tab badge counts for notification indicators
+  getTabBadges(){
+    return {
+      Near: _nearUsers.size,
+      Contacts: 0,
+      Feed: 0
+    };
   }
 };
 
@@ -419,7 +454,7 @@ function renderFeedTab(el){
   const networks=state.networks||[];
   el.innerHTML=`
     <details style="margin-bottom:12px">
-      <summary style="font-size:11px;color:var(--accent);cursor:pointer;padding:4px 0">Configure social networks</summary>
+      <summary style="font-size:11px;color:var(--accent);cursor:pointer;padding:4px 0">Configure social networks (moved to Profile > Spheres)</summary>
       <div style="margin-top:10px">
         ${SOCIAL_NETWORKS.map(n=>{
           const saved=networks.find(x=>x.id===n.id)||{};
