@@ -80,9 +80,15 @@ function handlePresence(data, peerId){
     const dist=haversine(_myCoords.lat,_myCoords.lng,data.lat,data.lng);
     if(dist<=NEAR_RADIUS){
       // Near user — put in near list and gossip cache
+      const wasEmpty = _nearUsers.size === 0;
       _nearUsers.set(data.uuid,{profile:data,ts,peerId});
       _gossipCache.set(data.uuid,{profile:data,ts});
-      if(_ctx) _ctx.setNotification?.(_nearUsers.size);
+      // Only notify if new user appeared AND panel is not currently open
+      if(wasEmpty && _nearUsers.size>0 && _ctx){
+        _ctx.setNotification?.(_nearUsers.size);
+      } else if(_nearUsers.size>0 && _ctx){
+        _ctx.setNotification?.(_nearUsers.size);
+      }
       refreshNearUI?.();
       // Check reciprocal contact for call button
       checkReciprocal(data.uuid);
@@ -274,6 +280,8 @@ window.YM_S['social.sphere.js'] = {
   },
 
   renderPanel(container){
+    // Clear notification badge when panel opens
+    if(_ctx) _ctx.setNotification?.(0);
     container.innerHTML='';
     const tabs=document.createElement('div');tabs.className='ym-tabs';
     ['Near','Contacts','Feed'].forEach((t,i)=>{
