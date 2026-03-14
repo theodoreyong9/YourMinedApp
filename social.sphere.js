@@ -452,37 +452,14 @@ function renderContactsTab(el){
 function renderFeedTab(el){
   const state=loadState();
   const networks=state.networks||[];
-  el.innerHTML=`
-    <details style="margin-bottom:12px">
-      <summary style="font-size:11px;color:var(--accent);cursor:pointer;padding:4px 0">Configure social networks (moved to Profile > Spheres)</summary>
-      <div style="margin-top:10px">
-        ${SOCIAL_NETWORKS.map(n=>{
-          const saved=networks.find(x=>x.id===n.id)||{};
-          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <div style="width:80px;font-size:11px;color:var(--text2);flex-shrink:0">${n.label}</div>
-            <input class="ym-input" data-network="${n.id}" placeholder="${n.hint}" value="${saved.handle||''}" style="flex:1;font-size:11px">
-          </div>`;
-        }).join('')}
-        <button class="ym-btn ym-btn-accent" id="feed-save-networks" style="width:100%">Save</button>
-      </div>
-    </details>
-    <div id="feed-items" style="display:flex;flex-direction:column;gap:10px">
-      <div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">Loading feed…</div>
-    </div>
-  `;
-
-  el.querySelector('#feed-save-networks')?.addEventListener('click',()=>{
-    const saved=[];
-    el.querySelectorAll('[data-network]').forEach(inp=>{
-      if(inp.value.trim()) saved.push({id:inp.dataset.network,handle:inp.value.trim()});
-    });
-    saveState({networks:saved});
-    window.YM_toast?.('Networks saved','success');
-    loadAndRenderFeed(el.querySelector('#feed-items'),saved);
-  });
-
-  if(networks.length) loadAndRenderFeed(el.querySelector('#feed-items'),networks);
-  else el.querySelector('#feed-items').innerHTML=`<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">Configure your social networks above to see your feed</div>`;
+  el.innerHTML='';
+  const hint=document.createElement('div');
+  hint.style.cssText='font-size:11px;color:var(--text3);padding:4px 0 10px;text-align:center';
+  hint.textContent='Configure your social networks in Profile → Spheres tab';
+  el.appendChild(hint);
+  const items=document.createElement('div');items.id='feed-items';items.style.cssText='display:flex;flex-direction:column;gap:10px';
+  if(networks.length){items.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:12px">Loading…</div>';el.appendChild(items);loadAndRenderFeed(items,networks);}
+  else{items.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:24px">No social networks configured yet.</div>';el.appendChild(items);}
 }
 
 async function loadAndRenderFeed(container,networks){
