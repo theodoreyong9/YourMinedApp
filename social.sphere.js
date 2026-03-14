@@ -298,31 +298,64 @@ window.YM_S['social.sphere.js'] = {
     return p.uuid?{type:'social:presence',uuid:p.uuid,name:p.name,bio:p.bio,avatar:p.avatar,spheres:p.spheres}:null;
   },
 
-  // Called from Profile panel Spheres tab
+  // Called from Profile panel Spheres tab — renders social identity fields
   profileSection(container){
-    const SOCIAL_NET_LABEL = 'Social Networks';
-    const state=loadState();
-    const networks=state.networks||[];
-    const allNets = SOCIAL_NETWORKS.map(n=>{
-      const saved=networks.find(x=>x.id===n.id)||{};
-      return {id:n.id, label:n.label, hint:n.hint, handle:saved.handle||''};
+    const state = loadState();
+    const networks = state.networks || [];
+    const prof = _ctx?.loadProfile?.() ?? {};
+    // --- Identity fields ---
+    const ident = document.createElement('div');
+    ident.innerHTML =
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
+      + '<div id="soc-pav" style="width:64px;height:64px;border-radius:50%;background:var(--surface3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;overflow:hidden;flex-shrink:0">'
+      + (prof.avatar ? '<img src="'+prof.avatar+'" style="width:100%;height:100%;object-fit:cover">' : '&#128100;')
+      + '</div>'
+      + '<div style="flex:1;display:flex;flex-direction:column;gap:6px">'
+      + '<input class="ym-input" id="soc-name" placeholder="Display name" value="'+(prof.name||'')+'" style="font-size:12px">'
+      + '<input class="ym-input" id="soc-site" placeholder="Website" value="'+(prof.site||'')+'" style="font-size:12px">'
+      + '</div></div>'
+      + '<textarea class="ym-input" id="soc-bio" placeholder="Short bio" style="height:52px;font-size:12px;margin-bottom:8px">'+(prof.bio||'')+'</textarea>'
+      + '<button class="ym-btn ym-btn-accent" id="soc-save" style="width:100%;margin-bottom:14px">Save identity</button>';
+    container.appendChild(ident);
+    ident.querySelector('#soc-pav').addEventListener('click', () => {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = () => { const r = new FileReader(); r.onload = e => { _ctx?.saveProfile?.({avatar:e.target.result}); ident.querySelector('#soc-pav').innerHTML = '<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">'; }; r.readAsDataURL(inp.files[0]); };
+      inp.click();
     });
-    const el=document.createElement('div');
-    el.innerHTML='<div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-d,monospace)">'+SOCIAL_NET_LABEL+'</div>';
-    allNets.forEach(n=>{
-      const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
-      row.innerHTML='<div style="width:80px;font-size:11px;color:var(--text2);flex-shrink:0">'+n.label+'</div>';
-      const inp=document.createElement('input');inp.className='ym-input';inp.placeholder=n.hint;inp.value=n.handle;inp.style.cssText='flex:1;font-size:11px';inp.dataset.networkId=n.id;
-      inp.addEventListener('change',()=>{
-        const cur=loadState().networks||[];const idx=cur.findIndex(x=>x.id===n.id);
-        if(inp.value.trim()){if(idx>=0)cur[idx].handle=inp.value.trim();else cur.push({id:n.id,handle:inp.value.trim()});}
-        else{if(idx>=0)cur.splice(idx,1);}
-        saveState({networks:cur});
+    ident.querySelector('#soc-save').addEventListener('click', () => {
+      _ctx?.saveProfile?.({
+        name: ident.querySelector('#soc-name').value,
+        bio:  ident.querySelector('#soc-bio').value,
+        site: ident.querySelector('#soc-site').value,
       });
-      row.appendChild(inp);el.appendChild(row);
+      window.YM_toast?.('Social profile saved', 'success');
     });
-    container.appendChild(el);
-  },
+    // --- Social networks ---
+    const netTitle = document.createElement('div');
+    netTitle.style.cssText = 'font-family:var(--font-d,monospace);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px';
+    netTitle.textContent = 'Social Networks';
+    container.appendChild(netTitle);
+    SOCIAL_NETWORKS.forEach(n => {
+      const saved = networks.find(x => x.id === n.id) || {};
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:7px';
+      const lbl = document.createElement('div');
+      lbl.style.cssText = 'width:76px;font-size:10px;color:var(--text2);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      lbl.textContent = n.label;
+      const inp = document.createElement('input');
+      inp.className = 'ym-input'; inp.placeholder = n.hint; inp.value = saved.handle || '';
+      inp.style.cssText = 'flex:1;font-size:11px'; inp.dataset.networkId = n.id;
+      inp.addEventListener('change', () => {
+        const cur = loadState().networks || [];
+        const idx = cur.findIndex(x => x.id === n.id);
+        if (inp.value.trim()) {
+          if (idx >= 0) cur[idx].handle = inp.value.trim(); else cur.push({id:n.id, handle:inp.value.trim()});
+        } else { if (idx >= 0) cur.splice(idx, 1); }
+        saveState({networks: cur});
+      });
+      row.appendChild(lbl); row.appendChild(inp); container.appendChild(row);
+    });
+  },,
 
   // Tab badge counts for notification indicators
   getTabBadges(){
