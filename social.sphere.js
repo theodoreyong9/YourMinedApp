@@ -262,7 +262,7 @@ window.YM_S['social.sphere.js'] = {
     // Broadcast immediately if we have location
     if(_myCoords) broadcastPresence();
     // Add profile section header button for social
-    ctx.addHeaderBtn('🌐',()=>ctx.openPanel(body=>this.renderPanel(body)));
+
   },
 
   deactivate(){
