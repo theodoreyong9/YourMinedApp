@@ -76,24 +76,25 @@ function handlePresence(data, peerId){
   // Check if already a direct contact
   const isContact=!!getContact(data.uuid);
 
+  // Determine proximity:
+  // - If both have coords: haversine check within NEAR_RADIUS
+  // - If either has no coords: treat as "near" (same P2P room = close enough for testing)
+  let isNear = false;
   if(_myCoords && data.lat && data.lng){
     const dist=haversine(_myCoords.lat,_myCoords.lng,data.lat,data.lng);
-    if(dist<=NEAR_RADIUS){
-      // Near user — put in near list and gossip cache
-      const wasEmpty = _nearUsers.size === 0;
-      _nearUsers.set(data.uuid,{profile:data,ts,peerId});
-      _gossipCache.set(data.uuid,{profile:data,ts});
-      // Only notify if new user appeared AND panel is not currently open
-      if(wasEmpty && _nearUsers.size>0 && _ctx){
-        _ctx.setNotification?.(_nearUsers.size);
-      } else if(_nearUsers.size>0 && _ctx){
-        _ctx.setNotification?.(_nearUsers.size);
-      }
-      refreshNearUI?.();
-      // Check reciprocal contact for call button
-      checkReciprocal(data.uuid);
-      return;
-    }
+    isNear = dist<=NEAR_RADIUS;
+  } else {
+    // No GPS: same P2P room = assume nearby (good for testing / indoor)
+    isNear = true;
+  }
+  if(isNear){
+    const wasNew = !_nearUsers.has(data.uuid);
+    _nearUsers.set(data.uuid,{profile:data,ts,peerId});
+    _gossipCache.set(data.uuid,{profile:data,ts});
+    if(wasNew && _ctx) _ctx.setNotification?.(_nearUsers.size);
+    refreshNearUI?.();
+    checkReciprocal(data.uuid);
+    return;
   }
   // Not in range — check if it's a gossip (already in cache, uuid not near)
   if(!_nearUsers.has(data.uuid)&&!isContact){
@@ -250,8 +251,19 @@ window.YM_S['social.sphere.js'] = {
   async activate(ctx){
     _ctx=ctx;
     startGeo();
+    // Periodic presence broadcast (every 8s) even if geo doesn't update
+    const _broadcastInterval = setInterval(()=>broadcastPresence(), 8000);
+    // On peer join: immediately send our presence and request theirs
+    window.addEventListener('ym:peer-join', e=>{
+      setTimeout(()=>{
+        broadcastPresence();
+        // Ask peer to send their presence
+        ctx.send('social:presence-req', {}, e.detail.peerId);
+      }, 500);
+    });
     ctx.onReceive((type,data,peerId)=>{
       if(type==='social:presence') handlePresence(data,peerId);
+      if(type==='social:presence-req') broadcastPresence(); // reply with our presence
       else if(type==='social:call-offer') handleCallOffer({...data,from:peerId});
       else if(type==='social:call-answer' && _peerConnection) _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
       else if(type==='social:ice' && _peerConnection) _peerConnection.addIceCandidate(data.candidate).catch(()=>{});
@@ -274,6 +286,7 @@ window.YM_S['social.sphere.js'] = {
   deactivate(){
     stopGeo();
     clearInterval(_feedTimer);
+    // _broadcastInterval cleared by closure
     if(_peerConnection){_peerConnection.close();_peerConnection=null;}
     _nearUsers.clear();_gossipCache.clear();
     _ctx=null;
