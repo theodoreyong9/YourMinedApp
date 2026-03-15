@@ -544,7 +544,7 @@ function renderNearTab(el){
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
       <div style="font-size:10px;color:var(--text3)">Within ${NEAR_RADIUS}m · ${near.length} online</div>
-      <div style="margin-left:auto;font-size:10px;color:var(--${_myCoords?'green':'red'})">${_myCoords?'📍 GPS':'📍 No GPS'}</div>
+      <div style="margin-left:auto;font-size:10px;color:var(--text3)">${_myCoords?'📍':'🌐'} ${_myCoords?(_myCoords.lat.toFixed(3)+','+_myCoords.lng.toFixed(3)):'P2P room'}</div>
     </div>
   `;
 
