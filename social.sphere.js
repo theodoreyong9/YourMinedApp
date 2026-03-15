@@ -378,6 +378,17 @@ window.YM_S['social.sphere.js'] = {
 
   async activate(ctx){
     _ctx = ctx;
+
+    // Initialise _refreshNear immédiatement — fonctionne même si le panel n'est pas ouvert
+    _refreshNear=()=>{
+      const content=document.getElementById('social-tab-content');
+      if(!content) return;
+      const activeTab=content.closest('[style*="flex"]')?.querySelector('.ym-tab.active');
+      const tab=activeTab?.dataset?.tab;
+      if(tab==='Near') renderNearTab(content);
+      else if(tab==='Contacts') renderContactsTab(content);
+    };
+
     startGeo();
     startHeartbeat();
 
@@ -587,15 +598,6 @@ function renderNearTab(el){
       }));
     });
   }
-  _refreshNear=()=>{
-    const activeTab=document.querySelector('#social-tab-content')
-      ?.closest('[style*="flex"]')?.querySelector('.ym-tab.active');
-    const tab=activeTab?.dataset?.tab;
-    const content=document.getElementById('social-tab-content');
-    if(!content) return;
-    if(tab==='Near') renderNearTab(content);
-    else if(tab==='Contacts') renderContactsTab(content);
-  };
 }
 
 // ── CONTACTS TAB ──────────────────────────────────────────────────────────────
