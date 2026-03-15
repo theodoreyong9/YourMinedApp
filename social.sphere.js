@@ -376,24 +376,9 @@ window.YM_S['social.sphere.js'] = {
   },
 
   profileSection(container){
-    const state = loadState();
-    const networks = state.networks || [];
-    const prof = _ctx?.loadProfile?.() ?? {};
-    const myUUID = prof.uuid;
-
-    // ── Share / QR en tête ──────────────────────────────────
-    const shareCard = document.createElement('div');
-    shareCard.className='ym-card';shareCard.style.marginBottom='14px';
-    shareCard.innerHTML=`<div class="ym-card-title">Share your profile</div>
-      <div id="soc-qr" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 0"></div>
-      <div style="font-family:var(--font-m);font-size:9px;color:var(--text3);text-align:center;word-break:break-all;margin-bottom:8px">${myUUID||''}</div>
-      <button class="ym-btn ym-btn-ghost" id="soc-copy-uuid" style="width:100%;font-size:11px">⧉ Copy UUID</button>`;
-    container.appendChild(shareCard);
-    if(myUUID){
-      const qrEl=shareCard.querySelector('#soc-qr');
-      if(window.QRCode)generateQR(myUUID,qrEl);
-      shareCard.querySelector('#soc-copy-uuid')?.addEventListener('click',()=>{navigator.clipboard?.writeText(myUUID);window.YM_toast?.('UUID copied','success');});
-    }
+    const state=loadState();
+    const networks=state.networks||[];
+    const prof=_ctx?.loadProfile?.()??{};
 
     // ── Identité ────────────────────────────────────────────
     const ident = document.createElement('div');
