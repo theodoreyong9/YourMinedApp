@@ -107,10 +107,14 @@ function handlePresence(data, peerId){
   }
 
   if(isNear){
+    const wasNew=!_nearUsers.has(data.uuid);
     _nearUsers.set(data.uuid, {profile:data, ts, peerId});
     _gossipCache.set(data.uuid, {profile:data, ts});
-    if(_ctx) _ctx.setNotification?.(_nearUsers.size);
-    _refreshNear?.(); // refresh à chaque update, pas seulement les nouveaux
+    if(wasNew){
+      if(_ctx) _ctx.setNotification?.(_nearUsers.size);
+      _incTabBadge('Near'); // badge sur l'onglet Near
+    }
+    _refreshNear?.();
     // Met à jour le contact stocké si on l'a
     const contact=getContact(data.uuid);
     if(contact){
@@ -427,7 +431,7 @@ window.YM_S['social.sphere.js'] = {
       tab.addEventListener('click',()=>{
         container.querySelectorAll('.ym-tab').forEach(x=>x.classList.remove('active'));
         tab.classList.add('active');
-        if(t==='Near')_ctx?.setNotification?.(0);
+        if(t==='Near'){_ctx?.setNotification?.(0);_clearTabBadge('Near');}
         renderSocialTabInto(content,t);
       });
       tabs.appendChild(tab);
@@ -532,7 +536,28 @@ window.YM_S['social.sphere.js'] = {
   }
 };
 
-// ── TABS ──────────────────────────────────────────────────────────────────────
+// Compteurs de badges par onglet
+const _tabBadges={Near:0,Contacts:0,Feed:0};
+
+function _incTabBadge(tab){
+  _tabBadges[tab]=(_tabBadges[tab]||0)+1;
+  _updateTabBadgeUI(tab);
+}
+function _clearTabBadge(tab){
+  _tabBadges[tab]=0;
+  _updateTabBadgeUI(tab);
+}
+function _updateTabBadgeUI(tab){
+  const t=document.querySelector(`#social-tab-content`)
+    ?.closest('[style*="flex"]')?.querySelector(`.ym-tab[data-tab="${tab}"]`);
+  if(!t) return;
+  let badge=t.querySelector('.ym-tab-badge');
+  const count=_tabBadges[tab]||0;
+  if(count>0){
+    if(!badge){badge=document.createElement('span');badge.className='ym-tab-badge';t.appendChild(badge);}
+    badge.textContent=count;
+  }else if(badge){badge.remove();}
+}
 function renderSocialTabInto(content,tab){
   content.innerHTML='';
   if(tab==='Near')          renderNearTab(content);
