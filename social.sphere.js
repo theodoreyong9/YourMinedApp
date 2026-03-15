@@ -371,13 +371,10 @@ window.YM_S['social.sphere.js'] = {
     startGeo();
     startHeartbeat();
 
-    // Sur connexion d'un pair : envoie immédiatement notre profil complet
-    window.addEventListener('ym:peer-join', e=>{
-      setTimeout(()=>broadcastPresence(), 300);
-    });
+    window.addEventListener('ym:peer-join', ()=>setTimeout(broadcastPresence, 300));
 
     ctx.onReceive((type,data,peerId)=>{
-      if(type==='social:presence')       handlePresence(data, peerId);
+      if(type==='social:presence')          handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
       else if(type==='social:call-offer')   handleCallOffer({...data,from:peerId});
       else if(type==='social:call-answer' && _peerConnection) _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
@@ -385,8 +382,15 @@ window.YM_S['social.sphere.js'] = {
       else if(type==='social:call-end' && _callPeer===peerId) hangUp();
     });
 
-    // Nettoyage toutes les 5s (expiration near + gossip)
     _cleanTimer = setInterval(cleanGossip, 5000);
+
+    // Relance le heartbeat quand l'écran se réveille
+    document.addEventListener('visibilitychange', ()=>{
+      if(!document.hidden){
+        startHeartbeat(); // repart depuis zéro
+        broadcastPresence();
+      }
+    });
   },
 
   deactivate(){
@@ -636,23 +640,51 @@ function renderContactsTab(el){
 
 // ── FEED TAB ──────────────────────────────────────────────────────────────────
 function renderFeedTab(el){
-  const networks=(loadState().networks||[]);
   el.innerHTML='';
-  const hint=document.createElement('div');hint.style.cssText='font-size:11px;color:var(--text3);padding:4px 0 10px;text-align:center';
-  hint.textContent='Configure your social networks in Profile → Spheres tab';
-  el.appendChild(hint);
-  const items=document.createElement('div');items.id='feed-items';items.style.cssText='display:flex;flex-direction:column;gap:10px';
-  if(networks.length){items.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:12px">Loading…</div>';el.appendChild(items);loadAndRenderFeed(items,networks);}
-  else{items.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:24px">No social networks configured yet.</div>';el.appendChild(items);}
+  const subTabs=document.createElement('div');subTabs.className='ym-tabs';
+  ['Nearby','Contacts'].forEach((t,i)=>{
+    const tab=document.createElement('div');
+    tab.className='ym-tab'+(i===0?' active':'');
+    tab.dataset.tab=t;tab.textContent=t;
+    tab.addEventListener('click',()=>{
+      subTabs.querySelectorAll('.ym-tab').forEach(x=>x.classList.remove('active'));
+      tab.classList.add('active');
+      feedContent.innerHTML='';
+      if(t==='Nearby') loadFeedForUsers([..._nearUsers.values()].map(u=>u.profile),feedContent);
+      else loadFeedForUsers(loadContacts().map(c=>c.profile).filter(Boolean),feedContent);
+    });
+    subTabs.appendChild(tab);
+  });
+  el.appendChild(subTabs);
+  const feedContent=document.createElement('div');feedContent.style.cssText='display:flex;flex-direction:column;gap:10px';
+  el.appendChild(feedContent);
+  // Charge Nearby par défaut
+  loadFeedForUsers([..._nearUsers.values()].map(u=>u.profile),feedContent);
 }
 
-async function loadAndRenderFeed(container,networks){
-  container.innerHTML=`<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">Loading…</div>`;
+async function loadFeedForUsers(profiles,container){
+  if(!profiles.length){
+    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No profiles with social networks yet</div>`;
+    return;
+  }
+  container.innerHTML=`<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px">Loading…</div>`;
+  // Collecte tous les réseaux de tous les profils
+  const allNetworks=[];
+  profiles.forEach(p=>{
+    (p.networks||[]).forEach(n=>{
+      if(!allNetworks.find(x=>x.id===n.id&&x.handle===n.handle))
+        allNetworks.push({...n,_owner:p.name||p.uuid?.slice(0,8)});
+    });
+  });
+  if(!allNetworks.length){
+    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No public social networks found in these profiles</div>`;
+    return;
+  }
   try{
-    const items=await fetchFeedItems(networks);
+    const items=await fetchFeedItems(allNetworks);
     container.innerHTML='';
-    if(!items.length){container.innerHTML=`<div style="color:var(--text3);font-size:12px;text-align:center;padding:16px">No posts found.<br>Check your handles are correct.</div>`;return;}
-    items.slice(0,20).forEach(item=>{
+    if(!items.length){container.innerHTML=`<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">No posts found</div>`;return;}
+    items.slice(0,30).forEach(item=>{
       const card=document.createElement('div');card.className='ym-card';card.style.cursor='pointer';
       card.innerHTML=`
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
@@ -661,6 +693,7 @@ async function loadAndRenderFeed(container,networks){
           <span style="font-size:9px;color:var(--text3);margin-left:auto">${new Date(item.ts).toLocaleDateString()}</span>
         </div>
         <div style="font-size:12px;color:var(--text);line-height:1.5">${item.text.slice(0,200)}${item.text.length>200?'…':''}</div>
+        ${item.image?`<img src="${item.image}" style="width:100%;border-radius:var(--r-sm);margin-top:8px;max-height:200px;object-fit:cover" loading="lazy">`:''}
       `;
       if(item.url) card.addEventListener('click',()=>window.open(item.url,'_blank'));
       container.appendChild(card);
@@ -685,22 +718,30 @@ window.YM_Social = {
 function renderProfileView(container,profile){
   const nets=(profile.networks||[]).map(n=>`<span class="pill">${n.id} ${n.handle}</span>`).join('');
   const spheres=(profile.spheres||[]).map(s=>`<span class="pill active">${s.replace('.sphere.js','')}</span>`).join('');
+  // Normalise le site : ajoute https:// si pas de protocole
+  const rawSite=profile.site||'';
+  const siteUrl=rawSite&&!rawSite.startsWith('http')?'https://'+rawSite:rawSite;
+  const isContact=!!getContact(profile.uuid);
   container.innerHTML=`
     <div style="text-align:center;padding:20px 0 12px">
-      <div style="font-size:56px;margin-bottom:8px">${profile.avatar?`<img src="${profile.avatar}" style="width:72px;height:72px;border-radius:50%;object-fit:cover">`:profile.name?profile.name.charAt(0).toUpperCase():'👤'}</div>
+      <div style="margin-bottom:8px">${profile.avatar?`<img src="${profile.avatar}" style="width:72px;height:72px;border-radius:50%;object-fit:cover">`:
+        `<div style="width:72px;height:72px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto">${profile.name?.charAt(0)||'👤'}</div>`}</div>
       <div style="font-size:18px;font-weight:600;margin-bottom:4px">${profile.name||'Anonymous'}</div>
       ${profile.bio?`<div style="font-size:13px;color:var(--text2);max-width:280px;margin:0 auto">${profile.bio}</div>`:''}
-      ${profile.site?`<a href="${profile.site}" target="_blank" style="font-size:11px;color:var(--cyan);display:block;margin-top:4px">${profile.site}</a>`:''}
+      ${siteUrl?`<a href="${siteUrl}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--cyan);display:block;margin-top:6px" onclick="event.stopPropagation()">${rawSite}</a>`:''}
     </div>
-    <div class="ym-card"><div class="ym-card-title">UUID</div><div style="font-family:var(--font-mono);font-size:9px;word-break:break-all;color:var(--text3)">${profile.uuid}</div></div>
     ${nets?`<div class="ym-card"><div class="ym-card-title">Social Networks</div><div style="display:flex;flex-wrap:wrap;gap:4px">${nets}</div></div>`:''}
     ${spheres?`<div class="ym-card"><div class="ym-card-title">Active Spheres</div><div>${spheres}</div></div>`:''}
-    ${profile.pubkey?`<div class="ym-card"><div class="ym-card-title">Wallet</div><div style="font-family:var(--font-mono);font-size:9px;color:var(--text3)">${profile.pubkey}</div></div>`:''}
+    ${profile.pubkey?`<div class="ym-card"><div class="ym-card-title">Wallet</div><div style="font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all">${profile.pubkey}</div></div>`:''}
     <div style="display:flex;gap:8px;margin-top:12px">
-      <button class="ym-btn ym-btn-accent" id="add-contact-btn" style="flex:1">Add to Contacts</button>
+      ${!isContact?'<button class="ym-btn ym-btn-accent" id="add-contact-btn" style="flex:1">+ Add Contact</button>':'<div class="ym-notice success" style="flex:1;justify-content:center">✓ In contacts</div>'}
     </div>
   `;
-  container.querySelector('#add-contact-btn')?.addEventListener('click',()=>{addContact(profile);window.YM_toast?.('Contact added','success');});
+  container.querySelector('#add-contact-btn')?.addEventListener('click',()=>{
+    addContact(profile);
+    window.YM_toast?.('Contact added','success');
+    renderProfileView(container,profile); // refresh le bouton
+  });
 }
 
 // ── USER CARD ──────────────────────────────────────────────────────────────────
@@ -713,14 +754,13 @@ function userCard(profile,type,onAdd){
       <div style="flex:1;min-width:0">
         <div style="font-weight:600;font-size:13px">${profile.name||'Anonymous'}</div>
         ${profile.bio?`<div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${profile.bio}</div>`:''}
-        <div style="font-size:9px;font-family:var(--font-mono);color:var(--text3)">${profile.uuid?.slice(0,8)||''}…</div>
       </div>
-      ${type==='near'?'<span class="pill active">near</span>':''}
+      ${onAdd&&!isContact?`<button class="ym-btn ym-btn-ghost" style="padding:4px 10px;font-size:12px;min-height:unset" data-add>+</button>`:''}
+      ${isContact&&type==='near'?'<span style="font-size:10px;color:var(--green)">✓</span>':''}
     </div>
-    ${onAdd&&!isContact?`<button class="ym-btn ym-btn-ghost" style="width:100%;margin-top:8px;font-size:11px" data-add>+ Add Contact</button>`:''}
   `;
   card.querySelector('[data-add]')?.addEventListener('click',e=>{e.stopPropagation();onAdd?.();});
-  card.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
+  card.addEventListener('click',e=>{if(!e.target.closest('[data-add]'))window.YM_Social?.openProfile?.(profile.uuid);});
   return card;
 }
 
