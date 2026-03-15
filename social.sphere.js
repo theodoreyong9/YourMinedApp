@@ -344,43 +344,41 @@ async function fetchFeedItems(networks){
       }
       if(n.id==='medium' && n.handle){
         const user=n.handle.replace('@','');
-        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://medium.com/feed/@${user}`);
-        const d=await r.json();
-        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Medium',author:user,
-          title:p.title,text:extractText(p.content||p.description||''),
-          image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
-          ts:new Date(p.pubDate).getTime(),url:p.link}));
+        try{
+          const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://medium.com/feed/@'+user)}`);
+          if(!r.ok) throw new Error('skip');
+          const d=await r.json();
+          if(d.status==='ok')(d.items||[]).slice(0,5).forEach(p=>items.push({network:'Medium',author:user,
+            title:p.title,text:extractText(p.content||p.description||''),
+            image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+            ts:new Date(p.pubDate).getTime(),url:p.link}));
+        }catch{}
       }
       if(n.id==='substack' && n.handle){
         const host=n.handle.includes('.')?n.handle:`${n.handle}.substack.com`;
-        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://${host}/feed`);
-        const d=await r.json();
-        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Substack',author:host,
-          title:p.title,text:extractText(p.content||p.description||''),
-          image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
-          ts:new Date(p.pubDate).getTime(),url:p.link}));
+        try{
+          const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://'+host+'/feed')}`);
+          if(!r.ok) throw new Error('skip');
+          const d=await r.json();
+          if(d.status==='ok')(d.items||[]).slice(0,5).forEach(p=>items.push({network:'Substack',author:host,
+            title:p.title,text:extractText(p.content||p.description||''),
+            image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+            ts:new Date(p.pubDate).getTime(),url:p.link}));
+        }catch{}
       }
       if(n.id==='paragraph' && n.handle){
         const handle=n.handle.replace('paragraph.xyz/','').replace('@','');
-        // Essaie plusieurs formats d'URL RSS Paragraph
-        let d=null;
-        for(const rssUrl of[
-          `https://paragraph.xyz/@${handle}/rss`,
-          `https://paragraph.xyz/@${handle}/feed`,
-          `https://api.rss2json.com/v1/api.json?rss_url=https://paragraph.xyz/@${handle}/rss`
-        ]){
-          try{
-            const r=await fetch(rssUrl.startsWith('http://paragraph')||rssUrl.startsWith('https://paragraph')
-              ?`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`
-              :rssUrl);
-            const parsed=await r.json();
-            if(parsed.items?.length){d=parsed;break;}
-          }catch{}
-        }
-        if(d)(d.items||[]).slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,
-          title:p.title,text:extractText(p.content||p.description||''),
-          image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
-          ts:new Date(p.pubDate).getTime(),url:p.link}));
+        try{
+          const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://paragraph.xyz/@'+handle+'/rss')}`);
+          if(!r.ok) throw new Error('skip');
+          const d=await r.json();
+          if(d.status==='ok'&&d.items?.length){
+            d.items.slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,
+              title:p.title,text:extractText(p.content||p.description||''),
+              image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+              ts:new Date(p.pubDate).getTime(),url:p.link}));
+          }
+        }catch{}
       }
       if(n.id==='devto' && n.handle){
         const user=n.handle.replace('@','');
