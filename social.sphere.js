@@ -403,24 +403,31 @@ window.YM_S['social.sphere.js'] = {
   },
 
   renderPanel(container){
-    if(_ctx) _ctx.setNotification?.(0);
+    container.style.cssText='display:flex;flex-direction:column;height:100%';
     container.innerHTML='';
-    const tabs = document.createElement('div'); tabs.className='ym-tabs';
+
+    const content=document.createElement('div');
+    content.id='social-tab-content';
+    content.style.cssText='flex:1;overflow-y:auto;padding:14px';
+    container.appendChild(content);
+
+    const tabs=document.createElement('div');tabs.className='ym-tabs';
+    tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);border-bottom:none;margin:0;flex-shrink:0';
     ['Near','Contacts','Feed'].forEach((t,i)=>{
-      const tab = document.createElement('div');
+      const tab=document.createElement('div');
       tab.className='ym-tab'+(i===0?' active':'');
-      tab.dataset.tab=t; tab.textContent=t;
+      tab.dataset.tab=t;tab.textContent=t;
       tab.addEventListener('click',()=>{
         container.querySelectorAll('.ym-tab').forEach(x=>x.classList.remove('active'));
         tab.classList.add('active');
-        renderSocialTab(container,t);
+        if(t==='Near')_ctx?.setNotification?.(0);
+        renderSocialTabInto(content,t);
       });
       tabs.appendChild(tab);
     });
     container.appendChild(tabs);
-    const content = document.createElement('div'); content.id='social-tab-content';
-    container.appendChild(content);
-    renderSocialTab(container,'Near');
+    if(_ctx)_ctx.setNotification?.(0);
+    renderSocialTabInto(content,'Near');
   },
 
   profileSection(container){
@@ -519,11 +526,9 @@ window.YM_S['social.sphere.js'] = {
 };
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
-function renderSocialTab(container,tab){
-  const content=container.querySelector('#social-tab-content');
-  if(!content) return;
+function renderSocialTabInto(content,tab){
   content.innerHTML='';
-  if(tab==='Near')     renderNearTab(content);
+  if(tab==='Near')          renderNearTab(content);
   else if(tab==='Contacts') renderContactsTab(content);
   else if(tab==='Feed')     renderFeedTab(content);
 }
@@ -551,9 +556,8 @@ function renderNearTab(el){
     });
   }
   _refreshNear=()=>{
-    // Ne re-render que si l'onglet Near est actif
-    const activeTab=document.querySelector('#social-tab-content')?.closest('[id]')
-      ?.parentElement?.querySelector('.ym-tab.active');
+    const activeTab=document.querySelector('#social-tab-content')
+      ?.closest('[style*="flex"]')?.querySelector('.ym-tab.active');
     if(activeTab?.dataset?.tab==='Near') renderNearTab(el);
   };
 }
@@ -561,16 +565,17 @@ function renderNearTab(el){
 // ── CONTACTS TAB ──────────────────────────────────────────────────────────────
 function renderContactsTab(el){
   const contacts=loadContacts();
-  el.innerHTML=`<input class="ym-input" id="contacts-search" placeholder="Search contacts…" style="margin-bottom:10px">`;
+  el.innerHTML='';
 
-  // Add by UUID + QR scan en haut des contacts
+  // Add contact au-dessus de search
   const addSection=document.createElement('div');addSection.className='ym-card';addSection.style.marginBottom='12px';
-  addSection.innerHTML=`<div class="ym-card-title">Add contact</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
+  addSection.innerHTML=`
+    <div class="ym-card-title">Add contact</div>
+    <div style="display:flex;gap:8px;margin-bottom:0">
+      <button class="ym-btn ym-btn-ghost" id="scan-qr-btn" style="padding:0 10px;font-size:16px;flex-shrink:0" title="Scan QR">📷</button>
       <input class="ym-input" id="add-uuid-input" placeholder="UUID…" style="flex:1">
-      <button class="ym-btn ym-btn-accent" id="add-uuid-btn">Add</button>
+      <button class="ym-btn ym-btn-accent" id="add-uuid-btn" style="flex-shrink:0">Add</button>
     </div>
-    <button class="ym-btn ym-btn-ghost" id="scan-qr-btn" style="width:100%;font-size:11px">📷 Scan QR code</button>
     <div id="qr-scanner-container" style="display:none;margin-top:10px"></div>`;
   el.appendChild(addSection);
 
@@ -582,24 +587,27 @@ function renderContactsTab(el){
     el.querySelector('#add-uuid-input').value='';
     renderContactsTab(el);
   });
-
   el.querySelector('#scan-qr-btn')?.addEventListener('click',()=>{
-    const scanContainer=el.querySelector('#qr-scanner-container');
-    if(scanContainer.style.display!=='none'){scanContainer.style.display='none';scanContainer.innerHTML='';return;}
-    scanContainer.style.display='block';
-    startQRScanner(scanContainer, uuid=>{
-      scanContainer.style.display='none';scanContainer.innerHTML='';
+    const sc=el.querySelector('#qr-scanner-container');
+    if(sc.style.display!=='none'){sc.style.display='none';sc.innerHTML='';return;}
+    sc.style.display='block';
+    startQRScanner(sc,uuid=>{
+      sc.style.display='none';sc.innerHTML='';
       if(!uuid){window.YM_toast?.('No QR detected','warn');return;}
-      // Format : yourmine://contact/<uuid>
       const m=uuid.match(/yourmine:\/\/contact\/([a-f0-9-]{36})/);
-      const id=m?m[1]:uuid;
-      addContact({uuid:id,name:'Unknown',addedVia:'qr'});
+      addContact({uuid:m?m[1]:uuid,name:'Unknown',addedVia:'qr'});
       window.YM_toast?.('Contact added via QR','success');
       renderContactsTab(el);
     });
   });
 
-  const listEl=document.createElement('div');listEl.id='contacts-list';el.appendChild(listEl);
+  // Search
+  const searchInput=document.createElement('input');
+  searchInput.className='ym-input';searchInput.id='contacts-search';
+  searchInput.placeholder='Search contacts…';searchInput.style.marginBottom='10px';
+  el.appendChild(searchInput);
+
+  const listEl=document.createElement('div');el.appendChild(listEl);
 
   function renderFiltered(q=''){
     const filtered=contacts.filter(c=>{
@@ -610,32 +618,61 @@ function renderContactsTab(el){
     if(!filtered.length){listEl.innerHTML=`<div style="color:var(--text3);font-size:12px;padding:8px">No contacts yet</div>`;return;}
     filtered.forEach(c=>{
       const profile=c.profile||{uuid:c.uuid,name:c.nickname||c.name||'Unknown'};
-      const card=userCard(profile,'contact',null);
+      const card=document.createElement('div');card.className='ym-card';
+      card.style.cssText='cursor:pointer;position:relative';
+
+      // Croix remove dans le coin
+      const delX=document.createElement('div');
+      delX.style.cssText='position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;color:var(--text3);z-index:2';
+      delX.textContent='×';
+      delX.addEventListener('click',e=>{e.stopPropagation();saveContacts(loadContacts().filter(x=>x.uuid!==c.uuid));renderContactsTab(el);});
+      card.appendChild(delX);
+
+      // Avatar + nom
+      const avatar=profile.avatar?`<img src="${profile.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`:`<div style="width:36px;height:36px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:16px">${profile.name?.charAt(0)||'👤'}</div>`;
+      const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;padding-right:24px';
+      row.innerHTML=`<div style="flex-shrink:0">${avatar}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${c.nickname||profile.name||'Anonymous'}</div>
+          ${profile.bio?`<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${profile.bio}</div>`:''}
+        </div>`;
+      card.appendChild(row);
+
+      // Nickname input — stopPropagation pour éviter d'ouvrir le profil
+      const nickWrap=document.createElement('div');nickWrap.style.marginTop='8px';
       const nickInput=document.createElement('input');
-      nickInput.className='ym-input';nickInput.style.cssText='margin-top:8px;font-size:11px';
+      nickInput.className='ym-input';nickInput.style.fontSize='11px';
       nickInput.placeholder='Set nickname…';nickInput.value=c.nickname||'';
-      nickInput.addEventListener('change',()=>{updateNickname(c.uuid,nickInput.value);window.YM_toast?.('Nickname saved','success');});
-      card.appendChild(nickInput);
-      // Affiche les réseaux sociaux connus du contact
+      nickInput.addEventListener('click',e=>e.stopPropagation());
+      nickInput.addEventListener('pointerdown',e=>e.stopPropagation());
+      nickInput.addEventListener('change',e=>{
+        e.stopPropagation();
+        updateNickname(c.uuid,nickInput.value);
+        window.YM_toast?.('Nickname saved','success');
+        renderContactsTab(el);
+      });
+      nickWrap.appendChild(nickInput);card.appendChild(nickWrap);
+
+      // Réseaux connus
       if(profile.networks?.length){
-        const nets=document.createElement('div');nets.style.cssText='margin-top:8px;display:flex;flex-wrap:wrap;gap:4px';
+        const nets=document.createElement('div');nets.style.cssText='margin-top:6px;display:flex;flex-wrap:wrap;gap:4px';
         profile.networks.forEach(n=>{const p=document.createElement('span');p.className='pill';p.textContent=n.id+' '+n.handle;nets.appendChild(p);});
         card.appendChild(nets);
       }
+      // Appel vocal si proche
       const nearEntry=_nearUsers.get(c.uuid);
       if(nearEntry){
         const callBtn=document.createElement('button');callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:8px;font-size:12px';
-        callBtn.textContent='📞 Voice Call';callBtn.addEventListener('click',()=>startVoiceCall(nearEntry.peerId));
+        callBtn.textContent='📞 Voice Call';
+        callBtn.addEventListener('click',e=>{e.stopPropagation();startVoiceCall(nearEntry.peerId);});
         card.appendChild(callBtn);
       }
-      const delBtn=document.createElement('button');delBtn.className='ym-btn ym-btn-danger';delBtn.style.cssText='width:100%;margin-top:6px;font-size:11px';
-      delBtn.textContent='Remove';delBtn.addEventListener('click',()=>{saveContacts(loadContacts().filter(x=>x.uuid!==c.uuid));renderContactsTab(el);});
-      card.appendChild(delBtn);
+      card.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
       listEl.appendChild(card);
     });
   }
   renderFiltered();
-  el.querySelector('#contacts-search')?.addEventListener('input',e=>renderFiltered(e.target.value));
+  searchInput.addEventListener('input',e=>renderFiltered(e.target.value));
 }
 
 // ── FEED TAB ──────────────────────────────────────────────────────────────────
@@ -710,6 +747,9 @@ window.YM_Social = {
     const body=document.getElementById('panel-sphere-body');
     if(!body) return;
     document.getElementById('sphere-panel-title').textContent=profile.name||uuid.slice(0,8)+'…';
+    // Cache le bouton ⚙ — ce n'est pas une sphère
+    const settingsBtn=document.getElementById('sphere-panel-settings');
+    if(settingsBtn) settingsBtn.style.display='none';
     renderProfileView(body,profile);
     window.YM?.openPanel?.('panel-sphere');
   }
@@ -718,29 +758,32 @@ window.YM_Social = {
 function renderProfileView(container,profile){
   const nets=(profile.networks||[]).map(n=>`<span class="pill">${n.id} ${n.handle}</span>`).join('');
   const spheres=(profile.spheres||[]).map(s=>`<span class="pill active">${s.replace('.sphere.js','')}</span>`).join('');
-  // Normalise le site : ajoute https:// si pas de protocole
   const rawSite=profile.site||'';
   const siteUrl=rawSite&&!rawSite.startsWith('http')?'https://'+rawSite:rawSite;
   const isContact=!!getContact(profile.uuid);
+  const contactBar=isContact
+    ?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:var(--r-sm)"><span style="color:var(--green);font-size:12px;flex:1">✓ In contacts</span><button class="ym-btn ym-btn-danger" id="remove-contact-btn" style="padding:4px 10px;font-size:11px;min-height:unset">Remove</button></div>`
+    :`<button class="ym-btn ym-btn-accent" id="add-contact-btn" style="width:100%;margin-bottom:12px">+ Add Contact</button>`;
   container.innerHTML=`
-    <div style="text-align:center;padding:20px 0 12px">
-      <div style="margin-bottom:8px">${profile.avatar?`<img src="${profile.avatar}" style="width:72px;height:72px;border-radius:50%;object-fit:cover">`:
+    ${contactBar}
+    <div style="text-align:center;padding:12px 0">
+      <div style="margin-bottom:8px">${profile.avatar?
+        `<img src="${profile.avatar}" style="width:72px;height:72px;border-radius:50%;object-fit:cover">`:
         `<div style="width:72px;height:72px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto">${profile.name?.charAt(0)||'👤'}</div>`}</div>
       <div style="font-size:18px;font-weight:600;margin-bottom:4px">${profile.name||'Anonymous'}</div>
       ${profile.bio?`<div style="font-size:13px;color:var(--text2);max-width:280px;margin:0 auto">${profile.bio}</div>`:''}
-      ${siteUrl?`<a href="${siteUrl}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--cyan);display:block;margin-top:6px" onclick="event.stopPropagation()">${rawSite}</a>`:''}
+      ${siteUrl?`<a href="${siteUrl}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--cyan);display:block;margin-top:6px">${rawSite}</a>`:''}
     </div>
     ${nets?`<div class="ym-card"><div class="ym-card-title">Social Networks</div><div style="display:flex;flex-wrap:wrap;gap:4px">${nets}</div></div>`:''}
     ${spheres?`<div class="ym-card"><div class="ym-card-title">Active Spheres</div><div>${spheres}</div></div>`:''}
     ${profile.pubkey?`<div class="ym-card"><div class="ym-card-title">Wallet</div><div style="font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all">${profile.pubkey}</div></div>`:''}
-    <div style="display:flex;gap:8px;margin-top:12px">
-      ${!isContact?'<button class="ym-btn ym-btn-accent" id="add-contact-btn" style="flex:1">+ Add Contact</button>':'<div class="ym-notice success" style="flex:1;justify-content:center">✓ In contacts</div>'}
-    </div>
   `;
   container.querySelector('#add-contact-btn')?.addEventListener('click',()=>{
-    addContact(profile);
-    window.YM_toast?.('Contact added','success');
-    renderProfileView(container,profile); // refresh le bouton
+    addContact(profile);window.YM_toast?.('Contact added','success');renderProfileView(container,profile);
+  });
+  container.querySelector('#remove-contact-btn')?.addEventListener('click',()=>{
+    saveContacts(loadContacts().filter(x=>x.uuid!==profile.uuid));
+    window.YM_toast?.('Contact removed','info');renderProfileView(container,profile);
   });
 }
 
