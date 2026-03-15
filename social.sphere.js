@@ -260,23 +260,31 @@ function startQRScanner(container, onResult){
   });
 }
 
-// ── FEED ────────────────────────────────────────────────────────────────────
-// Réseaux avec API publique extractible sans PKCE
+// ── RÉSEAUX SOCIAUX ───────────────────────────────────────────────────────────
+// Réseaux avec API publique extractible sans auth/PKCE → feed actif
 const FEED_NETWORKS = [
-  {id:'mastodon', label:'Mastodon', hint:'@user@instance.social'},
-  {id:'bluesky',  label:'Bluesky',  hint:'@handle.bsky.social'},
-  {id:'github',   label:'GitHub',   hint:'@username'},
+  {id:'mastodon',  label:'Mastodon',     hint:'@user@instance.social'},
+  {id:'bluesky',   label:'Bluesky',      hint:'@handle.bsky.social'},
+  {id:'github',    label:'GitHub',       hint:'@username'},
+  {id:'paragraph', label:'Paragraph.xyz',hint:'paragraph.xyz/@handle'},
+  {id:'medium',    label:'Medium',       hint:'@username'},
+  {id:'reddit',    label:'Reddit',       hint:'u/username'},
+  {id:'substack',  label:'Substack',     hint:'username.substack.com'},
+  {id:'devto',     label:'Dev.to',       hint:'@username'},
+  {id:'hashnode',  label:'Hashnode',     hint:'@username'},
 ];
 
-// Réseaux affichés dans le profil mais sans extraction de contenu
+// Réseaux affichés dans le profil partagé mais sans extraction de feed (OAuth requis)
 const PROFILE_ONLY_NETWORKS = [
-  {id:'x',        label:'X',         hint:'@username'},
-  {id:'linkedin', label:'LinkedIn',  hint:'linkedin.com/in/handle'},
-  {id:'instagram',label:'Instagram', hint:'@username'},
-  {id:'youtube',  label:'YouTube',   hint:'@channel'},
+  {id:'x',         label:'X',            hint:'@username'},
+  {id:'linkedin',  label:'LinkedIn',     hint:'linkedin.com/in/handle'},
+  {id:'instagram', label:'Instagram',    hint:'@username'},
+  {id:'youtube',   label:'YouTube',      hint:'@channel'},
+  {id:'twitch',    label:'Twitch',       hint:'@username'},
+  {id:'tiktok',    label:'TikTok',       hint:'@username'},
 ];
 
-const ALL_NETWORKS = [...FEED_NETWORKS, ...PROFILE_ONLY_NETWORKS];
+const ALL_NETWORKS=[...FEED_NETWORKS,...PROFILE_ONLY_NETWORKS];
 
 async function fetchFeedItems(networks){
   const items = [];
@@ -299,12 +307,48 @@ async function fetchFeedItems(networks){
         });
       }
       if(n.id==='github' && n.handle){
-        const user = n.handle.replace('@','');
-        const events = await (await fetch(`https://api.github.com/users/${user}/events/public?per_page=5`)).json();
+        const user=n.handle.replace('@','');
+        const events=await(await fetch(`https://api.github.com/users/${user}/events/public?per_page=5`)).json();
         events.filter(e=>e.type==='PushEvent').forEach(e=>{
-          const msg = e.payload?.commits?.[0]?.message||'pushed';
+          const msg=e.payload?.commits?.[0]?.message||'pushed';
           items.push({network:'GitHub',author:user,text:msg,ts:new Date(e.created_at).getTime(),url:`https://github.com/${user}`});
         });
+      }
+      if(n.id==='devto' && n.handle){
+        const user=n.handle.replace('@','');
+        const posts=await(await fetch(`https://dev.to/api/articles?username=${user}&per_page=5`)).json();
+        if(Array.isArray(posts)) posts.forEach(p=>items.push({network:'Dev.to',author:user,text:p.title,ts:new Date(p.published_at).getTime(),url:p.url}));
+      }
+      if(n.id==='hashnode' && n.handle){
+        const user=n.handle.replace('@','');
+        const r=await fetch('https://gql.hashnode.com/',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({query:`{user(username:"${user}"){posts(page:1,pageSize:5){nodes{title,url,publishedAt}}}}`})});
+        const d=await r.json();
+        (d.data?.user?.posts?.nodes||[]).forEach(p=>items.push({network:'Hashnode',author:user,text:p.title,ts:new Date(p.publishedAt).getTime(),url:p.url}));
+      }
+      if(n.id==='medium' && n.handle){
+        const user=n.handle.replace('@','');
+        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://medium.com/feed/@${user}`);
+        const d=await r.json();
+        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Medium',author:user,text:p.title,ts:new Date(p.pubDate).getTime(),url:p.link}));
+      }
+      if(n.id==='substack' && n.handle){
+        const host=n.handle.includes('.')?n.handle:`${n.handle}.substack.com`;
+        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://${host}/feed`);
+        const d=await r.json();
+        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Substack',author:host,text:p.title,ts:new Date(p.pubDate).getTime(),url:p.link}));
+      }
+      if(n.id==='paragraph' && n.handle){
+        const handle=n.handle.replace('paragraph.xyz/','').replace('@','');
+        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://paragraph.xyz/@${handle}/feed`);
+        const d=await r.json();
+        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,text:p.title,ts:new Date(p.pubDate).getTime(),url:p.link}));
+      }
+      if(n.id==='reddit' && n.handle){
+        const user=n.handle.replace('u/','').replace('@','');
+        const r=await fetch(`https://www.reddit.com/user/${user}/submitted.json?limit=5`);
+        const d=await r.json();
+        (d.data?.children||[]).forEach(c=>items.push({network:'Reddit',author:user,text:c.data.title,ts:c.data.created_utc*1000,url:`https://reddit.com${c.data.permalink}`}));
       }
     }catch{}
   }
@@ -502,7 +546,12 @@ function renderNearTab(el){
       }));
     });
   }
-  _refreshNear=()=>renderNearTab(el);
+  _refreshNear=()=>{
+    // Ne re-render que si l'onglet Near est actif
+    const activeTab=document.querySelector('#social-tab-content')?.closest('[id]')
+      ?.parentElement?.querySelector('.ym-tab.active');
+    if(activeTab?.dataset?.tab==='Near') renderNearTab(el);
+  };
 }
 
 // ── CONTACTS TAB ──────────────────────────────────────────────────────────────
