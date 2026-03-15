@@ -186,11 +186,78 @@ function hangUp(){
   window.YM_toast?.('Call ended','info');
 }
 
-// ── QR ────────────────────────────────────────────────────────────────────────
+// ── QR SCANNER ────────────────────────────────────────────────────────────────
 function generateQR(uuid, container){
   if(!window.QRCode) return;
   container.innerHTML='';
   new window.QRCode(container,{text:'yourmine://contact/'+uuid,width:120,height:120,correctLevel:QRCode.CorrectLevel.M});
+}
+
+function startQRScanner(container, onResult){
+  // Utilise BarcodeDetector si disponible (Chrome/Android), sinon jsQR comme fallback
+  container.innerHTML=`<div style="position:relative;width:100%;max-width:260px;margin:0 auto">
+    <video id="qr-video" style="width:100%;border-radius:var(--r-sm)" autoplay playsinline muted></video>
+    <canvas id="qr-canvas" style="display:none"></canvas>
+    <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px">Point your camera at a YourMine QR code</div>
+    <button class="ym-btn ym-btn-ghost" id="qr-cancel" style="width:100%;margin-top:6px;font-size:11px">Cancel</button>
+  </div>`;
+
+  let stream=null;
+  let animFrame=null;
+
+  container.querySelector('#qr-cancel').addEventListener('click',()=>{
+    stop();onResult(null);
+  });
+
+  function stop(){
+    if(animFrame)cancelAnimationFrame(animFrame);
+    stream?.getTracks().forEach(t=>t.stop());
+    stream=null;
+  }
+
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(s=>{
+    stream=s;
+    const video=container.querySelector('#qr-video');
+    const canvas=container.querySelector('#qr-canvas');
+    video.srcObject=s;
+    video.play();
+
+    if('BarcodeDetector' in window){
+      const detector=new BarcodeDetector({formats:['qr_code']});
+      async function detect(){
+        if(video.readyState===video.HAVE_ENOUGH_DATA){
+          try{
+            const codes=await detector.detect(video);
+            if(codes.length){stop();onResult(codes[0].rawValue);return;}
+          }catch{}
+        }
+        animFrame=requestAnimationFrame(detect);
+      }
+      animFrame=requestAnimationFrame(detect);
+    }else{
+      // Fallback : charge jsQR dynamiquement
+      const script=document.createElement('script');
+      script.src='https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
+      script.onload=()=>{
+        const ctx=canvas.getContext('2d');
+        function scan(){
+          if(video.readyState===video.HAVE_ENOUGH_DATA){
+            canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+            ctx.drawImage(video,0,0,canvas.width,canvas.height);
+            const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+            const code=window.jsQR?.(img.data,img.width,img.height);
+            if(code){stop();onResult(code.data);return;}
+          }
+          animFrame=requestAnimationFrame(scan);
+        }
+        animFrame=requestAnimationFrame(scan);
+      };
+      document.head.appendChild(script);
+    }
+  }).catch(()=>{
+    container.innerHTML=`<div class="ym-notice error">Camera access denied</div>`;
+    onResult(null);
+  });
 }
 
 // ── FEED ────────────────────────────────────────────────────────────────────
@@ -458,14 +525,17 @@ function renderContactsTab(el){
   const contacts=loadContacts();
   el.innerHTML=`<input class="ym-input" id="contacts-search" placeholder="Search contacts…" style="margin-bottom:10px">`;
 
-  // Add by UUID en haut des contacts
+  // Add by UUID + QR scan en haut des contacts
   const addSection=document.createElement('div');addSection.className='ym-card';addSection.style.marginBottom='12px';
-  addSection.innerHTML=`<div class="ym-card-title">Add by UUID</div>
-    <div style="display:flex;gap:8px">
+  addSection.innerHTML=`<div class="ym-card-title">Add contact</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
       <input class="ym-input" id="add-uuid-input" placeholder="UUID…" style="flex:1">
       <button class="ym-btn ym-btn-accent" id="add-uuid-btn">Add</button>
-    </div>`;
+    </div>
+    <button class="ym-btn ym-btn-ghost" id="scan-qr-btn" style="width:100%;font-size:11px">📷 Scan QR code</button>
+    <div id="qr-scanner-container" style="display:none;margin-top:10px"></div>`;
   el.appendChild(addSection);
+
   el.querySelector('#add-uuid-btn')?.addEventListener('click',()=>{
     const uuid=el.querySelector('#add-uuid-input')?.value?.trim();
     if(!uuid){window.YM_toast?.('Enter a UUID','error');return;}
@@ -473,6 +543,22 @@ function renderContactsTab(el){
     window.YM_toast?.('Contact added','success');
     el.querySelector('#add-uuid-input').value='';
     renderContactsTab(el);
+  });
+
+  el.querySelector('#scan-qr-btn')?.addEventListener('click',()=>{
+    const scanContainer=el.querySelector('#qr-scanner-container');
+    if(scanContainer.style.display!=='none'){scanContainer.style.display='none';scanContainer.innerHTML='';return;}
+    scanContainer.style.display='block';
+    startQRScanner(scanContainer, uuid=>{
+      scanContainer.style.display='none';scanContainer.innerHTML='';
+      if(!uuid){window.YM_toast?.('No QR detected','warn');return;}
+      // Format : yourmine://contact/<uuid>
+      const m=uuid.match(/yourmine:\/\/contact\/([a-f0-9-]{36})/);
+      const id=m?m[1]:uuid;
+      addContact({uuid:id,name:'Unknown',addedVia:'qr'});
+      window.YM_toast?.('Contact added via QR','success');
+      renderContactsTab(el);
+    });
   });
 
   const listEl=document.createElement('div');listEl.id='contacts-list';el.appendChild(listEl);
