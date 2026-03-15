@@ -107,11 +107,17 @@ function handlePresence(data, peerId){
   }
 
   if(isNear){
-    const wasNew = !_nearUsers.has(data.uuid);
     _nearUsers.set(data.uuid, {profile:data, ts, peerId});
     _gossipCache.set(data.uuid, {profile:data, ts});
-    if(wasNew && _ctx) _ctx.setNotification?.(_nearUsers.size);
-    _refreshNear?.();
+    if(_ctx) _ctx.setNotification?.(_nearUsers.size);
+    _refreshNear?.(); // refresh à chaque update, pas seulement les nouveaux
+    // Met à jour le contact stocké si on l'a
+    const contact=getContact(data.uuid);
+    if(contact){
+      const contacts=loadContacts();
+      const c=contacts.find(x=>x.uuid===data.uuid);
+      if(c){c.profile=data;saveContacts(contacts);}
+    }
     return;
   }
 
@@ -559,7 +565,11 @@ function renderNearTab(el){
   _refreshNear=()=>{
     const activeTab=document.querySelector('#social-tab-content')
       ?.closest('[style*="flex"]')?.querySelector('.ym-tab.active');
-    if(activeTab?.dataset?.tab==='Near') renderNearTab(el);
+    const tab=activeTab?.dataset?.tab;
+    const content=document.getElementById('social-tab-content');
+    if(!content) return;
+    if(tab==='Near') renderNearTab(content);
+    else if(tab==='Contacts') renderContactsTab(content);
   };
 }
 
