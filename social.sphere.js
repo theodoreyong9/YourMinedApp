@@ -317,8 +317,9 @@ async function fetchFeedItems(networks){
           const posts = await (await fetch(`https://${instance}/api/v1/accounts/${acc.id}/statuses?limit=5`)).json();
           posts.forEach(p=>{
             const img=p.media_attachments?.find(a=>a.type==='image')?.url||extractImage(p.content);
+            const txt=extractText(p.content);
             items.push({network:'Mastodon',author:acc.display_name||acc.username,
-              text:extractText(p.content),image:img,ts:new Date(p.created_at).getTime(),url:p.url});
+              title:'',text:txt,image:img,ts:new Date(p.created_at).getTime(),url:p.url});
           });
         }
       }
@@ -328,7 +329,7 @@ async function fetchFeedItems(networks){
         (data.feed||[]).forEach(f=>{
           const post=f.post?.record;
           const img=f.post?.embed?.images?.[0]?.thumb||f.post?.embed?.thumbnail;
-          if(post?.text) items.push({network:'Bluesky',author:handle,text:post.text,image:img||null,
+          if(post?.text) items.push({network:'Bluesky',author:handle,title:'',text:post.text,image:img||null,
             ts:new Date(post.createdAt).getTime(),url:`https://bsky.app/profile/${handle}`});
         });
       }
@@ -337,7 +338,8 @@ async function fetchFeedItems(networks){
         const events=await(await fetch(`https://api.github.com/users/${user}/events/public?per_page=5`)).json();
         events.filter(e=>e.type==='PushEvent').forEach(e=>{
           const msg=e.payload?.commits?.[0]?.message||'pushed';
-          items.push({network:'GitHub',author:user,text:msg,ts:new Date(e.created_at).getTime(),url:`https://github.com/${user}`});
+          items.push({network:'GitHub',author:user,title:'',text:msg,image:null,
+            ts:new Date(e.created_at).getTime(),url:`https://github.com/${user}`});
         });
       }
       if(n.id==='medium' && n.handle){
@@ -345,7 +347,8 @@ async function fetchFeedItems(networks){
         const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://medium.com/feed/@${user}`);
         const d=await r.json();
         (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Medium',author:user,
-          text:p.title,image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+          title:p.title,text:extractText(p.content||p.description||''),
+          image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
           ts:new Date(p.pubDate).getTime(),url:p.link}));
       }
       if(n.id==='substack' && n.handle){
@@ -353,31 +356,47 @@ async function fetchFeedItems(networks){
         const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://${host}/feed`);
         const d=await r.json();
         (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Substack',author:host,
-          text:p.title,image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+          title:p.title,text:extractText(p.content||p.description||''),
+          image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
           ts:new Date(p.pubDate).getTime(),url:p.link}));
       }
       if(n.id==='paragraph' && n.handle){
         const handle=n.handle.replace('paragraph.xyz/','').replace('@','');
-        const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://paragraph.xyz/@${handle}/feed`);
-        const d=await r.json();
-        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,
-          text:p.title,image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+        // Essaie plusieurs formats d'URL RSS Paragraph
+        let d=null;
+        for(const rssUrl of[
+          `https://paragraph.xyz/@${handle}/rss`,
+          `https://paragraph.xyz/@${handle}/feed`,
+          `https://api.rss2json.com/v1/api.json?rss_url=https://paragraph.xyz/@${handle}/rss`
+        ]){
+          try{
+            const r=await fetch(rssUrl.startsWith('http://paragraph')||rssUrl.startsWith('https://paragraph')
+              ?`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`
+              :rssUrl);
+            const parsed=await r.json();
+            if(parsed.items?.length){d=parsed;break;}
+          }catch{}
+        }
+        if(d)(d.items||[]).slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,
+          title:p.title,text:extractText(p.content||p.description||''),
+          image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
           ts:new Date(p.pubDate).getTime(),url:p.link}));
       }
       if(n.id==='devto' && n.handle){
         const user=n.handle.replace('@','');
         const posts=await(await fetch(`https://dev.to/api/articles?username=${user}&per_page=5`)).json();
         if(Array.isArray(posts)) posts.forEach(p=>items.push({network:'Dev.to',author:user,
-          text:p.title,image:p.cover_image||p.social_image||null,
+          title:p.title,text:p.description||'',image:p.cover_image||p.social_image||null,
           ts:new Date(p.published_at).getTime(),url:p.url}));
       }
       if(n.id==='hashnode' && n.handle){
         const user=n.handle.replace('@','');
         const r=await fetch('https://gql.hashnode.com/',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({query:`{user(username:"${user}"){posts(page:1,pageSize:5){nodes{title,url,publishedAt,coverImage{url}}}}}`})});
+          body:JSON.stringify({query:`{user(username:"${user}"){posts(page:1,pageSize:5){nodes{title,url,publishedAt,brief,coverImage{url}}}}}`})});
         const d=await r.json();
         (d.data?.user?.posts?.nodes||[]).forEach(p=>items.push({network:'Hashnode',author:user,
-          text:p.title,image:p.coverImage?.url||null,ts:new Date(p.publishedAt).getTime(),url:p.url}));
+          title:p.title,text:p.brief||'',image:p.coverImage?.url||null,
+          ts:new Date(p.publishedAt).getTime(),url:p.url}));
       }
       if(n.id==='reddit' && n.handle){
         const user=n.handle.replace('u/','').replace('@','');
@@ -386,7 +405,7 @@ async function fetchFeedItems(networks){
         (d.data?.children||[]).forEach(c=>{
           const post=c.data;
           const img=post.thumbnail&&post.thumbnail.startsWith('http')?post.thumbnail:null;
-          items.push({network:'Reddit',author:user,text:post.title,image:img,
+          items.push({network:'Reddit',author:user,title:post.title,text:post.selftext?.slice(0,200)||'',image:img,
             ts:post.created_utc*1000,url:`https://reddit.com${post.permalink}`});
         });
       }
@@ -780,42 +799,64 @@ function renderFeedTab(el){
 }
 
 async function loadFeedForUsers(profiles,container){
+  container.innerHTML='';
   if(!profiles.length){
-    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No profiles with social networks yet</div>`;
+    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No profiles yet</div>`;
     return;
   }
-  container.innerHTML=`<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px">Loading…</div>`;
-  // Collecte tous les réseaux de tous les profils
-  const allNetworks=[];
-  profiles.forEach(p=>{
-    (p.networks||[]).forEach(n=>{
-      if(!allNetworks.find(x=>x.id===n.id&&x.handle===n.handle))
-        allNetworks.push({...n,_owner:p.name||p.uuid?.slice(0,8)});
-    });
-  });
-  if(!allNetworks.length){
-    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No public social networks found in these profiles</div>`;
+
+  // Filtre les profils avec des réseaux feed
+  const feedProfiles=profiles.filter(p=>(p.networks||[]).some(n=>FEED_NETWORKS.find(f=>f.id===n.id)));
+  if(!feedProfiles.length){
+    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No public social networks in these profiles</div>`;
     return;
   }
-  try{
-    const items=await fetchFeedItems(allNetworks);
-    container.innerHTML='';
-    if(!items.length){container.innerHTML=`<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">No posts found</div>`;return;}
-    items.slice(0,30).forEach(item=>{
-      const card=document.createElement('div');card.className='ym-card';card.style.cursor='pointer';
-      card.innerHTML=`
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <span class="pill">${item.network}</span>
-          <span style="font-size:11px;color:var(--text2);font-weight:500">${item.author}</span>
-          <span style="font-size:9px;color:var(--text3);margin-left:auto">${new Date(item.ts).toLocaleDateString()}</span>
-        </div>
-        <div style="font-size:12px;color:var(--text);line-height:1.5">${item.text.slice(0,200)}${item.text.length>200?'…':''}</div>
-        ${item.image?`<img src="${item.image}" style="width:100%;border-radius:var(--r-sm);margin-top:8px;max-height:200px;object-fit:cover" loading="lazy">`:''}
-      `;
-      if(item.url) card.addEventListener('click',()=>window.open(item.url,'_blank'));
-      container.appendChild(card);
+
+  // Charge le feed de chaque profil séparément pour les bandeaux
+  for(const profile of feedProfiles){
+    const networks=(profile.networks||[]).filter(n=>FEED_NETWORKS.find(f=>f.id===n.id));
+    if(!networks.length) continue;
+
+    // Bandeau profil sticky + cliquable
+    const banner=document.createElement('div');
+    banner.style.cssText='position:sticky;top:0;z-index:10;background:rgba(8,8,15,.92);backdrop-filter:blur(8px);padding:8px 0 6px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:4px';
+    const av=profile.avatar?`<img src="${profile.avatar}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`:`<div style="width:32px;height:32px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${profile.name?.charAt(0)||'👤'}</div>`;
+    banner.innerHTML=`${av}<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;color:var(--text)">${profile.name||'Anonymous'}</div><div style="font-size:10px;color:var(--text3)">${networks.map(n=>n.id).join(' · ')}</div></div><span style="font-size:10px;color:var(--accent)">›</span>`;
+    banner.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
+    container.appendChild(banner);
+
+    // Placeholder loading
+    const feedWrap=document.createElement('div');feedWrap.style.marginBottom='16px';
+    feedWrap.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:6px 0">Loading…</div>`;
+    container.appendChild(feedWrap);
+
+    // Charge en parallèle
+    fetchFeedItems(networks).then(items=>{
+      feedWrap.innerHTML='';
+      if(!items.length){
+        feedWrap.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:6px 0;text-align:center">No posts found</div>`;
+        return;
+      }
+      items.slice(0,10).forEach(item=>{
+        const card=document.createElement('div');card.className='ym-card';card.style.cssText='cursor:pointer;margin-bottom:8px';
+        // Extrait de texte
+        const excerpt=item.text?(item.text.slice(0,180)+(item.text.length>180?'…':'')):'';
+        card.innerHTML=`
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span class="pill" style="font-size:9px">${item.network}</span>
+            <span style="font-size:9px;color:var(--text3);margin-left:auto">${new Date(item.ts).toLocaleDateString()}</span>
+          </div>
+          ${item.image?`<img src="${item.image}" style="width:100%;border-radius:var(--r-sm);margin-bottom:8px;max-height:180px;object-fit:cover" loading="lazy" onerror="this.style.display='none'">`:''}
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.4">${item.title||''}</div>
+          ${excerpt?`<div style="font-size:12px;color:var(--text2);line-height:1.5">${excerpt}</div>`:''}
+        `;
+        if(item.url) card.addEventListener('click',()=>window.open(item.url,'_blank'));
+        feedWrap.appendChild(card);
+      });
+    }).catch(()=>{
+      feedWrap.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:6px 0;text-align:center">Could not load feed</div>`;
     });
-  }catch(e){container.innerHTML=`<div class="ym-notice error">Feed error: ${e.message}</div>`;}
+  }
 }
 
 // Stack de navigation interne — plus utilisée, gardée vide
