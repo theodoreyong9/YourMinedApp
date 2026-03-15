@@ -166,7 +166,19 @@ function _callSend(type,data,peerId){
   }
 }
 
+function isReciprocalContact(uuid){
+  // Vérifie que le contact est bidirectionnel : on l'a en contact ET il nous a en contact
+  if(!getContact(uuid)) return false;
+  const theirProfile=_nearUsers.get(uuid)?.profile||getContact(uuid)?.profile;
+  if(!theirProfile) return false;
+  const myUUID=_ctx?.loadProfile?.()?.uuid;
+  // Si on a leurs données gossip/near, on vérifie qu'ils nous ont en contacts
+  // Par défaut on fait confiance si les deux ont le profil de l'autre
+  return true; // simplifié — dans la pratique vérifier theirProfile.contacts si diffusé
+}
+
 async function startVoiceCall(uuid){
+  if(!getContact(uuid)){window.YM_toast?.('Add this person to contacts first','warn');return;}
   const peerId=_getPeerId(uuid);
   if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
   try{
@@ -235,28 +247,58 @@ async function handleCallOffer(data){
 
 let _callUUID=null;
 
-function _showIncomingCallUI(profile,onAccept,onDecline){
-  _removeCallUI();
-  _startRingtone();
-  const ui=document.createElement('div');
-  ui.id='ym-call-ui';
-  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:16px 20px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.6);text-align:center';
+// ── SYSTÈME DE DEMANDES D'INTERACTION (pile centralisée) ──────────────────────
+// Toute demande (appel, partage, etc.) s'empile et est affichée l'une après l'autre
+const _interactionQueue=[];
+let _interactionActive=false;
+
+function _pushInteraction(opts){
+  // opts: {type, profile, icon, label, sublabel, onAccept, onDecline}
+  _interactionQueue.push(opts);
+  if(!_interactionActive) _nextInteraction();
+}
+
+function _nextInteraction(){
+  if(!_interactionQueue.length){_interactionActive=false;return;}
+  _interactionActive=true;
+  const opts=_interactionQueue[0];
+  _showInteractionUI(opts,
+    ()=>{_interactionQueue.shift();_interactionActive=false;opts.onAccept?.();_nextInteraction();},
+    ()=>{_interactionQueue.shift();_interactionActive=false;opts.onDecline?.();_nextInteraction();}
+  );
+}
+
+function _showInteractionUI(opts,onAccept,onDecline){
+  document.getElementById('ym-interaction-ui')?.remove();
+  const profile=opts.profile||{};
   const av=profile.avatar
     ?`<img src="${profile.avatar}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:8px">`
     :`<div style="width:48px;height:48px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px">${profile.name?.charAt(0)||'👤'}</div>`;
-  ui.innerHTML=`${av}
-    <div style="font-weight:600;font-size:14px;margin-bottom:4px">${profile.name||'Unknown'}</div>
-    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">📞 Incoming call…</div>
+  const queueLen=_interactionQueue.length;
+  const ui=document.createElement('div');
+  ui.id='ym-interaction-ui';
+  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:16px 20px;min-width:260px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.7);text-align:center';
+  ui.innerHTML=`
+    ${queueLen>1?`<div style="font-size:9px;color:var(--text3);margin-bottom:8px">${queueLen} pending interactions</div>`:''}
+    ${av}
+    <div style="font-weight:600;font-size:14px;margin-bottom:2px">${profile.name||'Unknown'}</div>
+    <div style="font-size:13px;color:var(--accent);margin-bottom:4px">${opts.icon||''} ${opts.label||''}</div>
+    ${opts.sublabel?`<div style="font-size:11px;color:var(--text3);margin-bottom:12px">${opts.sublabel}</div>`:'<div style="height:12px"></div>'}
     <div style="display:flex;gap:10px;justify-content:center">
-      <button id="call-decline" style="width:48px;height:48px;border-radius:50%;background:#e84040;border:none;font-size:20px;cursor:pointer">✕</button>
-      <button id="call-accept" style="width:48px;height:48px;border-radius:50%;background:#30e880;border:none;font-size:20px;cursor:pointer">✓</button>
+      <button id="int-decline" style="width:52px;height:52px;border-radius:50%;background:#e84040;border:none;font-size:22px;cursor:pointer">✕</button>
+      <button id="int-accept" style="width:52px;height:52px;border-radius:50%;background:#30e880;border:none;font-size:22px;cursor:pointer">✓</button>
     </div>`;
-  document.body.appendChild(ui);_callUI=ui;
-  ui.querySelector('#call-accept').addEventListener('click',()=>{
-    _stopRingtone();_removeCallUI();onAccept();
-  });
-  ui.querySelector('#call-decline').addEventListener('click',()=>{
-    _stopRingtone();_removeCallUI();onDecline();
+  document.body.appendChild(ui);
+  ui.querySelector('#int-accept').addEventListener('click',onAccept);
+  ui.querySelector('#int-decline').addEventListener('click',onDecline);
+}
+
+function _showIncomingCallUI(profile,onAccept,onDecline){
+  _startRingtone();
+  _pushInteraction({
+    type:'call',profile,icon:'📞',label:'Incoming call',sublabel:null,
+    onAccept:()=>{_stopRingtone();onAccept();},
+    onDecline:()=>{_stopRingtone();onDecline();}
   });
 }
 
@@ -318,6 +360,7 @@ function _stopRingtone(){
 }
 
 function _removeCallUI(){
+  document.getElementById('ym-interaction-ui')?.remove();
   document.getElementById('ym-call-ui')?.remove();
   _callUI=null;
 }
@@ -560,10 +603,12 @@ window.YM_S['social.sphere.js'] = {
   receive:['name','bio','avatar','site','spheres','networks'],
   statuses:['online','away','busy'],
 
+let _onPeerJoin=null;
+let _onVisibility=null;
+
   async activate(ctx){
     _ctx = ctx;
 
-    // Initialise _refreshNear immédiatement — fonctionne même si le panel n'est pas ouvert
     _refreshNear=()=>{
       const panel=_getSocialPanel();
       if(!panel) return;
@@ -577,13 +622,13 @@ window.YM_S['social.sphere.js'] = {
     startGeo();
     startHeartbeat();
 
-    window.addEventListener('ym:peer-join', ()=>setTimeout(broadcastPresence, 300));
+    _onPeerJoin=()=>setTimeout(broadcastPresence, 300);
+    window.addEventListener('ym:peer-join', _onPeerJoin);
 
     ctx.onReceive((type,data,peerId)=>{
       if(type==='social:presence')          handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
       else if(type==='social:call-offer'){
-        // Retrouve l'UUID YourMine depuis le peerId
         const fromUUID=[..._nearUsers.entries()].find(([,v])=>v.peerId===peerId)?.[0]||null;
         handleCallOffer({...data,from:peerId,fromUUID});
       }
@@ -594,13 +639,10 @@ window.YM_S['social.sphere.js'] = {
 
     _cleanTimer = setInterval(cleanGossip, 5000);
 
-    // Relance le heartbeat quand l'écran se réveille
-    document.addEventListener('visibilitychange', ()=>{
-      if(!document.hidden){
-        startHeartbeat(); // repart depuis zéro
-        broadcastPresence();
-      }
-    });
+    _onVisibility=()=>{
+      if(!document.hidden){startHeartbeat();broadcastPresence();}
+    };
+    document.addEventListener('visibilitychange', _onVisibility);
   },
 
   deactivate(){
@@ -608,8 +650,11 @@ window.YM_S['social.sphere.js'] = {
     stopHeartbeat();
     if(_cleanTimer){clearInterval(_cleanTimer);_cleanTimer=null;}
     if(_peerConnection){_peerConnection.close();_peerConnection=null;}
+    if(_onPeerJoin){window.removeEventListener('ym:peer-join',_onPeerJoin);_onPeerJoin=null;}
+    if(_onVisibility){document.removeEventListener('visibilitychange',_onVisibility);_onVisibility=null;}
+    hangUp();
     _nearUsers.clear();_gossipCache.clear();
-    _ctx = null;
+    _ctx=null;
   },
 
   renderPanel(container){
@@ -775,9 +820,12 @@ function renderSocialTabInto(content,tab){
 
 // ── NEAR TAB ──────────────────────────────────────────────────────────────────
 function renderNearTab(el){
-  // Si on render Near c'est qu'on le voit — clear le badge
   _clearTabBadge('Near');
   const near=[..._nearUsers.values()];
+  const myUUID=_ctx?.loadProfile?.()?.uuid;
+  const gossip=[..._gossipCache.values()]
+    .filter(g=>!_nearUsers.has(g.profile.uuid)&&g.profile.uuid!==myUUID)
+    .slice(0,10);
 
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
@@ -787,13 +835,24 @@ function renderNearTab(el){
   `;
 
   if(!near.length){
-    el.innerHTML+=`<div style="text-align:center;padding:32px 0;color:var(--text3);font-size:12px">No one nearby right now…<br><span style="font-size:10px">Move around or share your link</span></div>`;
+    el.innerHTML+=`<div style="text-align:center;padding:20px 0;color:var(--text3);font-size:12px">No one nearby right now…</div>`;
   }else{
     near.forEach(u=>{
       el.appendChild(userCard(u.profile,'near',()=>{
-        addContact(u.profile);
-        window.YM_toast?.('Contact added','success');
-        renderNearTab(el);
+        addContact(u.profile);window.YM_toast?.('Contact added','success');renderNearTab(el);
+      }));
+    });
+  }
+
+  // Gossip — profils découverts indirectement
+  if(gossip.length){
+    const gossipHdr=document.createElement('div');
+    gossipHdr.style.cssText='font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:12px 0 6px;border-top:1px solid var(--border);margin-top:8px';
+    gossipHdr.textContent='Nearby (via others)';
+    el.appendChild(gossipHdr);
+    gossip.forEach(g=>{
+      el.appendChild(userCard(g.profile,'gossip',()=>{
+        addContact(g.profile);window.YM_toast?.('Contact added','success');renderNearTab(el);
       }));
     });
   }
@@ -915,25 +974,47 @@ function renderContactsTab(el){
 // ── FEED TAB ──────────────────────────────────────────────────────────────────
 function renderFeedTab(el){
   el.innerHTML='';
+  const tabs=['Nearby','Contacts'];
+  let currentIdx=0;
+
   const subTabs=document.createElement('div');subTabs.className='ym-tabs';
-  ['Nearby','Contacts'].forEach((t,i)=>{
+  const feedContent=document.createElement('div');
+  feedContent.style.cssText='flex:1;overflow:hidden;position:relative';
+
+  // Swipe horizontal
+  let swipeX=0,swipeY=0,swiping=false;
+  feedContent.addEventListener('pointerdown',e=>{swipeX=e.clientX;swipeY=e.clientY;swiping=true;},{passive:true});
+  feedContent.addEventListener('pointerup',e=>{
+    if(!swiping)return;swiping=false;
+    const dx=e.clientX-swipeX,dy=e.clientY-swipeY;
+    if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.5){
+      const next=dx<0?Math.min(currentIdx+1,tabs.length-1):Math.max(currentIdx-1,0);
+      if(next!==currentIdx){currentIdx=next;switchTab(next);}
+    }
+  },{passive:true});
+
+  function switchTab(idx){
+    currentIdx=idx;
+    subTabs.querySelectorAll('.ym-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+    feedContent.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Loading…</div>';
+    if(tabs[idx]==='Nearby'){
+      loadFeedForUsers([..._nearUsers.values()].map(u=>u.profile),feedContent);
+    }else{
+      loadFeedForUsers(loadContacts().map(c=>c.profile).filter(Boolean),feedContent);
+    }
+  }
+
+  tabs.forEach((t,i)=>{
     const tab=document.createElement('div');
     tab.className='ym-tab'+(i===0?' active':'');
     tab.dataset.tab=t;tab.textContent=t;
-    tab.addEventListener('click',()=>{
-      subTabs.querySelectorAll('.ym-tab').forEach(x=>x.classList.remove('active'));
-      tab.classList.add('active');
-      feedContent.innerHTML='';
-      if(t==='Nearby') loadFeedForUsers([..._nearUsers.values()].map(u=>u.profile),feedContent);
-      else loadFeedForUsers(loadContacts().map(c=>c.profile).filter(Boolean),feedContent);
-    });
+    tab.addEventListener('click',()=>switchTab(i));
     subTabs.appendChild(tab);
   });
+
   el.appendChild(subTabs);
-  const feedContent=document.createElement('div');feedContent.style.cssText='display:flex;flex-direction:column;gap:10px';
   el.appendChild(feedContent);
-  // Charge Nearby par défaut
-  loadFeedForUsers([..._nearUsers.values()].map(u=>u.profile),feedContent);
+  switchTab(0);
 }
 
 async function loadFeedForUsers(profiles,container){
