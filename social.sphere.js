@@ -237,19 +237,27 @@ let _callUUID=null;
 
 function _showIncomingCallUI(profile,onAccept,onDecline){
   _removeCallUI();
+  _startRingtone();
   const ui=document.createElement('div');
   ui.id='ym-call-ui';
   ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:16px 20px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.6);text-align:center';
-  const av=profile.avatar?`<img src="${profile.avatar}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:8px">`:`<div style="width:48px;height:48px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px">${profile.name?.charAt(0)||'👤'}</div>`;
-  ui.innerHTML=`${av}<div style="font-weight:600;font-size:14px;margin-bottom:4px">${profile.name||'Unknown'}</div>
+  const av=profile.avatar
+    ?`<img src="${profile.avatar}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:8px">`
+    :`<div style="width:48px;height:48px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px">${profile.name?.charAt(0)||'👤'}</div>`;
+  ui.innerHTML=`${av}
+    <div style="font-weight:600;font-size:14px;margin-bottom:4px">${profile.name||'Unknown'}</div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:14px">📞 Incoming call…</div>
     <div style="display:flex;gap:10px;justify-content:center">
       <button id="call-decline" style="width:48px;height:48px;border-radius:50%;background:#e84040;border:none;font-size:20px;cursor:pointer">✕</button>
       <button id="call-accept" style="width:48px;height:48px;border-radius:50%;background:#30e880;border:none;font-size:20px;cursor:pointer">✓</button>
     </div>`;
   document.body.appendChild(ui);_callUI=ui;
-  ui.querySelector('#call-accept').addEventListener('click',()=>{_removeCallUI();onAccept();});
-  ui.querySelector('#call-decline').addEventListener('click',()=>{_removeCallUI();onDecline();});
+  ui.querySelector('#call-accept').addEventListener('click',()=>{
+    _stopRingtone();_removeCallUI();onAccept();
+  });
+  ui.querySelector('#call-decline').addEventListener('click',()=>{
+    _stopRingtone();_removeCallUI();onDecline();
+  });
 }
 
 function _showCallUI(state,uuid){
@@ -282,12 +290,40 @@ function _updateCallUI(state){
   }
 }
 
+let _ringtone=null;
+
+function _startRingtone(){
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    let playing=true;
+    function ring(){
+      if(!playing) return;
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(880,ctx.currentTime);
+      osc.frequency.setValueAtTime(660,ctx.currentTime+0.15);
+      gain.gain.setValueAtTime(0.3,ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
+      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.4);
+      setTimeout(()=>{if(playing)ring();},900);
+    }
+    ring();
+    _ringtone={stop:()=>{playing=false;setTimeout(()=>ctx.close(),500);}};
+  }catch{}
+}
+
+function _stopRingtone(){
+  _ringtone?.stop();_ringtone=null;
+}
+
 function _removeCallUI(){
   document.getElementById('ym-call-ui')?.remove();
   _callUI=null;
 }
 
 function hangUp(){
+  _stopRingtone();
   if(_callPeer)_callSend('social:call-end',{},_callPeer);
   _peerConnection?.close();_peerConnection=null;
   _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
