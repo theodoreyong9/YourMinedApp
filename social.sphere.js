@@ -828,11 +828,11 @@ window.YM_Social = {
     const profile=near?.profile||contact?.profile||{uuid,name:'Unknown'};
     if(!profile) return;
     window.YM?.openProfilePanel?.(profile);
-    // Render le profil dans le body
-    const body=document.getElementById('panel-sphere-body');
-    if(body){body.innerHTML='';renderProfileView(body,profile);}
   }
 };
+
+// Exposé pour index.html
+window._renderProfileView=renderProfileView;
 
 function _showInternalBack(){}
 function _hideInternalBack(){}
