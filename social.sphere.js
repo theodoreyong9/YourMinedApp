@@ -194,23 +194,26 @@ function generateQR(uuid, container){
 }
 
 // ── FEED ────────────────────────────────────────────────────────────────────
-const SOCIAL_NETWORKS = [
-  {id:'mastodon', label:'Mastodon',   hint:'@user@instance.social'},
-  {id:'bluesky',  label:'Bluesky',    hint:'@handle.bsky.social'},
-  {id:'github',   label:'GitHub',     hint:'@username'},
-  {id:'reddit',   label:'Reddit',     hint:'u/username'},
-  {id:'x',        label:'X / Twitter',hint:'@username'},
-  {id:'linkedin', label:'LinkedIn',   hint:'linkedin.com/in/handle'},
-  {id:'instagram',label:'Instagram',  hint:'@username'},
-  {id:'facebook', label:'Facebook',   hint:'@username'},
-  {id:'threads',  label:'Threads',    hint:'@username'},
-  {id:'tumblr',   label:'Tumblr',     hint:'@username'},
-  {id:'youtube',  label:'YouTube',    hint:'@channel'},
+// Réseaux avec API publique extractible sans PKCE
+const FEED_NETWORKS = [
+  {id:'mastodon', label:'Mastodon', hint:'@user@instance.social'},
+  {id:'bluesky',  label:'Bluesky',  hint:'@handle.bsky.social'},
+  {id:'github',   label:'GitHub',   hint:'@username'},
 ];
+
+// Réseaux affichés dans le profil mais sans extraction de contenu
+const PROFILE_ONLY_NETWORKS = [
+  {id:'x',        label:'X',         hint:'@username'},
+  {id:'linkedin', label:'LinkedIn',  hint:'linkedin.com/in/handle'},
+  {id:'instagram',label:'Instagram', hint:'@username'},
+  {id:'youtube',  label:'YouTube',   hint:'@channel'},
+];
+
+const ALL_NETWORKS = [...FEED_NETWORKS, ...PROFILE_ONLY_NETWORKS];
 
 async function fetchFeedItems(networks){
   const items = [];
-  for(const n of networks){
+  for(const n of networks.filter(n=>FEED_NETWORKS.find(f=>f.id===n.id))){
     try{
       if(n.id==='mastodon' && n.handle){
         const [user,instance] = n.handle.replace('@','').split('@');
@@ -309,7 +312,23 @@ window.YM_S['social.sphere.js'] = {
     const state = loadState();
     const networks = state.networks || [];
     const prof = _ctx?.loadProfile?.() ?? {};
+    const myUUID = prof.uuid;
 
+    // ── Share / QR en tête ──────────────────────────────────
+    const shareCard = document.createElement('div');
+    shareCard.className='ym-card';shareCard.style.marginBottom='14px';
+    shareCard.innerHTML=`<div class="ym-card-title">Share your profile</div>
+      <div id="soc-qr" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 0"></div>
+      <div style="font-family:var(--font-m);font-size:9px;color:var(--text3);text-align:center;word-break:break-all;margin-bottom:8px">${myUUID||''}</div>
+      <button class="ym-btn ym-btn-ghost" id="soc-copy-uuid" style="width:100%;font-size:11px">⧉ Copy UUID</button>`;
+    container.appendChild(shareCard);
+    if(myUUID){
+      const qrEl=shareCard.querySelector('#soc-qr');
+      if(window.QRCode)generateQR(myUUID,qrEl);
+      shareCard.querySelector('#soc-copy-uuid')?.addEventListener('click',()=>{navigator.clipboard?.writeText(myUUID);window.YM_toast?.('UUID copied','success');});
+    }
+
+    // ── Identité ────────────────────────────────────────────
     const ident = document.createElement('div');
     ident.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
@@ -320,8 +339,7 @@ window.YM_S['social.sphere.js'] = {
       +'<input class="ym-input" id="soc-name" placeholder="Display name" value="'+(prof.name||'')+'" style="font-size:12px">'
       +'<input class="ym-input" id="soc-site" placeholder="Website" value="'+(prof.site||'')+'" style="font-size:12px">'
       +'</div></div>'
-      +'<textarea class="ym-input" id="soc-bio" placeholder="Short bio" style="height:52px;font-size:12px;margin-bottom:8px">'+(prof.bio||'')+'</textarea>'
-      +'<button class="ym-btn ym-btn-accent" id="soc-save" style="width:100%;margin-bottom:14px">Save identity</button>';
+      +'<textarea class="ym-input" id="soc-bio" placeholder="Short bio" style="height:52px;font-size:12px;margin-bottom:8px">'+(prof.bio||'')+'</textarea>';
     container.appendChild(ident);
 
     ident.querySelector('#soc-pav').addEventListener('click',()=>{
@@ -329,40 +347,70 @@ window.YM_S['social.sphere.js'] = {
       inp.onchange=()=>{const r=new FileReader();r.onload=e=>{_ctx?.saveProfile?.({avatar:e.target.result});ident.querySelector('#soc-pav').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';};r.readAsDataURL(inp.files[0]);};
       inp.click();
     });
-    ident.querySelector('#soc-save').addEventListener('click',()=>{
-      _ctx?.saveProfile?.({name:ident.querySelector('#soc-name').value,bio:ident.querySelector('#soc-bio').value,site:ident.querySelector('#soc-site').value});
-      // Rediffuse immédiatement avec les nouvelles données
-      broadcastPresence();
-      window.YM_toast?.('Social profile saved','success');
-    });
 
-    // Réseaux sociaux
+    // ── Réseaux sociaux en accordéon ────────────────────────
     const netTitle = document.createElement('div');
-    netTitle.style.cssText='font-family:var(--font-d,monospace);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px';
+    netTitle.style.cssText='font-family:var(--font-d,monospace);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;margin-top:4px';
     netTitle.textContent='Social Networks';
     container.appendChild(netTitle);
 
-    SOCIAL_NETWORKS.forEach(n=>{
-      const saved = networks.find(x=>x.id===n.id) || {};
+    ALL_NETWORKS.forEach(n=>{
+      const saved = networks.find(x=>x.id===n.id);
+      const hasFeed = !!FEED_NETWORKS.find(f=>f.id===n.id);
       const row = document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:7px';
-      const lbl = document.createElement('div');
-      lbl.style.cssText='width:76px;font-size:10px;color:var(--text2);flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-      lbl.textContent=n.label;
+      row.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;overflow:hidden';
+
+      // Header cliquable
+      const header = document.createElement('div');
+      header.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;background:rgba(255,255,255,.02)';
+      header.innerHTML=`
+        <span style="font-size:11px;color:${saved?.handle?'var(--accent)':'var(--text2)'};flex:1">${n.label}${saved?.handle?' · <span style="color:var(--text3);font-size:10px">'+saved.handle+'</span>':''}</span>
+        ${hasFeed?'<span style="font-size:9px;color:var(--green)">feed</span>':''}
+        <span style="font-size:10px;color:var(--text3)">${saved?.handle?'✓':'+'}</span>
+      `;
+      row.appendChild(header);
+
+      // Champ déroulant
+      const body = document.createElement('div');
+      body.style.cssText='display:none;padding:8px 10px;border-top:1px solid var(--border)';
       const inp = document.createElement('input');
-      inp.className='ym-input';inp.placeholder=n.hint;inp.value=saved.handle||'';
-      inp.style.cssText='flex:1;font-size:11px';inp.dataset.networkId=n.id;
+      inp.className='ym-input';inp.placeholder=n.hint;inp.value=saved?.handle||'';inp.style.fontSize='11px';
+      body.appendChild(inp);
+      row.appendChild(body);
+
+      header.addEventListener('click',()=>{
+        const open=body.style.display!=='none';
+        body.style.display=open?'none':'block';
+        if(!open)inp.focus();
+      });
       inp.addEventListener('change',()=>{
         const cur=loadState().networks||[];
         const idx=cur.findIndex(x=>x.id===n.id);
         if(inp.value.trim()){if(idx>=0)cur[idx].handle=inp.value.trim();else cur.push({id:n.id,handle:inp.value.trim()});}
         else{if(idx>=0)cur.splice(idx,1);}
         saveState({networks:cur});
-        // Rediffuse avec les réseaux mis à jour
         broadcastPresence();
+        // Met à jour le header
+        const lbl=header.querySelector('span');
+        lbl.innerHTML=`${n.label}${inp.value.trim()?' · <span style="color:var(--text3);font-size:10px">'+inp.value.trim()+'</span>':''}`;
+        header.querySelector('span:last-child').textContent=inp.value.trim()?'✓':'+';
+        header.querySelector('span:first-child').style.color=inp.value.trim()?'var(--accent)':'var(--text2)';
+        body.style.display='none';
       });
-      row.appendChild(lbl);row.appendChild(inp);container.appendChild(row);
+
+      container.appendChild(row);
     });
+
+    // ── Save en bas ────────────────────────────────────────
+    const saveBtn = document.createElement('button');
+    saveBtn.className='ym-btn ym-btn-accent';saveBtn.style.cssText='width:100%;margin-top:14px';
+    saveBtn.textContent='Save identity';
+    saveBtn.addEventListener('click',()=>{
+      _ctx?.saveProfile?.({name:ident.querySelector('#soc-name').value,bio:ident.querySelector('#soc-bio').value,site:ident.querySelector('#soc-site').value});
+      broadcastPresence();
+      window.YM_toast?.('Social profile saved','success');
+    });
+    container.appendChild(saveBtn);
   },
 
   getTabBadges(){
@@ -383,7 +431,6 @@ function renderSocialTab(container,tab){
 // ── NEAR TAB ──────────────────────────────────────────────────────────────────
 function renderNearTab(el){
   const near=[..._nearUsers.values()];
-  const myUUID=_ctx?.loadProfile?.()?.uuid;
 
   el.innerHTML=`
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
@@ -403,23 +450,17 @@ function renderNearTab(el){
       }));
     });
   }
+  _refreshNear=()=>renderNearTab(el);
+}
 
-  // QR share
-  const qrSection=document.createElement('div');qrSection.className='ym-card';qrSection.style.marginTop='12px';
-  qrSection.innerHTML=`<div class="ym-card-title">Share your profile</div>
-    <div id="social-qr" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px"></div>
-    <div style="font-family:var(--font-mono);font-size:9px;color:var(--text3);text-align:center;word-break:break-all">${myUUID||''}</div>
-    <button class="ym-btn ym-btn-ghost" id="social-copy-uuid" style="width:100%;margin-top:8px;font-size:11px">⧉ Copy UUID</button>`;
-  el.appendChild(qrSection);
-  if(myUUID){
-    const qrEl=el.querySelector('#social-qr');
-    if(window.QRCode) generateQR(myUUID,qrEl);
-    el.querySelector('#social-copy-uuid')?.addEventListener('click',()=>{navigator.clipboard?.writeText(myUUID);window.YM_toast?.('UUID copied','success');});
-  }
+// ── CONTACTS TAB ──────────────────────────────────────────────────────────────
+function renderContactsTab(el){
+  const contacts=loadContacts();
+  el.innerHTML=`<input class="ym-input" id="contacts-search" placeholder="Search contacts…" style="margin-bottom:10px">`;
 
-  // Add by UUID
-  const addSection=document.createElement('div');addSection.className='ym-card';addSection.style.marginTop='10px';
-  addSection.innerHTML=`<div class="ym-card-title">Add contact by UUID</div>
+  // Add by UUID en haut des contacts
+  const addSection=document.createElement('div');addSection.className='ym-card';addSection.style.marginBottom='12px';
+  addSection.innerHTML=`<div class="ym-card-title">Add by UUID</div>
     <div style="display:flex;gap:8px">
       <input class="ym-input" id="add-uuid-input" placeholder="UUID…" style="flex:1">
       <button class="ym-btn ym-btn-accent" id="add-uuid-btn">Add</button>
@@ -431,15 +472,9 @@ function renderNearTab(el){
     addContact({uuid,name:'Unknown',addedVia:'uuid'});
     window.YM_toast?.('Contact added','success');
     el.querySelector('#add-uuid-input').value='';
+    renderContactsTab(el);
   });
 
-  _refreshNear=()=>renderNearTab(el);
-}
-
-// ── CONTACTS TAB ──────────────────────────────────────────────────────────────
-function renderContactsTab(el){
-  const contacts=loadContacts();
-  el.innerHTML=`<input class="ym-input" id="contacts-search" placeholder="Search contacts…" style="margin-bottom:10px">`;
   const listEl=document.createElement('div');listEl.id='contacts-list';el.appendChild(listEl);
 
   function renderFiltered(q=''){
