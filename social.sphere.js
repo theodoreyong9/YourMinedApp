@@ -381,10 +381,11 @@ window.YM_S['social.sphere.js'] = {
 
     // Initialise _refreshNear immédiatement — fonctionne même si le panel n'est pas ouvert
     _refreshNear=()=>{
-      const content=document.getElementById('social-tab-content');
+      const panel=_getSocialPanel();
+      if(!panel) return;
+      const content=panel.querySelector('#social-tab-content');
       if(!content) return;
-      const activeTab=content.closest('[style*="flex"]')?.querySelector('.ym-tab.active');
-      const tab=activeTab?.dataset?.tab;
+      const tab=panel.querySelector('.ym-tab.active')?.dataset?.tab;
       if(tab==='Near') renderNearTab(content);
       else if(tab==='Contacts') renderContactsTab(content);
     };
@@ -550,6 +551,14 @@ window.YM_S['social.sphere.js'] = {
 // Compteurs de badges par onglet
 const _tabBadges={Near:0,Contacts:0,Feed:0};
 
+function _getSocialPanel(){
+  // Le panel social est dans panel-sphere-body
+  const body=document.getElementById('panel-sphere-body');
+  if(!body) return null;
+  // Vérifie que c'est bien le panel social (contient social-tab-content)
+  return body.querySelector('#social-tab-content') ? body : null;
+}
+
 function _incTabBadge(tab){
   _tabBadges[tab]=(_tabBadges[tab]||0)+1;
   _updateTabBadgeUI(tab);
@@ -559,8 +568,8 @@ function _clearTabBadge(tab){
   _updateTabBadgeUI(tab);
 }
 function _updateTabBadgeUI(tab){
-  const t=document.querySelector(`#social-tab-content`)
-    ?.closest('[style*="flex"]')?.querySelector(`.ym-tab[data-tab="${tab}"]`);
+  const panel=_getSocialPanel();
+  const t=panel?.querySelector(`.ym-tab[data-tab="${tab}"]`);
   if(!t) return;
   let badge=t.querySelector('.ym-tab-badge');
   const count=_tabBadges[tab]||0;
