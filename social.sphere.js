@@ -403,6 +403,10 @@ window.YM_S['social.sphere.js'] = {
   },
 
   renderPanel(container){
+    // Réinitialise la nav interne
+    _panelHistory.length=0;
+    _hideInternalBack();
+
     container.style.cssText='display:flex;flex-direction:column;height:100%';
     container.innerHTML='';
 
@@ -738,7 +742,9 @@ async function loadFeedForUsers(profiles,container){
   }catch(e){container.innerHTML=`<div class="ym-notice error">Feed error: ${e.message}</div>`;}
 }
 
-// ── PROFILE VISITOR ──────────────────────────────────────────────────────────
+// Stack de navigation interne au panel sphère
+const _panelHistory=[];
+
 window.YM_Social = {
   openProfile(uuid){
     const near=_nearUsers.get(uuid);
@@ -746,14 +752,58 @@ window.YM_Social = {
     const profile=near?.profile||contact?.profile||{uuid,name:'Unknown'};
     const body=document.getElementById('panel-sphere-body');
     if(!body) return;
-    document.getElementById('sphere-panel-title').textContent=profile.name||uuid.slice(0,8)+'…';
-    // Cache le bouton ⚙ — ce n'est pas une sphère
+
+    // Titre : préférer nickname > name > début du vrai UUID YourMine
+    const displayName=contact?.nickname||profile.name||(profile.uuid?.slice(0,8)+'…')||'Profile';
+    document.getElementById('sphere-panel-title').textContent=displayName;
+
+    // Cache ⚙
     const settingsBtn=document.getElementById('sphere-panel-settings');
     if(settingsBtn) settingsBtn.style.display='none';
+
+    // Bouton back interne dans le header
+    _showInternalBack(()=>{
+      _panelHistory.pop();
+      _hideInternalBack();
+      // Retourne au panel social
+      const s=window.YM_sphereRegistry?.get('social.sphere.js');
+      if(s&&body){s.renderPanel(body);}
+    });
+
+    // Sauvegarde l'état actuel (le panel social avec ses onglets)
+    _panelHistory.push({
+      title: 'Social',
+      render: el=>{
+        // Re-render le panel social dans le body passé
+        const s=window.YM_sphereRegistry?.get('social.sphere.js');
+        if(s) s.renderPanel(el.closest('.ym-panel')?.querySelector('.panel-body')||el);
+      },
+      hasSettings: false
+    });
+
     renderProfileView(body,profile);
     window.YM?.openPanel?.('panel-sphere');
   }
 };
+
+function _showInternalBack(onBack){
+  let backBtn=document.getElementById('sphere-internal-back');
+  if(!backBtn){
+    backBtn=document.createElement('button');
+    backBtn.id='sphere-internal-back';
+    backBtn.className='ym-btn ym-btn-ghost';
+    backBtn.style.cssText='padding:4px 8px;font-size:16px;min-height:unset;margin-right:4px';
+    backBtn.textContent='‹';
+    const head=document.querySelector('#panel-sphere .panel-head');
+    head?.insertBefore(backBtn,head.firstChild);
+  }
+  backBtn.style.display='';
+  backBtn.onclick=onBack;
+}
+function _hideInternalBack(){
+  const b=document.getElementById('sphere-internal-back');
+  if(b) b.style.display='none';
+}
 
 function renderProfileView(container,profile){
   const nets=(profile.networks||[]).map(n=>`<span class="pill">${n.id} ${n.handle}</span>`).join('');
