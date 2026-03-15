@@ -149,50 +149,151 @@ function cleanGossip(){
 }
 
 // ── VOICE CALLS ──────────────────────────────────────────────────────────────
-async function startVoiceCall(peerId){
+// ── VOICE CALL ────────────────────────────────────────────────────────────────
+let _localStream=null;
+let _callUI=null;
+
+function _getPeerId(uuid){
+  return _nearUsers.get(uuid)?.peerId||null;
+}
+
+function _callSend(type,data,peerId){
+  // Envoi direct au peer si possible, sinon broadcast
+  if(peerId&&window.YM_P2P?.sendTo){
+    window.YM_P2P.sendTo(peerId,{sphere:'social.sphere.js',type,data});
+  } else {
+    _ctx?.send(type,data);
+  }
+}
+
+async function startVoiceCall(uuid){
+  const peerId=_getPeerId(uuid);
+  if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
   try{
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    _peerConnection = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-    stream.getTracks().forEach(t=>_peerConnection.addTrack(t,stream));
-    _peerConnection.ontrack = e=>{
-      const audio = document.createElement('audio');
-      audio.srcObject = e.streams[0]; audio.autoplay = true;
-      document.body.appendChild(audio);
+    _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    _peerConnection=new RTCPeerConnection({iceServers:[
+      {urls:'stun:stun.l.google.com:19302'},
+      {urls:'stun:stun1.l.google.com:19302'}
+    ]});
+    _localStream.getTracks().forEach(t=>_peerConnection.addTrack(t,_localStream));
+    _peerConnection.ontrack=e=>{
+      let audio=document.getElementById('ym-call-audio');
+      if(!audio){audio=document.createElement('audio');audio.id='ym-call-audio';audio.autoplay=true;document.body.appendChild(audio);}
+      audio.srcObject=e.streams[0];
     };
-    _peerConnection.onicecandidate = e=>{
-      if(e.candidate) _ctx?.send('social:ice',{candidate:e.candidate,to:peerId});
+    _peerConnection.onicecandidate=e=>{
+      if(e.candidate)_callSend('social:ice',{candidate:e.candidate},peerId);
     };
-    const offer = await _peerConnection.createOffer();
+    _peerConnection.onconnectionstatechange=()=>{
+      if(_peerConnection?.connectionState==='connected') _updateCallUI('connected');
+      if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState)) hangUp();
+    };
+    const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
-    _ctx?.send('social:call-offer',{sdp:offer.sdp,to:peerId});
-    _callPeer = peerId;
-    window.YM_toast?.('📞 Calling…','info');
-  }catch(e){ window.YM_toast?.('Call failed: '+e.message,'error'); }
+    _callSend('social:call-offer',{sdp:offer.sdp},peerId);
+    _callPeer=peerId;
+    _callUUID=uuid;
+    _showCallUI('calling',uuid);
+  }catch(e){window.YM_toast?.('Call failed: '+e.message,'error');hangUp();}
 }
 
 async function handleCallOffer(data){
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    _peerConnection = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-    stream.getTracks().forEach(t=>_peerConnection.addTrack(t,stream));
-    _peerConnection.ontrack = e=>{
-      const audio = document.createElement('audio'); audio.srcObject=e.streams[0]; audio.autoplay=true; document.body.appendChild(audio);
-    };
-    _peerConnection.onicecandidate = e=>{
-      if(e.candidate) _ctx?.send('social:ice',{candidate:e.candidate,to:data.from});
-    };
-    await _peerConnection.setRemoteDescription({type:'offer',sdp:data.sdp});
-    const answer = await _peerConnection.createAnswer();
-    await _peerConnection.setLocalDescription(answer);
-    _ctx?.send('social:call-answer',{sdp:answer.sdp,to:data.from});
-    _callPeer = data.from;
-    window.YM_toast?.('📞 Call connected','success');
-  }catch(e){ window.YM_toast?.('Incoming call error: '+e.message,'error'); }
+  // UI d'appel entrant — l'utilisateur doit accepter
+  const callerProfile=_nearUsers.get(data.fromUUID)?.profile||{name:'Unknown',uuid:data.fromUUID};
+  _showIncomingCallUI(callerProfile,async()=>{
+    // Accepte
+    try{
+      _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+      _peerConnection=new RTCPeerConnection({iceServers:[
+        {urls:'stun:stun.l.google.com:19302'},
+        {urls:'stun:stun1.l.google.com:19302'}
+      ]});
+      _localStream.getTracks().forEach(t=>_peerConnection.addTrack(t,_localStream));
+      _peerConnection.ontrack=e=>{
+        let audio=document.getElementById('ym-call-audio');
+        if(!audio){audio=document.createElement('audio');audio.id='ym-call-audio';audio.autoplay=true;document.body.appendChild(audio);}
+        audio.srcObject=e.streams[0];
+      };
+      _peerConnection.onicecandidate=e=>{
+        if(e.candidate)_callSend('social:ice',{candidate:e.candidate},data.from);
+      };
+      _peerConnection.onconnectionstatechange=()=>{
+        if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
+        if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
+      };
+      await _peerConnection.setRemoteDescription({type:'offer',sdp:data.sdp});
+      const answer=await _peerConnection.createAnswer();
+      await _peerConnection.setLocalDescription(answer);
+      _callSend('social:call-answer',{sdp:answer.sdp},data.from);
+      _callPeer=data.from;_callUUID=data.fromUUID;
+      _showCallUI('connected',data.fromUUID);
+    }catch(e){window.YM_toast?.('Call error: '+e.message,'error');hangUp();}
+  },()=>{ // Refuse
+    _callSend('social:call-end',{},data.from);
+  });
+}
+
+let _callUUID=null;
+
+function _showIncomingCallUI(profile,onAccept,onDecline){
+  _removeCallUI();
+  const ui=document.createElement('div');
+  ui.id='ym-call-ui';
+  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:16px 20px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.6);text-align:center';
+  const av=profile.avatar?`<img src="${profile.avatar}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:8px">`:`<div style="width:48px;height:48px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px">${profile.name?.charAt(0)||'👤'}</div>`;
+  ui.innerHTML=`${av}<div style="font-weight:600;font-size:14px;margin-bottom:4px">${profile.name||'Unknown'}</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">📞 Incoming call…</div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button id="call-decline" style="width:48px;height:48px;border-radius:50%;background:#e84040;border:none;font-size:20px;cursor:pointer">✕</button>
+      <button id="call-accept" style="width:48px;height:48px;border-radius:50%;background:#30e880;border:none;font-size:20px;cursor:pointer">✓</button>
+    </div>`;
+  document.body.appendChild(ui);_callUI=ui;
+  ui.querySelector('#call-accept').addEventListener('click',()=>{_removeCallUI();onAccept();});
+  ui.querySelector('#call-decline').addEventListener('click',()=>{_removeCallUI();onDecline();});
+}
+
+function _showCallUI(state,uuid){
+  _removeCallUI();
+  const profile=_nearUsers.get(uuid)?.profile||getContact(uuid)?.profile||{name:'Unknown'};
+  const ui=document.createElement('div');
+  ui.id='ym-call-ui';
+  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:14px 20px;min-width:200px;box-shadow:0 8px 32px rgba(0,0,0,.6);text-align:center;display:flex;align-items:center;gap:12px';
+  ui.innerHTML=`<div style="font-size:13px;color:var(--text);flex:1">${state==='calling'?'📞 Calling '+profile.name+'…':'📞 '+profile.name}</div>
+    <div id="call-timer" style="font-size:12px;color:var(--text3);min-width:36px">0:00</div>
+    <button id="call-hangup" style="width:36px;height:36px;border-radius:50%;background:#e84040;border:none;font-size:16px;cursor:pointer">✕</button>`;
+  document.body.appendChild(ui);_callUI=ui;
+  ui.querySelector('#call-hangup').addEventListener('click',hangUp);
+  if(state==='connected'){
+    let sec=0;
+    const timer=setInterval(()=>{
+      if(!document.getElementById('ym-call-ui')){clearInterval(timer);return;}
+      sec++;ui.querySelector('#call-timer').textContent=Math.floor(sec/60)+':'+(sec%60).toString().padStart(2,'0');
+    },1000);
+  }
+}
+
+function _updateCallUI(state){
+  const ui=document.getElementById('ym-call-ui');
+  if(!ui) return;
+  if(state==='connected'){
+    const label=ui.querySelector('div');
+    if(label) label.textContent='📞 '+(_nearUsers.get(_callUUID)?.profile?.name||'Connected');
+    _showCallUI('connected',_callUUID);
+  }
+}
+
+function _removeCallUI(){
+  document.getElementById('ym-call-ui')?.remove();
+  _callUI=null;
 }
 
 function hangUp(){
-  if(_peerConnection){_peerConnection.close();_peerConnection=null;}
-  if(_callPeer){_ctx?.send('social:call-end',{to:_callPeer});_callPeer=null;}
+  if(_callPeer)_callSend('social:call-end',{},_callPeer);
+  _peerConnection?.close();_peerConnection=null;
+  _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
+  _callPeer=null;_callUUID=null;
+  document.getElementById('ym-call-audio')?.remove();
+  _removeCallUI();
   window.YM_toast?.('Call ended','info');
 }
 
@@ -445,10 +546,14 @@ window.YM_S['social.sphere.js'] = {
     ctx.onReceive((type,data,peerId)=>{
       if(type==='social:presence')          handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
-      else if(type==='social:call-offer')   handleCallOffer({...data,from:peerId});
-      else if(type==='social:call-answer' && _peerConnection) _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
-      else if(type==='social:ice' && _peerConnection) _peerConnection.addIceCandidate(data.candidate).catch(()=>{});
-      else if(type==='social:call-end' && _callPeer===peerId) hangUp();
+      else if(type==='social:call-offer'){
+        // Retrouve l'UUID YourMine depuis le peerId
+        const fromUUID=[..._nearUsers.entries()].find(([,v])=>v.peerId===peerId)?.[0]||null;
+        handleCallOffer({...data,from:peerId,fromUUID});
+      }
+      else if(type==='social:call-answer'&&_peerConnection) _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
+      else if(type==='social:ice'&&_peerConnection) _peerConnection.addIceCandidate(data.candidate).catch(()=>{});
+      else if(type==='social:call-end'&&_callPeer===peerId) hangUp();
     });
 
     _cleanTimer = setInterval(cleanGossip, 5000);
@@ -757,11 +862,10 @@ function renderContactsTab(el){
         card.appendChild(nets);
       }
       // Appel vocal si proche
-      const nearEntry=_nearUsers.get(c.uuid);
       if(nearEntry){
         const callBtn=document.createElement('button');callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:8px;font-size:12px';
         callBtn.textContent='📞 Voice Call';
-        callBtn.addEventListener('click',e=>{e.stopPropagation();startVoiceCall(nearEntry.peerId);});
+        callBtn.addEventListener('click',e=>{e.stopPropagation();startVoiceCall(profile.uuid);});
         card.appendChild(callBtn);
       }
       card.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
@@ -906,6 +1010,14 @@ function renderProfileView(container,profile){
     saveContacts(loadContacts().filter(x=>x.uuid!==profile.uuid));
     window.YM_toast?.('Contact removed','info');renderProfileView(container,profile);
   });
+  // Bouton appel si peer est near
+  if(_nearUsers.has(profile.uuid)){
+    const callBtn=document.createElement('button');
+    callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:10px';
+    callBtn.textContent='📞 Voice Call';
+    callBtn.addEventListener('click',()=>startVoiceCall(profile.uuid));
+    container.appendChild(callBtn);
+  }
 }
 
 // ── USER CARD ──────────────────────────────────────────────────────────────────
