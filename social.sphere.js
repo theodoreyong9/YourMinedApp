@@ -296,6 +296,16 @@ const PROFILE_ONLY_NETWORKS = [
 
 const ALL_NETWORKS=[...FEED_NETWORKS,...PROFILE_ONLY_NETWORKS];
 
+// Extrait la première image d'un contenu HTML
+function extractImage(html){
+  if(!html) return null;
+  const m=html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?m[1]:null;
+}
+// Extrait le texte d'un contenu HTML
+function extractText(html){
+  return html?html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';
+}
 async function fetchFeedItems(networks){
   const items = [];
   for(const n of networks.filter(n=>FEED_NETWORKS.find(f=>f.id===n.id))){
@@ -305,15 +315,21 @@ async function fetchFeedItems(networks){
         if(instance){
           const acc = await (await fetch(`https://${instance}/api/v1/accounts/lookup?acct=${user}`)).json();
           const posts = await (await fetch(`https://${instance}/api/v1/accounts/${acc.id}/statuses?limit=5`)).json();
-          posts.forEach(p=>items.push({network:'Mastodon',author:acc.display_name||acc.username,text:p.content.replace(/<[^>]+>/g,''),ts:new Date(p.created_at).getTime(),url:p.url}));
+          posts.forEach(p=>{
+            const img=p.media_attachments?.find(a=>a.type==='image')?.url||extractImage(p.content);
+            items.push({network:'Mastodon',author:acc.display_name||acc.username,
+              text:extractText(p.content),image:img,ts:new Date(p.created_at).getTime(),url:p.url});
+          });
         }
       }
       if(n.id==='bluesky' && n.handle){
         const handle = n.handle.replace('@','');
         const data = await (await fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${handle}&limit=5`)).json();
         (data.feed||[]).forEach(f=>{
-          const post = f.post?.record;
-          if(post?.text) items.push({network:'Bluesky',author:handle,text:post.text,ts:new Date(post.createdAt).getTime(),url:`https://bsky.app/profile/${handle}`});
+          const post=f.post?.record;
+          const img=f.post?.embed?.images?.[0]?.thumb||f.post?.embed?.thumbnail;
+          if(post?.text) items.push({network:'Bluesky',author:handle,text:post.text,image:img||null,
+            ts:new Date(post.createdAt).getTime(),url:`https://bsky.app/profile/${handle}`});
         });
       }
       if(n.id==='github' && n.handle){
@@ -324,41 +340,55 @@ async function fetchFeedItems(networks){
           items.push({network:'GitHub',author:user,text:msg,ts:new Date(e.created_at).getTime(),url:`https://github.com/${user}`});
         });
       }
-      if(n.id==='devto' && n.handle){
-        const user=n.handle.replace('@','');
-        const posts=await(await fetch(`https://dev.to/api/articles?username=${user}&per_page=5`)).json();
-        if(Array.isArray(posts)) posts.forEach(p=>items.push({network:'Dev.to',author:user,text:p.title,ts:new Date(p.published_at).getTime(),url:p.url}));
-      }
-      if(n.id==='hashnode' && n.handle){
-        const user=n.handle.replace('@','');
-        const r=await fetch('https://gql.hashnode.com/',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({query:`{user(username:"${user}"){posts(page:1,pageSize:5){nodes{title,url,publishedAt}}}}`})});
-        const d=await r.json();
-        (d.data?.user?.posts?.nodes||[]).forEach(p=>items.push({network:'Hashnode',author:user,text:p.title,ts:new Date(p.publishedAt).getTime(),url:p.url}));
-      }
       if(n.id==='medium' && n.handle){
         const user=n.handle.replace('@','');
         const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://medium.com/feed/@${user}`);
         const d=await r.json();
-        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Medium',author:user,text:p.title,ts:new Date(p.pubDate).getTime(),url:p.link}));
+        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Medium',author:user,
+          text:p.title,image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+          ts:new Date(p.pubDate).getTime(),url:p.link}));
       }
       if(n.id==='substack' && n.handle){
         const host=n.handle.includes('.')?n.handle:`${n.handle}.substack.com`;
         const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://${host}/feed`);
         const d=await r.json();
-        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Substack',author:host,text:p.title,ts:new Date(p.pubDate).getTime(),url:p.link}));
+        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Substack',author:host,
+          text:p.title,image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+          ts:new Date(p.pubDate).getTime(),url:p.link}));
       }
       if(n.id==='paragraph' && n.handle){
         const handle=n.handle.replace('paragraph.xyz/','').replace('@','');
         const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https://paragraph.xyz/@${handle}/feed`);
         const d=await r.json();
-        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,text:p.title,ts:new Date(p.pubDate).getTime(),url:p.link}));
+        (d.items||[]).slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,
+          text:p.title,image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+          ts:new Date(p.pubDate).getTime(),url:p.link}));
+      }
+      if(n.id==='devto' && n.handle){
+        const user=n.handle.replace('@','');
+        const posts=await(await fetch(`https://dev.to/api/articles?username=${user}&per_page=5`)).json();
+        if(Array.isArray(posts)) posts.forEach(p=>items.push({network:'Dev.to',author:user,
+          text:p.title,image:p.cover_image||p.social_image||null,
+          ts:new Date(p.published_at).getTime(),url:p.url}));
+      }
+      if(n.id==='hashnode' && n.handle){
+        const user=n.handle.replace('@','');
+        const r=await fetch('https://gql.hashnode.com/',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({query:`{user(username:"${user}"){posts(page:1,pageSize:5){nodes{title,url,publishedAt,coverImage{url}}}}}`})});
+        const d=await r.json();
+        (d.data?.user?.posts?.nodes||[]).forEach(p=>items.push({network:'Hashnode',author:user,
+          text:p.title,image:p.coverImage?.url||null,ts:new Date(p.publishedAt).getTime(),url:p.url}));
       }
       if(n.id==='reddit' && n.handle){
         const user=n.handle.replace('u/','').replace('@','');
         const r=await fetch(`https://www.reddit.com/user/${user}/submitted.json?limit=5`);
         const d=await r.json();
-        (d.data?.children||[]).forEach(c=>items.push({network:'Reddit',author:user,text:c.data.title,ts:c.data.created_utc*1000,url:`https://reddit.com${c.data.permalink}`}));
+        (d.data?.children||[]).forEach(c=>{
+          const post=c.data;
+          const img=post.thumbnail&&post.thumbnail.startsWith('http')?post.thumbnail:null;
+          items.push({network:'Reddit',author:user,text:post.title,image:img,
+            ts:post.created_utc*1000,url:`https://reddit.com${post.permalink}`});
+        });
       }
     }catch{}
   }
@@ -443,7 +473,7 @@ window.YM_S['social.sphere.js'] = {
       tab.addEventListener('click',()=>{
         container.querySelectorAll('.ym-tab').forEach(x=>x.classList.remove('active'));
         tab.classList.add('active');
-        if(t==='Near'){_ctx?.setNotification?.(0);_clearTabBadge('Near');}
+        if(t==='Near')_ctx?.setNotification?.(0);
         renderSocialTabInto(content,t);
       });
       tabs.appendChild(tab);
@@ -587,6 +617,8 @@ function renderSocialTabInto(content,tab){
 
 // ── NEAR TAB ──────────────────────────────────────────────────────────────────
 function renderNearTab(el){
+  // Si on render Near c'est qu'on le voit — clear le badge
+  _clearTabBadge('Near');
   const near=[..._nearUsers.values()];
 
   el.innerHTML=`
@@ -611,6 +643,7 @@ function renderNearTab(el){
 
 // ── CONTACTS TAB ──────────────────────────────────────────────────────────────
 function renderContactsTab(el){
+  _clearTabBadge('Contacts');
   const contacts=loadContacts();
   el.innerHTML='';
 
@@ -794,15 +827,10 @@ window.YM_Social = {
     const contact=getContact(uuid);
     const profile=near?.profile||contact?.profile||{uuid,name:'Unknown'};
     if(!profile) return;
-    // Utilise openProfilePanel qui gère le titre et le history
-    if(window.YM?.openProfilePanel){
-      window.YM.openProfilePanel(profile);
-      // Render le profil dans le body après ouverture
-      requestAnimationFrame(()=>{
-        const body=document.getElementById('panel-sphere-body');
-        if(body){body.innerHTML='';renderProfileView(body,profile);}
-      });
-    }
+    window.YM?.openProfilePanel?.(profile);
+    // Render le profil dans le body
+    const body=document.getElementById('panel-sphere-body');
+    if(body){body.innerHTML='';renderProfileView(body,profile);}
   }
 };
 
