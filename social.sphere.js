@@ -18,6 +18,15 @@ let _watchId = null;
 let _myCoords = null;
 let _callPeer = null;
 let _peerConnection = null;
+let _iceQueue = [];
+let _remoteDescSet = false;
+
+async function _applyIceQueue(){
+  for(const c of _iceQueue){
+    try{if(_peerConnection)await _peerConnection.addIceCandidate(c);}catch{}
+  }
+  _iceQueue=[];
+}
 let _heartbeatTimer = null;
 let _cleanTimer = null;
 let _refreshNear = null;
@@ -210,7 +219,7 @@ async function startVoiceCall(uuid){
 }
 
 async function handleCallOffer(data){
-  // UI d'appel entrant — l'utilisateur doit accepter
+  _iceQueue=[];_remoteDescSet=false;
   const callerProfile=_nearUsers.get(data.fromUUID)?.profile||{name:'Unknown',uuid:data.fromUUID};
   _showIncomingCallUI(callerProfile,async()=>{
     // Accepte
@@ -234,6 +243,8 @@ async function handleCallOffer(data){
         if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
       };
       await _peerConnection.setRemoteDescription({type:'offer',sdp:data.sdp});
+      _remoteDescSet=true;
+      await _applyIceQueue();
       const answer=await _peerConnection.createAnswer();
       await _peerConnection.setLocalDescription(answer);
       _callSend('social:call-answer',{sdp:answer.sdp},data.from);
@@ -371,6 +382,7 @@ function hangUp(){
   _peerConnection?.close();_peerConnection=null;
   _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
   _callPeer=null;_callUUID=null;
+  _iceQueue=[];_remoteDescSet=false;
   document.getElementById('ym-call-audio')?.remove();
   _removeCallUI();
   window.YM_toast?.('Call ended','info');
@@ -625,15 +637,29 @@ window.YM_S['social.sphere.js'] = {
     _onPeerJoin=()=>setTimeout(broadcastPresence, 300);
     window.addEventListener('ym:peer-join', _onPeerJoin);
 
-    ctx.onReceive((type,data,peerId)=>{
+    // Reset ICE queue pour ce nouvel appel
+    ctx.onReceive(async(type,data,peerId)=>{
       if(type==='social:presence')          handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
       else if(type==='social:call-offer'){
+        _iceQueue=[];_remoteDescSet=false;
         const fromUUID=[..._nearUsers.entries()].find(([,v])=>v.peerId===peerId)?.[0]||null;
         handleCallOffer({...data,from:peerId,fromUUID});
       }
-      else if(type==='social:call-answer'&&_peerConnection) _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
-      else if(type==='social:ice'&&_peerConnection) _peerConnection.addIceCandidate(data.candidate).catch(()=>{});
+      else if(type==='social:call-answer'&&_peerConnection){
+        try{
+          await _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
+          _remoteDescSet=true;
+          await _applyIceQueue();
+        }catch(e){console.warn('[Social] call-answer error:',e.message);}
+      }
+      else if(type==='social:ice'&&_peerConnection){
+        if(_remoteDescSet){
+          try{await _peerConnection.addIceCandidate(data.candidate);}catch{}
+        }else{
+          _iceQueue.push(data.candidate);
+        }
+      }
       else if(type==='social:call-end'&&_callPeer===peerId) hangUp();
     });
 
