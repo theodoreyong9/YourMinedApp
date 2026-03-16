@@ -201,12 +201,8 @@ async function startVoiceCall(uuid){
   if(!isReciprocal(uuid)){window.YM_toast?.('Contact must add you back first','warn');return;}
   const peerId=_getPeerId(uuid);
   if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
-  // Reset complet avant chaque appel
   hangUp();
-  _iceQueue=[];_remoteDescSet=false;
-  // Buffer ICE candidates jusqu'à réception du answer
-  const _pendingIce=[];
-  let _answerReceived=false;
+  _iceQueue=[];_remoteDescSet=false;_callerFlushIce=null;
   try{
     _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
@@ -217,39 +213,31 @@ async function startVoiceCall(uuid){
       audio.srcObject=e.streams[0];
       console.log('[Call] caller got remote track');
     };
-    _peerConnection.onicecandidate=e=>{
-      if(e.candidate){
-        if(_answerReceived){
-          console.log('[Call] caller ICE candidate → sending');
-          _callSend('social:ice',{candidate:e.candidate},peerId);
-        }else{
-          console.log('[Call] caller ICE candidate → buffered (no answer yet)');
-          _pendingIce.push(e.candidate);
-        }
-      }else{
-        console.log('[Call] caller ICE gathering complete');
-      }
-    };
     _peerConnection.onconnectionstatechange=()=>{
       console.log('[Call] caller connectionState:',_peerConnection?.connectionState);
       if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
       if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
     };
-    _peerConnection.onsignalingstatechange=()=>console.log('[Call] caller signalingState:',_peerConnection?.signalingState);
     _peerConnection.onicegatheringstatechange=()=>console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
-
-    // Stocke le flush pour l'appeler depuis onReceive quand answer arrive
-    _callerFlushIce=(()=>{
-      _answerReceived=true;
-      console.log('[Call] flushing',_pendingIce.length,'buffered ICE candidates');
-      _pendingIce.forEach(c=>_callSend('social:ice',{candidate:c},peerId));
-      _pendingIce.length=0;
-    });
 
     const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
-    console.log('[Call] offer created, sending to peerId:',peerId);
-    _callSend('social:call-offer',{sdp:offer.sdp},peerId);
+    console.log('[Call] waiting for ICE gathering to complete…');
+
+    // Attend que le gathering soit complet — SDP contiendra tous les ICE candidates
+    await new Promise(res=>{
+      if(_peerConnection.iceGatheringState==='complete'){res();return;}
+      _peerConnection.onicegatheringstatechange=()=>{
+        console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
+        if(_peerConnection.iceGatheringState==='complete')res();
+      };
+      // Timeout 8s max
+      setTimeout(res,8000);
+    });
+
+    const finalSdp=_peerConnection.localDescription.sdp;
+    console.log('[Call] offer ready (ICE complete), sending to peerId:',peerId,'sdp length:',finalSdp.length);
+    _callSend('social:call-offer',{sdp:finalSdp},peerId);
     _callPeer=peerId;_callUUID=uuid;
     _showCallUI('calling',uuid);
   }catch(e){window.YM_toast?.('Call failed: '+e.message,'error');hangUp();}
@@ -269,29 +257,32 @@ async function handleCallOffer(data){
         if(!audio){audio=document.createElement('audio');audio.id='ym-call-audio';audio.autoplay=true;document.body.appendChild(audio);}
         audio.srcObject=e.streams[0];
       };
-      _peerConnection.onicecandidate=e=>{
-        if(e.candidate){
-          console.log('[Call] callee ICE candidate, sending to',data.from);
-          _callSend('social:ice',{candidate:e.candidate},data.from);
-        }else{
-          console.log('[Call] callee ICE gathering complete');
-        }
-      };
       _peerConnection.onconnectionstatechange=()=>{
         console.log('[Call] callee connectionState:',_peerConnection?.connectionState);
         if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
         if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
       };
-      _peerConnection.onsignalingstatechange=()=>console.log('[Call] callee signalingState:',_peerConnection?.signalingState);
       _peerConnection.onicegatheringstatechange=()=>console.log('[Call] callee iceGatheringState:',_peerConnection?.iceGatheringState);
       await _peerConnection.setRemoteDescription({type:'offer',sdp:data.sdp});
       console.log('[Call] setRemoteDescription(offer) OK');
       _remoteDescSet=true;
-      await _applyIceQueue();
       const answer=await _peerConnection.createAnswer();
       await _peerConnection.setLocalDescription(answer);
-      console.log('[Call] answer created, sending to',data.from);
-      _callSend('social:call-answer',{sdp:answer.sdp},data.from);
+
+      // Attend que le gathering soit complet avant d'envoyer le answer
+      console.log('[Call] callee waiting for ICE gathering…');
+      await new Promise(res=>{
+        if(_peerConnection.iceGatheringState==='complete'){res();return;}
+        _peerConnection.onicegatheringstatechange=()=>{
+          console.log('[Call] callee iceGatheringState:',_peerConnection?.iceGatheringState);
+          if(_peerConnection.iceGatheringState==='complete')res();
+        };
+        setTimeout(res,8000);
+      });
+
+      const finalSdp=_peerConnection.localDescription.sdp;
+      console.log('[Call] answer ready (ICE complete), sending to',data.from,'sdp length:',finalSdp.length);
+      _callSend('social:call-answer',{sdp:finalSdp},data.from);
       _callPeer=data.from;_callUUID=data.fromUUID;
       _showCallUI('connected',data.fromUUID);
     }catch(e){window.YM_toast?.('Call error: '+e.message,'error');hangUp();}
@@ -705,24 +696,9 @@ window.YM_S['social.sphere.js'] = {
         console.log('[Call] answer received, sdp length:',data.sdp?.length);
         try{
           await _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
-          console.log('[Call] setRemoteDescription(answer) OK, state:',_peerConnection.signalingState);
+          console.log('[Call] setRemoteDescription(answer) OK, state:',_peerConnection.signalingState,'connectionState:',_peerConnection.connectionState);
           _remoteDescSet=true;
-          // Flush les ICE candidates bufferisés AVANT d'appliquer la queue
-          if(_callerFlushIce){_callerFlushIce();_callerFlushIce=null;}
-          await _applyIceQueue();
-          console.log('[Call] ICE queue applied, connection state:',_peerConnection.connectionState);
         }catch(e){console.warn('[Call] call-answer error:',e.message);}
-      }
-      else if(type==='social:ice'){
-        // N'accepter les ICE que du peer avec qui on est en appel
-        if(!_peerConnection||!_callPeer||peerId!==_callPeer) return;
-        console.log('[Call] ICE candidate received, remoteDescSet:',_remoteDescSet);
-        if(_remoteDescSet){
-          try{await _peerConnection.addIceCandidate(data.candidate);console.log('[Call] ICE candidate added OK');}catch(e){console.warn('[Call] ICE add error:',e.message);}
-        }else{
-          _iceQueue.push(data.candidate);
-          console.log('[Call] ICE queued, queue size:',_iceQueue.length);
-        }
       }
       else if(type==='social:call-end'&&_callPeer===peerId) hangUp();
     });
@@ -1189,42 +1165,127 @@ function _showInternalBack(){}
 function _hideInternalBack(){}
 
 function renderProfileView(container,profile){
-  const nets=(profile.networks||[]).map(n=>`<span class="pill">${n.id} ${n.handle}</span>`).join('');
-  const spheres=(profile.spheres||[]).map(s=>`<span class="pill active">${s.replace('.sphere.js','')}</span>`).join('');
   const rawSite=profile.site||'';
   const siteUrl=rawSite&&!rawSite.startsWith('http')?'https://'+rawSite:rawSite;
   const isContact=!!getContact(profile.uuid);
-  const contactBar=isContact
-    ?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:var(--r-sm)"><span style="color:var(--green);font-size:12px;flex:1">✓ In contacts</span><button class="ym-btn ym-btn-danger" id="remove-contact-btn" style="padding:4px 10px;font-size:11px;min-height:unset">Remove</button></div>`
-    :`<button class="ym-btn ym-btn-accent" id="add-contact-btn" style="width:100%;margin-bottom:12px">+ Add Contact</button>`;
-  container.innerHTML=`
-    ${contactBar}
-    <div style="text-align:center;padding:12px 0">
-      <div style="margin-bottom:8px">${profile.avatar?
-        `<img src="${profile.avatar}" style="width:72px;height:72px;border-radius:50%;object-fit:cover">`:
-        `<div style="width:72px;height:72px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto">${profile.name?.charAt(0)||'👤'}</div>`}</div>
-      <div style="font-size:18px;font-weight:600;margin-bottom:4px">${profile.name||'Anonymous'}</div>
-      ${profile.bio?`<div style="font-size:13px;color:var(--text2);max-width:280px;margin:0 auto">${profile.bio}</div>`:''}
-      ${siteUrl?`<a href="${siteUrl}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--cyan);display:block;margin-top:6px">${rawSite}</a>`:''}
-    </div>
-    ${nets?`<div class="ym-card"><div class="ym-card-title">Social Networks</div><div style="display:flex;flex-wrap:wrap;gap:4px">${nets}</div></div>`:''}
-    ${spheres?`<div class="ym-card"><div class="ym-card-title">Active Spheres</div><div>${spheres}</div></div>`:''}
-    ${profile.pubkey?`<div class="ym-card"><div class="ym-card-title">Wallet</div><div style="font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all">${profile.pubkey}</div></div>`:''}
-  `;
-  container.querySelector('#add-contact-btn')?.addEventListener('click',()=>{
-    addContact(profile);window.YM_toast?.('Contact added','success');renderProfileView(container,profile);
-  });
-  container.querySelector('#remove-contact-btn')?.addEventListener('click',()=>{
-    saveContacts(loadContacts().filter(x=>x.uuid!==profile.uuid));
-    window.YM_toast?.('Contact removed','info');renderProfileView(container,profile);
-  });
-  // Bouton appel si peer est near
-  if(_nearUsers.has(profile.uuid)){
-    const callBtn=document.createElement('button');
-    callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:10px';
-    callBtn.textContent='📞 Voice Call';
-    callBtn.addEventListener('click',()=>startVoiceCall(profile.uuid));
-    container.appendChild(callBtn);
+  const isNear=_nearUsers.has(profile.uuid);
+  const isReciproc=isReciprocal(profile.uuid);
+
+  container.innerHTML='';
+
+  // ── Contact bar ───────────────────────────────────────────
+  const contactBar=document.createElement('div');
+  if(isContact){
+    contactBar.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:var(--r-sm)';
+    contactBar.innerHTML='<span style="color:var(--green);font-size:12px;flex:1">✓ In contacts</span>';
+    const rmBtn=document.createElement('button');rmBtn.className='ym-btn ym-btn-danger';rmBtn.style.cssText='padding:4px 10px;font-size:11px;min-height:unset';rmBtn.textContent='Remove';
+    rmBtn.addEventListener('click',()=>{saveContacts(loadContacts().filter(x=>x.uuid!==profile.uuid));window.YM_toast?.('Contact removed','info');renderProfileView(container,profile);});
+    contactBar.appendChild(rmBtn);
+  }else{
+    const addBtn=document.createElement('button');addBtn.className='ym-btn ym-btn-accent';addBtn.style.cssText='width:100%;margin-bottom:12px';addBtn.textContent='+ Add Contact';
+    addBtn.addEventListener('click',()=>{addContact(profile);window.YM_toast?.('Contact added','success');renderProfileView(container,profile);});
+    contactBar.appendChild(addBtn);
+  }
+  container.appendChild(contactBar);
+
+  // ── Avatar + identité ─────────────────────────────────────
+  const ident=document.createElement('div');
+  ident.style.cssText='text-align:center;padding:12px 0';
+  const av=profile.avatar
+    ?'<img src="'+profile.avatar+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover">'
+    :'<div style="width:72px;height:72px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto">'+(profile.name?.charAt(0)||'👤')+'</div>';
+  ident.innerHTML=
+    '<div style="margin-bottom:8px">'+av+'</div>'+
+    '<div style="font-size:18px;font-weight:600;margin-bottom:4px">'+(profile.name||'Anonymous')+'</div>'+
+    (profile.bio?'<div style="font-size:13px;color:var(--text2);max-width:280px;margin:0 auto">'+profile.bio+'</div>':'')+
+    (siteUrl?'<a href="'+siteUrl+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--cyan);display:block;margin-top:6px">'+rawSite+'</a>':'');
+  container.appendChild(ident);
+
+  // ── Réseaux sociaux ───────────────────────────────────────
+  if(profile.networks?.length){
+    const nets=document.createElement('div');nets.className='ym-card';
+    nets.innerHTML='<div class="ym-card-title">Social Networks</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+
+      profile.networks.map(n=>'<span class="pill">'+n.id+' '+n.handle+'</span>').join('')+'</div>';
+    container.appendChild(nets);
+  }
+
+  // ── Sphères actives en accordéon ─────────────────────────
+  if(profile.spheres?.length){
+    const spheresTitle=document.createElement('div');
+    spheresTitle.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';
+    spheresTitle.textContent='Active Spheres';
+    container.appendChild(spheresTitle);
+
+    profile.spheres.forEach(sphereFile=>{
+      const sphereName=sphereFile.replace('.sphere.js','');
+      const sphereObj=window.YM_sphereRegistry?.get(sphereFile);
+
+      const accordion=document.createElement('div');
+      accordion.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;overflow:hidden';
+
+      // Header cliquable
+      const header=document.createElement('div');
+      header.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;background:rgba(255,255,255,.02)';
+      const icon=sphereObj?.icon||'⬡';
+      header.innerHTML=
+        '<span style="font-size:16px">'+icon+'</span>'+
+        '<span style="font-size:12px;font-weight:600;flex:1">'+sphereName+'</span>'+
+        '<span class="acc-arrow" style="font-size:10px;color:var(--text3)">›</span>';
+
+      // Corps déroulant
+      const body=document.createElement('div');
+      body.style.cssText='display:none;padding:10px 12px;border-top:1px solid var(--border)';
+
+      // Interactions selon la sphère
+      if(sphereFile==='social.sphere.js'){
+        // Bouton appel si near ET réciproque
+        if(isNear&&isReciproc){
+          const callBtn=document.createElement('button');
+          callBtn.className='ym-btn ym-btn-ghost';
+          callBtn.style.cssText='width:100%;font-size:12px;color:var(--cyan);border-color:rgba(34,211,238,.3)';
+          callBtn.textContent='📞 Voice Call';
+          callBtn.addEventListener('click',()=>startVoiceCall(profile.uuid));
+          body.appendChild(callBtn);
+        }else if(isNear&&!isReciproc){
+          const info=document.createElement('div');
+          info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
+          info.textContent='Add each other as contacts to call';
+          body.appendChild(info);
+        }else{
+          const info=document.createElement('div');
+          info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
+          info.textContent='Not nearby';
+          body.appendChild(info);
+        }
+      }else if(sphereFile==='mine.sphere.js'&&profile.pubkey){
+        const pk=document.createElement('div');
+        pk.style.cssText='font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all';
+        pk.textContent=profile.pubkey;
+        body.appendChild(pk);
+      }else{
+        // Sphère générique — affiche description si dispo
+        const desc=sphereObj?.description||'';
+        if(desc){const d=document.createElement('div');d.style.cssText='font-size:11px;color:var(--text2)';d.textContent=desc;body.appendChild(d);}
+        else{const d=document.createElement('div');d.style.cssText='font-size:11px;color:var(--text3)';d.textContent='No interactions available';body.appendChild(d);}
+      }
+
+      header.addEventListener('click',()=>{
+        const open=body.style.display!=='none';
+        body.style.display=open?'none':'block';
+        header.querySelector('.acc-arrow').textContent=open?'›':'⌄';
+      });
+
+      accordion.appendChild(header);
+      accordion.appendChild(body);
+      container.appendChild(accordion);
+    });
+  }
+
+  // ── Wallet ────────────────────────────────────────────────
+  if(profile.pubkey&&!profile.spheres?.includes('mine.sphere.js')){
+    const wallet=document.createElement('div');wallet.className='ym-card';
+    wallet.innerHTML='<div class="ym-card-title">Wallet</div><div style="font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all">'+profile.pubkey+'</div>';
+    container.appendChild(wallet);
   }
 }
 
