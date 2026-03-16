@@ -986,8 +986,8 @@ function renderContactsTab(el){
         profile.networks.forEach(n=>{const p=document.createElement('span');p.className='pill';p.textContent=n.id+' '+n.handle;nets.appendChild(p);});
         card.appendChild(nets);
       }
-      // Appel vocal si proche
-      if(nearEntry){
+      // Appel vocal si contact proche ET réciproque
+      if(_nearUsers.has(profile.uuid)&&isReciprocal(profile.uuid)){
         const callBtn=document.createElement('button');callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:8px;font-size:12px';
         callBtn.textContent='📞 Voice Call';
         callBtn.addEventListener('click',e=>{e.stopPropagation();startVoiceCall(profile.uuid);});
