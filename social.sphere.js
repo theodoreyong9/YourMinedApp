@@ -20,6 +20,7 @@ let _callPeer = null;
 let _peerConnection = null;
 let _iceQueue = [];
 let _remoteDescSet = false;
+let _callerFlushIce = null; // appelé quand le answer arrive pour flush les ICE bufferisés
 
 async function _applyIceQueue(){
   for(const c of _iceQueue){
@@ -199,7 +200,12 @@ async function startVoiceCall(uuid){
   if(!isReciprocal(uuid)){window.YM_toast?.('Contact must add you back first','warn');return;}
   const peerId=_getPeerId(uuid);
   if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
+  // Reset complet avant chaque appel
+  hangUp();
   _iceQueue=[];_remoteDescSet=false;
+  // Buffer ICE candidates jusqu'à réception du answer
+  const _pendingIce=[];
+  let _answerReceived=false;
   try{
     _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
@@ -208,11 +214,17 @@ async function startVoiceCall(uuid){
       let audio=document.getElementById('ym-call-audio');
       if(!audio){audio=document.createElement('audio');audio.id='ym-call-audio';audio.autoplay=true;document.body.appendChild(audio);}
       audio.srcObject=e.streams[0];
+      console.log('[Call] caller got remote track');
     };
     _peerConnection.onicecandidate=e=>{
       if(e.candidate){
-        console.log('[Call] caller ICE candidate, sending to',peerId);
-        _callSend('social:ice',{candidate:e.candidate},peerId);
+        if(_answerReceived){
+          console.log('[Call] caller ICE candidate → sending');
+          _callSend('social:ice',{candidate:e.candidate},peerId);
+        }else{
+          console.log('[Call] caller ICE candidate → buffered (no answer yet)');
+          _pendingIce.push(e.candidate);
+        }
       }else{
         console.log('[Call] caller ICE gathering complete');
       }
@@ -224,6 +236,15 @@ async function startVoiceCall(uuid){
     };
     _peerConnection.onsignalingstatechange=()=>console.log('[Call] caller signalingState:',_peerConnection?.signalingState);
     _peerConnection.onicegatheringstatechange=()=>console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
+
+    // Stocke le flush pour l'appeler depuis onReceive quand answer arrive
+    _callerFlushIce=(()=>{
+      _answerReceived=true;
+      console.log('[Call] flushing',_pendingIce.length,'buffered ICE candidates');
+      _pendingIce.forEach(c=>_callSend('social:ice',{candidate:c},peerId));
+      _pendingIce.length=0;
+    });
+
     const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
     console.log('[Call] offer created, sending to peerId:',peerId);
@@ -404,7 +425,7 @@ function hangUp(){
   _peerConnection?.close();_peerConnection=null;
   _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
   _callPeer=null;_callUUID=null;
-  _iceQueue=[];_remoteDescSet=false;
+  _iceQueue=[];_remoteDescSet=false;_callerFlushIce=null;
   document.getElementById('ym-call-audio')?.remove();
   _removeCallUI();
   window.YM_toast?.('Call ended','info');
@@ -674,6 +695,8 @@ window.YM_S['social.sphere.js'] = {
           await _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
           console.log('[Call] setRemoteDescription(answer) OK, state:',_peerConnection.signalingState);
           _remoteDescSet=true;
+          // Flush les ICE candidates bufferisés AVANT d'appliquer la queue
+          if(_callerFlushIce){_callerFlushIce();_callerFlushIce=null;}
           await _applyIceQueue();
           console.log('[Call] ICE queue applied, connection state:',_peerConnection.connectionState);
         }catch(e){console.warn('[Call] call-answer error:',e.message);}
