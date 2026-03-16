@@ -38,39 +38,83 @@ function getContacts(){try{return JSON.parse(localStorage.getItem('ym_contacts_v
 function getContact(uuid){return getContacts().find(c=>c.uuid===uuid);}
 function getMyUUID(){return _ctx?.loadProfile?.()?.uuid||'';}
 
+// ── QUEUE OFFLINE ──────────────────────────────────────────────────────────
+const QUEUE_KEY='ym_msg_queue_v1';
+function loadQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');}catch{return[];}}
+function saveQueue(q){try{localStorage.setItem(QUEUE_KEY,JSON.stringify(q));}catch{}}
+
+function getPeerId(uuid){return window.YM_Social?._nearUsers?.get(uuid)?.peerId||null;}
+function isNear(uuid){return !!(window.YM_Social?._nearUsers?.has(uuid));}
+
 // ── SEND ───────────────────────────────────────────────────────────────────
 function sendMsg(toUUID,text){
   if(!text.trim())return false;
-  const msg={from:getMyUUID(),to:toUUID,text:text.trim(),ts:Date.now(),sent:true};
+  const myUUID=getMyUUID();
+  const msg={from:myUUID,to:toUUID,text:text.trim(),ts:Date.now(),sent:false};
   addMsg(toUUID,msg);
-  _ctx.send('msg:text',{to:toUUID,text:text.trim(),ts:msg.ts});
+
+  if(isNear(toUUID)){
+    _deliverMsg(toUUID,msg);
+  } else {
+    // Hors ligne — met en queue
+    const q=loadQueue();
+    q.push({to:toUUID,text:msg.text,ts:msg.ts});
+    saveQueue(q);
+    window.YM_toast?.('Message queued (contact offline)','info');
+  }
   return true;
+}
+
+function _deliverMsg(toUUID,msg){
+  const peerId=getPeerId(toUUID);
+  if(!peerId)return;
+  const payload={sphere:'messenger.sphere.js',type:'msg:text',data:{text:msg.text,ts:msg.ts}};
+  try{window.YM_P2P?.sendTo(peerId,payload);}catch{}
+  try{window.YM_P2P?.broadcast(payload);}catch{}
+  // Marque comme envoyé
+  const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');
+  const conv=all[toUUID]||[];
+  const m=conv.find(x=>x.ts===msg.ts&&x.from===msg.from);
+  if(m){m.sent=true;localStorage.setItem(MSG_KEY,JSON.stringify(all));}
+}
+
+function _flushQueue(uuid){
+  const q=loadQueue();
+  const toSend=q.filter(m=>m.to===uuid);
+  if(!toSend.length)return;
+  const myUUID=getMyUUID();
+  toSend.forEach(m=>{
+    _deliverMsg(uuid,{from:myUUID,to:uuid,text:m.text,ts:m.ts});
+  });
+  saveQueue(q.filter(m=>m.to!==uuid));
+  // Rafraîchit l'UI si conv ouverte
+  if(_currentChat===uuid)_onNewMsg?.();
 }
 
 // ── RECEIVE ────────────────────────────────────────────────────────────────
 function handleIncoming(data,peerId){
   const myUUID=getMyUUID();
-  if(!data?.text||!data?.ts)return;
-  // Cherche l'UUID de l'expéditeur depuis les near users ou contacts
+  if(!data||!data.text||!data.ts)return;
+  // Trouve l'UUID depuis les near users
   const near=window.YM_Social?._nearUsers;
   let fromUUID=null;
   if(near){for(const[uuid,u] of near){if(u.peerId===peerId){fromUUID=uuid;break;}}}
-  if(!fromUUID)return; // ignore si peer inconnu
-
-  // N'accepte que les messages de contacts
+  if(!fromUUID)return;
   if(!getContact(fromUUID))return;
+  // Évite les doublons (broadcast peut arriver 2x)
+  const existing=loadMsgs(fromUUID);
+  if(existing.find(m=>m.ts===data.ts&&m.from===fromUUID))return;
 
   const msg={from:fromUUID,to:myUUID,text:data.text,ts:data.ts,sent:false};
   addMsg(fromUUID,msg);
 
   if(_currentChat===fromUUID){
-    // Fenêtre ouverte — rafraîchit immédiatement
     _onNewMsg?.();
   }else{
-    // Incrémente badge
     incUnread(fromUUID);
     _ctx.setNotification(totalUnread());
-    window.YM_toast?.(getContact(fromUUID)?.nickname||(getContact(fromUUID)?.profile?.name||'Message'),'info');
+    const name=getContact(fromUUID)?.nickname||getContact(fromUUID)?.profile?.name||fromUUID.slice(0,8);
+    window.YM_toast?.(name+': '+data.text.slice(0,40),'info');
     _updateBadges?.();
   }
 }
@@ -187,7 +231,7 @@ function openChat(container,contact){
       _avatarHtml(prof,34)+
       (isNear?'<div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-radius:50%;background:#30e880;border:2px solid var(--surface2)"></div>':'')+
     '</div>'+
-    '<div style="flex:1;min-width:0">'+
+    '<div style="flex:1;min-width:0;cursor:pointer" id="msg-name">'+
       '<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(contact.nickname||prof.name||'Anonymous')+'</div>'+
       '<div style="font-size:10px;color:var(--text3)">'+(isNear?'🟢 Nearby':'⚫ Offline')+'</div>'+
     '</div>'+
@@ -278,6 +322,10 @@ function openChat(container,contact){
     _currentChat=null;_onNewMsg=null;
     renderConversationList(container);
   });
+  // Clic sur le nom → ouvre le profil
+  hdr.querySelector('#msg-name')?.addEventListener('click',()=>{
+    window.YM?.openProfilePanel?.(prof);
+  });
   hdr.querySelector('#msg-call')?.addEventListener('click',()=>{
     window.YM_Social?.startVoiceCall?.(contact.uuid);
   });
@@ -293,7 +341,7 @@ window.YM_S['messenger.sphere.js']={
   emit:[],
   receive:[],
 
-  async activate(ctx){
+  activate(ctx){
     _ctx=ctx;
     _unread=loadUnread();
     const total=totalUnread();
@@ -302,13 +350,52 @@ window.YM_S['messenger.sphere.js']={
     ctx.onReceive((type,data,peerId)=>{
       if(type==='msg:text')handleIncoming(data,peerId);
     });
+
+    // Flush queue quand un peer rejoint
+    window.addEventListener('ym:peer-join',_onPeerJoin);
   },
 
   deactivate(){
+    window.removeEventListener('ym:peer-join',_onPeerJoin);
     _currentChat=null;_onNewMsg=null;_updateBadges=null;_ctx=null;
   },
 
-  renderPanel
+  renderPanel,
+
+  profileSection(container){
+    // Bouton "Open Messenger" dans le dépliant messenger de profile/spheres
+    const btn=document.createElement('button');
+    btn.className='ym-btn ym-btn-ghost';
+    btn.style.cssText='width:100%;font-size:12px';
+    btn.textContent='💬 Open Messenger';
+    btn.addEventListener('click',()=>{
+      window.YM?.openSpherePanel?.('messenger.sphere.js');
+    });
+    container.appendChild(btn);
+    // Affiche le nombre de non-lus
+    const unread=totalUnread();
+    if(unread>0){
+      const badge=document.createElement('div');
+      badge.style.cssText='text-align:center;font-size:11px;color:var(--accent);margin-top:6px';
+      badge.textContent=unread+' unread message'+(unread>1?'s':'');
+      container.appendChild(badge);
+    }
+  }
+};
+
+function _onPeerJoin(){
+  // Flush les messages en queue pour tous les peers qui viennent de rejoindre
+  const q=loadQueue();
+  if(!q.length)return;
+  const uuids=[...new Set(q.map(m=>m.to))];
+  uuids.forEach(uuid=>{
+    if(isNear(uuid))setTimeout(()=>_flushQueue(uuid),600);
+  });
+}
+
+// Expose openConv pour profile.js et autres
+window.YM_Messenger={
+  openConv(uuid){_currentChat=uuid;},
 };
 
 })();
