@@ -593,6 +593,9 @@ async function fetchFeedItems(networks){
 }
 
 // ── SPHERE DEFINITION ────────────────────────────────────────────────────────
+let _onPeerJoin=null;
+let _onVisibility=null;
+
 window.YM_S['social.sphere.js'] = {
   name:'Social',
   icon:'🌐',
@@ -602,9 +605,6 @@ window.YM_S['social.sphere.js'] = {
   emit:['name','bio','avatar','site','lat','lng','networks'],
   receive:['name','bio','avatar','site','spheres','networks'],
   statuses:['online','away','busy'],
-
-let _onPeerJoin=null;
-let _onVisibility=null;
 
   async activate(ctx){
     _ctx = ctx;
