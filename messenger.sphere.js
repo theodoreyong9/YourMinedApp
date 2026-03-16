@@ -280,6 +280,58 @@ function openChat(container,contact){
   ta.focus();
 }
 
+// ── SYNC ───────────────────────────────────────────────────────────────────
+// Quand un peer rejoint, on lui envoie les timestamps de nos messages envoyés
+// pour qu'il puisse nous demander ceux qu'il n'a pas reçus
+function _onPeerJoin(e){
+  const peerId=e&&e.detail&&e.detail.peerId;
+  if(!peerId||peerId==='_self_')return;
+  // Trouve l'UUID de ce peer
+  const near=window.YM_Social&&window.YM_Social._nearUsers;
+  if(!near)return;
+  let uuid=null;
+  near.forEach(function(u,id){if(u.peerId===peerId)uuid=id;});
+  if(!uuid||!getContact(uuid))return;
+  // Envoie nos timestamps pour ce contact
+  const msgs=loadMsgs(uuid);
+  const myUUID=getMyUUID();
+  const sentTs=msgs.filter(function(m){return m.from===myUUID;}).map(function(m){return m.ts;});
+  if(!sentTs.length)return;
+  setTimeout(function(){
+    try{window.YM_P2P&&window.YM_P2P.sendTo(peerId,{sphere:'messenger.sphere.js',type:'msg:sync-req',data:{ts:sentTs,from:myUUID}});}catch(e2){}
+  },1000);
+}
+
+// B reçoit sync-req de A — répond avec les timestamps manquants
+function handleSyncReq(data,peerId){
+  if(!data||!data.ts||!data.from)return;
+  const fromUUID=data.from;
+  if(!getContact(fromUUID))return;
+  const have=loadMsgs(fromUUID).filter(function(m){return m.from===fromUUID;}).map(function(m){return m.ts;});
+  const missing=data.ts.filter(function(ts){return !have.includes(ts);});
+  if(!missing.length)return;
+  try{window.YM_P2P&&window.YM_P2P.sendTo(peerId,{sphere:'messenger.sphere.js',type:'msg:sync-res',data:{missing:missing}});}catch(e){}
+}
+
+// A reçoit sync-res de B — envoie les messages manquants
+function handleSyncRes(data,peerId){
+  if(!data||!data.missing||!data.missing.length)return;
+  const near=window.YM_Social&&window.YM_Social._nearUsers;
+  if(!near)return;
+  let uuid=null;
+  near.forEach(function(u,id){if(u.peerId===peerId)uuid=id;});
+  if(!uuid)return;
+  const myUUID=getMyUUID();
+  const msgs=loadMsgs(uuid);
+  data.missing.forEach(function(ts){
+    const m=msgs.find(function(x){return x.ts===ts&&x.from===myUUID;});
+    if(!m)return;
+    setTimeout(function(){
+      try{window.YM_P2P&&window.YM_P2P.sendTo(peerId,{sphere:'messenger.sphere.js',type:'msg:text',data:{text:m.text,ts:m.ts}});}catch(e){}
+    },100);
+  });
+}
+
 // ── SPHERE ─────────────────────────────────────────────────────────────────
 window.YM_S['messenger.sphere.js']={
   name:'Messenger',
@@ -295,10 +347,15 @@ window.YM_S['messenger.sphere.js']={
     if(total>0)ctx.setNotification(total);
     ctx.onReceive(function(type,data,peerId){
       if(type==='msg:text')handleIncoming(data,peerId);
+      else if(type==='msg:sync-req')handleSyncReq(data,peerId);
+      else if(type==='msg:sync-res')handleSyncRes(data,peerId);
     });
+    // Sync au peer-join
+    window.addEventListener('ym:peer-join',_onPeerJoin);
   },
 
   deactivate(){
+    window.removeEventListener('ym:peer-join',_onPeerJoin);
     _ctx=null;_currentChat=null;_pendingConv=null;_onNewMsg=null;_updateList=null;
   },
 
