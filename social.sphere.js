@@ -616,7 +616,7 @@ window.YM_S['social.sphere.js'] = {
       if(!content) return;
       const tab=panel.querySelector('.ym-tab.active')?.dataset?.tab;
       if(tab==='Near') renderNearTab(content);
-      else if(tab==='Contacts') renderContactsTab(content);
+      else if(tab==='Feed') renderFeedTab(content);
     };
 
     startGeo();
@@ -669,7 +669,7 @@ window.YM_S['social.sphere.js'] = {
 
     const tabs=document.createElement('div');tabs.className='ym-tabs';
     tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);border-bottom:none;margin:0;flex-shrink:0';
-    ['Near','Contacts','Feed'].forEach((t,i)=>{
+    ['Near','Feed'].forEach((t,i)=>{
       const tab=document.createElement('div');
       tab.className='ym-tab'+(i===0?' active':'');
       tab.dataset.tab=t;tab.textContent=t;
@@ -813,9 +813,8 @@ function _updateTabBadgeUI(tab){
 }
 function renderSocialTabInto(content,tab){
   content.innerHTML='';
-  if(tab==='Near')          renderNearTab(content);
-  else if(tab==='Contacts') renderContactsTab(content);
-  else if(tab==='Feed')     renderFeedTab(content);
+  if(tab==='Near')      renderNearTab(content);
+  else if(tab==='Feed') renderFeedTab(content);
 }
 
 // ── NEAR TAB ──────────────────────────────────────────────────────────────────
@@ -988,7 +987,8 @@ function renderFeedTab(el){
     if(!swiping)return;swiping=false;
     const dx=e.clientX-swipeX,dy=e.clientY-swipeY;
     if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.5){
-      const next=dx<0?Math.min(currentIdx+1,tabs.length-1):Math.max(currentIdx-1,0);
+      // Glisser droite → aller à Contacts (idx+1) ; gauche → Nearby (idx-1)
+      const next=dx>0?Math.min(currentIdx+1,tabs.length-1):Math.max(currentIdx-1,0);
       if(next!==currentIdx){currentIdx=next;switchTab(next);}
     }
   },{passive:true});
@@ -1000,7 +1000,8 @@ function renderFeedTab(el){
     if(tabs[idx]==='Nearby'){
       loadFeedForUsers([..._nearUsers.values()].map(u=>u.profile),feedContent);
     }else{
-      loadFeedForUsers(loadContacts().map(c=>c.profile).filter(Boolean),feedContent);
+      const contacts=(()=>{try{return JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{return[];}})();
+      loadFeedForUsers(contacts.map(c=>c.profile).filter(Boolean),feedContent);
     }
   }
 
