@@ -684,6 +684,9 @@ window.YM_S['social.sphere.js'] = {
     window.addEventListener('ym:peer-join', _onPeerJoin);
 
     ctx.onReceive(async(type,data,peerId)=>{
+      if(type.startsWith('social:call')){
+        console.log('[Call] received:',type,'from peerId:',peerId,'_callPeer:',_callPeer,'_peerConnection:',!!_peerConnection);
+      }
       if(type==='social:presence')          handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
       else if(type==='social:call-offer'){
@@ -695,7 +698,10 @@ window.YM_S['social.sphere.js'] = {
       }
       else if(type==='social:call-answer'&&_peerConnection){
         // Ignorer si la réponse vient d'un peer qui n'est pas notre appelé
-        if(_callPeer&&peerId!==_callPeer) return;
+        if(_callPeer&&peerId!==_callPeer){
+          console.log('[Call] answer ignored from wrong peer:',peerId,'expected:',_callPeer);
+          return;
+        }
         console.log('[Call] answer received, sdp length:',data.sdp?.length);
         try{
           await _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
