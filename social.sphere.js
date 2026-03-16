@@ -210,15 +210,23 @@ async function startVoiceCall(uuid){
       audio.srcObject=e.streams[0];
     };
     _peerConnection.onicecandidate=e=>{
-      if(e.candidate)_callSend('social:ice',{candidate:e.candidate},peerId);
+      if(e.candidate){
+        console.log('[Call] caller ICE candidate, sending to',peerId);
+        _callSend('social:ice',{candidate:e.candidate},peerId);
+      }else{
+        console.log('[Call] caller ICE gathering complete');
+      }
     };
     _peerConnection.onconnectionstatechange=()=>{
-      console.log('[Call] caller state:',_peerConnection?.connectionState);
+      console.log('[Call] caller connectionState:',_peerConnection?.connectionState);
       if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
       if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
     };
+    _peerConnection.onsignalingstatechange=()=>console.log('[Call] caller signalingState:',_peerConnection?.signalingState);
+    _peerConnection.onicegatheringstatechange=()=>console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
     const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
+    console.log('[Call] offer created, sending to peerId:',peerId);
     _callSend('social:call-offer',{sdp:offer.sdp},peerId);
     _callPeer=peerId;_callUUID=uuid;
     _showCallUI('calling',uuid);
@@ -240,18 +248,27 @@ async function handleCallOffer(data){
         audio.srcObject=e.streams[0];
       };
       _peerConnection.onicecandidate=e=>{
-        if(e.candidate)_callSend('social:ice',{candidate:e.candidate},data.from);
+        if(e.candidate){
+          console.log('[Call] callee ICE candidate, sending to',data.from);
+          _callSend('social:ice',{candidate:e.candidate},data.from);
+        }else{
+          console.log('[Call] callee ICE gathering complete');
+        }
       };
       _peerConnection.onconnectionstatechange=()=>{
-        console.log('[Call] callee state:',_peerConnection?.connectionState);
+        console.log('[Call] callee connectionState:',_peerConnection?.connectionState);
         if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
         if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
       };
+      _peerConnection.onsignalingstatechange=()=>console.log('[Call] callee signalingState:',_peerConnection?.signalingState);
+      _peerConnection.onicegatheringstatechange=()=>console.log('[Call] callee iceGatheringState:',_peerConnection?.iceGatheringState);
       await _peerConnection.setRemoteDescription({type:'offer',sdp:data.sdp});
+      console.log('[Call] setRemoteDescription(offer) OK');
       _remoteDescSet=true;
       await _applyIceQueue();
       const answer=await _peerConnection.createAnswer();
       await _peerConnection.setLocalDescription(answer);
+      console.log('[Call] answer created, sending to',data.from);
       _callSend('social:call-answer',{sdp:answer.sdp},data.from);
       _callPeer=data.from;_callUUID=data.fromUUID;
       _showCallUI('connected',data.fromUUID);
@@ -652,17 +669,22 @@ window.YM_S['social.sphere.js'] = {
         handleCallOffer({...data,from:peerId,fromUUID});
       }
       else if(type==='social:call-answer'&&_peerConnection){
+        console.log('[Call] answer received, sdp length:',data.sdp?.length);
         try{
           await _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
+          console.log('[Call] setRemoteDescription(answer) OK, state:',_peerConnection.signalingState);
           _remoteDescSet=true;
           await _applyIceQueue();
-        }catch(e){console.warn('[Social] call-answer error:',e.message);}
+          console.log('[Call] ICE queue applied, connection state:',_peerConnection.connectionState);
+        }catch(e){console.warn('[Call] call-answer error:',e.message);}
       }
       else if(type==='social:ice'&&_peerConnection){
+        console.log('[Call] ICE candidate received, remoteDescSet:',_remoteDescSet);
         if(_remoteDescSet){
-          try{await _peerConnection.addIceCandidate(data.candidate);}catch{}
+          try{await _peerConnection.addIceCandidate(data.candidate);console.log('[Call] ICE candidate added OK');}catch(e){console.warn('[Call] ICE add error:',e.message);}
         }else{
           _iceQueue.push(data.candidate);
+          console.log('[Call] ICE queued, queue size:',_iceQueue.length);
         }
       }
       else if(type==='social:call-end'&&_callPeer===peerId) hangUp();
