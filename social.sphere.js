@@ -66,11 +66,21 @@ function haversine(lat1,lng1,lat2,lng2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-// ── FULL PROFILE PACKET ────────────────────────────────────────────────────
+// ── ICE SERVERS (STUN + TURN publics gratuits) ────────────────────────────
+const ICE_SERVERS=[
+  {urls:'stun:stun.l.google.com:19302'},
+  {urls:'stun:stun1.l.google.com:19302'},
+  {urls:'stun:stun.cloudflare.com:3478'},
+  // TURN publics Open Relay Project
+  {urls:'turn:openrelay.metered.ca:80',  username:'openrelayproject',credential:'openrelayproject'},
+  {urls:'turn:openrelay.metered.ca:443', username:'openrelayproject',credential:'openrelayproject'},
+  {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
+];
 // Un seul paquet contient tout : identité, coords, réseaux sociaux, sphères
 function buildProfilePacket(){
   const p = _ctx?.loadProfile?.() ?? {};
   const state = loadState();
+  const contactUUIDs = loadContacts().map(c=>c.uuid);
   return {
     uuid:     p.uuid,
     name:     p.name,
@@ -82,6 +92,7 @@ function buildProfilePacket(){
     lat:      _myCoords?.lat,
     lng:      _myCoords?.lng,
     networks: (state.networks || []).map(n => ({id:n.id, handle:n.handle})),
+    contacts: contactUUIDs, // pour vérification réciprocité
     ts:       Date.now()
   };
 }
@@ -177,25 +188,24 @@ function _callSend(type,data,peerId){
 
 function isReciprocalContact(uuid){
   // Vérifie que le contact est bidirectionnel : on l'a en contact ET il nous a en contact
+function isReciprocal(uuid){
   if(!getContact(uuid)) return false;
-  const theirProfile=_nearUsers.get(uuid)?.profile||getContact(uuid)?.profile;
-  if(!theirProfile) return false;
   const myUUID=_ctx?.loadProfile?.()?.uuid;
-  // Si on a leurs données gossip/near, on vérifie qu'ils nous ont en contacts
-  // Par défaut on fait confiance si les deux ont le profil de l'autre
-  return true; // simplifié — dans la pratique vérifier theirProfile.contacts si diffusé
+  if(!myUUID) return false;
+  // Vérifie que l'autre nous a dans ses contacts (via son dernier packet de présence)
+  const theirContacts=_nearUsers.get(uuid)?.profile?.contacts||[];
+  return theirContacts.includes(myUUID);
 }
 
 async function startVoiceCall(uuid){
   if(!getContact(uuid)){window.YM_toast?.('Add this person to contacts first','warn');return;}
+  if(!isReciprocal(uuid)){window.YM_toast?.('Contact must add you back first','warn');return;}
   const peerId=_getPeerId(uuid);
   if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
+  _iceQueue=[];_remoteDescSet=false;
   try{
     _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    _peerConnection=new RTCPeerConnection({iceServers:[
-      {urls:'stun:stun.l.google.com:19302'},
-      {urls:'stun:stun1.l.google.com:19302'}
-    ]});
+    _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
     _localStream.getTracks().forEach(t=>_peerConnection.addTrack(t,_localStream));
     _peerConnection.ontrack=e=>{
       let audio=document.getElementById('ym-call-audio');
@@ -206,14 +216,14 @@ async function startVoiceCall(uuid){
       if(e.candidate)_callSend('social:ice',{candidate:e.candidate},peerId);
     };
     _peerConnection.onconnectionstatechange=()=>{
-      if(_peerConnection?.connectionState==='connected') _updateCallUI('connected');
-      if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState)) hangUp();
+      console.log('[Call] caller state:',_peerConnection?.connectionState);
+      if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
+      if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
     };
     const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
     _callSend('social:call-offer',{sdp:offer.sdp},peerId);
-    _callPeer=peerId;
-    _callUUID=uuid;
+    _callPeer=peerId;_callUUID=uuid;
     _showCallUI('calling',uuid);
   }catch(e){window.YM_toast?.('Call failed: '+e.message,'error');hangUp();}
 }
@@ -225,10 +235,7 @@ async function handleCallOffer(data){
     // Accepte
     try{
       _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-      _peerConnection=new RTCPeerConnection({iceServers:[
-        {urls:'stun:stun.l.google.com:19302'},
-        {urls:'stun:stun1.l.google.com:19302'}
-      ]});
+      _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
       _localStream.getTracks().forEach(t=>_peerConnection.addTrack(t,_localStream));
       _peerConnection.ontrack=e=>{
         let audio=document.getElementById('ym-call-audio');
@@ -239,6 +246,7 @@ async function handleCallOffer(data){
         if(e.candidate)_callSend('social:ice',{candidate:e.candidate},data.from);
       };
       _peerConnection.onconnectionstatechange=()=>{
+        console.log('[Call] callee state:',_peerConnection?.connectionState);
         if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
         if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
       };
