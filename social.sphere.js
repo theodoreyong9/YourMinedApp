@@ -1372,15 +1372,22 @@ function renderProfileView(container,profile){
           body.appendChild(info);
         }
       }else if(sphereFile==='messenger.sphere.js'){
-        const msgBtn=document.createElement('button');
-        msgBtn.className='ym-btn ym-btn-ghost';
-        msgBtn.style.cssText='width:100%;font-size:12px';
-        msgBtn.textContent='💬 Send Message';
-        msgBtn.addEventListener('click',()=>{
-          if(window.YM_Messenger&&window.YM_Messenger.openConv){window.YM_Messenger.openConv(profile.uuid);}
-          window.YM?.openSpherePanel?.('messenger.sphere.js');
-        });
-        body.appendChild(msgBtn);
+        if(isNear&&isReciproc){
+          const msgBtn=document.createElement('button');
+          msgBtn.className='ym-btn ym-btn-ghost';
+          msgBtn.style.cssText='width:100%;font-size:12px';
+          msgBtn.textContent='💬 Send Message';
+          msgBtn.addEventListener('click',()=>{
+            if(window.YM_Messenger&&window.YM_Messenger.openConv){window.YM_Messenger.openConv(profile.uuid);}
+            window.YM?.openSpherePanel?.('messenger.sphere.js');
+          });
+          body.appendChild(msgBtn);
+        }else{
+          const info=document.createElement('div');
+          info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
+          info.textContent=isNear?'Add each other as contacts to message':'Not nearby';
+          body.appendChild(info);
+        }
       }else if(sphereFile==='mine.sphere.js'&&profile.pubkey){
         const pk=document.createElement('div');
         pk.style.cssText='font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all';
