@@ -11,9 +11,10 @@ const NOTIF_KEY = 'ym_msg_notif';   // {uuid: count}
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let _ctx = null;
-let _currentChat = null; // uuid du contact ouvert
-let _unread = {};        // {uuid: count}
-let _onNewMsg = null;    // callback refresh UI
+let _currentChat = null;
+let _pendingConv = null; // uuid à ouvrir au prochain renderPanel
+let _unread = {};
+let _onNewMsg = null;
 
 // ── STORAGE ────────────────────────────────────────────────────────────────
 function loadMsgs(uuid){
@@ -112,7 +113,7 @@ function handleIncoming(data,peerId){
     _onNewMsg?.();
   }else{
     incUnread(fromUUID);
-    _ctx.setNotification(totalUnread());
+    if(_ctx)_ctx.setNotification(totalUnread());
     const name=getContact(fromUUID)?.nickname||getContact(fromUUID)?.profile?.name||fromUUID.slice(0,8);
     window.YM_toast?.(name+': '+data.text.slice(0,40),'info');
     _updateBadges?.();
@@ -138,8 +139,13 @@ function _timeStr(ts){
 function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
+  // Si openConv a été appelé avant renderPanel, ouvre directement la conv
+  if(_pendingConv){
+    const contact=getContact(_pendingConv);
+    _pendingConv=null;
+    if(contact){openChat(container,contact);return;}
+  }
   _currentChat=null;
-
   renderConversationList(container);
 }
 
@@ -214,7 +220,7 @@ function renderConversationList(container){
 function openChat(container,contact){
   _currentChat=contact.uuid;
   clearUnread(contact.uuid);
-  _ctx.setNotification(totalUnread());
+  if(_ctx)_ctx.setNotification(totalUnread());
 
   container.innerHTML='';
   container.style.cssText='display:flex;flex-direction:column;height:100%';
@@ -357,7 +363,7 @@ window.YM_S['messenger.sphere.js']={
 
   deactivate(){
     window.removeEventListener('ym:peer-join',_onPeerJoin);
-    _currentChat=null;_onNewMsg=null;_updateBadges=null;_ctx=null;
+    _currentChat=null;_pendingConv=null;_onNewMsg=null;_updateBadges=null;_ctx=null;
   },
 
   renderPanel,
@@ -395,7 +401,15 @@ function _onPeerJoin(){
 
 // Expose openConv pour profile.js et autres
 window.YM_Messenger={
-  openConv(uuid){_currentChat=uuid;},
+  openConv(uuid){
+    _pendingConv=uuid;
+    // Si le panel est déjà ouvert, ouvre directement la conv
+    const body=document.getElementById('panel-sphere-body');
+    if(body&&body.innerHTML!==''){
+      const contact=getContact(uuid);
+      if(contact){body.innerHTML='';body.style.cssText='display:flex;flex-direction:column;height:100%';openChat(body,contact);}
+    }
+  },
 };
 
 })();
