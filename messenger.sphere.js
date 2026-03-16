@@ -18,31 +18,31 @@ let _onNewMsg = null;
 
 // ── STORAGE ────────────────────────────────────────────────────────────────
 function loadMsgs(uuid){
-  try{const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');return all[uuid]||[];}catch{return[];}
+  try{const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');return all[uuid]||[];}catch(e){return[];}
 }
 function saveMsgs(uuid,msgs){
-  try{const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');all[uuid]=msgs;localStorage.setItem(MSG_KEY,JSON.stringify(all));}catch{}
+  try{const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');all[uuid]=msgs;localStorage.setItem(MSG_KEY,JSON.stringify(all));}catch(e){}
 }
 function addMsg(uuid,msg){
   const msgs=loadMsgs(uuid);msgs.push(msg);saveMsgs(uuid,msgs);
 }
-function loadDraft(uuid){try{return JSON.parse(localStorage.getItem(DRAFT_KEY)||'{}')[uuid]||'';}catch{return '';}}
-function saveDraft(uuid,text){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'{}');d[uuid]=text;localStorage.setItem(DRAFT_KEY,JSON.stringify(d));}catch{}}
-function loadUnread(){try{return JSON.parse(localStorage.getItem(NOTIF_KEY)||'{}');}catch{return{};}}
-function saveUnread(u){try{localStorage.setItem(NOTIF_KEY,JSON.stringify(u));}catch{}}
+function loadDraft(uuid){try{return JSON.parse(localStorage.getItem(DRAFT_KEY)||'{}')[uuid]||'';}catch(e){return '';}}
+function saveDraft(uuid,text){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'{}');d[uuid]=text;localStorage.setItem(DRAFT_KEY,JSON.stringify(d));}catch(e){}}
+function loadUnread(){try{return JSON.parse(localStorage.getItem(NOTIF_KEY)||'{}');}catch(e){return{};}}
+function saveUnread(u){try{localStorage.setItem(NOTIF_KEY,JSON.stringify(u));}catch(e){}}
 function clearUnread(uuid){const u=loadUnread();delete u[uuid];saveUnread(u);_unread=u;}
 function incUnread(uuid){const u=loadUnread();u[uuid]=(u[uuid]||0)+1;saveUnread(u);_unread=u;}
 function totalUnread(){return Object.values(loadUnread()).reduce((a,b)=>a+b,0);}
 
 // ── CONTACTS ───────────────────────────────────────────────────────────────
-function getContacts(){try{return JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{return[];}}
+function getContacts(){try{return JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch(e){return[];}}
 function getContact(uuid){return getContacts().find(c=>c.uuid===uuid);}
 function getMyUUID(){return _ctx?.loadProfile?.()?.uuid||'';}
 
 // ── QUEUE OFFLINE ──────────────────────────────────────────────────────────
 const QUEUE_KEY='ym_msg_queue_v1';
-function loadQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');}catch{return[];}}
-function saveQueue(q){try{localStorage.setItem(QUEUE_KEY,JSON.stringify(q));}catch{}}
+function loadQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');}catch(e){return[];}}
+function saveQueue(q){try{localStorage.setItem(QUEUE_KEY,JSON.stringify(q));}catch(e){}}
 
 function getPeerId(uuid){return window.YM_Social?._nearUsers?.get(uuid)?.peerId||null;}
 function isNear(uuid){return !!(window.YM_Social?._nearUsers?.has(uuid));}
@@ -70,8 +70,8 @@ function _deliverMsg(toUUID,msg){
   const peerId=getPeerId(toUUID);
   if(!peerId)return;
   const payload={sphere:'messenger.sphere.js',type:'msg:text',data:{text:msg.text,ts:msg.ts}};
-  try{window.YM_P2P?.sendTo(peerId,payload);}catch{}
-  try{window.YM_P2P?.broadcast(payload);}catch{}
+  try{window.YM_P2P?.sendTo(peerId,payload);}catch(e){}
+  try{window.YM_P2P?.broadcast(payload);}catch(e){}
   // Marque comme envoyé
   const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');
   const conv=all[toUUID]||[];
@@ -247,7 +247,7 @@ function openChat(container,contact){
 
   // Zone messages
   const msgsEl=document.createElement('div');
-  msgsEl.style.cssText='flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:6px';
+  msgsEl.style.cssText='flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column';
   container.appendChild(msgsEl);
 
   // Input
@@ -283,15 +283,15 @@ function openChat(container,contact){
           msgsEl.appendChild(sep);
         }
         const mine=msg.sent||msg.from===getMyUUID();
+        const wrap=document.createElement('div');
+        wrap.style.cssText='display:flex;flex-direction:column;align-items:'+(mine?'flex-end':'flex-start')+';margin-bottom:2px';
         const bubble=document.createElement('div');
-        bubble.style.cssText='max-width:78%;padding:8px 12px;border-radius:16px;font-size:13px;line-height:1.45;word-break:break-word;'+
-          (mine?'align-self:flex-end;background:var(--accent);color:#000;border-bottom-right-radius:4px':'align-self:flex-start;background:var(--surface3);color:var(--text);border-bottom-left-radius:4px');
+        bubble.style.cssText='display:inline-block;max-width:80%;padding:8px 12px;border-radius:16px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap;'+
+          (mine?'background:var(--accent);color:#000;border-bottom-right-radius:4px':'background:var(--surface3);color:var(--text);border-bottom-left-radius:4px');
         bubble.textContent=msg.text;
         const meta=document.createElement('div');
-        meta.style.cssText='font-size:9px;color:'+(mine?'rgba(0,0,0,.5)':'var(--text3)')+';text-align:'+(mine?'right':'left')+';margin-top:2px;padding:0 2px';
-        meta.textContent=_timeStr(msg.ts);
-        const wrap=document.createElement('div');
-        wrap.style.cssText='display:flex;flex-direction:column;align-self:'+(mine?'flex-end':'flex-start')+';max-width:78%';
+        meta.style.cssText='font-size:9px;color:var(--text3);margin-top:2px;padding:0 4px;text-align:'+(mine?'right':'left');
+        meta.textContent=_timeStr(msg.ts)+(mine?(msg.sent?' ✓':' ⏳'):'');
         wrap.appendChild(bubble);wrap.appendChild(meta);
         msgsEl.appendChild(wrap);
       });
