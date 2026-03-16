@@ -201,7 +201,7 @@ async function startVoiceCall(uuid){
   if(!isReciprocal(uuid)){window.YM_toast?.('Contact must add you back first','warn');return;}
   const peerId=_getPeerId(uuid);
   if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
-  // Reset propre sans envoyer call-end (pas d'appel en cours)
+  // Reset propre sans envoyer call-end
   _stopRingtone();
   _peerConnection?.close();_peerConnection=null;
   _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
@@ -224,33 +224,46 @@ async function startVoiceCall(uuid){
       if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
     };
 
+    // Affiche l'UI immédiatement — pas d'attente ICE
+    _callPeer=peerId;_callUUID=uuid;
+    _showCallUI('calling',uuid);
+
     const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
-    console.log('[Call] waiting for ICE gathering to complete…');
+    console.log('[Call] waiting for ICE gathering…');
 
-    // Attend que le gathering soit complet — SDP contiendra tous les ICE candidates
     await new Promise(res=>{
       if(_peerConnection.iceGatheringState==='complete'){res();return;}
       _peerConnection.onicegatheringstatechange=()=>{
         console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
         if(_peerConnection.iceGatheringState==='complete')res();
       };
-      setTimeout(res,8000); // timeout 8s
+      setTimeout(res,8000);
     });
 
+    if(!_peerConnection){return;} // annulé pendant le gathering
     const finalSdp=_peerConnection.localDescription.sdp;
     console.log('[Call] offer ready, sdp length:',finalSdp.length);
     _callSend('social:call-offer',{sdp:finalSdp},peerId);
-    _callPeer=peerId;_callUUID=uuid;
-    _showCallUI('calling',uuid);
   }catch(e){window.YM_toast?.('Call failed: '+e.message,'error');hangUp();}
 }
 
 async function handleCallOffer(data){
   _iceQueue=[];_remoteDescSet=false;
-  const callerProfile=_nearUsers.get(data.fromUUID)?.profile||{name:'Unknown',uuid:data.fromUUID};
+  const fromUUID=data.fromUUID;
+
+  // Vérifie que le caller est un contact réciproque — rejette sinon
+  if(!getContact(fromUUID)||!isReciprocal(fromUUID)){
+    console.log('[Call] offer rejected — not a reciprocal contact:',fromUUID);
+    _callSend('social:call-end',{},data.from);
+    return;
+  }
+
+  const callerProfile=_nearUsers.get(fromUUID)?.profile||getContact(fromUUID)?.profile||{name:'Unknown',uuid:fromUUID};
   _showIncomingCallUI(callerProfile,async()=>{
-    // Accepte
+    // UI "Answering…" immédiate avant le gathering
+    _callPeer=data.from;_callUUID=fromUUID;
+    _showCallUI('calling',fromUUID);
     try{
       _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
       _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
@@ -270,8 +283,6 @@ async function handleCallOffer(data){
       _remoteDescSet=true;
       const answer=await _peerConnection.createAnswer();
       await _peerConnection.setLocalDescription(answer);
-
-      // Attend que le gathering soit complet avant d'envoyer le answer
       console.log('[Call] callee waiting for ICE gathering…');
       await new Promise(res=>{
         if(_peerConnection.iceGatheringState==='complete'){res();return;}
@@ -281,14 +292,12 @@ async function handleCallOffer(data){
         };
         setTimeout(res,8000);
       });
-
+      if(!_peerConnection){return;}
       const finalSdp=_peerConnection.localDescription.sdp;
-      console.log('[Call] answer ready (ICE complete), sending to',data.from,'sdp length:',finalSdp.length);
+      console.log('[Call] answer ready, sdp length:',finalSdp.length);
       _callSend('social:call-answer',{sdp:finalSdp},data.from);
-      _callPeer=data.from;_callUUID=data.fromUUID;
-      _showCallUI('connected',data.fromUUID);
     }catch(e){window.YM_toast?.('Call error: '+e.message,'error');hangUp();}
-  },()=>{ // Refuse
+  },()=>{
     _callSend('social:call-end',{},data.from);
   });
 }
@@ -343,10 +352,27 @@ function _showInteractionUI(opts,onAccept,onDecline){
 
 function _showIncomingCallUI(profile,onAccept,onDecline){
   _startRingtone();
-  _pushInteraction({
-    type:'call',profile,icon:'📞',label:'Incoming call',sublabel:null,
-    onAccept:()=>{_stopRingtone();onAccept();},
-    onDecline:()=>{_stopRingtone();onDecline();}
+  // UI immédiate — bypass la queue pour les appels entrants
+  document.getElementById('ym-interaction-ui')?.remove();
+  const av=profile.avatar
+    ?'<img src="'+profile.avatar+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:8px">'
+    :'<div style="width:48px;height:48px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px">'+(profile.name?.charAt(0)||'👤')+'</div>';
+  const ui=document.createElement('div');
+  ui.id='ym-interaction-ui';
+  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:16px 20px;min-width:260px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.7);text-align:center';
+  ui.innerHTML=av+
+    '<div style="font-weight:600;font-size:14px;margin-bottom:2px">'+(profile.name||'Unknown')+'</div>'+
+    '<div style="font-size:13px;color:var(--accent);margin-bottom:12px">📞 Incoming call</div>'+
+    '<div style="display:flex;gap:10px;justify-content:center">'+
+      '<button id="int-decline" style="width:56px;height:56px;border-radius:50%;background:#e84040;border:none;font-size:24px;cursor:pointer">✕</button>'+
+      '<button id="int-accept" style="width:56px;height:56px;border-radius:50%;background:#30e880;border:none;font-size:24px;cursor:pointer">✓</button>'+
+    '</div>';
+  document.body.appendChild(ui);
+  ui.querySelector('#int-accept').addEventListener('click',()=>{
+    ui.remove();_stopRingtone();onAccept();
+  });
+  ui.querySelector('#int-decline').addEventListener('click',()=>{
+    ui.remove();_stopRingtone();onDecline();
   });
 }
 
