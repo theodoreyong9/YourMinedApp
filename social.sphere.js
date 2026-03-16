@@ -179,11 +179,14 @@ function _getPeerId(uuid){
 }
 
 function _callSend(type,data,peerId){
-  // Envoi direct au peer si possible, sinon broadcast
+  const msg={sphere:'social.sphere.js',type,data,_to:peerId};
+  // Envoi direct ET broadcast — garanti d'arriver même si un relay est down
   if(peerId&&window.YM_P2P?.sendTo){
-    window.YM_P2P.sendTo(peerId,{sphere:'social.sphere.js',type,data});
-  } else {
-    _ctx?.send(type,data);
+    try{window.YM_P2P.sendTo(peerId,msg);}catch{}
+  }
+  // Broadcast systématique pour les messages de signaling critiques
+  if(['social:call-offer','social:call-answer','social:call-end'].includes(type)){
+    try{window.YM_P2P?.broadcast(msg);}catch{}
   }
 }
 
@@ -680,16 +683,19 @@ window.YM_S['social.sphere.js'] = {
     _onPeerJoin=()=>setTimeout(broadcastPresence, 300);
     window.addEventListener('ym:peer-join', _onPeerJoin);
 
-    // Reset ICE queue pour ce nouvel appel
     ctx.onReceive(async(type,data,peerId)=>{
       if(type==='social:presence')          handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
       else if(type==='social:call-offer'){
+        // Si on est déjà en appel avec quelqu'un d'autre, ignorer
+        if(_callPeer&&_callPeer!==peerId) return;
         _iceQueue=[];_remoteDescSet=false;
         const fromUUID=[..._nearUsers.entries()].find(([,v])=>v.peerId===peerId)?.[0]||null;
         handleCallOffer({...data,from:peerId,fromUUID});
       }
       else if(type==='social:call-answer'&&_peerConnection){
+        // Ignorer si la réponse vient d'un peer qui n'est pas notre appelé
+        if(_callPeer&&peerId!==_callPeer) return;
         console.log('[Call] answer received, sdp length:',data.sdp?.length);
         try{
           await _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
