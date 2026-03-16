@@ -201,8 +201,13 @@ async function startVoiceCall(uuid){
   if(!isReciprocal(uuid)){window.YM_toast?.('Contact must add you back first','warn');return;}
   const peerId=_getPeerId(uuid);
   if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
-  hangUp();
+  // Reset propre sans envoyer call-end (pas d'appel en cours)
+  _stopRingtone();
+  _peerConnection?.close();_peerConnection=null;
+  _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
+  _callPeer=null;_callUUID=null;
   _iceQueue=[];_remoteDescSet=false;_callerFlushIce=null;
+  _removeCallUI();
   try{
     _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
     _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
@@ -218,7 +223,6 @@ async function startVoiceCall(uuid){
       if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
       if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
     };
-    _peerConnection.onicegatheringstatechange=()=>console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
 
     const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
@@ -231,12 +235,11 @@ async function startVoiceCall(uuid){
         console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
         if(_peerConnection.iceGatheringState==='complete')res();
       };
-      // Timeout 8s max
-      setTimeout(res,8000);
+      setTimeout(res,8000); // timeout 8s
     });
 
     const finalSdp=_peerConnection.localDescription.sdp;
-    console.log('[Call] offer ready (ICE complete), sending to peerId:',peerId,'sdp length:',finalSdp.length);
+    console.log('[Call] offer ready, sdp length:',finalSdp.length);
     _callSend('social:call-offer',{sdp:finalSdp},peerId);
     _callPeer=peerId;_callUUID=uuid;
     _showCallUI('calling',uuid);
@@ -262,7 +265,6 @@ async function handleCallOffer(data){
         if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
         if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
       };
-      _peerConnection.onicegatheringstatechange=()=>console.log('[Call] callee iceGatheringState:',_peerConnection?.iceGatheringState);
       await _peerConnection.setRemoteDescription({type:'offer',sdp:data.sdp});
       console.log('[Call] setRemoteDescription(offer) OK');
       _remoteDescSet=true;
