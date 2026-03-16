@@ -186,13 +186,10 @@ function _callSend(type,data,peerId){
   }
 }
 
-function isReciprocalContact(uuid){
-  // Vérifie que le contact est bidirectionnel : on l'a en contact ET il nous a en contact
 function isReciprocal(uuid){
   if(!getContact(uuid)) return false;
   const myUUID=_ctx?.loadProfile?.()?.uuid;
   if(!myUUID) return false;
-  // Vérifie que l'autre nous a dans ses contacts (via son dernier packet de présence)
   const theirContacts=_nearUsers.get(uuid)?.profile?.contacts||[];
   return theirContacts.includes(myUUID);
 }
