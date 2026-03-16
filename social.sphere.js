@@ -1353,7 +1353,6 @@ function renderProfileView(container,profile){
 
       // Interactions selon la sphère
       if(sphereFile==='social.sphere.js'){
-        // Bouton appel si near ET réciproque
         if(isNear&&isReciproc){
           const callBtn=document.createElement('button');
           callBtn.className='ym-btn ym-btn-ghost';
@@ -1372,6 +1371,16 @@ function renderProfileView(container,profile){
           info.textContent='Not nearby';
           body.appendChild(info);
         }
+      }else if(sphereFile==='messenger.sphere.js'){
+        const msgBtn=document.createElement('button');
+        msgBtn.className='ym-btn ym-btn-ghost';
+        msgBtn.style.cssText='width:100%;font-size:12px';
+        msgBtn.textContent='💬 Send Message';
+        msgBtn.addEventListener('click',()=>{
+          if(window.YM_Messenger&&window.YM_Messenger.openConv){window.YM_Messenger.openConv(profile.uuid);}
+          window.YM?.openSpherePanel?.('messenger.sphere.js');
+        });
+        body.appendChild(msgBtn);
       }else if(sphereFile==='mine.sphere.js'&&profile.pubkey){
         const pk=document.createElement('div');
         pk.style.cssText='font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all';
