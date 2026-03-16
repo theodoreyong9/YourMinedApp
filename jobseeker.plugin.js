@@ -1,206 +1,415 @@
-/**
- * FRODON PLUGIN — Cherche un emploi  v1.2.0
- * Badge auto-actif si jobTitle renseigné. Pas de toggle.
- */
-frodon.register({
-  id: 'jobseeker',
-  name: 'Cherche un emploi',
-  version: '1.2.0',
-  author: 'frodon-community',
-  description: 'Affichez que vous cherchez un emploi et recevez des opportunités.',
-  icon: '💼',
-}, () => {
+/* jshint esversion:11, -W033 */
+// messenger.sphere.js — YourMine Messenger
+// Messages P2P chiffrés entre contacts réciproques
+(function(){
+'use strict';
+window.YM_S = window.YM_S || {};
 
-  const PLUGIN_ID = 'jobseeker';
-  const store = frodon.storage(PLUGIN_ID);
+const MSG_KEY   = 'ym_msg_v1';      // {uuid: [{from,text,ts,sent}]}
+const DRAFT_KEY = 'ym_msg_draft';   // {uuid: text}
+const NOTIF_KEY = 'ym_msg_notif';   // {uuid: count}
 
-  // Badge is active whenever jobTitle is filled
-  function getMyBadge() { return store.get('badge') || null; }
-  function isActive() { const b = getMyBadge(); return !!(b && b.jobTitle); }
+// ── STATE ──────────────────────────────────────────────────────────────────
+let _ctx = null;
+let _currentChat = null;
+let _pendingConv = null; // uuid à ouvrir au prochain renderPanel
+let _unread = {};
+let _onNewMsg = null;
 
-  /* ── DM handler ── */
-  frodon.onDM(PLUGIN_ID, (fromId, payload) => {
-    if(payload.type === 'request_badge') {
-      if(isActive()) {
-        frodon.sendDM(fromId, PLUGIN_ID, { type: 'badge_data', badge: getMyBadge(), _silent: true });
-      }
-      return;
-    }
-    if(payload.type === 'badge_data') {
-      store.set('peer_badge_' + fromId, payload.badge);
-      frodon.refreshPeerModal(fromId);
-      return;
-    }
-    if(payload.type === 'opportunity') {
-      const peer = frodon.getPeer(fromId);
-      const opps = store.get('opportunities') || [];
-      opps.unshift({ fromId, fromName: peer?.name || '?', message: (payload.message||'').substring(0,500), ts: Date.now() });
-      if(opps.length > 50) opps.length = 50;
-      store.set('opportunities', opps);
-      frodon.showToast('💼 Opportunité de ' + (peer?.name||'?') + ' !');
-      frodon.refreshSphereTab(PLUGIN_ID);
-    }
+// ── STORAGE ────────────────────────────────────────────────────────────────
+function loadMsgs(uuid){
+  try{const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');return all[uuid]||[];}catch{return[];}
+}
+function saveMsgs(uuid,msgs){
+  try{const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');all[uuid]=msgs;localStorage.setItem(MSG_KEY,JSON.stringify(all));}catch{}
+}
+function addMsg(uuid,msg){
+  const msgs=loadMsgs(uuid);msgs.push(msg);saveMsgs(uuid,msgs);
+}
+function loadDraft(uuid){try{return JSON.parse(localStorage.getItem(DRAFT_KEY)||'{}')[uuid]||'';}catch{return '';}}
+function saveDraft(uuid,text){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'{}');d[uuid]=text;localStorage.setItem(DRAFT_KEY,JSON.stringify(d));}catch{}}
+function loadUnread(){try{return JSON.parse(localStorage.getItem(NOTIF_KEY)||'{}');}catch{return{};}}
+function saveUnread(u){try{localStorage.setItem(NOTIF_KEY,JSON.stringify(u));}catch{}}
+function clearUnread(uuid){const u=loadUnread();delete u[uuid];saveUnread(u);_unread=u;}
+function incUnread(uuid){const u=loadUnread();u[uuid]=(u[uuid]||0)+1;saveUnread(u);_unread=u;}
+function totalUnread(){return Object.values(loadUnread()).reduce((a,b)=>a+b,0);}
+
+// ── CONTACTS ───────────────────────────────────────────────────────────────
+function getContacts(){try{return JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{return[];}}
+function getContact(uuid){return getContacts().find(c=>c.uuid===uuid);}
+function getMyUUID(){return _ctx?.loadProfile?.()?.uuid||'';}
+
+// ── QUEUE OFFLINE ──────────────────────────────────────────────────────────
+const QUEUE_KEY='ym_msg_queue_v1';
+function loadQueue(){try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');}catch{return[];}}
+function saveQueue(q){try{localStorage.setItem(QUEUE_KEY,JSON.stringify(q));}catch{}}
+
+function getPeerId(uuid){return window.YM_Social?._nearUsers?.get(uuid)?.peerId||null;}
+function isNear(uuid){return !!(window.YM_Social?._nearUsers?.has(uuid));}
+
+// ── SEND ───────────────────────────────────────────────────────────────────
+function sendMsg(toUUID,text){
+  if(!text.trim())return false;
+  const myUUID=getMyUUID();
+  const msg={from:myUUID,to:toUUID,text:text.trim(),ts:Date.now(),sent:false};
+  addMsg(toUUID,msg);
+
+  if(isNear(toUUID)){
+    _deliverMsg(toUUID,msg);
+  } else {
+    // Hors ligne — met en queue
+    const q=loadQueue();
+    q.push({to:toUUID,text:msg.text,ts:msg.ts});
+    saveQueue(q);
+    window.YM_toast?.('Message queued (contact offline)','info');
+  }
+  return true;
+}
+
+function _deliverMsg(toUUID,msg){
+  const peerId=getPeerId(toUUID);
+  if(!peerId)return;
+  const payload={sphere:'messenger.sphere.js',type:'msg:text',data:{text:msg.text,ts:msg.ts}};
+  try{window.YM_P2P?.sendTo(peerId,payload);}catch{}
+  try{window.YM_P2P?.broadcast(payload);}catch{}
+  // Marque comme envoyé
+  const all=JSON.parse(localStorage.getItem(MSG_KEY)||'{}');
+  const conv=all[toUUID]||[];
+  const m=conv.find(x=>x.ts===msg.ts&&x.from===msg.from);
+  if(m){m.sent=true;localStorage.setItem(MSG_KEY,JSON.stringify(all));}
+}
+
+function _flushQueue(uuid){
+  const q=loadQueue();
+  const toSend=q.filter(m=>m.to===uuid);
+  if(!toSend.length)return;
+  const myUUID=getMyUUID();
+  toSend.forEach(m=>{
+    _deliverMsg(uuid,{from:myUUID,to:uuid,text:m.text,ts:m.ts});
   });
+  saveQueue(q.filter(m=>m.to!==uuid));
+  // Rafraîchit l'UI si conv ouverte
+  if(_currentChat===uuid)_onNewMsg?.();
+}
 
-  /* ── Fiche d'un pair ── */
-  frodon.registerPeerAction(PLUGIN_ID, '💼 Emploi', (peerId, container) => {
-    const peer = frodon.getPeer(peerId);
-    const peerName = peer?.name || peerId;
-    const peerBadge = store.get('peer_badge_' + peerId) || null;
+// ── RECEIVE ────────────────────────────────────────────────────────────────
+function handleIncoming(data,peerId){
+  const myUUID=getMyUUID();
+  if(!data||!data.text||!data.ts)return;
+  // Trouve l'UUID depuis les near users
+  const near=window.YM_Social?._nearUsers;
+  let fromUUID=null;
+  if(near){for(const[uuid,u] of near){if(u.peerId===peerId){fromUUID=uuid;break;}}}
+  if(!fromUUID)return;
+  if(!getContact(fromUUID))return;
+  // Évite les doublons (broadcast peut arriver 2x)
+  const existing=loadMsgs(fromUUID);
+  if(existing.find(m=>m.ts===data.ts&&m.from===fromUUID))return;
 
-    if(!peerBadge) {
-      frodon.sendDM(peerId, PLUGIN_ID, { type: 'request_badge', _silent: true });
-      const loading = frodon.makeElement('div', '');
-      loading.style.cssText = 'font-size:.68rem;color:var(--txt2);padding:4px 0 8px';
-      loading.textContent = '⌛ Vérification du badge…';
-      container.appendChild(loading);
+  const msg={from:fromUUID,to:myUUID,text:data.text,ts:data.ts,sent:false};
+  addMsg(fromUUID,msg);
+
+  if(_currentChat===fromUUID){
+    _onNewMsg?.();
+  }else{
+    incUnread(fromUUID);
+    if(_ctx)_ctx.setNotification(totalUnread());
+    const name=getContact(fromUUID)?.nickname||getContact(fromUUID)?.profile?.name||fromUUID.slice(0,8);
+    window.YM_toast?.(name+': '+data.text.slice(0,40),'info');
+    _updateBadges?.();
+  }
+}
+
+// ── UI HELPERS ─────────────────────────────────────────────────────────────
+let _updateBadges = null;
+
+function _avatarHtml(profile,size=32){
+  if(profile?.avatar)return '<img src="'+profile.avatar+'" style="width:'+size+'px;height:'+size+'px;border-radius:50%;object-fit:cover;flex-shrink:0">';
+  return '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:'+(size*0.45|0)+'px;flex-shrink:0">'+(profile?.name?.charAt(0)||'👤')+'</div>';
+}
+
+function _timeStr(ts){
+  const d=new Date(ts),now=new Date();
+  const sameDay=d.toDateString()===now.toDateString();
+  if(sameDay)return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
+
+// ── PANEL PRINCIPAL ─────────────────────────────────────────────────────────
+function renderPanel(container){
+  container.style.cssText='display:flex;flex-direction:column;height:100%';
+  container.innerHTML='';
+  // Si openConv a été appelé avant renderPanel, ouvre directement la conv
+  if(_pendingConv){
+    const contact=getContact(_pendingConv);
+    _pendingConv=null;
+    if(contact){openChat(container,contact);return;}
+  }
+  _currentChat=null;
+  renderConversationList(container);
+}
+
+function renderConversationList(container){
+  container.innerHTML='';
+  container.style.cssText='display:flex;flex-direction:column;height:100%';
+
+  // Header
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:12px 16px 0;flex-shrink:0';
+  hdr.innerHTML='<div style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Messages</div>';
+  container.appendChild(hdr);
+
+  // Liste scrollable
+  const list=document.createElement('div');
+  list.style.cssText='flex:1;overflow-y:auto;padding:10px 16px';
+  container.appendChild(list);
+
+  _updateBadges=()=>renderList();
+
+  function renderList(){
+    list.innerHTML='';
+    const contacts=getContacts();
+    const unread=loadUnread();
+
+    if(!contacts.length){
+      list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px 0;text-align:center">No contacts yet.<br>Add contacts in Profile to start messaging.</div>';
       return;
     }
 
-    const card = frodon.makeElement('div', '');
-    card.style.cssText = 'background:linear-gradient(135deg,rgba(124,77,255,.1),rgba(0,245,200,.07));border:1px solid rgba(124,77,255,.3);border-radius:10px;padding:12px;margin-bottom:10px';
-    const ctitle = frodon.makeElement('div','');
-    ctitle.style.cssText = 'font-size:.65rem;color:var(--acc2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px';
-    ctitle.textContent = '💼 EN RECHERCHE D\'EMPLOI'; card.appendChild(ctitle);
-    const cjob = frodon.makeElement('div','');
-    cjob.style.cssText = 'font-size:.9rem;font-weight:700;color:var(--txt);margin-bottom:4px';
-    cjob.textContent = peerBadge.jobTitle || 'Poste non précisé'; card.appendChild(cjob);
-    if(peerBadge.skills){ const s=frodon.makeElement('div',''); s.style.cssText='font-size:.66rem;color:var(--txt2);margin-bottom:4px'; s.textContent='🛠 '+peerBadge.skills; card.appendChild(s); }
-    if(peerBadge.location){ const l=frodon.makeElement('div',''); l.style.cssText='font-size:.66rem;color:var(--txt2)'; l.textContent='📍 '+peerBadge.location; card.appendChild(l); }
-    if(peerBadge.contact){ const c=frodon.makeElement('div',''); c.style.cssText='font-size:.66rem;color:var(--acc);margin-top:4px'; c.textContent='✉ '+peerBadge.contact; card.appendChild(c); }
-    container.appendChild(card);
-
-    const ta = document.createElement('textarea');
-    ta.className='f-input'; ta.rows=3; ta.maxLength=500;
-    ta.placeholder='Décrivez une opportunité ou partagez un contact…'; ta.style.marginBottom='8px';
-    container.appendChild(ta);
-
-    const sendBtn = frodon.makeElement('button','plugin-action-btn acc','💼 Envoyer une opportunité');
-    sendBtn.addEventListener('click', () => {
-      const msg = ta.value.trim();
-      if(!msg){ frodon.showToast('Écrivez un message', true); return; }
-      frodon.sendDM(peerId, PLUGIN_ID, { type:'opportunity', message:msg, _label:'💼 Opportunité reçue' });
-      frodon.showToast('💼 Opportunité envoyée à '+peerName+' !');
-      // Save to sent history for our own "Envoyés" tab
-      const peer = frodon.getPeer(peerId);
-      const sent = store.get('sent_opps') || [];
-      sent.unshift({toId:peerId, toName:peerName, toAvatar:peer?.avatar||'', badge:peerBadge, message:msg, ts:Date.now()});
-      if(sent.length>50) sent.length=50;
-      store.set('sent_opps', sent);
-      frodon.addFeedEvent(peerId, {
-        pluginId: PLUGIN_ID, pluginName:'Cherche un emploi', pluginIcon:'💼', peerName,
-        text: '→ '+(peerBadge?.jobTitle||'Opportunité envoyée')+(peerBadge?.skills?' · '+peerBadge.skills:''),
-      });
-      frodon.refreshSphereTab(PLUGIN_ID);
-      sendBtn.textContent='✓ Envoyé !'; sendBtn.disabled=true; ta.disabled=true;
+    // Trie par dernier message (plus récent en premier)
+    const sorted=[...contacts].sort((a,b)=>{
+      const la=loadMsgs(a.uuid);const lb=loadMsgs(b.uuid);
+      const ta=la[la.length-1]?.ts||0;const tb=lb[lb.length-1]?.ts||0;
+      return tb-ta;
     });
-    container.appendChild(sendBtn);
-  });
 
-  /* ── Widget profil ── */
-  frodon.registerProfileWidget(PLUGIN_ID, (container) => {
-    if(!isActive()) return;
-    const badge = getMyBadge();
-    const card = frodon.makeElement('div','');
-    card.style.cssText='background:linear-gradient(135deg,rgba(124,77,255,.12),rgba(0,245,200,.08));border:1px solid rgba(124,77,255,.35);border-radius:10px;padding:10px 12px;margin-top:6px';
-    const t=frodon.makeElement('div',''); t.style.cssText='font-size:.62rem;color:var(--acc2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px'; t.textContent='💼 EN RECHERCHE D\'EMPLOI'; card.appendChild(t);
-    const j=frodon.makeElement('div',''); j.style.cssText='font-size:.85rem;font-weight:700;color:var(--txt)'; j.textContent=badge.jobTitle||''; card.appendChild(j);
-    container.appendChild(card);
-  });
+    sorted.forEach(c=>{
+      const prof=c.profile||{uuid:c.uuid,name:c.nickname||'Unknown'};
+      const msgs=loadMsgs(c.uuid);
+      const last=msgs[msgs.length-1];
+      const unreadCount=unread[c.uuid]||0;
+      const isNear=window.YM_Social?._nearUsers?.has(c.uuid);
 
-  /* ── Panneau SPHERE ── */
-  frodon.registerBottomPanel(PLUGIN_ID, [
-    {
-      id:'my_badge', label:'💼 Mon badge',
-      settings: true, // dans ⚙ seulement
-      render(container) {
-        const badge = getMyBadge();
-        const form = frodon.makeElement('div',''); form.style.cssText='padding:10px 10px 12px';
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer';
+      row.innerHTML=
+        '<div style="position:relative;flex-shrink:0">'+
+          _avatarHtml(prof,40)+
+          (isNear?'<div style="position:absolute;bottom:1px;right:1px;width:9px;height:9px;border-radius:50%;background:#30e880;border:2px solid var(--surface)"></div>':'')+
+        '</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:2px">'+
+            '<span style="font-weight:'+(unreadCount?700:500)+';font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(c.nickname||prof.name||'Anonymous')+'</span>'+
+            '<span style="font-size:10px;color:var(--text3);flex-shrink:0;margin-left:auto">'+(last?_timeStr(last.ts):'')+'</span>'+
+          '</div>'+
+          '<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+
+            (last?(last.sent?'You: ':'')+last.text:'Start a conversation…')+
+          '</div>'+
+        '</div>'+
+        (unreadCount?'<div style="width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+unreadCount+'</div>':'');
 
-        const status = frodon.makeElement('div','');
-        status.style.cssText='font-size:.7rem;font-family:var(--mono);margin-bottom:10px;padding:6px 8px;border-radius:6px;border:1px solid';
-        if(isActive()){
-          status.textContent='● Badge actif — visible par les recruteurs à proximité';
-          status.style.color='var(--ok)'; status.style.borderColor='rgba(0,229,122,.25)'; status.style.background='rgba(0,229,122,.06)';
-        } else {
-          status.textContent='○ Renseignez un poste pour activer votre badge';
-          status.style.color='var(--txt3)'; status.style.borderColor='var(--bdr)'; status.style.background='transparent';
+      row.addEventListener('click',()=>openChat(container,c));
+      list.appendChild(row);
+    });
+  }
+
+  renderList();
+}
+
+// ── CHAT VIEW ──────────────────────────────────────────────────────────────
+function openChat(container,contact){
+  _currentChat=contact.uuid;
+  clearUnread(contact.uuid);
+  if(_ctx)_ctx.setNotification(totalUnread());
+
+  container.innerHTML='';
+  container.style.cssText='display:flex;flex-direction:column;height:100%';
+
+  const prof=contact.profile||{uuid:contact.uuid,name:contact.nickname||'Unknown'};
+  const isNear=window.YM_Social?._nearUsers?.has(contact.uuid);
+
+  // Header chat
+  const hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface2)';
+  hdr.innerHTML=
+    '<button id="msg-back" class="ym-btn ym-btn-ghost" style="padding:4px 8px;font-size:13px">‹</button>'+
+    '<div style="position:relative">'+
+      _avatarHtml(prof,34)+
+      (isNear?'<div style="position:absolute;bottom:0;right:0;width:8px;height:8px;border-radius:50%;background:#30e880;border:2px solid var(--surface2)"></div>':'')+
+    '</div>'+
+    '<div style="flex:1;min-width:0;cursor:pointer" id="msg-name">'+
+      '<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(contact.nickname||prof.name||'Anonymous')+'</div>'+
+      '<div style="font-size:10px;color:var(--text3)">'+(isNear?'🟢 Nearby':'⚫ Offline')+'</div>'+
+    '</div>'+
+    (isNear&&window.YM_Social?.isReciprocal?.(contact.uuid)?
+      '<button id="msg-call" class="ym-btn ym-btn-ghost" style="padding:4px 8px;font-size:14px" title="Call">📞</button>':'');
+  container.appendChild(hdr);
+
+  // Zone messages
+  const msgsEl=document.createElement('div');
+  msgsEl.style.cssText='flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:6px';
+  container.appendChild(msgsEl);
+
+  // Input
+  const inputRow=document.createElement('div');
+  inputRow.style.cssText='display:flex;align-items:flex-end;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0;background:var(--surface2)';
+  const textarea=document.createElement('textarea');
+  textarea.className='ym-input';
+  textarea.style.cssText='flex:1;height:38px;max-height:100px;resize:none;font-size:13px;line-height:1.4;overflow-y:auto';
+  textarea.placeholder=isNear?'Message…':'Not nearby — messages queued';
+  textarea.value=loadDraft(contact.uuid);
+  const sendBtn=document.createElement('button');
+  sendBtn.className='ym-btn ym-btn-accent';
+  sendBtn.style.cssText='padding:8px 14px;font-size:13px;align-self:flex-end';
+  sendBtn.textContent='↑';
+  inputRow.appendChild(textarea);inputRow.appendChild(sendBtn);
+  container.appendChild(inputRow);
+
+  // Render messages
+  function renderMsgs(){
+    const msgs=loadMsgs(contact.uuid);
+    msgsEl.innerHTML='';
+    if(!msgs.length){
+      msgsEl.innerHTML='<div style="text-align:center;color:var(--text3);font-size:12px;padding:24px 0">No messages yet</div>';
+    }else{
+      let lastDate='';
+      msgs.forEach(msg=>{
+        const d=new Date(msg.ts).toDateString();
+        if(d!==lastDate){
+          lastDate=d;
+          const sep=document.createElement('div');
+          sep.style.cssText='text-align:center;font-size:10px;color:var(--text3);padding:8px 0';
+          sep.textContent=new Date(msg.ts).toLocaleDateString();
+          msgsEl.appendChild(sep);
         }
-        form.appendChild(status);
-
-        const fields=[
-          {key:'jobTitle', label:'Poste recherché *', placeholder:'ex: Développeur Front-end…'},
-          {key:'skills',   label:'Compétences clés',   placeholder:'ex: React, Figma, Python…'},
-          {key:'location', label:'Localisation souhaitée', placeholder:'ex: Paris, Remote…'},
-          {key:'contact',  label:'Contact / lien CV',  placeholder:'email ou URL'},
-        ];
-        const inputs={};
-        fields.forEach(f => {
-          const lbl=frodon.makeElement('div',''); lbl.style.cssText='font-size:.62rem;color:var(--txt2);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;margin-top:10px'; lbl.textContent=f.label; form.appendChild(lbl);
-          const inp=document.createElement('input'); inp.className='f-input'; inp.placeholder=f.placeholder; inp.maxLength=100; inp.value=badge?.[f.key]||''; inputs[f.key]=inp; form.appendChild(inp);
-        });
-        const save=frodon.makeElement('button','plugin-action-btn acc','💾 Enregistrer'); save.style.cssText+=';width:100%;margin-top:14px';
-        save.addEventListener('click',()=>{
-          const jobTitle=inputs.jobTitle.value.trim();
-          if(!jobTitle){frodon.showToast('Le poste est obligatoire',true);return;}
-          store.set('badge',{jobTitle,skills:inputs.skills.value.trim(),location:inputs.location.value.trim(),contact:inputs.contact.value.trim()});
-          frodon.showToast('💼 Badge enregistré — maintenant actif !');
-          frodon.refreshSphereTab(PLUGIN_ID); frodon.refreshProfileModal();
-        });
-        form.appendChild(save); container.appendChild(form);
-      }
-    },
-    {
-      id:'opportunities', label:'📬 Reçues',
-      render(container) {
-        const opps=store.get('opportunities')||[];
-        if(!opps.length){ const em=frodon.makeElement('div','no-posts','Aucune opportunité reçue.'); em.style.padding='20px 16px'; container.appendChild(em); return; }
-        opps.slice(0,20).forEach(o=>{
-          const card=frodon.makeElement('div','mini-card'); card.style.margin='6px 8px 0';
-          const hdr=frodon.makeElement('div',''); hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:5px';
-          const name=frodon.makeElement('strong','',o.fromName); name.style.cssText='font-size:.74rem;color:var(--acc2);cursor:pointer';
-          name.addEventListener('click',()=>frodon.openPeer(o.fromId));
-          hdr.appendChild(name); hdr.appendChild(frodon.makeElement('span','mini-card-ts',frodon.formatTime(o.ts)));
-          card.appendChild(hdr); card.appendChild(frodon.makeElement('div','mini-card-body',o.message));
-          container.appendChild(card);
-        });
-      }
-    },
-    {
-      id:'sent', label:'📤 Envoyés',
-      render(container) {
-        const sent=store.get('sent_opps')||[];
-        if(!sent.length){ const em=frodon.makeElement('div','no-posts','Aucune opportunité envoyée.'); em.style.padding='20px 16px'; container.appendChild(em); return; }
-        sent.slice(0,20).forEach(s=>{
-          const card=frodon.makeElement('div','mini-card'); card.style.margin='6px 8px 0';
-          const hdr=frodon.makeElement('div',''); hdr.style.cssText='display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px';
-          const nameWrap=frodon.makeElement('div',''); nameWrap.style.cssText='display:flex;align-items:center;gap:6px;min-width:0';
-          const av=frodon.safeImg(s.toAvatar||'',frodon.makeElement('span','','').textContent,'');
-          // Build avatar as initials circle placeholder
-          const avEl=document.createElement('div'); avEl.style.cssText='width:22px;height:22px;border-radius:50%;flex-shrink:0;background:rgba(124,77,255,.2);border:1px solid rgba(124,77,255,.3);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--acc2);font-family:var(--mono)';
-          avEl.textContent=(s.toName||'?')[0].toUpperCase();
-          const name=frodon.makeElement('strong','',s.toName||'?'); name.style.cssText='font-size:.74rem;color:var(--acc2);cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-          name.addEventListener('click',()=>frodon.openPeer(s.toId));
-          nameWrap.appendChild(avEl); nameWrap.appendChild(name);
-          hdr.appendChild(nameWrap); hdr.appendChild(frodon.makeElement('span','mini-card-ts',frodon.formatTime(s.ts)));
-          card.appendChild(hdr);
-          if(s.badge){
-            const badge=frodon.makeElement('div',''); badge.style.cssText='font-size:.62rem;color:var(--txt3);font-family:var(--mono);margin-bottom:4px';
-            badge.textContent='💼 '+s.badge.jobTitle+(s.badge.skills?' · '+s.badge.skills:'');
-            card.appendChild(badge);
-          }
-          card.appendChild(frodon.makeElement('div','mini-card-body','"'+s.message+'"'));
-          container.appendChild(card);
-        });
-      }
-    },
-  ]);
-
-  frodon.onPeerAppear(peer => {
-    if(isActive()) {
-      frodon.sendDM(peer.peerId, PLUGIN_ID, {type:'badge_data', badge:getMyBadge(), _silent:true});
+        const mine=msg.sent||msg.from===getMyUUID();
+        const bubble=document.createElement('div');
+        bubble.style.cssText='max-width:78%;padding:8px 12px;border-radius:16px;font-size:13px;line-height:1.45;word-break:break-word;'+
+          (mine?'align-self:flex-end;background:var(--accent);color:#000;border-bottom-right-radius:4px':'align-self:flex-start;background:var(--surface3);color:var(--text);border-bottom-left-radius:4px');
+        bubble.textContent=msg.text;
+        const meta=document.createElement('div');
+        meta.style.cssText='font-size:9px;color:'+(mine?'rgba(0,0,0,.5)':'var(--text3)')+';text-align:'+(mine?'right':'left')+';margin-top:2px;padding:0 2px';
+        meta.textContent=_timeStr(msg.ts);
+        const wrap=document.createElement('div');
+        wrap.style.cssText='display:flex;flex-direction:column;align-self:'+(mine?'flex-end':'flex-start')+';max-width:78%';
+        wrap.appendChild(bubble);wrap.appendChild(meta);
+        msgsEl.appendChild(wrap);
+      });
+      // Scroll en bas
+      requestAnimationFrame(()=>{msgsEl.scrollTop=msgsEl.scrollHeight;});
     }
+  }
+
+  renderMsgs();
+  _onNewMsg=renderMsgs;
+
+  // Draft auto-save
+  textarea.addEventListener('input',()=>{
+    saveDraft(contact.uuid,textarea.value);
+    // Auto-resize
+    textarea.style.height='38px';
+    textarea.style.height=Math.min(textarea.scrollHeight,100)+'px';
   });
 
-  return { destroy() {} };
-});
+  // Send
+  function doSend(){
+    const text=textarea.value;
+    if(!sendMsg(contact.uuid,text))return;
+    saveDraft(contact.uuid,'');
+    textarea.value='';textarea.style.height='38px';
+    renderMsgs();
+  }
+  sendBtn.addEventListener('click',doSend);
+  textarea.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}
+  });
+
+  hdr.querySelector('#msg-back')?.addEventListener('click',()=>{
+    _currentChat=null;_onNewMsg=null;
+    renderConversationList(container);
+  });
+  // Clic sur le nom → ouvre le profil
+  hdr.querySelector('#msg-name')?.addEventListener('click',()=>{
+    window.YM?.openProfilePanel?.(prof);
+  });
+  hdr.querySelector('#msg-call')?.addEventListener('click',()=>{
+    window.YM_Social?.startVoiceCall?.(contact.uuid);
+  });
+}
+
+// ── SPHERE DEFINITION ──────────────────────────────────────────────────────
+window.YM_S['messenger.sphere.js']={
+  name:'Messenger',
+  icon:'💬',
+  category:'Communication',
+  description:'P2P messages between nearby contacts',
+  author:'yourmine',
+  emit:[],
+  receive:[],
+
+  activate(ctx){
+    _ctx=ctx;
+    _unread=loadUnread();
+    const total=totalUnread();
+    if(total>0)ctx.setNotification(total);
+
+    ctx.onReceive((type,data,peerId)=>{
+      if(type==='msg:text')handleIncoming(data,peerId);
+    });
+
+    // Flush queue quand un peer rejoint
+    window.addEventListener('ym:peer-join',_onPeerJoin);
+  },
+
+  deactivate(){
+    window.removeEventListener('ym:peer-join',_onPeerJoin);
+    _currentChat=null;_pendingConv=null;_onNewMsg=null;_updateBadges=null;_ctx=null;
+  },
+
+  renderPanel,
+
+  profileSection(container){
+    // Bouton "Open Messenger" dans le dépliant messenger de profile/spheres
+    const btn=document.createElement('button');
+    btn.className='ym-btn ym-btn-ghost';
+    btn.style.cssText='width:100%;font-size:12px';
+    btn.textContent='💬 Open Messenger';
+    btn.addEventListener('click',()=>{
+      window.YM?.openSpherePanel?.('messenger.sphere.js');
+    });
+    container.appendChild(btn);
+    // Affiche le nombre de non-lus
+    const unread=totalUnread();
+    if(unread>0){
+      const badge=document.createElement('div');
+      badge.style.cssText='text-align:center;font-size:11px;color:var(--accent);margin-top:6px';
+      badge.textContent=unread+' unread message'+(unread>1?'s':'');
+      container.appendChild(badge);
+    }
+  }
+};
+
+function _onPeerJoin(){
+  // Flush les messages en queue pour tous les peers qui viennent de rejoindre
+  const q=loadQueue();
+  if(!q.length)return;
+  const uuids=[...new Set(q.map(m=>m.to))];
+  uuids.forEach(uuid=>{
+    if(isNear(uuid))setTimeout(()=>_flushQueue(uuid),600);
+  });
+}
+
+// Expose openConv pour profile.js et autres
+window.YM_Messenger={
+  openConv(uuid){
+    _pendingConv=uuid;
+    // Si le panel est déjà ouvert, ouvre directement la conv
+    const body=document.getElementById('panel-sphere-body');
+    if(body&&body.innerHTML!==''){
+      const contact=getContact(uuid);
+      if(contact){body.innerHTML='';body.style.cssText='display:flex;flex-direction:column;height:100%';openChat(body,contact);}
+    }
+  },
+};
+
+})();
