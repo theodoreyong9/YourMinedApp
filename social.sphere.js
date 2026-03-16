@@ -179,14 +179,12 @@ function _getPeerId(uuid){
 }
 
 function _callSend(type,data,peerId){
-  const msg={sphere:'social.sphere.js',type,data,_to:peerId};
-  // Envoi direct ET broadcast — garanti d'arriver même si un relay est down
+  const msg={sphere:'social.sphere.js',type,data};
+  // Toujours broadcaster ET envoyer en direct pour tous les messages de signaling
+  // Nécessaire car certains relays (nos.lol) peuvent être down sur un des peers
+  try{window.YM_P2P?.broadcast(msg);}catch{}
   if(peerId&&window.YM_P2P?.sendTo){
     try{window.YM_P2P.sendTo(peerId,msg);}catch{}
-  }
-  // Broadcast systématique pour les messages de signaling critiques
-  if(['social:call-offer','social:call-answer','social:call-end'].includes(type)){
-    try{window.YM_P2P?.broadcast(msg);}catch{}
   }
 }
 
@@ -687,9 +685,11 @@ window.YM_S['social.sphere.js'] = {
       if(type.startsWith('social:call')){
         console.log('[Call] received:',type,'from peerId:',peerId,'_callPeer:',_callPeer,'_peerConnection:',!!_peerConnection);
       }
-      if(type==='social:presence')          handlePresence(data, peerId);
+      if(type==='social:presence') handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
       else if(type==='social:call-offer'){
+        // Ignorer si on est déjà caller sur cet appel (évite boucle broadcast)
+        if(_peerConnection&&_callPeer===peerId) return;
         // Si on est déjà en appel avec quelqu'un d'autre, ignorer
         if(_callPeer&&_callPeer!==peerId) return;
         _iceQueue=[];_remoteDescSet=false;
@@ -713,7 +713,9 @@ window.YM_S['social.sphere.js'] = {
           console.log('[Call] ICE queue applied, connection state:',_peerConnection.connectionState);
         }catch(e){console.warn('[Call] call-answer error:',e.message);}
       }
-      else if(type==='social:ice'&&_peerConnection){
+      else if(type==='social:ice'){
+        // N'accepter les ICE que du peer avec qui on est en appel
+        if(!_peerConnection||!_callPeer||peerId!==_callPeer) return;
         console.log('[Call] ICE candidate received, remoteDescSet:',_remoteDescSet);
         if(_remoteDescSet){
           try{await _peerConnection.addIceCandidate(data.candidate);console.log('[Call] ICE candidate added OK');}catch(e){console.warn('[Call] ICE add error:',e.message);}
