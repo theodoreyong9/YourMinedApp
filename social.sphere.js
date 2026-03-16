@@ -220,13 +220,14 @@ async function startVoiceCall(uuid){
     };
     _peerConnection.onconnectionstatechange=()=>{
       console.log('[Call] caller connectionState:',_peerConnection?.connectionState);
-      if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
+      if(_peerConnection?.connectionState==='connected'){_stopCallerTone();_updateCallUI('connected');}
       if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
     };
 
     // Affiche l'UI immédiatement — pas d'attente ICE
     _callPeer=peerId;_callUUID=uuid;
     _showCallUI('calling',uuid);
+    _startCallerTone(); // sonnerie douce dans l'oreille
 
     const offer=await _peerConnection.createOffer();
     await _peerConnection.setLocalDescription(offer);
@@ -381,10 +382,11 @@ function _showCallUI(state,uuid){
   const profile=_nearUsers.get(uuid)?.profile||getContact(uuid)?.profile||{name:'Unknown'};
   const ui=document.createElement('div');
   ui.id='ym-call-ui';
-  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:14px 20px;min-width:200px;box-shadow:0 8px 32px rgba(0,0,0,.6);text-align:center;display:flex;align-items:center;gap:12px';
-  ui.innerHTML=`<div style="font-size:13px;color:var(--text);flex:1">${state==='calling'?'📞 Calling '+profile.name+'…':'📞 '+profile.name}</div>
-    <div id="call-timer" style="font-size:12px;color:var(--text3);min-width:36px">0:00</div>
-    <button id="call-hangup" style="width:36px;height:36px;border-radius:50%;background:#e84040;border:none;font-size:16px;cursor:pointer">✕</button>`;
+  // En bas de l'écran
+  ui.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:12px 20px;min-width:220px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.6);text-align:center;display:flex;align-items:center;gap:12px';
+  ui.innerHTML='<div style="font-size:13px;color:var(--text);flex:1">'+(state==='calling'?'📞 Calling '+profile.name+'…':'📞 '+(profile.name||'Connected'))+'</div>'+
+    '<div id="call-timer" style="font-size:12px;color:var(--text3);min-width:36px">0:00</div>'+
+    '<button id="call-hangup" style="width:36px;height:36px;border-radius:50%;background:#e84040;border:none;font-size:16px;cursor:pointer">✕</button>';
   document.body.appendChild(ui);_callUI=ui;
   ui.querySelector('#call-hangup').addEventListener('click',hangUp);
   if(state==='connected'){
@@ -407,6 +409,44 @@ function _updateCallUI(state){
 }
 
 let _ringtone=null;
+let _callerTone=null;
+
+function _startCallerTone(){
+  // Sonnerie douce côté appelant (dans l'oreille) — ton de rappel européen
+  try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    let playing=true;
+    function ring(){
+      if(!playing)return;
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.type='sine';
+      osc.frequency.value=425; // 425Hz = tonalité standard EU
+      gain.gain.setValueAtTime(0,ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.15,ctx.currentTime+0.05);
+      gain.gain.setValueAtTime(0.15,ctx.currentTime+0.4);
+      gain.gain.linearRampToValueAtTime(0,ctx.currentTime+0.45);
+      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.5);
+      // Deux bips puis silence (pattern européen : bip-bip…pause)
+      setTimeout(()=>{
+        if(!playing)return;
+        const osc2=ctx.createOscillator();const gain2=ctx.createGain();
+        osc2.connect(gain2);gain2.connect(ctx.destination);
+        osc2.type='sine';osc2.frequency.value=425;
+        gain2.gain.setValueAtTime(0,ctx.currentTime);
+        gain2.gain.linearRampToValueAtTime(0.15,ctx.currentTime+0.05);
+        gain2.gain.setValueAtTime(0.15,ctx.currentTime+0.4);
+        gain2.gain.linearRampToValueAtTime(0,ctx.currentTime+0.45);
+        osc2.start(ctx.currentTime);osc2.stop(ctx.currentTime+0.5);
+      },500);
+      setTimeout(()=>{if(playing)ring();},3000); // bip-bip toutes les 3s
+    }
+    ring();
+    _callerTone={stop:()=>{playing=false;setTimeout(()=>ctx.close(),600);}};
+  }catch{}
+}
+function _stopCallerTone(){_callerTone?.stop();_callerTone=null;}
 
 function _startRingtone(){
   try{
@@ -441,6 +481,7 @@ function _removeCallUI(){
 
 function hangUp(){
   _stopRingtone();
+  _stopCallerTone();
   if(_callPeer)_callSend('social:call-end',{},_callPeer);
   _peerConnection?.close();_peerConnection=null;
   _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
@@ -1183,7 +1224,10 @@ window.YM_Social = {
     const profile=near?.profile||contact?.profile||{uuid,name:'Unknown'};
     if(!profile) return;
     window.YM?.openProfilePanel?.(profile);
-  }
+  },
+  isReciprocal,
+  startVoiceCall,
+  get _nearUsers(){return _nearUsers;}
 };
 
 // Exposé pour index.html
