@@ -13,6 +13,10 @@ let _currentChat = null;
 let _pendingConv = null;
 let _onNewMsg = null;
 let _updateList = null;
+let _autoReplied = {}; // {uuid: true} — évite les boucles
+
+function _loadAR(){try{return JSON.parse(localStorage.getItem('ym_msg_autoreply')||'{"on":false,"text":""}');}catch(e){return{on:false,text:''};}}
+
 
 // ── STORAGE ────────────────────────────────────────────────────────────────
 function loadMsgs(uuid){
@@ -77,6 +81,15 @@ function handleIncoming(data,peerId){
   if(loadMsgs(fromUUID).find(function(m){return m.ts===data.ts&&m.from===fromUUID;}))return;
 
   addMsg(fromUUID,{from:fromUUID,to:myUUID,text:data.text,ts:data.ts,sent:false});
+
+  // Auto-reply — une seule fois par contact par session
+  if(!_autoReplied[fromUUID]){
+    const ar=_loadAR();
+    if(ar.on&&ar.text){
+      _autoReplied[fromUUID]=true;
+      setTimeout(function(){sendMsg(fromUUID,ar.text);if(_onNewMsg)_onNewMsg();},800);
+    }
+  }
 
   if(_currentChat===fromUUID){
     if(_onNewMsg)_onNewMsg();
@@ -356,27 +369,49 @@ window.YM_S['messenger.sphere.js']={
 
   deactivate(){
     window.removeEventListener('ym:peer-join',_onPeerJoin);
-    _ctx=null;_currentChat=null;_pendingConv=null;_onNewMsg=null;_updateList=null;
+    _ctx=null;_currentChat=null;_pendingConv=null;_onNewMsg=null;_updateList=null;_autoReplied={};
   },
 
   renderPanel:renderPanel,
 
   profileSection(container){
-    const btn=document.createElement('button');
-    btn.className='ym-btn ym-btn-ghost';
-    btn.style.cssText='width:100%;font-size:12px';
-    btn.textContent='💬 Open Messenger';
-    btn.addEventListener('click',function(){
-      if(window.YM&&window.YM.openSpherePanel)window.YM.openSpherePanel('messenger.sphere.js');
+    const AUTOREPLY_KEY='ym_msg_autoreply';
+    function loadAR(){try{return JSON.parse(localStorage.getItem(AUTOREPLY_KEY)||'{"on":false,"text":""}');}catch(e){return{on:false,text:''};}}
+    function saveAR(d){localStorage.setItem(AUTOREPLY_KEY,JSON.stringify(d));}
+
+    const ar=loadAR();
+
+    const wrap=document.createElement('div');
+    wrap.innerHTML=
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+        '<span style="font-size:12px;color:var(--text2)">Auto-reply</span>'+
+        '<label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer">'+
+          '<input type="checkbox" id="ar-toggle" style="opacity:0;width:0;height:0"'+(ar.on?' checked':'')+'>'+
+          '<span id="ar-slider" style="position:absolute;inset:0;border-radius:20px;background:'+(ar.on?'var(--accent)':'var(--surface3)')+';transition:.2s"></span>'+
+          '<span id="ar-knob" style="position:absolute;left:'+(ar.on?'18':'2')+'px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s"></span>'+
+        '</label>'+
+      '</div>'+
+      '<textarea id="ar-text" class="ym-input" placeholder="Auto-reply message…" style="width:100%;height:60px;resize:none;font-size:11px;display:'+(ar.on?'block':'none')+'">'+( ar.text||'')+'</textarea>'+
+      '<div id="ar-status" style="font-size:10px;color:var(--text3);margin-top:4px;display:'+(ar.on?'block':'none')+'">Active — sent once per contact per session</div>';
+    container.appendChild(wrap);
+
+    const toggle=wrap.querySelector('#ar-toggle');
+    const slider=wrap.querySelector('#ar-slider');
+    const knob=wrap.querySelector('#ar-knob');
+    const taEl=wrap.querySelector('#ar-text');
+    const status=wrap.querySelector('#ar-status');
+
+    toggle.addEventListener('change',function(){
+      const on=toggle.checked;
+      slider.style.background=on?'var(--accent)':'var(--surface3)';
+      knob.style.left=on?'18px':'2px';
+      taEl.style.display=on?'block':'none';
+      status.style.display=on?'block':'none';
+      saveAR({on:on,text:taEl.value.trim()});
     });
-    container.appendChild(btn);
-    const u=totalUnread();
-    if(u>0){
-      const badge=document.createElement('div');
-      badge.style.cssText='text-align:center;font-size:11px;color:var(--accent);margin-top:6px';
-      badge.textContent=u+' unread';
-      container.appendChild(badge);
-    }
+    taEl.addEventListener('input',function(){
+      saveAR({on:toggle.checked,text:taEl.value.trim()});
+    });
   }
 };
 
