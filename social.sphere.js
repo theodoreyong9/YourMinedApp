@@ -797,34 +797,77 @@ window.YM_S['social.sphere.js'] = {
     container.style.cssText='display:flex;flex-direction:column;height:100%';
     container.innerHTML='';
 
-    const content=document.createElement('div');
-    content.id='social-tab-content';
-    content.style.cssText='flex:1;overflow-y:auto;padding:14px';
-    container.appendChild(content);
+    const TABS=['Near','Feed'];
+    let curIdx=0;
+
+    // Slider horizontal
+    const slider=document.createElement('div');
+    slider.id='social-tab-content';
+    slider.style.cssText='flex:1;overflow:hidden;position:relative';
+
+    const track=document.createElement('div');
+    track.style.cssText='display:flex;height:100%;transition:transform .25s ease;will-change:transform';
+    slider.appendChild(track);
+
+    TABS.forEach(()=>{
+      const pane=document.createElement('div');
+      pane.style.cssText='flex:0 0 100%;width:100%;height:100%;overflow-y:auto;padding:14px';
+      track.appendChild(pane);
+    });
 
     const tabs=document.createElement('div');tabs.className='ym-tabs';
     tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);border-bottom:none;margin:0;flex-shrink:0';
-    ['Near','Feed'].forEach((t,i)=>{
+
+    function goTab(idx,animate=true){
+      curIdx=idx;
+      track.style.transition=animate?'transform .25s ease':'none';
+      track.style.transform='translateX(-'+idx*100+'%)';
+      tabs.querySelectorAll('.ym-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+      const pane=track.children[idx];
+      pane.innerHTML='';
+      if(idx===0){_ctx?.setNotification?.(0);renderNearTab(pane);}
+      else if(idx===1)renderFeedTab(pane);
+    }
+
+    // Swipe horizontal
+    let sx=0,sy=0,sw=false;
+    slider.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;sw=true;},{passive:true});
+    slider.addEventListener('pointerup',e=>{
+      if(!sw)return;sw=false;
+      const dx=e.clientX-sx,dy=e.clientY-sy;
+      if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.2){
+        const next=dx<0?Math.min(curIdx+1,TABS.length-1):Math.max(curIdx-1,0);
+        if(next!==curIdx)goTab(next);
+      }
+    },{passive:true});
+    slider.addEventListener('pointercancel',()=>{sw=false;});
+
+    TABS.forEach((t,i)=>{
       const tab=document.createElement('div');
       tab.className='ym-tab'+(i===0?' active':'');
       tab.dataset.tab=t;tab.textContent=t;
-      tab.addEventListener('click',()=>{
-        container.querySelectorAll('.ym-tab').forEach(x=>x.classList.remove('active'));
-        tab.classList.add('active');
-        if(t==='Near')_ctx?.setNotification?.(0);
-        renderSocialTabInto(content,t);
-      });
+      tab.addEventListener('click',()=>goTab(i));
       tabs.appendChild(tab);
     });
+
+    // _refreshNear pointe vers le bon pane
+    _refreshNear=()=>{
+      if(curIdx===0){
+        const pane=track.children[0];
+        renderNearTab(pane);
+      }
+    };
+
+    container.appendChild(slider);
     container.appendChild(tabs);
     if(_ctx)_ctx.setNotification?.(0);
-    renderSocialTabInto(content,'Near');
+    goTab(0,false);
   },
 
   profileSection(container){
     const state=loadState();
     const networks=state.networks||[];
-    const prof=_ctx?.loadProfile?.()??{};
+    const prof=(_ctx&&_ctx.loadProfile&&_ctx.loadProfile())||{};
 
     // ── Identité ────────────────────────────────────────────
     const ident = document.createElement('div');
