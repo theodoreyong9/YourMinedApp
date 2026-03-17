@@ -1,5 +1,5 @@
 /* jshint esversion:11, -W033 */
-// browser.sphere.js — YourMine Minimal Browser
+// browser.sphere.js — YourMine Browser
 (function(){
 'use strict';
 window.YM_S = window.YM_S || {};
@@ -10,9 +10,11 @@ let _ctx = null;
 let _history = [];
 let _currentIndex = -1;
 
-// ── NAVIGATION ───────────────────────────────────────────────────────────
+// ── NAV ──────────────────────────────────────────────────────────────────
 function go(url, iframe, input){
+  url = (url||'').trim();
   if(!url) return;
+
   if(!/^https?:\/\//.test(url)){
     url = 'https://' + url;
   }
@@ -20,7 +22,6 @@ function go(url, iframe, input){
   iframe.src = url;
   input.value = url;
 
-  // historique
   _history = _history.slice(0, _currentIndex + 1);
   _history.push(url);
   _currentIndex++;
@@ -45,23 +46,32 @@ function renderPanel(container){
   container.innerHTML = '';
   container.style.cssText = 'display:flex;flex-direction:column;height:100%';
 
-  // ── NAVBAR
+  // HEADER
+  const hdr = document.createElement('div');
+  hdr.style.cssText='padding:12px 16px 8px;flex-shrink:0;font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)';
+  hdr.textContent='Browser';
+  container.appendChild(hdr);
+
+  // NAVBAR
   const nav = document.createElement('div');
-  nav.style.cssText = 'display:flex;gap:6px;padding:8px;border-bottom:1px solid var(--border);background:var(--surface2)';
+  nav.style.cssText='display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface2);align-items:center';
 
   const backBtn = document.createElement('button');
-  backBtn.textContent = '←';
+  backBtn.className='ym-btn ym-btn-ghost';
+  backBtn.textContent='←';
 
   const fwdBtn = document.createElement('button');
-  fwdBtn.textContent = '→';
+  fwdBtn.className='ym-btn ym-btn-ghost';
+  fwdBtn.textContent='→';
 
   const input = document.createElement('input');
-  input.className = 'ym-input';
-  input.placeholder = 'https://...';
-  input.style.cssText = 'flex:1;font-size:12px';
+  input.className='ym-input';
+  input.placeholder='Enter URL…';
+  input.style.cssText='flex:1;font-size:12px';
 
   const goBtn = document.createElement('button');
-  goBtn.textContent = 'Go';
+  goBtn.className='ym-btn ym-btn-accent';
+  goBtn.textContent='Go';
 
   nav.appendChild(backBtn);
   nav.appendChild(fwdBtn);
@@ -70,12 +80,12 @@ function renderPanel(container){
 
   container.appendChild(nav);
 
-  // ── VIEW
+  // VIEW
   const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'flex:1;border:none;background:#fff';
+  iframe.style.cssText='flex:1;border:none;background:#fff';
   container.appendChild(iframe);
 
-  // ── EVENTS
+  // EVENTS
   goBtn.addEventListener('click', function(){
     go(input.value, iframe, input);
   });
@@ -94,8 +104,17 @@ function renderPanel(container){
     forward(iframe, input);
   });
 
-  // page par défaut
+  // DEFAULT
   go('https://example.com', iframe, input);
+}
+
+// ── PROFILE SECTION (comme messenger) ────────────────────────────────────
+function profileSection(container){
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">Browser</div>'+
+    '<div style="font-size:11px;color:var(--text3)">Minimal embedded web viewer</div>';
+  container.appendChild(wrap);
 }
 
 // ── SPHERE ───────────────────────────────────────────────────────────────
@@ -103,8 +122,9 @@ window.YM_S['browser.sphere.js'] = {
   name: 'Browser',
   icon: '🌐',
   category: 'Utility',
-  description: 'Minimal web browser',
+  description: 'Minimal web browser inside YourMine',
   author: 'yourmine',
+
   emit: [],
   receive: [],
 
@@ -118,7 +138,8 @@ window.YM_S['browser.sphere.js'] = {
     _currentIndex = -1;
   },
 
-  renderPanel: renderPanel
+  renderPanel: renderPanel,
+  profileSection: profileSection
 };
 
 })();
