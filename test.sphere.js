@@ -1,85 +1,124 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>YM Browser</title>
-<style>
-  body { margin:0; font-family:sans-serif; display:flex; height:100vh; }
-  #sidebar { width:200px; background:#111; color:#fff; padding:10px; }
-  #content { flex:1; background:#1a1a1a; color:#fff; }
-  .app { padding:10px; cursor:pointer; border-bottom:1px solid #333; }
-</style>
-</head>
-<body>
-
-<div id="sidebar"></div>
-<div id="content"></div>
-
-<script>
+/* jshint esversion:11, -W033 */
+// browser.sphere.js — YourMine Minimal Browser
+(function(){
 'use strict';
+window.YM_S = window.YM_S || {};
 
-window.YM_S = {}; // registry des spheres
+let _ctx = null;
 
-// ── Fake context (important pour tes plugins)
-function createCtx() {
-  return {
-    setNotification(n) {
-      console.log('notif:', n);
-    },
-    onReceive(handler) {
-      // stub (P2P pas implémenté ici)
-      this._onReceive = handler;
-    },
-    loadProfile() {
-      return { uuid: 'me-123', name: 'Me' };
+// ── STATE ────────────────────────────────────────────────────────────────
+let _history = [];
+let _currentIndex = -1;
+
+// ── NAVIGATION ───────────────────────────────────────────────────────────
+function go(url, iframe, input){
+  if(!url) return;
+  if(!/^https?:\/\//.test(url)){
+    url = 'https://' + url;
+  }
+
+  iframe.src = url;
+  input.value = url;
+
+  // historique
+  _history = _history.slice(0, _currentIndex + 1);
+  _history.push(url);
+  _currentIndex++;
+}
+
+function back(iframe, input){
+  if(_currentIndex <= 0) return;
+  _currentIndex--;
+  iframe.src = _history[_currentIndex];
+  input.value = _history[_currentIndex];
+}
+
+function forward(iframe, input){
+  if(_currentIndex >= _history.length - 1) return;
+  _currentIndex++;
+  iframe.src = _history[_currentIndex];
+  input.value = _history[_currentIndex];
+}
+
+// ── PANEL ────────────────────────────────────────────────────────────────
+function renderPanel(container){
+  container.innerHTML = '';
+  container.style.cssText = 'display:flex;flex-direction:column;height:100%';
+
+  // ── NAVBAR
+  const nav = document.createElement('div');
+  nav.style.cssText = 'display:flex;gap:6px;padding:8px;border-bottom:1px solid var(--border);background:var(--surface2)';
+
+  const backBtn = document.createElement('button');
+  backBtn.textContent = '←';
+
+  const fwdBtn = document.createElement('button');
+  fwdBtn.textContent = '→';
+
+  const input = document.createElement('input');
+  input.className = 'ym-input';
+  input.placeholder = 'https://...';
+  input.style.cssText = 'flex:1;font-size:12px';
+
+  const goBtn = document.createElement('button');
+  goBtn.textContent = 'Go';
+
+  nav.appendChild(backBtn);
+  nav.appendChild(fwdBtn);
+  nav.appendChild(input);
+  nav.appendChild(goBtn);
+
+  container.appendChild(nav);
+
+  // ── VIEW
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'flex:1;border:none;background:#fff';
+  container.appendChild(iframe);
+
+  // ── EVENTS
+  goBtn.addEventListener('click', function(){
+    go(input.value, iframe, input);
+  });
+
+  input.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){
+      go(input.value, iframe, input);
     }
-  };
-}
-
-// ── Loader de sphere
-function loadSphere(src) {
-  return new Promise((resolve) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = resolve;
-    document.body.appendChild(s);
   });
-}
 
-// ── Init
-async function init() {
-  // 👉 charge ton plugin ici
-  await loadSphere('./messenger.sphere.js');
-
-  const sidebar = document.getElementById('sidebar');
-  const content = document.getElementById('content');
-
-  Object.keys(window.YM_S).forEach((key) => {
-    const sphere = window.YM_S[key];
-
-    const btn = document.createElement('div');
-    btn.className = 'app';
-    btn.textContent = sphere.icon + ' ' + sphere.name;
-
-    btn.onclick = () => {
-      content.innerHTML = '';
-
-      const ctx = createCtx();
-
-      // IMPORTANT
-      sphere.activate(ctx);
-
-      if (sphere.renderPanel) {
-        sphere.renderPanel(content);
-      }
-    };
-
-    sidebar.appendChild(btn);
+  backBtn.addEventListener('click', function(){
+    back(iframe, input);
   });
+
+  fwdBtn.addEventListener('click', function(){
+    forward(iframe, input);
+  });
+
+  // page par défaut
+  go('https://example.com', iframe, input);
 }
 
-init();
-</script>
+// ── SPHERE ───────────────────────────────────────────────────────────────
+window.YM_S['browser.sphere.js'] = {
+  name: 'Browser',
+  icon: '🌐',
+  category: 'Utility',
+  description: 'Minimal web browser',
+  author: 'yourmine',
+  emit: [],
+  receive: [],
 
-</body>
-</html>
+  activate(ctx){
+    _ctx = ctx;
+  },
+
+  deactivate(){
+    _ctx = null;
+    _history = [];
+    _currentIndex = -1;
+  },
+
+  renderPanel: renderPanel
+};
+
+})();
