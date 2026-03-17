@@ -1,66 +1,85 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Navigateur Web Minimal</title>
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: sans-serif;
-    }
-    #navbar {
-      display: flex;
-      padding: 5px;
-      background-color: #f0f0f0;
-      align-items: center;
-      gap: 5px;
-    }
-    #url {
-      flex: 1;
-      padding: 5px;
-    }
-    #webview {
-      width: 100%;
-      height: calc(100% - 40px);
-      border: none;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>YM Browser</title>
+<style>
+  body { margin:0; font-family:sans-serif; display:flex; height:100vh; }
+  #sidebar { width:200px; background:#111; color:#fff; padding:10px; }
+  #content { flex:1; background:#1a1a1a; color:#fff; }
+  .app { padding:10px; cursor:pointer; border-bottom:1px solid #333; }
+</style>
 </head>
 <body>
-  <div id="navbar">
-    <button id="go">Aller</button>
-    <input type="text" id="url" placeholder="https://example.com" />
-  </div>
-  <iframe id="webview"></iframe>
 
-  <script src="mon-plugin.js"></script> <!-- Ton fichier JS plugin -->
-  <script>
-    'use strict';
+<div id="sidebar"></div>
+<div id="content"></div>
 
-    const goButton = document.getElementById('go');
-    const urlInput = document.getElementById('url');
-    const webview = document.getElementById('webview');
+<script>
+'use strict';
 
-    goButton.addEventListener('click', () => {
-      let url = urlInput.value.trim();
-      if (!/^https?:\/\//.test(url)) {
-        url = 'https://' + url;
+window.YM_S = {}; // registry des spheres
+
+// ── Fake context (important pour tes plugins)
+function createCtx() {
+  return {
+    setNotification(n) {
+      console.log('notif:', n);
+    },
+    onReceive(handler) {
+      // stub (P2P pas implémenté ici)
+      this._onReceive = handler;
+    },
+    loadProfile() {
+      return { uuid: 'me-123', name: 'Me' };
+    }
+  };
+}
+
+// ── Loader de sphere
+function loadSphere(src) {
+  return new Promise((resolve) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    document.body.appendChild(s);
+  });
+}
+
+// ── Init
+async function init() {
+  // 👉 charge ton plugin ici
+  await loadSphere('./messenger.sphere.js');
+
+  const sidebar = document.getElementById('sidebar');
+  const content = document.getElementById('content');
+
+  Object.keys(window.YM_S).forEach((key) => {
+    const sphere = window.YM_S[key];
+
+    const btn = document.createElement('div');
+    btn.className = 'app';
+    btn.textContent = sphere.icon + ' ' + sphere.name;
+
+    btn.onclick = () => {
+      content.innerHTML = '';
+
+      const ctx = createCtx();
+
+      // IMPORTANT
+      sphere.activate(ctx);
+
+      if (sphere.renderPanel) {
+        sphere.renderPanel(content);
       }
-      webview.src = url;
-    });
-
-    // Permet d'appuyer sur Entrée dans le champ URL
-    urlInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') goButton.click();
-    });
-
-    // Exemple d'utilisation de ton objet plugin
-    window.YM_S.init = function() {
-      console.log("Plugin YM_S initialisé !");
     };
-    window.YM_S.init();
-  </script>
+
+    sidebar.appendChild(btn);
+  });
+}
+
+init();
+</script>
+
 </body>
 </html>
