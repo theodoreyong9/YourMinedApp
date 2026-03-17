@@ -1,145 +1,88 @@
 /* jshint esversion:11, -W033 */
-// browser.sphere.js — YourMine Browser
+// browser.sphere.js — YourMine Mini Browser
 (function(){
 'use strict';
 window.YM_S = window.YM_S || {};
 
 let _ctx = null;
+let _currentURL = 'https://example.com';
 
-// ── STATE ────────────────────────────────────────────────────────────────
-let _history = [];
-let _currentIndex = -1;
-
-// ── NAV ──────────────────────────────────────────────────────────────────
-function go(url, iframe, input){
-  url = (url||'').trim();
-  if(!url) return;
-
-  if(!/^https?:\/\//.test(url)){
-    url = 'https://' + url;
-  }
-
-  iframe.src = url;
-  input.value = url;
-
-  _history = _history.slice(0, _currentIndex + 1);
-  _history.push(url);
-  _currentIndex++;
-}
-
-function back(iframe, input){
-  if(_currentIndex <= 0) return;
-  _currentIndex--;
-  iframe.src = _history[_currentIndex];
-  input.value = _history[_currentIndex];
-}
-
-function forward(iframe, input){
-  if(_currentIndex >= _history.length - 1) return;
-  _currentIndex++;
-  iframe.src = _history[_currentIndex];
-  input.value = _history[_currentIndex];
-}
-
-// ── PANEL ────────────────────────────────────────────────────────────────
+// ── PANEL ──────────────────────────────────────────────────────────────────
 function renderPanel(container){
-  container.innerHTML = '';
-  container.style.cssText = 'display:flex;flex-direction:column;height:100%';
+  container.style.cssText = 'display:flex;flex-direction:column;height:100%;';
 
-  // HEADER
+  // Header avec icône et titre
   const hdr = document.createElement('div');
-  hdr.style.cssText='padding:12px 16px 8px;flex-shrink:0;font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)';
-  hdr.textContent='Browser';
+  hdr.style.cssText = 'display:flex;align-items:center;gap:8px;padding:12px;font-family:var(--font-d);font-size:13px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);flex-shrink:0';
+  hdr.innerHTML = '🖥️ Mini Browser';
   container.appendChild(hdr);
 
-  // NAVBAR
-  const nav = document.createElement('div');
-  nav.style.cssText='display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface2);align-items:center';
-
-  const backBtn = document.createElement('button');
-  backBtn.className='ym-btn ym-btn-ghost';
-  backBtn.textContent='←';
-
-  const fwdBtn = document.createElement('button');
-  fwdBtn.className='ym-btn ym-btn-ghost';
-  fwdBtn.textContent='→';
-
-  const input = document.createElement('input');
-  input.className='ym-input';
-  input.placeholder='Enter URL…';
-  input.style.cssText='flex:1;font-size:12px';
-
+  // Barre d’adresse
+  const addrRow = document.createElement('div');
+  addrRow.style.cssText = 'display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0';
+  const addrInput = document.createElement('input');
+  addrInput.type = 'text';
+  addrInput.value = _currentURL;
+  addrInput.placeholder = 'Enter URL…';
+  addrInput.style.cssText = 'flex:1;padding:6px 8px;font-size:12px;border-radius:4px;border:1px solid var(--surface3);background:var(--surface2);color:var(--text)';
   const goBtn = document.createElement('button');
-  goBtn.className='ym-btn ym-btn-accent';
-  goBtn.textContent='Go';
+  goBtn.textContent = 'Go';
+  goBtn.className = 'ym-btn ym-btn-accent';
+  goBtn.style.cssText = 'padding:6px 12px;font-size:12px';
+  addrRow.appendChild(addrInput);
+  addrRow.appendChild(goBtn);
+  container.appendChild(addrRow);
 
-  nav.appendChild(backBtn);
-  nav.appendChild(fwdBtn);
-  nav.appendChild(input);
-  nav.appendChild(goBtn);
-
-  container.appendChild(nav);
-
-  // VIEW
+  // Iframe pour le contenu web
   const iframe = document.createElement('iframe');
-  iframe.style.cssText='flex:1;border:none;background:#fff';
+  iframe.src = _currentURL;
+  iframe.style.cssText = 'flex:1;border:none;width:100%';
   container.appendChild(iframe);
 
-  // EVENTS
-  goBtn.addEventListener('click', function(){
-    go(input.value, iframe, input);
-  });
+  // Gestion navigation
+  function navigate(url){
+    url = url.trim();
+    if(!url) return;
+    if(!url.match(/^https?:\/\//)) url = 'https://' + url;
+    _currentURL = url;
+    addrInput.value = url;
+    iframe.src = url;
+    saveLastURL(url);
+  }
 
-  input.addEventListener('keydown', function(e){
-    if(e.key === 'Enter'){
-      go(input.value, iframe, input);
-    }
-  });
-
-  backBtn.addEventListener('click', function(){
-    back(iframe, input);
-  });
-
-  fwdBtn.addEventListener('click', function(){
-    forward(iframe, input);
-  });
-
-  // DEFAULT
-  go('https://example.com', iframe, input);
+  goBtn.addEventListener('click',()=>navigate(addrInput.value));
+  addrInput.addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();navigate(addrInput.value);}});
 }
 
-// ── PROFILE SECTION (comme messenger) ────────────────────────────────────
-function profileSection(container){
-  const wrap = document.createElement('div');
-  wrap.innerHTML =
-    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">Browser</div>'+
-    '<div style="font-size:11px;color:var(--text3)">Minimal embedded web viewer</div>';
-  container.appendChild(wrap);
-}
+// ── STORAGE ────────────────────────────────────────────────────────────────
+const LAST_URL_KEY = 'ym_browser_last_url';
+function saveLastURL(url){try{localStorage.setItem(LAST_URL_KEY,url);}catch(e){}}
+function loadLastURL(){try{return localStorage.getItem(LAST_URL_KEY)||'https://example.com';}catch(e){return 'https://example.com';}}
 
-// ── SPHERE ───────────────────────────────────────────────────────────────
+// ── SPHERE ─────────────────────────────────────────────────────────────────
 window.YM_S['browser.sphere.js'] = {
-  name: 'Browser',
-  icon: '🌐',
-  category: 'Utility',
-  description: 'Minimal web browser inside YourMine',
-  author: 'yourmine',
-
-  emit: [],
-  receive: [],
+  name:'Mini Browser',
+  icon:'🖥️',
+  category:'Utility',
+  description:'A minimal web browser inside YourMine',
+  author:'yourmine',
+  emit:[],
+  receive:[],
 
   activate(ctx){
     _ctx = ctx;
+    _currentURL = loadLastURL();
   },
 
   deactivate(){
     _ctx = null;
-    _history = [];
-    _currentIndex = -1;
   },
 
   renderPanel: renderPanel,
-  profileSection: profileSection
+
+  profileSection(container){
+    container.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text3)">No settings available for Mini Browser.</div>';
+  }
 };
 
 })();
