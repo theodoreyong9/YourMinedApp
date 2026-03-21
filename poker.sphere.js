@@ -582,30 +582,44 @@ window.YM_S['poker.sphere.js']={
   renderPanel,
 
   profileSection(container){
-    // Bouton inviter depuis la fiche profil d'un contact
+    // Mon propre profil — statut poker
     const myTables=Object.values(_tables).filter(t=>t.host===_myUUID&&t.state==='waiting');
-    if(!myTables.length){
-      const el=document.createElement('div');
-      el.style.cssText='display:flex;gap:6px';
-      el.innerHTML='<div style="font-size:12px;color:var(--text3);flex:1">No open table</div>'+
-        '<button id="ps-pk-new" class="ym-btn ym-btn-ghost" style="font-size:11px">Create</button>';
-      el.querySelector('#ps-pk-new').addEventListener('click',()=>{
-        const t=mkTable({name:_myName+"'s Table"});
-        _tables[t.id]=t;bc('pk:announce',tablePub(t));
-        window.YM?.openSpherePanel?.('poker.sphere.js');
-        setTimeout(()=>openFullscreen(t.id),300);
-      });
-      container.appendChild(el);
-    }else{
-      // Montré dans la fiche du contact peer
+    const el=document.createElement('div');
+    el.style.cssText='display:flex;gap:6px;align-items:center';
+    el.innerHTML='<div style="font-size:12px;color:var(--text3);flex:1">'+
+      (myTables.length?'Open table: '+myTables[0].name:'No open table')+
+    '</div>'+
+    '<button id="ps-pk-open" class="ym-btn ym-btn-ghost" style="font-size:11px">Open Poker</button>';
+    el.querySelector('#ps-pk-open').addEventListener('click',()=>window.YM?.openSpherePanel?.('poker.sphere.js'));
+    container.appendChild(el);
+  },
+
+  peerSection(container, ctx){
+    // Fiche d'un pair — inviter à une partie
+    const{uuid}=ctx;
+    const myTables=Object.values(_tables).filter(t=>t.host===_myUUID&&t.state==='waiting');
+    if(myTables.length){
       const btn=document.createElement('button');
       btn.className='ym-btn ym-btn-accent';
       btn.style.cssText='width:100%;font-size:12px';
       btn.textContent='♠ Invite to '+myTables[0].name;
-      // Note: ce bouton est affiché dans MA section de profil
-      // L'invitation vers un contact se fait via le bouton dans renderProfileView de social
-      btn.addEventListener('click',()=>{window.YM?.openSpherePanel?.('poker.sphere.js');});
+      btn.addEventListener('click',()=>{
+        if(window.YM_Poker?.inviteContact)window.YM_Poker.inviteContact(uuid);
+      });
       container.appendChild(btn);
+    }else{
+      const el=document.createElement('div');
+      el.style.cssText='display:flex;gap:6px;align-items:center';
+      el.innerHTML='<div style="font-size:11px;color:var(--text3);flex:1">No open table</div>'+
+        '<button id="ps-pk-new" class="ym-btn ym-btn-ghost" style="font-size:11px">Create & Invite</button>';
+      el.querySelector('#ps-pk-new').addEventListener('click',()=>{
+        const t=mkTable({name:_myName+"'s Table"});
+        _tables[t.id]=t;bc('pk:announce',tablePub(t));
+        if(window.YM_Poker?.inviteContact)window.YM_Poker.inviteContact(uuid);
+        window.YM?.openSpherePanel?.('poker.sphere.js');
+        setTimeout(()=>openFullscreen(t.id),300);
+      });
+      container.appendChild(el);
     }
   }
 };
