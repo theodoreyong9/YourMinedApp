@@ -263,7 +263,6 @@ function renderExtractTab(container){
     '<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">'+
       _mkFilter('anchors','👤 Anchors',true)+
       _mkFilter('wikipedia','📖 Wikipedia',true)+
-      _mkFilter('osm','🗺 OSM',true)+
       _mkFilter('flickr','📷 Flickr',true)+
       _mkFilter('reddit','💬 Reddit',true)+
       _mkFilter('events','🎉 Events',true)+
@@ -317,20 +316,53 @@ function renderExtractTab(container){
     }
     allItems.forEach(function(item){
       var el=document.createElement('div');
-      el.style.cssText='display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:'+(item.url?'pointer':'default');
-      var thumb=item.thumb
-        ?'<img src="'+item.thumb+'" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0">'
-        :'<div style="width:36px;height:36px;border-radius:6px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+item.icon+'</div>';
-      el.innerHTML=thumb+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'+
-            '<span style="font-size:10px;color:var(--accent);font-weight:600;text-transform:uppercase">'+item.src+'</span>'+
-            (item.ts?'<span style="font-size:10px;color:var(--text3)">'+_ago(item.ts)+'</span>':'')+
-          '</div>'+
-          '<div style="font-size:12px;color:var(--text);font-weight:500;margin-bottom:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+_esc(item.title||'')+'</div>'+
-          (item.text?'<div style="font-size:11px;color:var(--text3);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+_esc(item.text)+'</div>':'')+
-        '</div>';
-      if(item.url){el.addEventListener('click',function(){window.open(item.url,'_blank');});}
+      el.style.cssText='padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:'+(item.url?'pointer':'default');
+
+      // Header source + timestamp
+      var hdr='<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'+
+        '<span style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+item.src+'</span>'+
+        (item.author?'<span style="font-size:10px;color:var(--text3)">@'+_esc(item.author)+'</span>':'')+
+        (item.ts?'<span style="font-size:10px;color:var(--text3);margin-left:auto">'+_ago(item.ts)+'</span>':'')+
+      '</div>';
+
+      // Titre
+      var title=item.title?'<div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px;line-height:1.4">'+_esc(item.title)+'</div>':'';
+
+      // Texte complet (pas coupé)
+      var body=item.text?'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:6px;white-space:pre-wrap">'+_esc(item.text)+'</div>':'';
+
+      // Médias — grille si plusieurs, pleine largeur si un seul
+      var media='';
+      if(item.media&&item.media.length){
+        if(item.media.length===1){
+          var m=item.media[0];
+          if(m.type==='video'){
+            media='<video src="'+m.url+'" poster="'+(m.thumb||'')+'" controls style="width:100%;border-radius:8px;max-height:200px;background:#000;margin-bottom:4px"></video>';
+          }else{
+            media='<img src="'+m.url+'" style="width:100%;border-radius:8px;max-height:240px;object-fit:cover;display:block;margin-bottom:4px" loading="lazy">';
+          }
+        }else{
+          var cols=Math.min(item.media.length,3);
+          media='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:3px;border-radius:8px;overflow:hidden;margin-bottom:6px">';
+          item.media.forEach(function(m){
+            if(m.type==='video'){
+              media+='<video src="'+m.url+'" poster="'+(m.thumb||'')+'" controls style="width:100%;height:100px;object-fit:cover;background:#000"></video>';
+            }else{
+              media+='<img src="'+m.url+'" style="width:100%;height:100px;object-fit:cover" loading="lazy">';
+            }
+          });
+          media+='</div>';
+        }
+      }else if(item.thumb){
+        // Thumbnail unique
+        media='<img src="'+item.thumb+'" style="width:100%;border-radius:8px;max-height:200px;object-fit:cover;display:block;margin-bottom:4px" loading="lazy">';
+      }
+
+      // URL cliquable si pas de handler global
+      var link=item.url?'<a href="'+item.url+'" target="_blank" style="font-size:10px;color:var(--accent);word-break:break-all;display:block;margin-top:4px">'+item.url.slice(0,60)+(item.url.length>60?'…':'')+'</a>':'';
+
+      el.innerHTML=hdr+title+body+media+link;
+      if(item.url){el.addEventListener('click',function(e){if(!e.target.closest('a,video'))window.open(item.url,'_blank');});}
       results.appendChild(el);
     });
   }
@@ -367,25 +399,45 @@ async function _fetchAllSources(zone,period,filters){
       }).catch(function(){}));
   }
 
-  if(filters.osm){
-    var q='[out:json][timeout:10];(node(around:'+rad+','+lat+','+lng+')[name];way(around:'+rad+','+lat+','+lng+')[name];);out body 12;';
-    promises.push(fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q))
-      .then(function(r){return r.json();}).then(function(d){
-        (d.elements||[]).slice(0,10).forEach(function(e){
-          var t=e.tags||{};
-          items.push({src:'osm',icon:'🗺',title:t.name||'POI',text:(t.amenity||t.shop||t.tourism||''),
-            url:'https://www.openstreetmap.org/'+(e.type||'node')+'/'+e.id,ts:Date.now()-Math.random()*periodMs});
+  if(filters.flickr){
+    // Flickr geo public feed — sans clé API
+    promises.push(
+      fetch('https://api.flickr.com/services/feeds/geo/?lat='+lat+'&lon='+lng+'&radius=1&format=json&nojsoncallback=1')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        (d.items||[]).slice(0,8).forEach(function(e){
+          var imgUrl=e.media&&e.media.m?e.media.m.replace('_m.','_b.'):null;
+          var thumb=e.media&&e.media.m||null;
+          items.push({src:'flickr',icon:'📷',
+            title:e.title||'Photo',
+            author:e.author?e.author.replace(/.*\(|\).*/g,''):'',
+            text:e.description?e.description.replace(/<[^>]+>/g,'').slice(0,120):'',
+            url:e.link,
+            media:imgUrl?[{type:'image',url:imgUrl,thumb:thumb}]:[],
+            thumb:thumb,
+            ts:e.date_taken?new Date(e.date_taken).getTime():Date.now()-Math.random()*periodMs
+          });
         });
-      }).catch(function(){}));
+      }).catch(function(){})
+    );
   }
 
   if(filters.reddit){
     var tmap={'1h':'hour','24h':'day','7d':'week'};
-    promises.push(fetch('https://www.reddit.com/search.json?q='+encodeURIComponent(lat.toFixed(2)+' '+lng.toFixed(2))+'&sort=new&limit=5&t='+(tmap[period]||'day'),{headers:{'User-Agent':'YourMine/1.0'}})
+    promises.push(fetch('https://www.reddit.com/search.json?q='+encodeURIComponent(lat.toFixed(2)+' '+lng.toFixed(2))+'&sort=new&limit=8&t='+(tmap[period]||'day'),{headers:{'User-Agent':'YourMine/1.0'}})
       .then(function(r){return r.json();}).then(function(d){
         ((d.data&&d.data.children)||[]).forEach(function(p){
           var post=p.data;
-          items.push({src:'reddit',icon:'💬',title:post.title,text:'r/'+post.subreddit,url:'https://reddit.com'+post.permalink,ts:(post.created_utc||0)*1000});
+          var media=[];
+          if(post.preview&&post.preview.images&&post.preview.images[0]){
+            var img=post.preview.images[0].source;
+            if(img&&img.url)media.push({type:'image',url:img.url.replace(/&amp;/g,'&'),thumb:img.url.replace(/&amp;/g,'&')});
+          }
+          if(post.url&&/\.(jpg|jpeg|png|gif|webp)$/i.test(post.url))media.push({type:'image',url:post.url});
+          items.push({src:'reddit',icon:'💬',title:post.title,
+            text:'r/'+post.subreddit+' · '+post.score+' pts'+(post.selftext?'\n'+post.selftext.slice(0,200):''),
+            url:'https://reddit.com'+post.permalink,
+            media:media,ts:(post.created_utc||0)*1000});
         });
       }).catch(function(){}));
   }
