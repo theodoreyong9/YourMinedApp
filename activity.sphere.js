@@ -56,125 +56,153 @@ function renderCirclesTab(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
 
-  // Carte Leaflet
+  // Carte — prend tout l'espace
   const mapEl=document.createElement('div');
   mapEl.id='act-map';
   mapEl.style.cssText='flex:1;min-height:0;background:var(--surface2)';
   container.appendChild(mapEl);
 
-  // Barre actions en bas
+  // Barre actions compacte en bas
   const bar=document.createElement('div');
-  bar.style.cssText='flex-shrink:0;padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;background:var(--surface)';
+  bar.style.cssText='flex-shrink:0;padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;background:var(--surface)';
   bar.innerHTML=
-    '<button id="act-add-circle" class="ym-btn ym-btn-accent" style="font-size:12px;flex:1">+ Zone ici</button>'+
-    '<button id="act-drop-msg" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1">💬 Drop message</button>'+
-    '<button id="act-locate" class="ym-btn ym-btn-ghost" style="padding:6px 10px;font-size:16px">◎</button>';
+    '<div id="act-mode-info" style="flex:1;font-size:11px;color:var(--text3)">Click map to place zone or message</div>'+
+    '<button id="act-mode-zone" class="ym-btn ym-btn-accent" style="font-size:11px;padding:5px 10px">+ Zone</button>'+
+    '<button id="act-mode-msg" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:5px 10px">💬 Drop</button>'+
+    '<button id="act-locate" class="ym-btn ym-btn-ghost" style="padding:5px 8px;font-size:15px" title="My location">◎</button>';
   container.appendChild(bar);
 
-  // Panneau liste zones
-  const listEl=document.createElement('div');
-  listEl.style.cssText='flex-shrink:0;max-height:140px;overflow-y:auto;padding:6px 14px;border-top:1px solid var(--border)';
-  container.appendChild(listEl);
+  let _mode = null; // 'zone' | 'msg' | null
 
-  function renderList(){
-    listEl.innerHTML='';
-    const circles=loadCircles();
-    const drops=loadDrops();
-    if(!circles.length&&!drops.length){
-      listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:4px 0">No zones or messages yet. Navigate the map and add one.</div>';
-      return;
-    }
-    circles.forEach((c,i)=>{
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)';
-      row.innerHTML=
-        '<span style="font-size:13px">📍</span>'+
-        '<span style="flex:1;font-size:12px">'+(c.name||'Zone '+(i+1))+'</span>'+
-        '<span style="font-size:10px;color:var(--text3)">'+c.lat.toFixed(3)+','+c.lng.toFixed(3)+'</span>'+
-        '<button data-del="'+i+'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">×</button>';
-      row.querySelector('[data-del]').addEventListener('click',e=>{
-        e.stopPropagation();
-        const arr=loadCircles();arr.splice(i,1);saveCircles(arr);
-        renderList();initMap();
-      });
-      listEl.appendChild(row);
-    });
-    drops.forEach((d,i)=>{
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)';
-      row.innerHTML=
-        '<span style="font-size:13px">💬</span>'+
-        '<span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+d.text+'</span>'+
-        '<span style="font-size:10px;color:var(--text3)">'+new Date(d.ts).toLocaleDateString()+'</span>'+
-        '<button data-ddel="'+i+'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px">×</button>';
-      row.querySelector('[data-ddel]').addEventListener('click',e=>{
-        e.stopPropagation();
-        const arr=loadDrops();arr.splice(i,1);saveDrops(arr);
-        renderList();initMap();
-      });
-      listEl.appendChild(row);
-    });
+  function setMode(m){
+    _mode=m;
+    bar.querySelector('#act-mode-zone').style.background=m==='zone'?'var(--accent)':'';
+    bar.querySelector('#act-mode-msg').style.background=m==='msg'?'rgba(232,160,32,.2)':'';
+    bar.querySelector('#act-mode-info').textContent=
+      m==='zone'?'Click on the map to place a zone (100m radius)':
+      m==='msg'?'Click on the map to drop a message':'Click map to place zone or message';
+    if(_map)_map.getContainer().style.cursor=m?'crosshair':'';
   }
 
-  function initMap(){
-    // Charge Leaflet si pas encore fait
-    function setupMap(){
-      if(document.getElementById('act-map')!==mapEl)return;
-      if(_map){try{_map.remove();}catch(e){} _map=null;}
-      const L=window.L;
-      _map=L.map('act-map',{zoomControl:true,attributionControl:false}).setView([48.85,2.35],3);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_map);
+  bar.querySelector('#act-mode-zone').addEventListener('click',()=>setMode(_mode==='zone'?null:'zone'));
+  bar.querySelector('#act-mode-msg').addEventListener('click',()=>setMode(_mode==='msg'?null:'msg'));
 
-      // Dessine les cercles existants
+  function setupMap(){
+    if(document.getElementById('act-map')!==mapEl)return;
+    if(_map){try{_map.remove();}catch(e){}_map=null;}
+    const L=window.L;
+    _map=L.map('act-map',{zoomControl:true,attributionControl:false});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_map);
+
+    function redrawAll(){
+      // Efface tout sauf tiles
+      _map.eachLayer(l=>{if(!(l instanceof L.TileLayer))_map.removeLayer(l);});
       loadCircles().forEach(c=>{
-        L.circle([c.lat,c.lng],{radius:100,color:'#e8a020',fillColor:'#e8a020',fillOpacity:0.15,weight:2}).addTo(_map)
-          .bindPopup('<b>'+(c.name||'Zone')+'</b>');
+        const circle=L.circle([c.lat,c.lng],{
+          radius:100,color:'#e8a020',fillColor:'#e8a020',fillOpacity:0.18,weight:2,interactive:true
+        }).addTo(_map);
+        const popup=L.popup({className:'act-popup'}).setContent(
+          '<div style="font-weight:600;margin-bottom:4px">'+(c.name||'Zone')+'</div>'+
+          '<button class="pop-del" style="background:#e84040;color:#fff;border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">Delete</button>'
+        );
+        circle.bindPopup(popup);
+        circle.on('popupopen',()=>{
+          document.querySelector('.pop-del')?.addEventListener('click',()=>{
+            const arr=loadCircles().filter(x=>!(x.lat===c.lat&&x.lng===c.lng));
+            saveCircles(arr);redrawAll();circle.closePopup();
+          });
+        });
       });
-      // Dessine les drops
       loadDrops().forEach(d=>{
-        const icon=L.divIcon({className:'',html:'<div style="background:#e8a020;color:#000;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px">💬</div>',iconSize:[24,24]});
-        L.marker([d.lat,d.lng],{icon}).addTo(_map).bindPopup('<div style="max-width:180px">'+d.text+'</div>');
+        const icon=L.divIcon({className:'',
+          html:'<div style="background:#e8a020;color:#000;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5)">💬</div>',
+          iconSize:[28,28],iconAnchor:[14,14]});
+        const marker=L.marker([d.lat,d.lng],{icon}).addTo(_map);
+        const popup=L.popup().setContent(
+          '<div style="max-width:180px;font-size:12px;margin-bottom:6px">'+d.text+'</div>'+
+          '<div style="font-size:10px;color:#999;margin-bottom:6px">'+new Date(d.ts).toLocaleString()+'</div>'+
+          '<button class="pop-ddel" style="background:#e84040;color:#fff;border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px">Delete</button>'
+        );
+        marker.bindPopup(popup);
+        marker.on('popupopen',()=>{
+          document.querySelector('.pop-ddel')?.addEventListener('click',()=>{
+            const arr=loadDrops().filter(x=>!(x.lat===d.lat&&x.lng===d.lng&&x.ts===d.ts));
+            saveDrops(arr);redrawAll();marker.closePopup();
+          });
+        });
       });
     }
 
-    if(window.L){setupMap();}
-    else{
-      const link=document.createElement('link');link.rel='stylesheet';link.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';document.head.appendChild(link);
-      const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-      s.onload=setupMap;document.head.appendChild(s);
-    }
+    // Clic sur carte → place selon le mode
+    _map.on('click',e=>{
+      if(!_mode)return;
+      const{lat,lng}=e.latlng;
+      if(_mode==='zone'){
+        const name=prompt('Zone name (optional):','');
+        if(name===null){setMode(null);return;}
+        const circles=loadCircles();
+        circles.push({lat,lng,name:name.trim()||'Zone',radius:100,ts:Date.now()});
+        saveCircles(circles);
+        redrawAll();
+        setMode(null);
+      }else if(_mode==='msg'){
+        const text=prompt('Message:','');
+        if(!text||!text.trim()){setMode(null);return;}
+        const drops=loadDrops();
+        drops.push({lat,lng,text:text.trim(),ts:Date.now()});
+        saveDrops(drops);
+        redrawAll();
+        setMode(null);
+      }
+    });
+
+    redrawAll();
+
+    // Vue initiale : cercle le plus proche de ma position, sinon monde
+    navigator.geolocation?.getCurrentPosition(pos=>{
+      const myLat=pos.coords.latitude,myLng=pos.coords.longitude;
+      const circles=loadCircles();
+      if(circles.length){
+        // Trouve le plus proche
+        let nearest=circles[0],minDist=Infinity;
+        circles.forEach(c=>{
+          const d=Math.hypot(c.lat-myLat,c.lng-myLng);
+          if(d<minDist){minDist=d;nearest=c;}
+        });
+        _map.setView([nearest.lat,nearest.lng],16);
+      }else{
+        _map.setView([myLat,myLng],14);
+      }
+    },()=>{
+      // Pas de géoloc : monde entier ou premier cercle
+      const circles=loadCircles();
+      if(circles.length)_map.setView([circles[0].lat,circles[0].lng],14);
+      else _map.setView([20,0],2);
+    },{timeout:4000});
   }
 
   bar.querySelector('#act-locate').addEventListener('click',()=>{
     navigator.geolocation?.getCurrentPosition(pos=>{
-      if(_map)_map.setView([pos.coords.latitude,pos.coords.longitude],14);
+      if(_map)_map.setView([pos.coords.latitude,pos.coords.longitude],15);
     },()=>window.YM_toast?.('Geolocation unavailable','warn'));
   });
 
-  bar.querySelector('#act-add-circle').addEventListener('click',()=>{
-    if(!_map){window.YM_toast?.('Map not ready','warn');return;}
-    const center=_map.getCenter();
-    const name=prompt('Zone name:','My Zone');
-    if(name===null)return;
-    const circles=loadCircles();
-    circles.push({lat:center.lat,lng:center.lng,name:name.trim()||'Zone',radius:100,ts:Date.now()});
-    saveCircles(circles);
-    renderList();initMap();
-  });
-
-  bar.querySelector('#act-drop-msg').addEventListener('click',()=>{
-    if(!_map){window.YM_toast?.('Map not ready','warn');return;}
-    const center=_map.getCenter();
-    const text=prompt('Message to drop here:');
-    if(!text||!text.trim())return;
-    const drops=loadDrops();
-    drops.push({lat:center.lat,lng:center.lng,text:text.trim(),ts:Date.now()});
-    saveDrops(drops);
-    renderList();initMap();
-  });
-
-  renderList();
-  setTimeout(initMap,50);
+  if(window.L){setTimeout(setupMap,50);}
+  else{
+    if(!document.getElementById('leaflet-css')){
+      const link=document.createElement('link');link.id='leaflet-css';link.rel='stylesheet';
+      link.href='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+      document.head.appendChild(link);
+    }
+    if(!document.getElementById('leaflet-js')){
+      const s=document.createElement('script');s.id='leaflet-js';
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+      s.onload=()=>setTimeout(setupMap,50);document.head.appendChild(s);
+    }else{
+      // Script en cours de chargement — attends
+      const check=setInterval(()=>{if(window.L){clearInterval(check);setTimeout(setupMap,50);}},100);
+    }
+  }
 }
 
 // ── ONGLET 2 : EXTRACT ───────────────────────────────────────────────────────
