@@ -956,6 +956,24 @@ window.YM_S['social.sphere.js'] = {
 
   getTabBadges(){
     return {Near:_nearUsers.size, Contacts:0, Feed:0};
+  },
+
+  // Hook appelé par profile.js dans la fiche d'un pair
+  peerSection(container, ctx){
+    const{uuid,isNear,isReciproc}=ctx;
+    if(isNear&&isReciproc){
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-ghost';
+      btn.style.cssText='width:100%;font-size:12px;color:var(--cyan);border-color:rgba(34,211,238,.3)';
+      btn.textContent='📞 Voice Call';
+      btn.addEventListener('click',()=>startVoiceCall(uuid));
+      container.appendChild(btn);
+    }else{
+      const info=document.createElement('div');
+      info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
+      info.textContent=isNear?'Add each other as contacts to call':'Not nearby';
+      container.appendChild(info);
+    }
   }
 };
 
@@ -1272,190 +1290,6 @@ window.YM_Social = {
   startVoiceCall,
   get _nearUsers(){return _nearUsers;}
 };
-
-// Exposé pour index.html
-window._renderProfileView=renderProfileView;
-
-function _showInternalBack(){}
-function _hideInternalBack(){}
-
-function renderProfileView(container,profile){
-  const rawSite=profile.site||'';
-  const siteUrl=rawSite&&!rawSite.startsWith('http')?'https://'+rawSite:rawSite;
-  const isContact=!!getContact(profile.uuid);
-  const isNear=_nearUsers.has(profile.uuid);
-  const isReciproc=isReciprocal(profile.uuid);
-
-  container.innerHTML='';
-
-  // ── Contact bar ───────────────────────────────────────────
-  const contactBar=document.createElement('div');
-  if(isContact){
-    contactBar.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:var(--r-sm)';
-    contactBar.innerHTML='<span style="color:var(--green);font-size:12px;flex:1">✓ In contacts</span>';
-    const rmBtn=document.createElement('button');rmBtn.className='ym-btn ym-btn-danger';rmBtn.style.cssText='padding:4px 10px;font-size:11px;min-height:unset';rmBtn.textContent='Remove';
-    rmBtn.addEventListener('click',()=>{saveContacts(loadContacts().filter(x=>x.uuid!==profile.uuid));window.YM_toast?.('Contact removed','info');renderProfileView(container,profile);});
-    contactBar.appendChild(rmBtn);
-  }else{
-    const addBtn=document.createElement('button');addBtn.className='ym-btn ym-btn-accent';addBtn.style.cssText='width:100%;margin-bottom:12px';addBtn.textContent='+ Add Contact';
-    addBtn.addEventListener('click',()=>{addContact(profile);window.YM_toast?.('Contact added','success');renderProfileView(container,profile);});
-    contactBar.appendChild(addBtn);
-  }
-  container.appendChild(contactBar);
-
-  // ── Avatar + identité ─────────────────────────────────────
-  const ident=document.createElement('div');
-  ident.style.cssText='text-align:center;padding:12px 0';
-  const av=profile.avatar
-    ?'<img src="'+profile.avatar+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover">'
-    :'<div style="width:72px;height:72px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto">'+(profile.name?.charAt(0)||'👤')+'</div>';
-  ident.innerHTML=
-    '<div style="margin-bottom:8px">'+av+'</div>'+
-    '<div style="font-size:18px;font-weight:600;margin-bottom:4px">'+(profile.name||'Anonymous')+'</div>'+
-    (profile.bio?'<div style="font-size:13px;color:var(--text2);max-width:280px;margin:0 auto">'+profile.bio+'</div>':'')+
-    (siteUrl?'<a href="'+siteUrl+'" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--cyan);display:block;margin-top:6px">'+rawSite+'</a>':'');
-  container.appendChild(ident);
-
-  // ── Réseaux sociaux ───────────────────────────────────────
-  if(profile.networks?.length){
-    const nets=document.createElement('div');nets.className='ym-card';
-    nets.innerHTML='<div class="ym-card-title">Social Networks</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+
-      profile.networks.map(n=>'<span class="pill">'+n.id+' '+n.handle+'</span>').join('')+'</div>';
-    container.appendChild(nets);
-  }
-
-  // ── Sphères actives en accordéon — communes d'abord ─────────
-  if(profile.spheres?.length){
-    const mySpheres=(window.YM?.getProfile?.()?.spheres)||[];
-    const shared=profile.spheres.filter(s=>mySpheres.includes(s));
-    const others=profile.spheres.filter(s=>!mySpheres.includes(s));
-
-    if(shared.length){
-      const t=document.createElement('div');
-      t.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin:12px 0 6px';
-      t.textContent='Spheres in common';
-      container.appendChild(t);
-      shared.forEach(sphereFile=>_renderSphereAccordion(container,sphereFile,profile,isNear,isReciproc));
-    }
-
-    if(others.length){
-      const t=document.createElement('div');
-      t.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';
-      t.textContent='Other spheres';
-      container.appendChild(t);
-      others.forEach(sphereFile=>{
-        const sphereName=sphereFile.replace('.sphere.js','');
-        const sphereObj=window.YM_sphereRegistry?.get(sphereFile);
-        const row=document.createElement('div');
-        row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;cursor:pointer;opacity:.7';
-        const icon=sphereObj?.icon||'⬡';
-        row.innerHTML='<span style="font-size:16px">'+(typeof icon==='string'&&(icon.startsWith('http')||icon.startsWith('/'))
-          ?'<img src="'+icon+'" style="width:18px;height:18px;border-radius:3px;object-fit:contain">'
-          :icon)+'</span>'+
-          '<span style="font-size:12px;flex:1">'+sphereName+'</span>'+
-          '<span style="font-size:11px;color:var(--accent)">↗ Find</span>';
-        row.addEventListener('click',()=>{
-          // Ouvre liste avec ce nom en recherche
-          window.YM_Liste?._searchAndOpen?.(sphereName);
-          window.YM?.openPanel?.('panel-spheres');
-        });
-        container.appendChild(row);
-      });
-    }
-  }
-}
-
-function _renderSphereAccordion(container,sphereFile,profile,isNear,isReciproc){
-      const sphereName=sphereFile.replace('.sphere.js','');
-      const sphereObj=window.YM_sphereRegistry?.get(sphereFile);
-
-      const accordion=document.createElement('div');
-      accordion.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;overflow:hidden';
-
-      const header=document.createElement('div');
-      header.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;background:rgba(255,255,255,.02)';
-      const icon=sphereObj?.icon||'⬡';
-      header.innerHTML=
-        '<span style="font-size:16px">'+icon+'</span>'+
-        '<span style="font-size:12px;font-weight:600;flex:1">'+sphereName+'</span>'+
-        '<span class="acc-arrow" style="font-size:10px;color:var(--text3)">›</span>';
-
-      const body=document.createElement('div');
-      body.style.cssText='display:none;padding:10px 12px;border-top:1px solid var(--border)';
-
-      if(sphereFile==='social.sphere.js'){
-        if(isNear&&isReciproc){
-          const callBtn=document.createElement('button');
-          callBtn.className='ym-btn ym-btn-ghost';
-          callBtn.style.cssText='width:100%;font-size:12px;color:var(--cyan);border-color:rgba(34,211,238,.3)';
-          callBtn.textContent='📞 Voice Call';
-          callBtn.addEventListener('click',()=>startVoiceCall(profile.uuid));
-          body.appendChild(callBtn);
-        }else if(isNear&&!isReciproc){
-          const info=document.createElement('div');
-          info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
-          info.textContent='Add each other as contacts to call';
-          body.appendChild(info);
-        }else{
-          const info=document.createElement('div');
-          info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
-          info.textContent='Not nearby';
-          body.appendChild(info);
-        }
-      }else if(sphereFile==='messenger.sphere.js'){
-        if(isNear&&isReciproc){
-          const msgBtn=document.createElement('button');
-          msgBtn.className='ym-btn ym-btn-ghost';
-          msgBtn.style.cssText='width:100%;font-size:12px';
-          msgBtn.textContent='💬 Send Message';
-          msgBtn.addEventListener('click',()=>{
-            if(window.YM_Messenger&&window.YM_Messenger.openConv){window.YM_Messenger.openConv(profile.uuid);}
-            window.YM?.openSpherePanel?.('messenger.sphere.js');
-          });
-          body.appendChild(msgBtn);
-        }else{
-          const info=document.createElement('div');
-          info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
-          info.textContent=isNear?'Add each other as contacts to message':'Not nearby';
-          body.appendChild(info);
-        }
-      }else if(sphereFile==='poker.sphere.js'){
-        const pokerBtn=document.createElement('button');
-        pokerBtn.className='ym-btn ym-btn-ghost';
-        pokerBtn.style.cssText='width:100%;font-size:12px';
-        pokerBtn.textContent='♠ Invite to Poker';
-        pokerBtn.addEventListener('click',()=>{
-          if(window.YM_Poker?.inviteContact){window.YM_Poker.inviteContact(profile.uuid);}
-          else{window.YM_toast?.('Poker not active','warn');}
-        });
-        body.appendChild(pokerBtn);
-        const pk=document.createElement('div');
-        pk.style.cssText='font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all';
-        pk.textContent=profile.pubkey;
-        body.appendChild(pk);
-      }else{
-        const desc=sphereObj?.description||'';
-        if(desc){const d=document.createElement('div');d.style.cssText='font-size:11px;color:var(--text2)';d.textContent=desc;body.appendChild(d);}
-        else{const d=document.createElement('div');d.style.cssText='font-size:11px;color:var(--text3)';d.textContent='No interactions available';body.appendChild(d);}
-      }
-
-      header.addEventListener('click',()=>{
-        const open=body.style.display!=='none';
-        body.style.display=open?'none':'block';
-        header.querySelector('.acc-arrow').textContent=open?'›':'⌄';
-      });
-
-      accordion.appendChild(header);
-      accordion.appendChild(body);
-      container.appendChild(accordion);
-
-  // ── Wallet ────────────────────────────────────────────────
-  if(profile.pubkey&&!profile.spheres?.includes('mine.sphere.js')){
-    const wallet=document.createElement('div');wallet.className='ym-card';
-    wallet.innerHTML='<div class="ym-card-title">Wallet</div><div style="font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all">'+profile.pubkey+'</div>';
-    container.appendChild(wallet);
-  }
-}
 
 // ── USER CARD ──────────────────────────────────────────────────────────────────
 function userCard(profile,type,onAdd){
