@@ -93,7 +93,7 @@ function buildProfilePacket(){
     lat:      _myCoords?.lat,
     lng:      _myCoords?.lng,
     networks: (state.networks || []).map(n => ({id:n.id, handle:n.handle})),
-    contacts: contactUUIDs, // pour vérification réciprocité
+    contacts: contactUUIDs,
     ts:       Date.now()
   };
 }
