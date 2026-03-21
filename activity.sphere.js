@@ -238,111 +238,198 @@ function renderExtractTab(container){
   container.innerHTML='';
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
 
-  const circles=loadCircles();
-  const anchors=loadAnchors();
+  var circles=loadCircles();
+  var anchors=loadAnchors();
 
-  // Sélecteur de zone + filtres
-  const ctrl=document.createElement('div');
-  ctrl.style.cssText='flex-shrink:0;padding:8px 12px;border-bottom:1px solid var(--border)';
-  ctrl.innerHTML=
-    '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">'+
-      '<select id="ext-zone" class="ym-input" style="flex:2;font-size:11px">'+
-        (circles.length
-          ? circles.map(function(c,i){return '<option value="'+i+'">'+(c.name||'Zone '+(i+1))+'</option>';}).join('')
-          : '<option value="">No zones yet</option>')+
-      '</select>'+
-      '<select id="ext-period" class="ym-input" style="flex:1;font-size:11px">'+
-        '<option value="1h">Last hour</option>'+
-        '<option value="24h" selected>Last 24h</option>'+
-        '<option value="yesterday">Yesterday</option>'+
-      '</select>'+
-      '<button id="ext-run" class="ym-btn ym-btn-accent" style="font-size:11px;padding:5px 10px">🔍</button>'+
-    '</div>'+
-    '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
-      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-social" checked> Social</label>'+
-      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-news" checked> News</label>'+
-      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-events" checked> Events</label>'+
-      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-anchors" checked> Anchors</label>'+
-    '</div>'+
-    '<div id="ext-status" style="font-size:10px;color:var(--text3);margin-top:4px"></div>';
-  container.appendChild(ctrl);
-
-  const results=document.createElement('div');
-  results.style.cssText='flex:1;overflow-y:auto;padding:8px 12px';
-  container.appendChild(results);
-
-  // Affiche les anchors par défaut
-  renderAnchors();
-
-  if(!circles.length){
-    ctrl.querySelector('#ext-run').disabled=true;
+  if(!circles.length&&!anchors.length){
+    container.innerHTML='<div style="color:var(--text3);font-size:12px;padding:24px;text-align:center">No zones yet.<br>Create zones in the Zones tab.</div>';
+    return;
   }
 
-  function renderAnchors(){
+  var ctrl=document.createElement('div');
+  ctrl.style.cssText='flex-shrink:0;padding:8px 12px;border-bottom:1px solid var(--border)';
+  ctrl.innerHTML=
+    '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">'+
+      '<select id="ext-zone" class="ym-input" style="flex:2;min-width:100px;font-size:11px">'+
+        '<option value="all">All zones</option>'+
+        circles.map(function(c,i){return '<option value="'+i+'">'+(c.name||'Zone '+(i+1))+'</option>';}).join('')+
+      '</select>'+
+      '<select id="ext-period" class="ym-input" style="flex:1;min-width:80px;font-size:11px">'+
+        '<option value="1h">Last hour</option>'+
+        '<option value="24h" selected>Last 24h</option>'+
+        '<option value="7d">Last week</option>'+
+      '</select>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">'+
+      _mkFilter('anchors','👤 Anchors',true)+
+      _mkFilter('wikipedia','📖 Wikipedia',true)+
+      _mkFilter('osm','🗺 OSM',true)+
+      _mkFilter('flickr','📷 Flickr',true)+
+      _mkFilter('reddit','💬 Reddit',true)+
+      _mkFilter('events','🎉 Events',true)+
+      _mkFilter('mastodon','🐘 Mastodon',true)+
+      _mkFilter('web','🌐 Web',true)+
+    '</div>'+
+    '<div id="ext-status" style="font-size:10px;color:var(--text3);margin-top:4px;min-height:14px"></div>';
+  container.appendChild(ctrl);
+
+  var results=document.createElement('div');
+  results.style.cssText='flex:1;overflow-y:auto;padding:0';
+  container.appendChild(results);
+
+  runExtract();
+
+  ctrl.querySelectorAll('select,input[type=checkbox]').forEach(function(el){
+    el.addEventListener('change',runExtract);
+  });
+
+  async function runExtract(){
+    var zoneIdx=ctrl.querySelector('#ext-zone').value;
+    var period=ctrl.querySelector('#ext-period').value;
+    var status=ctrl.querySelector('#ext-status');
+    var zones=zoneIdx==='all'?circles:[circles[parseInt(zoneIdx)]].filter(Boolean);
+    var filters={};
+    ctrl.querySelectorAll('input[type=checkbox]').forEach(function(cb){filters[cb.dataset.src]=cb.checked;});
+
+    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:12px;text-align:center">Loading...</div>';
+    status.textContent='Fetching...';
+
+    var allItems=[];
+    if(filters.anchors){
+      anchors.forEach(function(a){
+        var inZone=zones.some(function(z){return _dist(a.lat,a.lng,z.lat,z.lng)<=150;});
+        if(inZone||zoneIdx==='all'){
+          allItems.push({src:'anchors',icon:'👤',title:'My anchor',text:a.text,lat:a.lat,lng:a.lng,ts:a.ts||0,url:null});
+        }
+      });
+    }
+
+    var promises=zones.map(function(zone){return _fetchAllSources(zone,period,filters);});
+    var zoneResults=await Promise.allSettled(promises);
+    zoneResults.forEach(function(r){if(r.status==='fulfilled'&&r.value)allItems=allItems.concat(r.value);});
+    allItems.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+
+    status.textContent=allItems.length+' results';
     results.innerHTML='';
-    if(!anchors.length){
-      results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px;text-align:center">No anchors yet.<br>Add yours in Zones tab with ✏ My anchor.</div>';
+    if(!allItems.length){
+      results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No results for these zones and filters.</div>';
       return;
     }
-    anchors.forEach(function(a){
+    allItems.forEach(function(item){
       var el=document.createElement('div');
-      el.style.cssText='padding:8px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;gap:8px;align-items:flex-start';
-      el.innerHTML=
-        '<span style="font-size:16px;flex-shrink:0">👤</span>'+
-        '<div><div style="font-size:11px;font-weight:600;color:var(--accent)">My anchor</div>'+
-        '<div style="font-size:12px;color:var(--text2);margin-top:2px">'+a.text+'</div>'+
-        '<div style="font-size:10px;color:var(--text3)">'+a.lat.toFixed(4)+', '+a.lng.toFixed(4)+'</div></div>';
+      el.style.cssText='display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:'+(item.url?'pointer':'default');
+      var thumb=item.thumb
+        ?'<img src="'+item.thumb+'" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0">'
+        :'<div style="width:36px;height:36px;border-radius:6px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+item.icon+'</div>';
+      el.innerHTML=thumb+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">'+
+            '<span style="font-size:10px;color:var(--accent);font-weight:600;text-transform:uppercase">'+item.src+'</span>'+
+            (item.ts?'<span style="font-size:10px;color:var(--text3)">'+_ago(item.ts)+'</span>':'')+
+          '</div>'+
+          '<div style="font-size:12px;color:var(--text);font-weight:500;margin-bottom:2px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+_esc(item.title||'')+'</div>'+
+          (item.text?'<div style="font-size:11px;color:var(--text3);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+_esc(item.text)+'</div>':'')+
+        '</div>';
+      if(item.url){el.addEventListener('click',function(){window.open(item.url,'_blank');});}
       results.appendChild(el);
     });
   }
-
-  ctrl.querySelector('#ext-run').addEventListener('click',async function(){
-    var zIdx=parseInt(ctrl.querySelector('#ext-zone').value);
-    var zone=circles[isNaN(zIdx)?0:zIdx];
-    if(!zone){window.YM_toast&&window.YM_toast('Create a zone first','warn');return;}
-    var period=ctrl.querySelector('#ext-period').value;
-    var wantSocial=ctrl.querySelector('#ext-social').checked;
-    var wantNews=ctrl.querySelector('#ext-news').checked;
-    var wantEvents=ctrl.querySelector('#ext-events').checked;
-    var wantAnchors=ctrl.querySelector('#ext-anchors').checked;
-
-    var status=ctrl.querySelector('#ext-status');
-    var periodLabel={'1h':'in the last hour','24h':'in the last 24 hours','yesterday':'yesterday'}[period];
-    var types=[wantSocial&&'social media posts',wantNews&&'news articles',wantEvents&&'local events'].filter(Boolean).join(', ')||'content';
-
-    status.textContent='Searching…';
-    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px;text-align:center">Loading…</div>';
-
-    // Affiche les anchors en haut si demandé
-    if(wantAnchors)(anchors.length||nearAnchors.length)&&renderAnchors();
-
-    try{
-      var locDesc=(zone.name||'Zone')+' ('+zone.lat.toFixed(4)+','+zone.lng.toFixed(4)+')';
-      var prompt='Search for '+types+' happening at or near '+locDesc+' '+periodLabel+'. Return real results with source, headline, brief summary, and URL. Prioritize hyperlocal and recent content.';
-
-      var resp=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',max_tokens:1500,
-          tools:[{type:'web_search_20250305',name:'web_search'}],
-          messages:[{role:'user',content:prompt}]
-        })
-      });
-      var data=await resp.json();
-      var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n')||'No results.';
-      status.textContent='';
-      if(!wantAnchors)results.innerHTML='';
-      text.split('\n').filter(function(l){return l.trim();}).forEach(function(line){
-        var el=document.createElement('div');
-        el.style.cssText='padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;color:var(--text2);line-height:1.5';
-        el.innerHTML=line.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" style="color:var(--accent);word-break:break-all">$1</a>');
-        results.appendChild(el);
-      });
-    }catch(e){
-      status.textContent='Error: '+e.message;
-    }
-  });
 }
+
+function _mkFilter(src,label,checked){
+  return '<label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:var(--text2);white-space:nowrap">'+
+    '<input type="checkbox" data-src="'+src+'"'+(checked?' checked':'')+'>'+label+'</label>';
+}
+function _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _dist(lat1,lng1,lat2,lng2){
+  var R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function _ago(ts){
+  var d=Date.now()-ts;
+  if(d<3600000)return Math.floor(d/60000)+'m';
+  if(d<86400000)return Math.floor(d/3600000)+'h';
+  return Math.floor(d/86400000)+'d';
+}
+
+async function _fetchAllSources(zone,period,filters){
+  var items=[],lat=zone.lat,lng=zone.lng,rad=500;
+  var periodMs={'1h':3600000,'24h':86400000,'7d':604800000}[period]||86400000;
+  var promises=[];
+
+  if(filters.wikipedia){
+    promises.push(fetch('https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord='+lat+'%7C'+lng+'&gsradius='+rad+'&gslimit=8&format=json&origin=*')
+      .then(function(r){return r.json();}).then(function(d){
+        ((d.query&&d.query.geosearch)||[]).forEach(function(p){
+          items.push({src:'wikipedia',icon:'📖',title:p.title,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(p.title),ts:Date.now()-Math.random()*periodMs});
+        });
+      }).catch(function(){}));
+  }
+
+  if(filters.osm){
+    var q='[out:json][timeout:10];(node(around:'+rad+','+lat+','+lng+')[name];way(around:'+rad+','+lat+','+lng+')[name];);out body 12;';
+    promises.push(fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q))
+      .then(function(r){return r.json();}).then(function(d){
+        (d.elements||[]).slice(0,10).forEach(function(e){
+          var t=e.tags||{};
+          items.push({src:'osm',icon:'🗺',title:t.name||'POI',text:(t.amenity||t.shop||t.tourism||''),
+            url:'https://www.openstreetmap.org/'+(e.type||'node')+'/'+e.id,ts:Date.now()-Math.random()*periodMs});
+        });
+      }).catch(function(){}));
+  }
+
+  if(filters.reddit){
+    var tmap={'1h':'hour','24h':'day','7d':'week'};
+    promises.push(fetch('https://www.reddit.com/search.json?q='+encodeURIComponent(lat.toFixed(2)+' '+lng.toFixed(2))+'&sort=new&limit=5&t='+(tmap[period]||'day'),{headers:{'User-Agent':'YourMine/1.0'}})
+      .then(function(r){return r.json();}).then(function(d){
+        ((d.data&&d.data.children)||[]).forEach(function(p){
+          var post=p.data;
+          items.push({src:'reddit',icon:'💬',title:post.title,text:'r/'+post.subreddit,url:'https://reddit.com'+post.permalink,ts:(post.created_utc||0)*1000});
+        });
+      }).catch(function(){}));
+  }
+
+  if(filters.mastodon){
+    promises.push(fetch('https://mastodon.social/api/v1/timelines/public?limit=5&local=false')
+      .then(function(r){return r.json();}).then(function(d){
+        (Array.isArray(d)?d:[]).slice(0,5).forEach(function(s){
+          if(!s.language||s.language==='en'||s.language==='fr'){
+            var text=s.content.replace(/<[^>]+>/g,'').slice(0,100);
+            items.push({src:'mastodon',icon:'🐘',title:(s.account&&s.account.display_name)||'User',text:text,url:s.url,ts:new Date(s.created_at).getTime()});
+          }
+        });
+      }).catch(function(){}));
+  }
+
+  if(filters.web){
+    promises.push(
+      fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json',{headers:{'User-Agent':'YourMine/1.0'}})
+      .then(function(r){return r.json();})
+      .then(async function(geo){
+        var place=geo.display_name?geo.display_name.split(',').slice(0,2).join(',').trim():(lat.toFixed(3)+','+lng.toFixed(3));
+        var pLabel={'1h':'in the last hour','24h':'in the last 24 hours','7d':'in the last week'}[period];
+        var prompt='Find recent posts and news around "'+place+'" '+pLabel+'. Sources: Twitter/X, Instagram, TikTok, Facebook, local news, blogs. Format each as: SOURCE | TITLE | URL';
+        var resp=await fetch('https://api.anthropic.com/v1/messages',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,
+            tools:[{type:'web_search_20250305',name:'web_search'}],
+            messages:[{role:'user',content:prompt}]})
+        });
+        var data=await resp.json();
+        var text=((data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n'));
+        text.split('\n').filter(function(l){return l.includes('|');}).forEach(function(line){
+          var p=line.split('|').map(function(s){return s.trim();});
+          items.push({src:(p[0]||'web').toLowerCase().slice(0,12),icon:'🌐',title:p[1]||line,url:(p[2]&&p[2].startsWith('http'))?p[2]:null,ts:Date.now()-Math.random()*periodMs/2});
+        });
+      }).catch(function(){})
+    );
+  }
+
+  await Promise.allSettled(promises);
+  return items;
+}
+
 
 // ── SPHERE ─────────────────────────────────────────────────────────────────
 window.YM_S['activity.sphere.js']={
