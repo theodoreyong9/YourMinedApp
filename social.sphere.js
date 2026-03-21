@@ -1419,7 +1419,16 @@ function _renderSphereAccordion(container,sphereFile,profile,isNear,isReciproc){
           info.textContent=isNear?'Add each other as contacts to message':'Not nearby';
           body.appendChild(info);
         }
-      }else if(sphereFile==='mine.sphere.js'&&profile.pubkey){
+      }else if(sphereFile==='poker.sphere.js'){
+        const pokerBtn=document.createElement('button');
+        pokerBtn.className='ym-btn ym-btn-ghost';
+        pokerBtn.style.cssText='width:100%;font-size:12px';
+        pokerBtn.textContent='♠ Invite to Poker';
+        pokerBtn.addEventListener('click',()=>{
+          if(window.YM_Poker?.inviteContact){window.YM_Poker.inviteContact(profile.uuid);}
+          else{window.YM_toast?.('Poker not active','warn');}
+        });
+        body.appendChild(pokerBtn);
         const pk=document.createElement('div');
         pk.style.cssText='font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all';
         pk.textContent=profile.pubkey;
