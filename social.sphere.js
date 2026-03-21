@@ -1324,21 +1324,54 @@ function renderProfileView(container,profile){
     container.appendChild(nets);
   }
 
-  // ── Sphères actives en accordéon ─────────────────────────
+  // ── Sphères actives en accordéon — communes d'abord ─────────
   if(profile.spheres?.length){
-    const spheresTitle=document.createElement('div');
-    spheresTitle.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';
-    spheresTitle.textContent='Active Spheres';
-    container.appendChild(spheresTitle);
+    const mySpheres=(window.YM?.getProfile?.()?.spheres)||[];
+    const shared=profile.spheres.filter(s=>mySpheres.includes(s));
+    const others=profile.spheres.filter(s=>!mySpheres.includes(s));
 
-    profile.spheres.forEach(sphereFile=>{
+    if(shared.length){
+      const t=document.createElement('div');
+      t.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin:12px 0 6px';
+      t.textContent='Spheres in common';
+      container.appendChild(t);
+      shared.forEach(sphereFile=>_renderSphereAccordion(container,sphereFile,profile,isNear,isReciproc));
+    }
+
+    if(others.length){
+      const t=document.createElement('div');
+      t.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';
+      t.textContent='Other spheres';
+      container.appendChild(t);
+      others.forEach(sphereFile=>{
+        const sphereName=sphereFile.replace('.sphere.js','');
+        const sphereObj=window.YM_sphereRegistry?.get(sphereFile);
+        const row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;cursor:pointer;opacity:.7';
+        const icon=sphereObj?.icon||'⬡';
+        row.innerHTML='<span style="font-size:16px">'+(typeof icon==='string'&&(icon.startsWith('http')||icon.startsWith('/'))
+          ?'<img src="'+icon+'" style="width:18px;height:18px;border-radius:3px;object-fit:contain">'
+          :icon)+'</span>'+
+          '<span style="font-size:12px;flex:1">'+sphereName+'</span>'+
+          '<span style="font-size:11px;color:var(--accent)">↗ Find</span>';
+        row.addEventListener('click',()=>{
+          // Ouvre liste avec ce nom en recherche
+          window.YM_Liste?._searchAndOpen?.(sphereName);
+          window.YM?.openPanel?.('panel-spheres');
+        });
+        container.appendChild(row);
+      });
+    }
+  }
+}
+
+function _renderSphereAccordion(container,sphereFile,profile,isNear,isReciproc){
       const sphereName=sphereFile.replace('.sphere.js','');
       const sphereObj=window.YM_sphereRegistry?.get(sphereFile);
 
       const accordion=document.createElement('div');
       accordion.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;overflow:hidden';
 
-      // Header cliquable
       const header=document.createElement('div');
       header.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;background:rgba(255,255,255,.02)';
       const icon=sphereObj?.icon||'⬡';
@@ -1347,11 +1380,9 @@ function renderProfileView(container,profile){
         '<span style="font-size:12px;font-weight:600;flex:1">'+sphereName+'</span>'+
         '<span class="acc-arrow" style="font-size:10px;color:var(--text3)">›</span>';
 
-      // Corps déroulant
       const body=document.createElement('div');
       body.style.cssText='display:none;padding:10px 12px;border-top:1px solid var(--border)';
 
-      // Interactions selon la sphère
       if(sphereFile==='social.sphere.js'){
         if(isNear&&isReciproc){
           const callBtn=document.createElement('button');
@@ -1394,7 +1425,6 @@ function renderProfileView(container,profile){
         pk.textContent=profile.pubkey;
         body.appendChild(pk);
       }else{
-        // Sphère générique — affiche description si dispo
         const desc=sphereObj?.description||'';
         if(desc){const d=document.createElement('div');d.style.cssText='font-size:11px;color:var(--text2)';d.textContent=desc;body.appendChild(d);}
         else{const d=document.createElement('div');d.style.cssText='font-size:11px;color:var(--text3)';d.textContent='No interactions available';body.appendChild(d);}
@@ -1409,8 +1439,6 @@ function renderProfileView(container,profile){
       accordion.appendChild(header);
       accordion.appendChild(body);
       container.appendChild(accordion);
-    });
-  }
 
   // ── Wallet ────────────────────────────────────────────────
   if(profile.pubkey&&!profile.spheres?.includes('mine.sphere.js')){
