@@ -374,13 +374,31 @@ window.YM_S['messenger.sphere.js']={
 
   renderPanel:renderPanel,
 
+  peerSection(container, ctx){
+    const{uuid,isNear,isReciproc}=ctx;
+    if(isNear&&isReciproc){
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-ghost';
+      btn.style.cssText='width:100%;font-size:12px';
+      btn.textContent='💬 Send Message';
+      btn.addEventListener('click',()=>{
+        if(window.YM_Messenger?.openConv)window.YM_Messenger.openConv(uuid);
+        window.YM?.openSpherePanel?.('messenger.sphere.js');
+      });
+      container.appendChild(btn);
+    }else{
+      const info=document.createElement('div');
+      info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
+      info.textContent=isNear?'Add each other as contacts to message':'Not nearby';
+      container.appendChild(info);
+    }
+  },
+
   profileSection(container){
     const AUTOREPLY_KEY='ym_msg_autoreply';
     function loadAR(){try{return JSON.parse(localStorage.getItem(AUTOREPLY_KEY)||'{"on":false,"text":""}');}catch(e){return{on:false,text:''};}}
     function saveAR(d){localStorage.setItem(AUTOREPLY_KEY,JSON.stringify(d));}
-
     const ar=loadAR();
-
     const wrap=document.createElement('div');
     wrap.innerHTML=
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
@@ -394,13 +412,11 @@ window.YM_S['messenger.sphere.js']={
       '<textarea id="ar-text" class="ym-input" placeholder="Auto-reply message…" style="width:100%;height:60px;resize:none;font-size:11px;display:'+(ar.on?'block':'none')+'">'+( ar.text||'')+'</textarea>'+
       '<div id="ar-status" style="font-size:10px;color:var(--text3);margin-top:4px;display:'+(ar.on?'block':'none')+'">Active — sent once per contact per session</div>';
     container.appendChild(wrap);
-
     const toggle=wrap.querySelector('#ar-toggle');
     const slider=wrap.querySelector('#ar-slider');
     const knob=wrap.querySelector('#ar-knob');
     const taEl=wrap.querySelector('#ar-text');
     const status=wrap.querySelector('#ar-status');
-
     toggle.addEventListener('change',function(){
       const on=toggle.checked;
       slider.style.background=on?'var(--accent)':'var(--surface3)';
