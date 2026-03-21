@@ -238,85 +238,108 @@ function renderExtractTab(container){
   container.innerHTML='';
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
 
+  const circles=loadCircles();
+  const anchors=loadAnchors();
+
   // Sélecteur de zone + filtres
   const ctrl=document.createElement('div');
-  ctrl.style.cssText='flex-shrink:0;padding:10px 12px;border-bottom:1px solid var(--border)';
-  const circles=loadCircles();
-  const zoneOpts=circles.map((c,i)=>'<option value="'+i+'">'+(c.name||'Zone '+(i+1))+' ('+c.lat.toFixed(3)+','+c.lng.toFixed(3)+')</option>').join('');
+  ctrl.style.cssText='flex-shrink:0;padding:8px 12px;border-bottom:1px solid var(--border)';
   ctrl.innerHTML=
-    '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+    '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">'+
       '<select id="ext-zone" class="ym-input" style="flex:2;font-size:11px">'+
-        (circles.length?zoneOpts:'<option value="">No zones — create one first</option>')+
+        (circles.length
+          ? circles.map(function(c,i){return '<option value="'+i+'">'+(c.name||'Zone '+(i+1))+'</option>';}).join('')
+          : '<option value="">No zones yet</option>')+
       '</select>'+
       '<select id="ext-period" class="ym-input" style="flex:1;font-size:11px">'+
         '<option value="1h">Last hour</option>'+
         '<option value="24h" selected>Last 24h</option>'+
         '<option value="yesterday">Yesterday</option>'+
       '</select>'+
+      '<button id="ext-run" class="ym-btn ym-btn-accent" style="font-size:11px;padding:5px 10px">🔍</button>'+
     '</div>'+
-    '<div style="display:flex;gap:6px;margin-bottom:4px">'+
-      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">'+
-        '<input type="checkbox" id="ext-social" checked> Social posts</label>'+
-      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">'+
-        '<input type="checkbox" id="ext-news" checked> News</label>'+
-      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer">'+
-        '<input type="checkbox" id="ext-events" checked> Events</label>'+
-      '<button id="ext-run" class="ym-btn ym-btn-accent" style="margin-left:auto;font-size:11px;padding:4px 12px">🔍 Go</button>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-social" checked> Social</label>'+
+      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-news" checked> News</label>'+
+      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-events" checked> Events</label>'+
+      '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);cursor:pointer"><input type="checkbox" id="ext-anchors" checked> Anchors</label>'+
     '</div>'+
-    '<div id="ext-status" style="font-size:10px;color:var(--text3)"></div>';
+    '<div id="ext-status" style="font-size:10px;color:var(--text3);margin-top:4px"></div>';
   container.appendChild(ctrl);
 
   const results=document.createElement('div');
   results.style.cssText='flex:1;overflow-y:auto;padding:8px 12px';
   container.appendChild(results);
 
+  // Affiche les anchors par défaut
+  renderAnchors();
+
   if(!circles.length){
-    results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px 0;text-align:center">Create zones in the Zones tab first.</div>';
-    return;
+    ctrl.querySelector('#ext-run').disabled=true;
   }
 
-  ctrl.querySelector('#ext-run').addEventListener('click',async()=>{
-    const zIdx=parseInt(ctrl.querySelector('#ext-zone').value);
-    const zone=circles[isNaN(zIdx)?0:zIdx];
-    if(!zone){window.YM_toast?.('Select a zone first','warn');return;}
-    const period=ctrl.querySelector('#ext-period').value;
-    const wantSocial=ctrl.querySelector('#ext-social').checked;
-    const wantNews=ctrl.querySelector('#ext-news').checked;
-    const wantEvents=ctrl.querySelector('#ext-events').checked;
+  function renderAnchors(){
+    results.innerHTML='';
+    if(!anchors.length){
+      results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:12px;text-align:center">No anchors yet.<br>Add yours in Zones tab with ✏ My anchor.</div>';
+      return;
+    }
+    anchors.forEach(function(a){
+      var el=document.createElement('div');
+      el.style.cssText='padding:8px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;gap:8px;align-items:flex-start';
+      el.innerHTML=
+        '<span style="font-size:16px;flex-shrink:0">👤</span>'+
+        '<div><div style="font-size:11px;font-weight:600;color:var(--accent)">My anchor</div>'+
+        '<div style="font-size:12px;color:var(--text2);margin-top:2px">'+a.text+'</div>'+
+        '<div style="font-size:10px;color:var(--text3)">'+a.lat.toFixed(4)+', '+a.lng.toFixed(4)+'</div></div>';
+      results.appendChild(el);
+    });
+  }
 
-    const status=ctrl.querySelector('#ext-status');
-    const periodLabel={'1h':'in the last hour','24h':'in the last 24 hours','yesterday':'yesterday'}[period];
-    const types=[wantSocial&&'social media posts',wantNews&&'news',wantEvents&&'events & activities'].filter(Boolean).join(', ')||'content';
+  ctrl.querySelector('#ext-run').addEventListener('click',async function(){
+    var zIdx=parseInt(ctrl.querySelector('#ext-zone').value);
+    var zone=circles[isNaN(zIdx)?0:zIdx];
+    if(!zone){window.YM_toast&&window.YM_toast('Create a zone first','warn');return;}
+    var period=ctrl.querySelector('#ext-period').value;
+    var wantSocial=ctrl.querySelector('#ext-social').checked;
+    var wantNews=ctrl.querySelector('#ext-news').checked;
+    var wantEvents=ctrl.querySelector('#ext-events').checked;
+    var wantAnchors=ctrl.querySelector('#ext-anchors').checked;
 
-    status.textContent='Searching around '+zone.name+'…';
-    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0;text-align:center">Loading…</div>';
+    var status=ctrl.querySelector('#ext-status');
+    var periodLabel={'1h':'in the last hour','24h':'in the last 24 hours','yesterday':'yesterday'}[period];
+    var types=[wantSocial&&'social media posts',wantNews&&'news articles',wantEvents&&'local events'].filter(Boolean).join(', ')||'content';
+
+    status.textContent='Searching…';
+    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px;text-align:center">Loading…</div>';
+
+    // Affiche les anchors en haut si demandé
+    if(wantAnchors)(anchors.length||nearAnchors.length)&&renderAnchors();
 
     try{
-      const locDesc=zone.name+' (coordinates: '+zone.lat.toFixed(4)+','+zone.lng.toFixed(4)+')';
-      const prompt='Search for '+types+' happening around '+locDesc+' '+periodLabel+
-        '. Return real results with source, headline/text, and URL when available. Prioritize hyperlocal content.';
-      const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      var locDesc=(zone.name||'Zone')+' ('+zone.lat.toFixed(4)+','+zone.lng.toFixed(4)+')';
+      var prompt='Search for '+types+' happening at or near '+locDesc+' '+periodLabel+'. Return real results with source, headline, brief summary, and URL. Prioritize hyperlocal and recent content.';
+
+      var resp=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',max_tokens:1200,
+          model:'claude-sonnet-4-20250514',max_tokens:1500,
           tools:[{type:'web_search_20250305',name:'web_search'}],
           messages:[{role:'user',content:prompt}]
         })
       });
-      const data=await resp.json();
-      const text=data.content?.filter(b=>b.type==='text').map(b=>b.text).join('\n')||'No results.';
+      var data=await resp.json();
+      var text=(data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n')||'No results.';
       status.textContent='';
-      results.innerHTML='';
-      text.split('\n').filter(l=>l.trim()).forEach(line=>{
-        const el=document.createElement('div');
+      if(!wantAnchors)results.innerHTML='';
+      text.split('\n').filter(function(l){return l.trim();}).forEach(function(line){
+        var el=document.createElement('div');
         el.style.cssText='padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px;color:var(--text2);line-height:1.5';
-        // Détecte les URLs et les rend cliquables
         el.innerHTML=line.replace(/(https?:\/\/[^\s]+)/g,'<a href="$1" target="_blank" style="color:var(--accent);word-break:break-all">$1</a>');
         results.appendChild(el);
       });
     }catch(e){
       status.textContent='Error: '+e.message;
-      results.innerHTML='';
     }
   });
 }
