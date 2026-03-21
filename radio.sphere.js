@@ -329,6 +329,14 @@ window.YM_S['radio.sphere.js']={
     });
     el.querySelector('#ps-rad-nx').addEventListener('click',()=>{nextStation();});
     container.appendChild(el);
+  },
+
+  peerSection(container, ctx){
+    // Un pair a la sphere Radio — on montre juste ce qu'il écoute si broadcasté
+    const info=document.createElement('div');
+    info.style.cssText='font-size:11px;color:var(--text3)';
+    info.textContent='📻 Has Radio sphere active';
+    container.appendChild(info);
   }
 };
 })();
