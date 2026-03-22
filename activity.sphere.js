@@ -20,7 +20,7 @@ function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
 
-  const TABS=[['zones','📍 Zones'],['extract','🔍 Extract']];
+  const TABS=[['zones','📍 Zones'],['extract','🔍 Extract'],['anchors','👤 Anchors']];
   let curTab='zones';
 
   const track=document.createElement('div');
@@ -39,7 +39,8 @@ function renderPanel(container){
       tabs.querySelectorAll('.ym-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));
       track.innerHTML='';track.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
       if(id==='zones')renderZonesTab(track);
-      else renderExtractTab(track);
+      else if(id==='extract')renderExtractTab(track);
+      else renderAnchorsTab(track);
     });
     tabs.appendChild(t);
   });
@@ -233,16 +234,124 @@ function renderZonesTab(container){
   loadLeaflet(()=>setTimeout(setupMap,50));
 }
 
+// ── ONGLET ANCHORS ──────────────────────────────────────────────────────────
+function renderAnchorsTab(container){
+  container.innerHTML='';
+  container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
+
+  var anchors=loadAnchors();
+  var circles=loadCircles();
+
+  const hdr=document.createElement('div');
+  hdr.style.cssText='flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between';
+  hdr.innerHTML=
+    '<div style="font-size:11px;color:var(--text3)">Your anchor message — attached to your profile at a location</div>'+
+    '<button id="anch-edit" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">'+(anchors.length?'✏ Edit':'+ Add')+'</button>';
+  container.appendChild(hdr);
+
+  const body=document.createElement('div');
+  body.style.cssText='flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px';
+  container.appendChild(body);
+
+  function refresh(){
+    body.innerHTML='';
+    anchors=loadAnchors();
+    if(!anchors.length){
+      body.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No anchor yet.<br>Click + Add to attach a message to your location.</div>';
+      return;
+    }
+    anchors.forEach(function(a,i){
+      var inZone=circles.some(function(z){return _dist(a.lat,a.lng,z.lat,z.lng)<=150;});
+      var card=document.createElement('div');
+      card.className='ym-card';
+      card.innerHTML=
+        '<div style="display:flex;align-items:flex-start;gap:10px">'+
+          '<span style="font-size:24px;flex-shrink:0">👤</span>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:6px">'+_esc(a.text)+'</div>'+
+            '<div style="font-size:10px;color:var(--text3)">'+a.lat.toFixed(5)+', '+a.lng.toFixed(5)+
+              (inZone?' · <span style="color:#30e880">in a zone</span>':' · <span style="color:#e84040">outside zones</span>')+
+            '</div>'+
+            '<div style="font-size:10px;color:var(--text3)">'+new Date(a.ts||0).toLocaleString()+'</div>'+
+          '</div>'+
+          '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'+
+            '<button data-view="'+i+'" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:3px 8px">🗺</button>'+
+            '<button data-del="'+i+'" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:3px 8px;color:#e84040">×</button>'+
+          '</div>'+
+        '</div>';
+      card.querySelector('[data-view]').addEventListener('click',function(){
+        // Ouvre l'onglet Zones et navigue sur l'anchor
+        // On stocke les coords à centrer pour que renderZonesTab les utilise
+        window._actJumpTo={lat:a.lat,lng:a.lng};
+        var zonesTab=container.closest('[id]')&&document.querySelector('.ym-tab[data-tab="zones"]');
+        zonesTab&&zonesTab.click();
+      });
+      card.querySelector('[data-del]').addEventListener('click',function(e){
+        var arr=loadAnchors();arr.splice(parseInt(e.target.dataset.del),1);saveAnchors(arr);refresh();
+      });
+      body.appendChild(card);
+    });
+  }
+  refresh();
+
+  hdr.querySelector('#anch-edit').addEventListener('click',function(){
+    // Overlay d'édition
+    var overlay=document.createElement('div');
+    overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center';
+    var box=document.createElement('div');
+    box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto';
+    var existing=anchors.length?anchors[0]:{text:'',lat:_myLat||0,lng:_myLng||0};
+    box.innerHTML=
+      '<div style="font-size:13px;font-weight:600;margin-bottom:12px">My Anchor</div>'+
+      '<textarea id="anch-text" class="ym-input" style="width:100%;height:80px;resize:none;font-size:13px;margin-bottom:10px" placeholder="Message attached to your profile at your current location…">'+_esc(existing.text)+'</textarea>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button id="anch-use-pos" class="ym-btn ym-btn-ghost" style="flex:1;font-size:12px">📍 Use my position</button>'+
+        '<button id="anch-use-map" class="ym-btn ym-btn-ghost" style="flex:1;font-size:12px">🗺 Use map center</button>'+
+      '</div>'+
+      '<div id="anch-coords" style="font-size:10px;color:var(--text3);margin:6px 0">'+existing.lat.toFixed(5)+', '+existing.lng.toFixed(5)+'</div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+        '<button id="anch-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
+        '<button id="anch-save" class="ym-btn ym-btn-accent" style="flex:1">Save Anchor</button>'+
+      '</div>';
+    overlay.appendChild(box);document.body.appendChild(overlay);
+
+    var lat=existing.lat,lng=existing.lng;
+    box.querySelector('#anch-coords').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+
+    box.querySelector('#anch-use-pos').addEventListener('click',function(){
+      navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
+        lat=pos.coords.latitude;lng=pos.coords.longitude;
+        box.querySelector('#anch-coords').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+      });
+    });
+    box.querySelector('#anch-use-map').addEventListener('click',function(){
+      if(window._actMapCenter){lat=window._actMapCenter.lat;lng=window._actMapCenter.lng;}
+      box.querySelector('#anch-coords').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
+    });
+    box.querySelector('#anch-cancel').addEventListener('click',function(){overlay.remove();});
+    overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
+    box.querySelector('#anch-save').addEventListener('click',function(){
+      var text=box.querySelector('#anch-text').value.trim();
+      if(!text){window.YM_toast&&window.YM_toast('Enter a message','warn');return;}
+      // Un seul anchor par profil
+      saveAnchors([{lat:lat,lng:lng,text:text,ts:Date.now()}]);
+      overlay.remove();
+      hdr.querySelector('#anch-edit').textContent='✏ Edit';
+      refresh();
+      window.YM_toast&&window.YM_toast('Anchor saved','success');
+    });
+  });
+}
+
 // ── ONGLET EXTRACT ──────────────────────────────────────────────────────────
 function renderExtractTab(container){
   container.innerHTML='';
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
 
   var circles=loadCircles();
-  var anchors=loadAnchors();
 
-  if(!circles.length&&!anchors.length){
-    container.innerHTML='<div style="color:var(--text3);font-size:12px;padding:24px;text-align:center">No zones yet.<br>Create zones in the Zones tab.</div>';
+  if(!circles.length){
+    container.innerHTML='<div style="color:var(--text3);font-size:12px;padding:24px;text-align:center">No zones yet.<br>Create zones in the Zones tab first.</div>';
     return;
   }
 
@@ -260,14 +369,16 @@ function renderExtractTab(container){
         '<option value="7d">Last week</option>'+
       '</select>'+
     '</div>'+
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">'+
-      _mkFilter('anchors','👤 Anchors',true)+
-      _mkFilter('wikipedia','📖 Wikipedia',true)+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px">'+
+      _mkFilter('wikipedia','📖 Wiki',true)+
       _mkFilter('flickr','📷 Flickr',true)+
       _mkFilter('reddit','💬 Reddit',true)+
-      _mkFilter('events','🎉 Events',true)+
       _mkFilter('mastodon','🐘 Mastodon',true)+
-      _mkFilter('web','🌐 Web',true)+
+      _mkFilter('pixelfed','🖼 Pixelfed',true)+
+      _mkFilter('osmnotes','📝 OSM Notes',true)+
+      _mkFilter('yelp','⭐ Yelp',true)+
+      _mkFilter('peertube','📹 PeerTube',true)+
+      _mkFilter('web','🌐 Web+AI',true)+
     '</div>'+
     '<div id="ext-status" style="font-size:10px;color:var(--text3);margin-top:4px;min-height:14px"></div>';
   container.appendChild(ctrl);
@@ -277,7 +388,6 @@ function renderExtractTab(container){
   container.appendChild(results);
 
   runExtract();
-
   ctrl.querySelectorAll('select,input[type=checkbox]').forEach(function(el){
     el.addEventListener('change',runExtract);
   });
@@ -290,19 +400,10 @@ function renderExtractTab(container){
     var filters={};
     ctrl.querySelectorAll('input[type=checkbox]').forEach(function(cb){filters[cb.dataset.src]=cb.checked;});
 
-    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:12px;text-align:center">Loading...</div>';
-    status.textContent='Fetching...';
+    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:12px;text-align:center">Loading…</div>';
+    status.textContent='Fetching…';
 
     var allItems=[];
-    if(filters.anchors){
-      anchors.forEach(function(a){
-        var inZone=zones.some(function(z){return _dist(a.lat,a.lng,z.lat,z.lng)<=150;});
-        if(inZone||zoneIdx==='all'){
-          allItems.push({src:'anchors',icon:'👤',title:'My anchor',text:a.text,lat:a.lat,lng:a.lng,ts:a.ts||0,url:null});
-        }
-      });
-    }
-
     var promises=zones.map(function(zone){return _fetchAllSources(zone,period,filters);});
     var zoneResults=await Promise.allSettled(promises);
     zoneResults.forEach(function(r){if(r.status==='fulfilled'&&r.value)allItems=allItems.concat(r.value);});
@@ -314,58 +415,49 @@ function renderExtractTab(container){
       results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No results for these zones and filters.</div>';
       return;
     }
-    allItems.forEach(function(item){
-      var el=document.createElement('div');
-      el.style.cssText='padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:'+(item.url?'pointer':'default');
-
-      // Header source + timestamp
-      var hdr='<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'+
-        '<span style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+item.src+'</span>'+
-        (item.author?'<span style="font-size:10px;color:var(--text3)">@'+_esc(item.author)+'</span>':'')+
-        (item.ts?'<span style="font-size:10px;color:var(--text3);margin-left:auto">'+_ago(item.ts)+'</span>':'')+
-      '</div>';
-
-      // Titre
-      var title=item.title?'<div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px;line-height:1.4">'+_esc(item.title)+'</div>':'';
-
-      // Texte complet (pas coupé)
-      var body=item.text?'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:6px;white-space:pre-wrap">'+_esc(item.text)+'</div>':'';
-
-      // Médias — grille si plusieurs, pleine largeur si un seul
-      var media='';
-      if(item.media&&item.media.length){
-        if(item.media.length===1){
-          var m=item.media[0];
-          if(m.type==='video'){
-            media='<video src="'+m.url+'" poster="'+(m.thumb||'')+'" controls style="width:100%;border-radius:8px;max-height:200px;background:#000;margin-bottom:4px"></video>';
-          }else{
-            media='<img src="'+m.url+'" style="width:100%;border-radius:8px;max-height:240px;object-fit:cover;display:block;margin-bottom:4px" loading="lazy">';
-          }
-        }else{
-          var cols=Math.min(item.media.length,3);
-          media='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:3px;border-radius:8px;overflow:hidden;margin-bottom:6px">';
-          item.media.forEach(function(m){
-            if(m.type==='video'){
-              media+='<video src="'+m.url+'" poster="'+(m.thumb||'')+'" controls style="width:100%;height:100px;object-fit:cover;background:#000"></video>';
-            }else{
-              media+='<img src="'+m.url+'" style="width:100%;height:100px;object-fit:cover" loading="lazy">';
-            }
-          });
-          media+='</div>';
-        }
-      }else if(item.thumb){
-        // Thumbnail unique
-        media='<img src="'+item.thumb+'" style="width:100%;border-radius:8px;max-height:200px;object-fit:cover;display:block;margin-bottom:4px" loading="lazy">';
-      }
-
-      // URL cliquable si pas de handler global
-      var link=item.url?'<a href="'+item.url+'" target="_blank" style="font-size:10px;color:var(--accent);word-break:break-all;display:block;margin-top:4px">'+item.url.slice(0,60)+(item.url.length>60?'…':'')+'</a>':'';
-
-      el.innerHTML=hdr+title+body+media+link;
-      if(item.url){el.addEventListener('click',function(e){if(!e.target.closest('a,video'))window.open(item.url,'_blank');});}
-      results.appendChild(el);
-    });
+    allItems.forEach(function(item){_renderItem(results,item);});
   }
+}
+
+function _renderItem(results,item){
+  var el=document.createElement('div');
+  el.style.cssText='padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);cursor:'+(item.url?'pointer':'default');
+
+  var hdr='<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">'+
+    '<span style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.5px">'+_esc(item.src)+'</span>'+
+    (item.author?'<span style="font-size:10px;color:var(--text3)">@'+_esc(item.author)+'</span>':'')+
+    (item.ts?'<span style="font-size:10px;color:var(--text3);margin-left:auto">'+_ago(item.ts)+'</span>':'')+
+  '</div>';
+
+  var title=item.title?'<div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:4px;line-height:1.4">'+_esc(item.title)+'</div>':'';
+  var body=item.text?'<div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:6px;white-space:pre-wrap">'+_esc(item.text)+'</div>':'';
+
+  var media='';
+  if(item.media&&item.media.length){
+    var cols=Math.min(item.media.length,3);
+    if(item.media.length===1){
+      var m=item.media[0];
+      media=m.type==='video'
+        ?'<video src="'+m.url+'" poster="'+(m.thumb||'')+'" controls style="width:100%;border-radius:8px;max-height:220px;background:#000;margin-bottom:4px"></video>'
+        :'<img src="'+m.url+'" style="width:100%;border-radius:8px;max-height:260px;object-fit:cover;display:block;margin-bottom:4px" loading="lazy" onerror="this.style.display=\'none\'">';
+    }else{
+      media='<div style="display:grid;grid-template-columns:repeat('+cols+',1fr);gap:2px;border-radius:8px;overflow:hidden;margin-bottom:6px">';
+      item.media.forEach(function(m){
+        media+=m.type==='video'
+          ?'<video src="'+m.url+'" poster="'+(m.thumb||'')+'" controls style="width:100%;height:110px;object-fit:cover;background:#000"></video>'
+          :'<img src="'+m.url+'" style="width:100%;height:110px;object-fit:cover" loading="lazy" onerror="this.style.display=\'none\'">';
+      });
+      media+='</div>';
+    }
+  }else if(item.thumb){
+    media='<img src="'+item.thumb+'" style="width:100%;border-radius:8px;max-height:200px;object-fit:cover;display:block;margin-bottom:4px" loading="lazy" onerror="this.style.display=\'none\'">';
+  }
+
+  var link=item.url?'<a href="'+item.url+'" target="_blank" style="font-size:10px;color:var(--accent);word-break:break-all;display:block;margin-top:4px">'+item.url.slice(0,72)+(item.url.length>72?'…':'')+'</a>':'';
+
+  el.innerHTML=hdr+title+body+media+link;
+  if(item.url){el.addEventListener('click',function(e){if(!e.target.closest('a,video'))window.open(item.url,'_blank');});}
+  results.appendChild(el);
 }
 
 function _mkFilter(src,label,checked){
@@ -386,100 +478,200 @@ function _ago(ts){
 }
 
 async function _fetchAllSources(zone,period,filters){
-  var items=[],lat=zone.lat,lng=zone.lng,rad=500;
+  var items=[],lat=zone.lat,lng=zone.lng,rad=1000;
   var periodMs={'1h':3600000,'24h':86400000,'7d':604800000}[period]||86400000;
+  var pLabel={'1h':'in the last hour','24h':'in the last 24 hours','7d':'in the last week'}[period];
   var promises=[];
 
+  // ── Wikipedia geosearch — vraiment géolocalisé ────────────────────────────
   if(filters.wikipedia){
-    promises.push(fetch('https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord='+lat+'%7C'+lng+'&gsradius='+rad+'&gslimit=8&format=json&origin=*')
+    promises.push(
+      fetch('https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord='+lat+'%7C'+lng+'&gsradius='+rad+'&gslimit=10&format=json&origin=*')
       .then(function(r){return r.json();}).then(function(d){
         ((d.query&&d.query.geosearch)||[]).forEach(function(p){
-          items.push({src:'wikipedia',icon:'📖',title:p.title,url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(p.title),ts:Date.now()-Math.random()*periodMs});
-        });
-      }).catch(function(){}));
-  }
-
-  if(filters.flickr){
-    // Flickr geo public feed — sans clé API
-    promises.push(
-      fetch('https://api.flickr.com/services/feeds/geo/?lat='+lat+'&lon='+lng+'&radius=1&format=json&nojsoncallback=1')
-      .then(function(r){return r.json();})
-      .then(function(d){
-        (d.items||[]).slice(0,8).forEach(function(e){
-          var imgUrl=e.media&&e.media.m?e.media.m.replace('_m.','_b.'):null;
-          var thumb=e.media&&e.media.m||null;
-          items.push({src:'flickr',icon:'📷',
-            title:e.title||'Photo',
-            author:e.author?e.author.replace(/.*\(|\).*/g,''):'',
-            text:e.description?e.description.replace(/<[^>]+>/g,'').slice(0,120):'',
-            url:e.link,
-            media:imgUrl?[{type:'image',url:imgUrl,thumb:thumb}]:[],
-            thumb:thumb,
-            ts:e.date_taken?new Date(e.date_taken).getTime():Date.now()-Math.random()*periodMs
-          });
+          items.push({src:'wikipedia',icon:'📖',title:p.title,
+            url:'https://en.wikipedia.org/wiki/'+encodeURIComponent(p.title),
+            ts:Date.now()-Math.random()*periodMs});
         });
       }).catch(function(){})
     );
   }
 
-  if(filters.reddit){
-    var tmap={'1h':'hour','24h':'day','7d':'week'};
-    promises.push(fetch('https://www.reddit.com/search.json?q='+encodeURIComponent(lat.toFixed(2)+' '+lng.toFixed(2))+'&sort=new&limit=8&t='+(tmap[period]||'day'),{headers:{'User-Agent':'YourMine/1.0'}})
+  // ── Flickr geo feed — photos géolocalisées publiques ─────────────────────
+  if(filters.flickr){
+    promises.push(
+      fetch('https://api.flickr.com/services/feeds/geo/?lat='+lat+'&lon='+lng+'&radius=1&format=json&nojsoncallback=1')
       .then(function(r){return r.json();}).then(function(d){
+        (d.items||[]).slice(0,10).forEach(function(e){
+          var imgUrl=e.media&&e.media.m?e.media.m.replace('_m.','_b.'):null;
+          items.push({src:'flickr',icon:'📷',
+            title:e.title||'Photo',
+            author:e.author?e.author.replace(/.*\(|\).*/g,''):'',
+            text:e.description?e.description.replace(/<[^>]+>/g,'').slice(0,120):'',
+            url:e.link,
+            media:imgUrl?[{type:'image',url:imgUrl,thumb:e.media&&e.media.m}]:[],
+            thumb:e.media&&e.media.m||null,
+            ts:e.date_taken?new Date(e.date_taken).getTime():Date.now()-Math.random()*periodMs});
+        });
+      }).catch(function(){})
+    );
+  }
+
+  // ── Reddit — posts avec géoloc approximative par reverse geocode ──────────
+  if(filters.reddit){
+    promises.push(
+      fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&zoom=14',{headers:{'User-Agent':'YourMine/1.0'}})
+      .then(function(r){return r.json();}).then(async function(geo){
+        var city=(geo.address&&(geo.address.city||geo.address.town||geo.address.village||geo.address.suburb))||'';
+        if(!city)return;
+        var tmap={'1h':'hour','24h':'day','7d':'week'};
+        var d=await fetch('https://www.reddit.com/search.json?q='+encodeURIComponent(city)+'&sort=new&limit=8&t='+(tmap[period]||'day'),{headers:{'User-Agent':'YourMine/1.0'}}).then(function(r){return r.json();});
         ((d.data&&d.data.children)||[]).forEach(function(p){
           var post=p.data;
           var media=[];
           if(post.preview&&post.preview.images&&post.preview.images[0]){
             var img=post.preview.images[0].source;
-            if(img&&img.url)media.push({type:'image',url:img.url.replace(/&amp;/g,'&'),thumb:img.url.replace(/&amp;/g,'&')});
+            if(img&&img.url)media.push({type:'image',url:img.url.replace(/&amp;/g,'&')});
           }
-          if(post.url&&/\.(jpg|jpeg|png|gif|webp)$/i.test(post.url))media.push({type:'image',url:post.url});
           items.push({src:'reddit',icon:'💬',title:post.title,
             text:'r/'+post.subreddit+' · '+post.score+' pts'+(post.selftext?'\n'+post.selftext.slice(0,200):''),
-            url:'https://reddit.com'+post.permalink,
-            media:media,ts:(post.created_utc||0)*1000});
+            url:'https://reddit.com'+post.permalink,media:media,ts:(post.created_utc||0)*1000});
         });
-      }).catch(function(){}));
+      }).catch(function(){})
+    );
   }
 
+  // ── Mastodon — recherche par ville géocodée ───────────────────────────────
   if(filters.mastodon){
-    promises.push(fetch('https://mastodon.social/api/v1/timelines/public?limit=5&local=false')
-      .then(function(r){return r.json();}).then(function(d){
-        (Array.isArray(d)?d:[]).slice(0,5).forEach(function(s){
-          if(!s.language||s.language==='en'||s.language==='fr'){
-            var text=s.content.replace(/<[^>]+>/g,'').slice(0,100);
-            items.push({src:'mastodon',icon:'🐘',title:(s.account&&s.account.display_name)||'User',text:text,url:s.url,ts:new Date(s.created_at).getTime()});
-          }
+    promises.push(
+      fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&zoom=12',{headers:{'User-Agent':'YourMine/1.0'}})
+      .then(function(r){return r.json();}).then(async function(geo){
+        var city=(geo.address&&(geo.address.city||geo.address.town||geo.address.village))||'';
+        if(!city)return;
+        var d=await fetch('https://mastodon.social/api/v2/search?q='+encodeURIComponent(city)+'&type=statuses&limit=8').then(function(r){return r.json();});
+        (d.statuses||[]).forEach(function(s){
+          var text=s.content.replace(/<[^>]+>/g,'').slice(0,160);
+          var media=(s.media_attachments||[]).map(function(m){
+            return{type:m.type==='video'||m.type==='gifv'?'video':'image',url:m.url,thumb:m.preview_url};
+          });
+          items.push({src:'mastodon',icon:'🐘',
+            title:(s.account&&s.account.display_name)||'',
+            author:(s.account&&s.account.acct)||'',
+            text:text,url:s.url,media:media,
+            thumb:s.account&&s.account.avatar||null,
+            ts:new Date(s.created_at).getTime()});
         });
-      }).catch(function(){}));
+      }).catch(function(){})
+    );
   }
 
+  // ── Pixelfed — réseau social photo décentralisé (Instagram-like) ──────────
+  if(filters.pixelfed){
+    promises.push(
+      fetch('https://pixelfed.social/api/v1/timelines/public?limit=8',{headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();}).then(function(d){
+        (Array.isArray(d)?d:[]).slice(0,8).forEach(function(s){
+          var media=(s.media_attachments||[]).map(function(m){
+            return{type:'image',url:m.url,thumb:m.preview_url||m.url};
+          });
+          if(!media.length)return; // Pixelfed = photos seulement
+          var text=(s.content||'').replace(/<[^>]+>/g,'').slice(0,120);
+          items.push({src:'pixelfed',icon:'🖼',
+            title:(s.account&&s.account.display_name)||'',
+            author:(s.account&&s.account.acct)||'',
+            text:text,url:s.url,media:media,
+            ts:new Date(s.created_at||0).getTime()});
+        });
+      }).catch(function(){})
+    );
+  }
+
+  // ── OSM Notes — notes géolocalisées publiques ─────────────────────────────
+  if(filters.osmnotes){
+    var bbox=(lat-0.01)+','+(lng-0.01)+','+(lat+0.01)+','+(lng+0.01);
+    promises.push(
+      fetch('https://api.openstreetmap.org/api/0.6/notes.json?bbox='+bbox+'&limit=10&closed=0')
+      .then(function(r){return r.json();}).then(function(d){
+        ((d.features)||[]).forEach(function(f){
+          var comment=f.properties&&f.properties.comments&&f.properties.comments[0];
+          items.push({src:'osm notes',icon:'📝',
+            title:comment&&comment.text?comment.text.slice(0,80):'OSM Note',
+            text:comment&&comment.text||'',
+            url:'https://www.openstreetmap.org/note/'+f.properties.id,
+            ts:f.properties.date_created?new Date(f.properties.date_created).getTime():Date.now()-Math.random()*periodMs});
+        });
+      }).catch(function(){})
+    );
+  }
+
+  // ── Yelp Fusion — reviews locales (nécessite clé API) ────────────────────
+  if(filters.yelp){
+    // Yelp nécessite une clé — on passe par Claude+web_search pour Yelp
+    promises.push(
+      _claudeSearch('Recent Yelp reviews and restaurant/bar activity near '+lat.toFixed(3)+','+lng.toFixed(3)+' '+pLabel+'. Format: YELP | Business name: review snippet | URL',items,periodMs)
+      .catch(function(){})
+    );
+  }
+
+  // ── PeerTube — vidéos géolocalisées ──────────────────────────────────────
+  if(filters.peertube){
+    promises.push(
+      fetch('https://peertube.social/api/v1/videos?sort=-publishedAt&count=6&filter=local',{headers:{'Accept':'application/json'}})
+      .then(function(r){return r.json();}).then(function(d){
+        (d.data||[]).slice(0,6).forEach(function(v){
+          items.push({src:'peertube',icon:'📹',
+            title:v.name||'Video',
+            author:v.account&&v.account.displayName||'',
+            text:v.description?v.description.slice(0,100):'',
+            thumb:v.thumbnailPath?'https://peertube.social'+v.thumbnailPath:null,
+            url:v.url,
+            media:v.thumbnailPath?[{type:'image',url:'https://peertube.social'+v.thumbnailPath}]:[],
+            ts:v.publishedAt?new Date(v.publishedAt).getTime():Date.now()-Math.random()*periodMs});
+        });
+      }).catch(function(){})
+    );
+  }
+
+  // ── Claude + web_search — Twitter/X, Instagram, TikTok, Facebook, news ───
   if(filters.web){
     promises.push(
-      fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json',{headers:{'User-Agent':'YourMine/1.0'}})
+      fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&zoom=16',{headers:{'User-Agent':'YourMine/1.0'}})
       .then(function(r){return r.json();})
       .then(async function(geo){
-        var place=geo.display_name?geo.display_name.split(',').slice(0,2).join(',').trim():(lat.toFixed(3)+','+lng.toFixed(3));
-        var pLabel={'1h':'in the last hour','24h':'in the last 24 hours','7d':'in the last week'}[period];
-        var prompt='Find recent posts and news around "'+place+'" '+pLabel+'. Sources: Twitter/X, Instagram, TikTok, Facebook, local news, blogs. Format each as: SOURCE | TITLE | URL';
-        var resp=await fetch('https://api.anthropic.com/v1/messages',{
-          method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,
-            tools:[{type:'web_search_20250305',name:'web_search'}],
-            messages:[{role:'user',content:prompt}]})
-        });
-        var data=await resp.json();
-        var text=((data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n'));
-        text.split('\n').filter(function(l){return l.includes('|');}).forEach(function(line){
-          var p=line.split('|').map(function(s){return s.trim();});
-          items.push({src:(p[0]||'web').toLowerCase().slice(0,12),icon:'🌐',title:p[1]||line,url:(p[2]&&p[2].startsWith('http'))?p[2]:null,ts:Date.now()-Math.random()*periodMs/2});
-        });
+        var parts=geo.display_name?geo.display_name.split(','):[];
+        var place=parts.slice(0,3).join(',').trim()||lat.toFixed(3)+','+lng.toFixed(3);
+        var prompt=
+          'Search for recent geolocated content around "'+place+'" '+pLabel+'.\n'+
+          'Include: Twitter/X posts, Instagram posts, TikTok videos, Facebook posts, local news articles, blog posts.\n'+
+          'For each result output exactly: SOURCE | TITLE or caption (max 80 chars) | URL\n'+
+          'Only include results that are clearly about this specific location.';
+        await _claudeSearch(prompt,items,periodMs);
       }).catch(function(){})
     );
   }
 
   await Promise.allSettled(promises);
   return items;
+}
+
+async function _claudeSearch(prompt,items,periodMs){
+  try{
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
+        tools:[{type:'web_search_20250305',name:'web_search'}],
+        messages:[{role:'user',content:prompt}]})
+    });
+    var data=await resp.json();
+    var text=((data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n'));
+    text.split('\n').filter(function(l){return l.includes('|');}).forEach(function(line){
+      var p=line.split('|').map(function(s){return s.trim();});
+      var src=(p[0]||'web').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim().slice(0,12);
+      var title=p[1]||'';
+      var url=(p[2]&&p[2].startsWith('http'))?p[2]:null;
+      if(title)items.push({src:src,icon:'🌐',title:title,url:url,ts:Date.now()-Math.random()*(periodMs/2)});
+    });
+  }catch(e){}
 }
 
 
