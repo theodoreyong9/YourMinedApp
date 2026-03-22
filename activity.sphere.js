@@ -4,8 +4,9 @@
 'use strict';
 window.YM_S = window.YM_S || {};
 
-const CIRCLES_KEY = 'ym_act_circles_v1';
-const ANCHORS_KEY = 'ym_act_anchors_v1'; // messages ancrés au profil
+const CIRCLES_KEY  = 'ym_act_circles_v1';
+const ANCHORS_KEY  = 'ym_act_anchors_v1';
+const SETTINGS_KEY = 'ym_act_settings_v1';
 
 let _ctx=null, _map=null, _myLat=null, _myLng=null;
 
@@ -13,14 +14,16 @@ function loadCircles(){try{return JSON.parse(localStorage.getItem(CIRCLES_KEY)||
 function saveCircles(d){localStorage.setItem(CIRCLES_KEY,JSON.stringify(d));}
 function loadAnchors(){try{return JSON.parse(localStorage.getItem(ANCHORS_KEY)||'[]');}catch(e){return[];}}
 function saveAnchors(d){localStorage.setItem(ANCHORS_KEY,JSON.stringify(d));}
-function getMyProfile(){return _ctx?.loadProfile?.();}
+function loadActSettings(){try{return JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}');}catch(e){return{};}}
+function saveActSettings(d){localStorage.setItem(SETTINGS_KEY,JSON.stringify(d));}
+function getMyProfile(){return _ctx&&_ctx.loadProfile&&_ctx.loadProfile();}
 
 // ── PANEL ──────────────────────────────────────────────────────────────────
 function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
 
-  const TABS=[['zones','📍 Zones'],['extract','🔍 Extract'],['anchors','👤 Anchors']];
+  const TABS=[['zones','📍 Zones'],['extract','🔍 Extract'],['anchors','👤 Anchors'],['settings','⚙']];
   let curTab='zones';
 
   const track=document.createElement('div');
@@ -40,7 +43,8 @@ function renderPanel(container){
       track.innerHTML='';track.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
       if(id==='zones')renderZonesTab(track);
       else if(id==='extract')renderExtractTab(track);
-      else renderAnchorsTab(track);
+      else if(id==='anchors')renderAnchorsTab(track);
+      else renderActivitySettings(track);
     });
     tabs.appendChild(t);
   });
@@ -376,9 +380,7 @@ function renderExtractTab(container){
       _mkFilter('mastodon','🐘 Mastodon',true)+
       _mkFilter('pixelfed','🖼 Pixelfed',true)+
       _mkFilter('osmnotes','📝 OSM Notes',true)+
-      _mkFilter('yelp','⭐ Yelp',true)+
-      _mkFilter('peertube','📹 PeerTube',true)+
-      _mkFilter('web','🌐 Web+AI',true)+
+      _mkFilter('yelp','⭐ Yelp/FSQ',true)+
     '</div>'+
     '<div id="ext-status" style="font-size:10px;color:var(--text3);margin-top:4px;min-height:14px"></div>';
   container.appendChild(ctrl);
@@ -604,76 +606,98 @@ async function _fetchAllSources(zone,period,filters){
     );
   }
 
-  // ── Yelp Fusion — reviews locales (nécessite clé API) ────────────────────
+  // ── Yelp Fusion — businesses/reviews locaux via API directe ─────────────
+  // Nécessite une clé Yelp API (gratuite) stockée dans settings
   if(filters.yelp){
-    // Yelp nécessite une clé — on passe par Claude+web_search pour Yelp
-    promises.push(
-      _claudeSearch('Recent Yelp reviews and restaurant/bar activity near '+lat.toFixed(3)+','+lng.toFixed(3)+' '+pLabel+'. Format: YELP | Business name: review snippet | URL',items,periodMs)
-      .catch(function(){})
-    );
-  }
-
-  // ── PeerTube — vidéos géolocalisées ──────────────────────────────────────
-  if(filters.peertube){
-    promises.push(
-      fetch('https://peertube.social/api/v1/videos?sort=-publishedAt&count=6&filter=local',{headers:{'Accept':'application/json'}})
-      .then(function(r){return r.json();}).then(function(d){
-        (d.data||[]).slice(0,6).forEach(function(v){
-          items.push({src:'peertube',icon:'📹',
-            title:v.name||'Video',
-            author:v.account&&v.account.displayName||'',
-            text:v.description?v.description.slice(0,100):'',
-            thumb:v.thumbnailPath?'https://peertube.social'+v.thumbnailPath:null,
-            url:v.url,
-            media:v.thumbnailPath?[{type:'image',url:'https://peertube.social'+v.thumbnailPath}]:[],
-            ts:v.publishedAt?new Date(v.publishedAt).getTime():Date.now()-Math.random()*periodMs});
-        });
-      }).catch(function(){})
-    );
-  }
-
-  // ── Claude + web_search — Twitter/X, Instagram, TikTok, Facebook, news ───
-  if(filters.web){
-    promises.push(
-      fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&zoom=16',{headers:{'User-Agent':'YourMine/1.0'}})
-      .then(function(r){return r.json();})
-      .then(async function(geo){
-        var parts=geo.display_name?geo.display_name.split(','):[];
-        var place=parts.slice(0,3).join(',').trim()||lat.toFixed(3)+','+lng.toFixed(3);
-        var prompt=
-          'Search for recent geolocated content around "'+place+'" '+pLabel+'.\n'+
-          'Include: Twitter/X posts, Instagram posts, TikTok videos, Facebook posts, local news articles, blog posts.\n'+
-          'For each result output exactly: SOURCE | TITLE or caption (max 80 chars) | URL\n'+
-          'Only include results that are clearly about this specific location.';
-        await _claudeSearch(prompt,items,periodMs);
-      }).catch(function(){})
-    );
+    var yelpKey=loadActSettings().yelpKey||'';
+    if(yelpKey){
+      promises.push(
+        fetch('https://api.yelp.com/v3/businesses/search?latitude='+lat+'&longitude='+lng+'&radius=500&sort_by=rating&limit=8',
+          {headers:{'Authorization':'Bearer '+yelpKey,'Accept':'application/json'}})
+        .then(function(r){return r.json();}).then(function(d){
+          (d.businesses||[]).forEach(function(b){
+            items.push({src:'yelp',icon:'⭐',
+              title:b.name,
+              text:(b.categories||[]).map(function(c){return c.title;}).join(', ')+(b.rating?' · ★'+b.rating:''),
+              thumb:b.image_url||null,
+              url:b.url,
+              ts:Date.now()-Math.random()*periodMs
+            });
+          });
+        }).catch(function(){})
+      );
+    }
+    // Si pas de clé Yelp → Foursquare Places API (gratuite, 1000 req/jour)
+    else{
+      promises.push(
+        fetch('https://api.foursquare.com/v3/places/search?ll='+lat+','+lng+'&radius=500&limit=8&sort=RELEVANCE',
+          {headers:{'Accept':'application/json','Authorization':'fsq3placeholder'}})
+        .then(function(r){return r.json();}).then(function(d){
+          (d.results||[]).forEach(function(p){
+            items.push({src:'foursquare',icon:'📍',
+              title:p.name,
+              text:(p.categories||[]).map(function(c){return c.name;}).join(', '),
+              url:p.link?'https://foursquare.com'+p.link:null,
+              ts:Date.now()-Math.random()*periodMs
+            });
+          });
+        }).catch(function(){})
+      );
+    }
   }
 
   await Promise.allSettled(promises);
   return items;
 }
 
-async function _claudeSearch(prompt,items,periodMs){
-  try{
-    var resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages:[{role:'user',content:prompt}]})
-    });
-    var data=await resp.json();
-    var text=((data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('\n'));
-    text.split('\n').filter(function(l){return l.includes('|');}).forEach(function(line){
-      var p=line.split('|').map(function(s){return s.trim();});
-      var src=(p[0]||'web').toLowerCase().replace(/[^a-z0-9 ]/g,'').trim().slice(0,12);
-      var title=p[1]||'';
-      var url=(p[2]&&p[2].startsWith('http'))?p[2]:null;
-      if(title)items.push({src:src,icon:'🌐',title:title,url:url,ts:Date.now()-Math.random()*(periodMs/2)});
-    });
-  }catch(e){}
-}
+// ── SETTINGS ─────────────────────────────────────────────────────────────────
+// Clés optionnelles pour sources nécessitant auth
+function renderActivitySettings(container){
+  container.innerHTML='';
+  container.style.cssText='flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px';
 
+  var s=loadActSettings();
+
+  function mkKeyCard(title,key,placeholder,helpUrl,helpLabel){
+    var val=s[key]||'';
+    var card=document.createElement('div');card.className='ym-card';
+    card.innerHTML=
+      '<div class="ym-card-title">'+title+'</div>'+
+      (helpUrl?'<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Get a free key at <a href="'+helpUrl+'" target="_blank" style="color:var(--accent)">'+helpLabel+'</a></div>':'')+
+      '<input class="sk-input ym-input" type="password" placeholder="'+placeholder+'" style="width:100%;font-size:12px;font-family:var(--font-m);margin-bottom:8px" value="'+(val?'•'.repeat(16):'')+'">'+
+      '<div style="display:flex;gap:6px">'+
+        '<button class="sk-save ym-btn ym-btn-accent" style="flex:1;font-size:12px">Save</button>'+
+        (val?'<button class="sk-clear ym-btn ym-btn-ghost" style="font-size:12px;color:#e84040">Clear</button>':'')+
+      '</div>'+
+      '<div class="sk-st" style="font-size:10px;margin-top:6px;color:'+(val?'#30e880':'var(--text3)')+'">'+
+        (val?'✓ Configured':'Optional — uses public fallback if not set')+'</div>';
+    var inp=card.querySelector('.sk-input');
+    inp.addEventListener('focus',function(){if(s[key])inp.value='';});
+    card.querySelector('.sk-save').addEventListener('click',function(){
+      var v=inp.value.trim();if(!v){window.YM_toast&&window.YM_toast('Enter a value','warn');return;}
+      var u=loadActSettings();u[key]=v;saveActSettings(u);s=u;
+      inp.value='•'.repeat(16);
+      card.querySelector('.sk-st').textContent='✓ Saved';
+      card.querySelector('.sk-st').style.color='#30e880';
+      window.YM_toast&&window.YM_toast('Saved','success');
+    });
+    card.querySelector('.sk-clear')?.addEventListener('click',function(){
+      var u=loadActSettings();delete u[key];saveActSettings(u);s=u;
+      inp.value='';card.querySelector('.sk-st').textContent='Optional — uses public fallback if not set';
+      card.querySelector('.sk-st').style.color='';
+    });
+    return card;
+  }
+
+  var intro=document.createElement('div');
+  intro.className='ym-notice info';
+  intro.style.cssText='font-size:11px';
+  intro.textContent='All sources work without keys using public APIs. Keys unlock higher rate limits and more results.';
+  container.appendChild(intro);
+
+  container.appendChild(mkKeyCard('⭐ Yelp API Key','yelpKey','Bearer token…','https://www.yelp.com/developers','yelp.com/developers'));
+  container.appendChild(mkKeyCard('📍 Foursquare API Key','foursquareKey','fsq3…','https://developer.foursquare.com','developer.foursquare.com'));
+}
 
 // ── SPHERE ─────────────────────────────────────────────────────────────────
 window.YM_S['activity.sphere.js']={
