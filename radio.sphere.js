@@ -168,12 +168,28 @@ function _refreshWidget(){
       '<button id="rw-pp" style="background:var(--accent);border:none;color:#000;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">'+(_playing?'⏸':'▶')+'</button>'+
       '<button id="rw-next" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px;line-height:1">⏭</button>'+
       '<button id="rw-open" style="background:none;border:none;color:rgba(232,160,32,.5);font-size:12px;cursor:pointer;padding:4px;line-height:1" title="Open">⬡</button>'+
+      '<button id="rw-pin" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:4px;line-height:1" title="Pin to desktop page">📌</button>'+
     '</div>';
 
   _widget.querySelector('#rw-prev').addEventListener('click',e=>{e.stopPropagation();prevStation();});
   _widget.querySelector('#rw-pp').addEventListener('click',e=>{e.stopPropagation();toggle();});
   _widget.querySelector('#rw-next').addEventListener('click',e=>{e.stopPropagation();nextStation();});
   _widget.querySelector('#rw-open').addEventListener('click',e=>{e.stopPropagation();window.YM?.openSpherePanel?.('radio.sphere.js');});
+  _widget.querySelector('#rw-pin').addEventListener('click',e=>{
+    e.stopPropagation();
+    // Déplace le widget vers la page de bureau suivante
+    const desk=window.YM_Desk;
+    if(!desk)return;
+    // Lit la page courante du bureau
+    const curPage=window._deskCurPage??0;
+    const pages=window._deskPageCount??1;
+    const nextPage=confirm('Pin widget to next page? (OK = next, Cancel = previous)')
+      ? Math.min(curPage+1,pages-1)
+      : Math.max(curPage-1,0);
+    // Sauvegarde la page cible dans le state du widget
+    const pos=loadPos();pos.page=nextPage;savePos(pos);
+    window.YM_toast?.('Widget pinned to page '+(nextPage+1),'success');
+  });
 
   // Ré-attache le drag après innerHTML
   _widget.addEventListener('pointerdown',e=>{
