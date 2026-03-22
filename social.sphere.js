@@ -16,18 +16,8 @@ let _nearUsers = new Map();   // uuid → {profile, ts, peerId}
 let _gossipCache = new Map(); // uuid → {profile, ts}
 let _watchId = null;
 let _myCoords = null;
-let _callPeer = null;
-let _peerConnection = null;
-let _iceQueue = [];
-let _remoteDescSet = false;
-let _callerFlushIce = null; // appelé quand le answer arrive pour flush les ICE bufferisés
 
-async function _applyIceQueue(){
-  for(const c of _iceQueue){
-    try{if(_peerConnection)await _peerConnection.addIceCandidate(c);}catch{}
-  }
-  _iceQueue=[];
-}
+
 let _heartbeatTimer = null;
 let _cleanTimer = null;
 let _refreshNear = null;
@@ -68,15 +58,6 @@ function haversine(lat1,lng1,lat2,lng2){
 }
 
 // ── ICE SERVERS (STUN + TURN publics gratuits) ────────────────────────────
-const ICE_SERVERS=[
-  {urls:'stun:stun.l.google.com:19302'},
-  {urls:'stun:stun1.l.google.com:19302'},
-  {urls:'stun:stun.cloudflare.com:3478'},
-  // TURN publics Open Relay Project
-  {urls:'turn:openrelay.metered.ca:80',  username:'openrelayproject',credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443', username:'openrelayproject',credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
-];
 // Un seul paquet contient tout : identité, coords, réseaux sociaux, sphères
 function buildProfilePacket(){
   const p = _ctx?.loadProfile?.() ?? {};
@@ -171,22 +152,13 @@ function cleanGossip(){
 
 // ── VOICE CALLS ──────────────────────────────────────────────────────────────
 // ── VOICE CALL ────────────────────────────────────────────────────────────────
-let _localStream=null;
-let _callUI=null;
+
+
 
 function _getPeerId(uuid){
   return _nearUsers.get(uuid)?.peerId||null;
 }
 
-function _callSend(type,data,peerId){
-  const msg={sphere:'social.sphere.js',type,data};
-  // Toujours broadcaster ET envoyer en direct pour tous les messages de signaling
-  // Nécessaire car certains relays (nos.lol) peuvent être down sur un des peers
-  try{window.YM_P2P?.broadcast(msg);}catch{}
-  if(peerId&&window.YM_P2P?.sendTo){
-    try{window.YM_P2P.sendTo(peerId,msg);}catch{}
-  }
-}
 
 function isReciprocal(uuid){
   if(!getContact(uuid)) return false;
@@ -196,114 +168,9 @@ function isReciprocal(uuid){
   return theirContacts.includes(myUUID);
 }
 
-async function startVoiceCall(uuid){
-  if(!getContact(uuid)){window.YM_toast?.('Add this person to contacts first','warn');return;}
-  if(!isReciprocal(uuid)){window.YM_toast?.('Contact must add you back first','warn');return;}
-  const peerId=_getPeerId(uuid);
-  if(!peerId){window.YM_toast?.('Peer not reachable','error');return;}
-  // Reset propre sans envoyer call-end
-  _stopRingtone();
-  _peerConnection?.close();_peerConnection=null;
-  _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
-  _callPeer=null;_callUUID=null;
-  _iceQueue=[];_remoteDescSet=false;_callerFlushIce=null;
-  _removeCallUI();
-  try{
-    _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
-    _localStream.getTracks().forEach(t=>_peerConnection.addTrack(t,_localStream));
-    _peerConnection.ontrack=e=>{
-      let audio=document.getElementById('ym-call-audio');
-      if(!audio){audio=document.createElement('audio');audio.id='ym-call-audio';audio.autoplay=true;document.body.appendChild(audio);}
-      audio.srcObject=e.streams[0];
-      console.log('[Call] caller got remote track');
-    };
-    _peerConnection.onconnectionstatechange=()=>{
-      console.log('[Call] caller connectionState:',_peerConnection?.connectionState);
-      if(_peerConnection?.connectionState==='connected'){_stopCallerTone();_updateCallUI('connected');}
-      if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
-    };
 
-    // Affiche l'UI immédiatement — pas d'attente ICE
-    _callPeer=peerId;_callUUID=uuid;
-    _showCallUI('calling',uuid);
-    _startCallerTone(); // sonnerie douce dans l'oreille
 
-    const offer=await _peerConnection.createOffer();
-    await _peerConnection.setLocalDescription(offer);
-    console.log('[Call] waiting for ICE gathering…');
 
-    await new Promise(res=>{
-      if(_peerConnection.iceGatheringState==='complete'){res();return;}
-      _peerConnection.onicegatheringstatechange=()=>{
-        console.log('[Call] caller iceGatheringState:',_peerConnection?.iceGatheringState);
-        if(_peerConnection.iceGatheringState==='complete')res();
-      };
-      setTimeout(res,8000);
-    });
-
-    if(!_peerConnection){return;} // annulé pendant le gathering
-    const finalSdp=_peerConnection.localDescription.sdp;
-    console.log('[Call] offer ready, sdp length:',finalSdp.length);
-    _callSend('social:call-offer',{sdp:finalSdp},peerId);
-  }catch(e){window.YM_toast?.('Call failed: '+e.message,'error');hangUp();}
-}
-
-async function handleCallOffer(data){
-  _iceQueue=[];_remoteDescSet=false;
-  const fromUUID=data.fromUUID;
-
-  // Vérifie que le caller est un contact réciproque — rejette sinon
-  if(!getContact(fromUUID)||!isReciprocal(fromUUID)){
-    console.log('[Call] offer rejected — not a reciprocal contact:',fromUUID);
-    _callSend('social:call-end',{},data.from);
-    return;
-  }
-
-  const callerProfile=_nearUsers.get(fromUUID)?.profile||getContact(fromUUID)?.profile||{name:'Unknown',uuid:fromUUID};
-  _showIncomingCallUI(callerProfile,async()=>{
-    // UI "Answering…" immédiate avant le gathering
-    _callPeer=data.from;_callUUID=fromUUID;
-    _showCallUI('calling',fromUUID);
-    try{
-      _localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-      _peerConnection=new RTCPeerConnection({iceServers:ICE_SERVERS});
-      _localStream.getTracks().forEach(t=>_peerConnection.addTrack(t,_localStream));
-      _peerConnection.ontrack=e=>{
-        let audio=document.getElementById('ym-call-audio');
-        if(!audio){audio=document.createElement('audio');audio.id='ym-call-audio';audio.autoplay=true;document.body.appendChild(audio);}
-        audio.srcObject=e.streams[0];
-      };
-      _peerConnection.onconnectionstatechange=()=>{
-        console.log('[Call] callee connectionState:',_peerConnection?.connectionState);
-        if(_peerConnection?.connectionState==='connected')_updateCallUI('connected');
-        if(['disconnected','failed','closed'].includes(_peerConnection?.connectionState))hangUp();
-      };
-      await _peerConnection.setRemoteDescription({type:'offer',sdp:data.sdp});
-      console.log('[Call] setRemoteDescription(offer) OK');
-      _remoteDescSet=true;
-      const answer=await _peerConnection.createAnswer();
-      await _peerConnection.setLocalDescription(answer);
-      console.log('[Call] callee waiting for ICE gathering…');
-      await new Promise(res=>{
-        if(_peerConnection.iceGatheringState==='complete'){res();return;}
-        _peerConnection.onicegatheringstatechange=()=>{
-          console.log('[Call] callee iceGatheringState:',_peerConnection?.iceGatheringState);
-          if(_peerConnection.iceGatheringState==='complete')res();
-        };
-        setTimeout(res,8000);
-      });
-      if(!_peerConnection){return;}
-      const finalSdp=_peerConnection.localDescription.sdp;
-      console.log('[Call] answer ready, sdp length:',finalSdp.length);
-      _callSend('social:call-answer',{sdp:finalSdp},data.from);
-    }catch(e){window.YM_toast?.('Call error: '+e.message,'error');hangUp();}
-  },()=>{
-    _callSend('social:call-end',{},data.from);
-  });
-}
-
-let _callUUID=null;
 
 // ── SYSTÈME DE DEMANDES D'INTERACTION (pile centralisée) ──────────────────────
 // Toute demande (appel, partage, etc.) s'empile et est affichée l'une après l'autre
@@ -351,146 +218,15 @@ function _showInteractionUI(opts,onAccept,onDecline){
   ui.querySelector('#int-decline').addEventListener('click',onDecline);
 }
 
-function _showIncomingCallUI(profile,onAccept,onDecline){
-  _startRingtone();
-  // UI immédiate — bypass la queue pour les appels entrants
-  document.getElementById('ym-interaction-ui')?.remove();
-  const av=profile.avatar
-    ?'<img src="'+profile.avatar+'" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:8px">'
-    :'<div style="width:48px;height:48px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px">'+(profile.name?.charAt(0)||'👤')+'</div>';
-  const ui=document.createElement('div');
-  ui.id='ym-interaction-ui';
-  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:16px 20px;min-width:260px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.7);text-align:center';
-  ui.innerHTML=av+
-    '<div style="font-weight:600;font-size:14px;margin-bottom:2px">'+(profile.name||'Unknown')+'</div>'+
-    '<div style="font-size:13px;color:var(--accent);margin-bottom:12px">📞 Incoming call</div>'+
-    '<div style="display:flex;gap:10px;justify-content:center">'+
-      '<button id="int-decline" style="width:56px;height:56px;border-radius:50%;background:#e84040;border:none;font-size:24px;cursor:pointer">✕</button>'+
-      '<button id="int-accept" style="width:56px;height:56px;border-radius:50%;background:#30e880;border:none;font-size:24px;cursor:pointer">✓</button>'+
-    '</div>';
-  document.body.appendChild(ui);
-  ui.querySelector('#int-accept').addEventListener('click',()=>{
-    ui.remove();_stopRingtone();onAccept();
-  });
-  ui.querySelector('#int-decline').addEventListener('click',()=>{
-    ui.remove();_stopRingtone();onDecline();
-  });
-}
 
-function _showCallUI(state,uuid){
-  _removeCallUI();
-  const profile=_nearUsers.get(uuid)?.profile||getContact(uuid)?.profile||{name:'Unknown'};
-  const ui=document.createElement('div');
-  ui.id='ym-call-ui';
-  // En bas de l'écran
-  ui.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:12px 20px;min-width:220px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.6);text-align:center;display:flex;align-items:center;gap:12px';
-  ui.innerHTML='<div style="font-size:13px;color:var(--text);flex:1">'+(state==='calling'?'📞 Calling '+profile.name+'…':'📞 '+(profile.name||'Connected'))+'</div>'+
-    '<div id="call-timer" style="font-size:12px;color:var(--text3);min-width:36px">0:00</div>'+
-    '<button id="call-hangup" style="width:36px;height:36px;border-radius:50%;background:#e84040;border:none;font-size:16px;cursor:pointer">✕</button>';
-  document.body.appendChild(ui);_callUI=ui;
-  ui.querySelector('#call-hangup').addEventListener('click',hangUp);
-  if(state==='connected'){
-    let sec=0;
-    const timer=setInterval(()=>{
-      if(!document.getElementById('ym-call-ui')){clearInterval(timer);return;}
-      sec++;ui.querySelector('#call-timer').textContent=Math.floor(sec/60)+':'+(sec%60).toString().padStart(2,'0');
-    },1000);
-  }
-}
 
-function _updateCallUI(state){
-  const ui=document.getElementById('ym-call-ui');
-  if(!ui) return;
-  if(state==='connected'){
-    const label=ui.querySelector('div');
-    if(label) label.textContent='📞 '+(_nearUsers.get(_callUUID)?.profile?.name||'Connected');
-    _showCallUI('connected',_callUUID);
-  }
-}
 
-let _ringtone=null;
-let _callerTone=null;
 
-function _startCallerTone(){
-  // Sonnerie douce côté appelant (dans l'oreille) — ton de rappel européen
-  try{
-    const ctx=new (window.AudioContext||window.webkitAudioContext)();
-    let playing=true;
-    function ring(){
-      if(!playing)return;
-      const osc=ctx.createOscillator();
-      const gain=ctx.createGain();
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.type='sine';
-      osc.frequency.value=425; // 425Hz = tonalité standard EU
-      gain.gain.setValueAtTime(0,ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.15,ctx.currentTime+0.05);
-      gain.gain.setValueAtTime(0.15,ctx.currentTime+0.4);
-      gain.gain.linearRampToValueAtTime(0,ctx.currentTime+0.45);
-      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.5);
-      // Deux bips puis silence (pattern européen : bip-bip…pause)
-      setTimeout(()=>{
-        if(!playing)return;
-        const osc2=ctx.createOscillator();const gain2=ctx.createGain();
-        osc2.connect(gain2);gain2.connect(ctx.destination);
-        osc2.type='sine';osc2.frequency.value=425;
-        gain2.gain.setValueAtTime(0,ctx.currentTime);
-        gain2.gain.linearRampToValueAtTime(0.15,ctx.currentTime+0.05);
-        gain2.gain.setValueAtTime(0.15,ctx.currentTime+0.4);
-        gain2.gain.linearRampToValueAtTime(0,ctx.currentTime+0.45);
-        osc2.start(ctx.currentTime);osc2.stop(ctx.currentTime+0.5);
-      },500);
-      setTimeout(()=>{if(playing)ring();},3000); // bip-bip toutes les 3s
-    }
-    ring();
-    _callerTone={stop:()=>{playing=false;setTimeout(()=>ctx.close(),600);}};
-  }catch{}
-}
-function _stopCallerTone(){_callerTone?.stop();_callerTone=null;}
 
-function _startRingtone(){
-  try{
-    const ctx=new (window.AudioContext||window.webkitAudioContext)();
-    let playing=true;
-    function ring(){
-      if(!playing) return;
-      const osc=ctx.createOscillator();
-      const gain=ctx.createGain();
-      osc.connect(gain);gain.connect(ctx.destination);
-      osc.frequency.setValueAtTime(880,ctx.currentTime);
-      osc.frequency.setValueAtTime(660,ctx.currentTime+0.15);
-      gain.gain.setValueAtTime(0.3,ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.4);
-      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.4);
-      setTimeout(()=>{if(playing)ring();},900);
-    }
-    ring();
-    _ringtone={stop:()=>{playing=false;setTimeout(()=>ctx.close(),500);}};
-  }catch{}
-}
 
-function _stopRingtone(){
-  _ringtone?.stop();_ringtone=null;
-}
 
-function _removeCallUI(){
-  document.getElementById('ym-interaction-ui')?.remove();
-  document.getElementById('ym-call-ui')?.remove();
-  _callUI=null;
-}
 
-function hangUp(){
-  _stopRingtone();
-  _stopCallerTone();
-  if(_callPeer)_callSend('social:call-end',{},_callPeer);
-  _peerConnection?.close();_peerConnection=null;
-  _localStream?.getTracks().forEach(t=>t.stop());_localStream=null;
-  _callPeer=null;_callUUID=null;
-  _iceQueue=[];_remoteDescSet=false;_callerFlushIce=null;
-  document.getElementById('ym-call-audio')?.remove();
-  _removeCallUI();
-  window.YM_toast?.('Call ended','info');
-}
+
 
 // ── QR SCANNER ────────────────────────────────────────────────────────────────
 function generateQR(uuid, container){
@@ -742,34 +478,8 @@ window.YM_S['social.sphere.js'] = {
     window.addEventListener('ym:peer-join', _onPeerJoin);
 
     ctx.onReceive(async(type,data,peerId)=>{
-      if(type.startsWith('social:call')){
-        console.log('[Call] received:',type,'from peerId:',peerId,'_callPeer:',_callPeer,'_peerConnection:',!!_peerConnection);
-      }
       if(type==='social:presence') handlePresence(data, peerId);
       else if(type==='social:presence-req') broadcastPresence();
-      else if(type==='social:call-offer'){
-        // Ignorer si on est déjà caller sur cet appel (évite boucle broadcast)
-        if(_peerConnection&&_callPeer===peerId) return;
-        // Si on est déjà en appel avec quelqu'un d'autre, ignorer
-        if(_callPeer&&_callPeer!==peerId) return;
-        _iceQueue=[];_remoteDescSet=false;
-        const fromUUID=[..._nearUsers.entries()].find(([,v])=>v.peerId===peerId)?.[0]||null;
-        handleCallOffer({...data,from:peerId,fromUUID});
-      }
-      else if(type==='social:call-answer'&&_peerConnection){
-        // Ignorer si la réponse vient d'un peer qui n'est pas notre appelé
-        if(_callPeer&&peerId!==_callPeer){
-          console.log('[Call] answer ignored from wrong peer:',peerId,'expected:',_callPeer);
-          return;
-        }
-        console.log('[Call] answer received, sdp length:',data.sdp?.length);
-        try{
-          await _peerConnection.setRemoteDescription({type:'answer',sdp:data.sdp});
-          console.log('[Call] setRemoteDescription(answer) OK, state:',_peerConnection.signalingState,'connectionState:',_peerConnection.connectionState);
-          _remoteDescSet=true;
-        }catch(e){console.warn('[Call] call-answer error:',e.message);}
-      }
-      else if(type==='social:call-end'&&_callPeer===peerId) hangUp();
     });
 
     _cleanTimer = setInterval(cleanGossip, 5000);
@@ -784,10 +494,9 @@ window.YM_S['social.sphere.js'] = {
     stopGeo();
     stopHeartbeat();
     if(_cleanTimer){clearInterval(_cleanTimer);_cleanTimer=null;}
-    if(_peerConnection){_peerConnection.close();_peerConnection=null;}
     if(_onPeerJoin){window.removeEventListener('ym:peer-join',_onPeerJoin);_onPeerJoin=null;}
     if(_onVisibility){document.removeEventListener('visibilitychange',_onVisibility);_onVisibility=null;}
-    hangUp();
+    window.YM_Call?.hangUp();
     _nearUsers.clear();_gossipCache.clear();
     _ctx=null;
   },
@@ -966,7 +675,7 @@ window.YM_S['social.sphere.js'] = {
       btn.className='ym-btn ym-btn-ghost';
       btn.style.cssText='width:100%;font-size:12px;color:var(--cyan);border-color:rgba(34,211,238,.3)';
       btn.textContent='📞 Voice Call';
-      btn.addEventListener('click',()=>startVoiceCall(uuid));
+      btn.addEventListener('click',()=>window.YM_Call?.startVoiceCall(uuid));
       container.appendChild(btn);
     }else{
       const info=document.createElement('div');
@@ -1155,7 +864,7 @@ function renderContactsTab(el){
       if(_nearUsers.has(profile.uuid)&&isReciprocal(profile.uuid)){
         const callBtn=document.createElement('button');callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:8px;font-size:12px';
         callBtn.textContent='📞 Voice Call';
-        callBtn.addEventListener('click',e=>{e.stopPropagation();startVoiceCall(profile.uuid);});
+        callBtn.addEventListener('click',e=>{e.stopPropagation();window.YM_Call?.startVoiceCall(profile.uuid);});
         card.appendChild(callBtn);
       }
       card.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
@@ -1287,7 +996,6 @@ window.YM_Social = {
     window.YM?.openProfilePanel?.(profile);
   },
   isReciprocal,
-  startVoiceCall,
   get _nearUsers(){return _nearUsers;}
 };
 
