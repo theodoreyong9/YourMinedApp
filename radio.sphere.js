@@ -113,29 +113,47 @@ function createWidget(){
   _refreshWidget();
   document.body.appendChild(_widget);
 
-  // Drag
-  let dragging=false,ox=0,oy=0,wx=0,wy=0;
+  // Drag — avec edge scroll vers autres pages comme les icônes bureau
+  let dragging=false,ox=0,oy=0,wx=0,wy=0,_edgeT=null;
 
   function onMove(cx,cy){
     if(!dragging)return;
-    const dx=cx-ox,dy=cy-oy;
-    const rect=_widget.getBoundingClientRect();
-    const maxX=window.innerWidth-rect.width,maxY=window.innerHeight-rect.height;
-    wx=Math.max(0,Math.min(maxX,wx+dx));wy=Math.max(0,Math.min(maxY,wy+dy));
+    wx=Math.max(0,Math.min(window.innerWidth-_widget.offsetWidth,wx+(cx-ox)));
+    wy=Math.max(0,Math.min(window.innerHeight-_widget.offsetHeight,wy+(cy-oy)));
     ox=cx;oy=cy;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
+
+    // Edge scroll — même logique que les icônes bureau
+    const vw=window.innerWidth,ew=vw*0.14;
+    const curPage=window._deskCurPage??0;
+    const pageCount=window._deskPageCount??1;
+    if(cx<ew&&curPage>0){
+      if(!_edgeT)_edgeT=setTimeout(()=>{
+        _edgeT=null;
+        window.YM_Desk?.goPage?.(curPage-1);
+        savePos({...loadPos(),page:curPage-1});
+      },550);
+    }else if(cx>vw-ew){
+      if(!_edgeT)_edgeT=setTimeout(()=>{
+        _edgeT=null;
+        window.YM_Desk?.goPage?.(curPage+1);
+        savePos({...loadPos(),page:curPage+1});
+      },550);
+    }else{
+      clearTimeout(_edgeT);_edgeT=null;
+    }
   }
 
   function onEnd(){
     if(!dragging)return;dragging=false;
-    // Sauvegarde position en right/bottom relatifs
-    const r=window.innerWidth-wx-_widget.offsetWidth;
-    const b=window.innerHeight-wy-_widget.offsetHeight;
-    savePos({right:Math.max(0,r),bottom:Math.max(0,b)});
+    clearTimeout(_edgeT);_edgeT=null;
+    const r=Math.max(0,window.innerWidth-wx-_widget.offsetWidth);
+    const b=Math.max(0,window.innerHeight-wy-_widget.offsetHeight);
+    const curPage=window._deskCurPage??0;
+    savePos({right:r,bottom:b,page:curPage});
   }
 
-  const dragHandle=_widget.querySelector('#rw-drag')||_widget;
   _widget.addEventListener('pointerdown',e=>{
     if(e.target.closest('button'))return;
     dragging=true;
@@ -168,28 +186,12 @@ function _refreshWidget(){
       '<button id="rw-pp" style="background:var(--accent);border:none;color:#000;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">'+(_playing?'⏸':'▶')+'</button>'+
       '<button id="rw-next" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px;line-height:1">⏭</button>'+
       '<button id="rw-open" style="background:none;border:none;color:rgba(232,160,32,.5);font-size:12px;cursor:pointer;padding:4px;line-height:1" title="Open">⬡</button>'+
-      '<button id="rw-pin" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:4px;line-height:1" title="Pin to desktop page">📌</button>'+
     '</div>';
 
   _widget.querySelector('#rw-prev').addEventListener('click',e=>{e.stopPropagation();prevStation();});
   _widget.querySelector('#rw-pp').addEventListener('click',e=>{e.stopPropagation();toggle();});
   _widget.querySelector('#rw-next').addEventListener('click',e=>{e.stopPropagation();nextStation();});
   _widget.querySelector('#rw-open').addEventListener('click',e=>{e.stopPropagation();window.YM?.openSpherePanel?.('radio.sphere.js');});
-  _widget.querySelector('#rw-pin').addEventListener('click',e=>{
-    e.stopPropagation();
-    // Déplace le widget vers la page de bureau suivante
-    const desk=window.YM_Desk;
-    if(!desk)return;
-    // Lit la page courante du bureau
-    const curPage=window._deskCurPage??0;
-    const pages=window._deskPageCount??1;
-    const nextPage=confirm('Pin widget to next page? (OK = next, Cancel = previous)')
-      ? Math.min(curPage+1,pages-1)
-      : Math.max(curPage-1,0);
-    // Sauvegarde la page cible dans le state du widget
-    const pos=loadPos();pos.page=nextPage;savePos(pos);
-    window.YM_toast?.('Widget pinned to page '+(nextPage+1),'success');
-  });
 
   // Ré-attache le drag après innerHTML
   _widget.addEventListener('pointerdown',e=>{
