@@ -4,8 +4,8 @@
 'use strict';
 window.YM_S = window.YM_S || {};
 
-const SETTINGS_KEY = 'ym_drop_settings_v1';
-const PRODUCTS_KEY = 'ym_drop_products_v1';
+const SETTINGS_KEY   = 'ym_drop_settings_v1';
+const PRODUCTS_KEY   = 'ym_drop_products_v1';
 
 // ── STORAGE ─────────────────────────────────────────────────────────────────
 function loadSettings(){try{return JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}');}catch(e){return{};}}
@@ -43,7 +43,11 @@ const PROGRAMS = [
     id:'ebay', name:'eBay Partner Network', icon:'🔨',
     categories:'Everything', commission:'1–4%',
     signup:'https://partnernetwork.ebay.com',
-    fields:[{key:'campid',label:'Campaign ID',placeholder:'5338xxxxxx'},{key:'customid',label:'Custom ID (optional)',placeholder:''}],
+    fields:[
+      {key:'appid',label:'App ID (for product search)',placeholder:'YourApp-xxxxx-PRD-xxx'},
+      {key:'campid',label:'Campaign ID',placeholder:'5338xxxxxx'},
+      {key:'customid',label:'Custom ID (optional)',placeholder:''}
+    ],
     buildLink:(url,cfg)=>`https://rover.ebay.com/rover/1/711-53200-19255-0/1?mpre=${encodeURIComponent(url)}&campid=${cfg.campid}&customid=${cfg.customid||''}`,
     searchUrl:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}`,
   },
@@ -177,81 +181,101 @@ function renderSearch(container){
   async function doSearch(){
     const q=searchBar.querySelector('#ds-query').value.trim();
     if(!q)return;
-    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:12px;text-align:center">Searching across '+activePrograms.length+' programs…</div>';
+    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:12px;text-align:center">Searching…</div>';
 
-    // Claude cherche les produits correspondants sur chaque programme actif
-    const programList=activePrograms.map(p=>`${p.name} (${p.commission} commission)`).join(', ');
-    const prompt=
-      'Find affiliate products matching "'+q+'" on these programs: '+programList+'.\n'+
-      'For each result return exactly:\n'+
-      'PROGRAM | PRODUCT_NAME | PRICE | URL | IMAGE_URL (or empty) | DESCRIPTION (max 60 chars)\n'+
-      'Return 2-3 results per program when available. Only real products with real URLs.';
+    const allResults=[];
+    const promises=[];
 
-    try{
-      const resp=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',max_tokens:1500,
-          tools:[{type:'web_search_20250305',name:'web_search'}],
-          messages:[{role:'user',content:prompt}]
-        })
-      });
-      const data=await resp.json();
-      const text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
-
-      results.innerHTML='';
-      const lines=text.split('\n').filter(l=>l.includes('|'));
-
-      if(!lines.length){
-        results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No results found. Try a different query.</div>';
-        return;
-      }
-
-      lines.forEach(line=>{
-        const parts=line.split('|').map(s=>s.trim());
-        if(parts.length<4)return;
-        const [progName,productName,price,url,imageUrl,desc]=parts;
-        if(!url||!url.startsWith('http'))return;
-
-        // Trouve le programme correspondant
-        const prog=activePrograms.find(p=>
-          progName.toLowerCase().includes(p.name.toLowerCase().split(' ')[0]) ||
-          p.name.toLowerCase().includes(progName.toLowerCase().split(' ')[0])
-        )||activePrograms[0];
-
-        // Génère le lien affilié
-        let affLink=url;
-        try{affLink=prog.buildLink(url,settings[prog.id]||{});}catch(e){}
-
-        const card=document.createElement('div');
-        card.style.cssText='display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05)';
-        card.innerHTML=
-          (imageUrl&&imageUrl.startsWith('http')
-            ?'<img src="'+esc(imageUrl)+'" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display=\'none\'">'
-            :'<div style="width:64px;height:64px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">'+prog.icon+'</div>')+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:2px">'+prog.icon+' '+esc(prog.name)+' · '+esc(prog.commission)+'</div>'+
-            '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(productName)+'</div>'+
-            (price?'<div style="font-size:12px;color:#30e880;margin-bottom:2px">'+esc(price)+'</div>':'')+
-            (desc?'<div style="font-size:11px;color:var(--text3);margin-bottom:6px">'+esc(desc)+'</div>':'')+
-            '<div style="display:flex;gap:6px">'+
-              '<a href="'+esc(affLink)+'" target="_blank" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px;text-decoration:none">↗ View</a>'+
-              '<button class="ds-add-btn ym-btn ym-btn-accent" style="font-size:11px;padding:4px 10px">+ Add to list</button>'+
-            '</div>'+
-          '</div>';
-
-        card.querySelector('.ds-add-btn').addEventListener('click',()=>{
-          _addProduct({name:productName,price,affLink,imageUrl,desc,program:prog.name,programIcon:prog.icon,origUrl:url});
-          window.YM_toast?.('Added to your list!','success');
-          card.querySelector('.ds-add-btn').textContent='✓ Added';
-          card.querySelector('.ds-add-btn').disabled=true;
-        });
-        results.appendChild(card);
-      });
-
-    }catch(e){
-      results.innerHTML='<div style="color:#e84040;font-size:12px;padding:16px">Error: '+esc(e.message)+'</div>';
+    // ── eBay Finding API — seule API produit publique CORS-OK en front ────────
+    const ebayCfg=settings.ebay;
+    if(ebayCfg&&ebayCfg.campid){
+      const ebayAppId=ebayCfg.appid||'YourMine-00000'; // App ID eBay (gratuit)
+      promises.push(
+        fetch('https://svcs.ebay.com/services/search/FindingService/v1'+
+          '?OPERATION-NAME=findItemsByKeywords'+
+          '&SERVICE-VERSION=1.0.0'+
+          '&SECURITY-APPNAME='+encodeURIComponent(ebayAppId)+
+          '&RESPONSE-DATA-FORMAT=JSON'+
+          '&keywords='+encodeURIComponent(q)+
+          '&paginationInput.entriesPerPage=6'+
+          '&sortOrder=BestMatch',
+          {headers:{'Accept':'application/json'}})
+        .then(r=>r.json()).then(d=>{
+          const items=(d.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item)||[];
+          items.forEach(it=>{
+            const url=it.viewItemURL?.[0]||'';
+            const imgUrl=it.galleryURL?.[0]||'';
+            const price=it.sellingStatus?.[0]?.currentPrice?.[0]?.['__value__']||'';
+            const currency=it.sellingStatus?.[0]?.currentPrice?.[0]?.['@currencyId']||'';
+            const affLink=ebayCfg.campid?
+              'https://rover.ebay.com/rover/1/711-53200-19255-0/1?mpre='+encodeURIComponent(url)+'&campid='+ebayCfg.campid:'';
+            allResults.push({
+              prog:PROGRAMS.find(p=>p.id==='ebay'),cfg:ebayCfg,
+              name:it.title?.[0]||'',price:price?(currency+' '+price):'',
+              url,affLink:affLink||url,imageUrl:imgUrl,desc:''
+            });
+          });
+        }).catch(()=>{})
+      );
     }
+
+    // ── Pour chaque autre programme actif : génère un lien de recherche affilié
+    // L'utilisateur clique → va sur le site du programme avec son tag déjà actif
+    activePrograms.filter(p=>p.id!=='ebay').forEach(prog=>{
+      const cfg=settings[prog.id]||{};
+      const searchUrl=prog.searchUrl(q);
+      let affSearchLink=searchUrl;
+      try{affSearchLink=prog.buildLink(searchUrl,cfg);}catch(e){}
+      allResults.push({
+        prog,cfg,name:'Search "'+q+'" on '+prog.name,
+        price:'',url:searchUrl,affLink:affSearchLink,
+        imageUrl:'',desc:'Browse results with your affiliate tag active',
+        isSearchLink:true
+      });
+    });
+
+    await Promise.allSettled(promises);
+    results.innerHTML='';
+
+    if(!allResults.length){
+      results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No programs configured.<br>Go to ⚙ Settings to add your affiliate IDs.</div>';
+      return;
+    }
+
+    // eBay real results first, then search links
+    const sorted=[...allResults.filter(r=>!r.isSearchLink),...allResults.filter(r=>r.isSearchLink)];
+
+    sorted.forEach(item=>{
+      const prog=item.prog;
+      const card=document.createElement('div');
+      card.style.cssText='display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05)';
+      card.innerHTML=
+        (item.imageUrl&&item.imageUrl.startsWith('http')
+          ?'<img src="'+esc(item.imageUrl)+'" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display=\'none\'">'
+          :'<div style="width:64px;height:64px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">'+(prog&&prog.icon||'🛒')+'</div>')+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:2px">'+(prog?prog.icon+' '+prog.name:'')+' · '+(prog&&prog.commission||'')+'</div>'+
+          '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(item.name)+'</div>'+
+          (item.price?'<div style="font-size:12px;color:#30e880;margin-bottom:2px">'+esc(item.price)+'</div>':'')+
+          (item.desc?'<div style="font-size:11px;color:var(--text3);margin-bottom:6px">'+esc(item.desc)+'</div>':'')+
+          '<div style="display:flex;gap:6px">'+
+            '<a href="'+esc(item.affLink)+'" target="_blank" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px;text-decoration:none">'+(item.isSearchLink?'↗ Browse':'↗ View')+'</a>'+
+            (!item.isSearchLink?'<button class="ds-add-btn ym-btn ym-btn-accent" style="font-size:11px;padding:4px 10px">+ Add</button>':'')+
+          '</div>'+
+        '</div>';
+
+      if(!item.isSearchLink){
+        card.querySelector('.ds-add-btn').addEventListener('click',()=>{
+          _addProduct({name:item.name,price:item.price,affLink:item.affLink,
+            imageUrl:item.imageUrl,desc:item.desc,
+            program:prog&&prog.name||'',programIcon:prog&&prog.icon||'🛒',origUrl:item.url});
+          window.YM_toast?.('Added to your list!','success');
+          const btn=card.querySelector('.ds-add-btn');
+          btn.textContent='✓ Added';btn.disabled=true;
+        });
+      }
+      results.appendChild(card);
+    });
   }
 
   searchBar.querySelector('#ds-search').addEventListener('click',doSearch);
@@ -454,8 +478,9 @@ function renderSettings(container){
   intro.className='ym-notice info';
   intro.style.cssText='font-size:11px';
   intro.innerHTML=
-    'Configure your affiliate accounts below. Each program needs your unique ID/tag to track commissions.<br>'+
-    '<b>No account yet?</b> Click "Sign up" to create one — it\'s free.';
+    'Configure your affiliate IDs below. eBay returns real product results directly. '+
+    'Other programs generate a search link with your tag pre-activated.<br>'+
+    '<b>No account yet?</b> Click "Sign up" — it\'s free.';
   container.appendChild(intro);
 
   PROGRAMS.forEach(prog=>{
