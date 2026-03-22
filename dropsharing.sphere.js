@@ -1,13 +1,13 @@
 /* jshint esversion:11, browser:true */
-// dropsharing.sphere.js — Affiliate link finder + product list + QR sharing
+// dropsharing.sphere.js — Affiliate link generator + product list + QR sharing
+// Flow : paste product URL → affiliate link generated instantly → share → earn
 (function(){
 'use strict';
 window.YM_S = window.YM_S || {};
 
-const SETTINGS_KEY   = 'ym_drop_settings_v1';
-const PRODUCTS_KEY   = 'ym_drop_products_v1';
+const SETTINGS_KEY = 'ym_drop_settings_v1';
+const PRODUCTS_KEY = 'ym_drop_products_v1';
 
-// ── STORAGE ─────────────────────────────────────────────────────────────────
 function loadSettings(){try{return JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}');}catch(e){return{};}}
 function saveSettings(d){localStorage.setItem(SETTINGS_KEY,JSON.stringify(d));}
 function loadProducts(){try{return JSON.parse(localStorage.getItem(PRODUCTS_KEY)||'[]');}catch(e){return[];}}
@@ -15,119 +15,357 @@ function saveProducts(d){localStorage.setItem(PRODUCTS_KEY,JSON.stringify(d));}
 function gid(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-// ── AFFILIATE PROGRAMS ───────────────────────────────────────────────────────
+// ── AFFILIATE PROGRAMS ────────────────────────────────────────────────────────
+// detect(url) → true si cette URL appartient au programme
+// buildLink(url, cfg) → URL affiliée
+// Pour chaque programme : champs de config + instructions signup
 const PROGRAMS = [
+
+  // ── GÉNÉRALISTES ─────────────────────────────────────────────────────────
   {
-    id:'amazon', name:'Amazon Associates', icon:'🛒',
-    categories:'Everything', commission:'1–10%',
-    signup:'https://affiliate-program.amazon.com',
-    fields:[{key:'tag',label:'Associate Tag',placeholder:'yourname-20'}],
-    buildLink:(url,cfg)=>{
-      try{
-        const u=new URL(url);
-        u.searchParams.set('tag',cfg.tag);
-        return u.toString();
-      }catch(e){return url+'?tag='+cfg.tag;}
-    },
-    searchUrl:(q)=>`https://www.amazon.com/s?k=${encodeURIComponent(q)}`,
+    id:'amazon', name:'Amazon Associates', icon:'🛒', category:'General',
+    commission:'1–10%', signup:'https://affiliate-program.amazon.com',
+    fields:[{key:'tag',label:'Associate Tag',placeholder:'yourname-20',tip:'Found in your Associates dashboard'}],
+    detect: url => /amazon\.(com|fr|de|co\.uk|it|es|ca|co\.jp|com\.au|in|com\.br|com\.mx|nl|se|sg|com\.tr|ae|sa)/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('tag',cfg.tag);u.searchParams.delete('ref');return u.toString();}
+      catch(e){return url+(url.includes('?')?'&':'?')+'tag='+cfg.tag;}
+    }
   },
   {
-    id:'aliexpress', name:'AliExpress Portals', icon:'🏮',
-    categories:'Everything', commission:'4–8%',
-    signup:'https://portals.aliexpress.com',
-    fields:[{key:'pid',label:'Publisher ID',placeholder:'your_pid'},{key:'uid',label:'App ID (optional)',placeholder:''}],
-    buildLink:(url,cfg)=>`https://s.click.aliexpress.com/e/${encodeURIComponent(url)}&pid=${cfg.pid}`,
-    searchUrl:(q)=>`https://www.aliexpress.com/wholesale?SearchText=${encodeURIComponent(q)}`,
+    id:'ebay', name:'eBay Partner Network', icon:'🔨', category:'General',
+    commission:'1–4%', signup:'https://partnernetwork.ebay.com',
+    fields:[{key:'campid',label:'Campaign ID',placeholder:'5338xxxxxx'},{key:'customid',label:'Custom ID',placeholder:'optional'}],
+    detect: url => /ebay\.(com|fr|de|co\.uk|it|es|ca|com\.au|at|be|ch|ie|nl|ph|pl|vn)/i.test(url),
+    buildLink(url, cfg){
+      return 'https://rover.ebay.com/rover/1/711-53200-19255-0/1?mpre='+encodeURIComponent(url)+'&campid='+cfg.campid+'&customid='+(cfg.customid||'');
+    }
   },
   {
-    id:'ebay', name:'eBay Partner Network', icon:'🔨',
-    categories:'Everything', commission:'1–4%',
-    signup:'https://partnernetwork.ebay.com',
-    fields:[
-      {key:'appid',label:'App ID (for product search)',placeholder:'YourApp-xxxxx-PRD-xxx'},
-      {key:'campid',label:'Campaign ID',placeholder:'5338xxxxxx'},
-      {key:'customid',label:'Custom ID (optional)',placeholder:''}
-    ],
-    buildLink:(url,cfg)=>`https://rover.ebay.com/rover/1/711-53200-19255-0/1?mpre=${encodeURIComponent(url)}&campid=${cfg.campid}&customid=${cfg.customid||''}`,
-    searchUrl:(q)=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}`,
+    id:'aliexpress', name:'AliExpress Portals', icon:'🏮', category:'General',
+    commission:'4–8%', signup:'https://portals.aliexpress.com',
+    fields:[{key:'pid',label:'Publisher ID',placeholder:'your_pid'},{key:'uid',label:'App ID',placeholder:'your_uid'}],
+    detect: url => /aliexpress\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://s.click.aliexpress.com/e/_EyJxyz?pid='+cfg.pid+'&uid='+cfg.uid+'&url='+encodeURIComponent(url);
+    }
   },
   {
-    id:'cj', name:'CJ Affiliate', icon:'📦',
-    categories:'Everything', commission:'Variable',
-    signup:'https://www.cj.com',
+    id:'walmart', name:'Walmart Affiliates', icon:'🔵', category:'General',
+    commission:'1–4%', signup:'https://affiliates.walmart.com',
+    fields:[{key:'wmlspartner',label:'Partner ID',placeholder:'your_partner_id'}],
+    detect: url => /walmart\.com/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('wmlspartner',cfg.wmlspartner);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+  {
+    id:'bestbuy', name:'Best Buy Affiliate', icon:'💙', category:'General',
+    commission:'0.5–1%', signup:'https://www.bestbuy.com/site/affiliate-program',
+    fields:[{key:'lid',label:'Link ID',placeholder:'your_lid'}],
+    detect: url => /bestbuy\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://bestbuy.7eer.net/c/'+cfg.lid+'/614286/10014?u='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'target', name:'Target Affiliates', icon:'🎯', category:'General',
+    commission:'1–8%', signup:'https://affiliate.target.com',
+    fields:[{key:'afid',label:'Affiliate ID',placeholder:'your_afid'}],
+    detect: url => /target\.com/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('afid',cfg.afid);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+
+  // ── RÉSEAUX D'AFFILIATION ─────────────────────────────────────────────────
+  {
+    id:'cj', name:'CJ Affiliate', icon:'📦', category:'Network',
+    commission:'Variable', signup:'https://www.cj.com',
     fields:[{key:'pid',label:'Publisher ID',placeholder:'your_pid'}],
-    buildLink:(url,cfg)=>`https://www.anrdoezrs.net/click-${cfg.pid}-${gid()}?url=${encodeURIComponent(url)}`,
-    searchUrl:(q)=>`https://www.cj.com/search?query=${encodeURIComponent(q)}`,
+    detect: url => /anrdoezrs\.net|dpbolvw\.net|jdoqocy\.com|kqzyfj\.com|lduhtrp\.net|tkqlhce\.com|awltovhc\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.anrdoezrs.net/click-'+cfg.pid+'-10000000?url='+encodeURIComponent(url);
+    }
   },
   {
-    id:'shareasale', name:'ShareASale', icon:'🤝',
-    categories:'Niche/Fashion', commission:'Variable',
-    signup:'https://www.shareasale.com',
-    fields:[{key:'affid',label:'Affiliate ID',placeholder:'123456'}],
-    buildLink:(url,cfg)=>`https://www.shareasale.com/r.cfm?u=${cfg.affid}&b=0&m=0&urllink=${encodeURIComponent(url)}`,
-    searchUrl:(q)=>`https://www.shareasale.com/market.cfm?q=${encodeURIComponent(q)}`,
+    id:'shareasale', name:'ShareASale', icon:'🤝', category:'Network',
+    commission:'Variable', signup:'https://www.shareasale.com',
+    fields:[{key:'affid',label:'Affiliate ID',placeholder:'123456'},{key:'merchantid',label:'Merchant ID',placeholder:'12345'}],
+    detect: url => /shareasale\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.shareasale.com/r.cfm?u='+cfg.affid+'&b=0&m='+cfg.merchantid+'&urllink='+encodeURIComponent(url);
+    }
   },
   {
-    id:'awin', name:'Awin', icon:'🌍',
-    categories:'Europe/Fashion', commission:'Variable',
-    signup:'https://www.awin.com',
-    fields:[{key:'awid',label:'Publisher ID',placeholder:'123456'}],
-    buildLink:(url,cfg)=>`https://aw.app/${cfg.awid}/?url=${encodeURIComponent(url)}`,
-    searchUrl:(q)=>`https://www.awin.com/us/find-advertisers?q=${encodeURIComponent(q)}`,
+    id:'awin', name:'Awin', icon:'🌍', category:'Network',
+    commission:'Variable', signup:'https://www.awin.com',
+    fields:[{key:'awid',label:'Publisher ID',placeholder:'123456'},{key:'awmid',label:'Advertiser ID',placeholder:'12345'}],
+    detect: url => /awin1\.com|awinmid/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.awin1.com/cread.php?awinmid='+cfg.awmid+'&awinaffid='+cfg.awid+'&p='+encodeURIComponent(url);
+    }
   },
   {
-    id:'impact', name:'Impact', icon:'💥',
-    categories:'Premium brands', commission:'Variable',
-    signup:'https://impact.com',
-    fields:[{key:'subid',label:'SubID / Media ID',placeholder:'your_mediaid'}],
-    buildLink:(url,cfg)=>`https://impact.go2cloud.org/aff_c?offer_id=1&aff_id=${cfg.subid}&url=${encodeURIComponent(url)}`,
-    searchUrl:(q)=>`https://app.impact.com/brand-discovery/home.user?q=${encodeURIComponent(q)}`,
-  },
-  {
-    id:'clickbank', name:'ClickBank', icon:'💰',
-    categories:'Digital products', commission:'50–75%',
-    signup:'https://www.clickbank.com',
-    fields:[{key:'nickname',label:'Account Nickname',placeholder:'yournick'}],
-    buildLink:(url,cfg)=>{
-      // ClickBank vendor link format: http://nickname.vendor.hop.clickbank.net
-      const match=url.match(/clickbank\.net\/(\w+)/);
-      const vendor=match?match[1]:'vendor';
-      return `https://${cfg.nickname}.${vendor}.hop.clickbank.net`;
-    },
-    searchUrl:(q)=>`https://www.clickbank.com/search?q=${encodeURIComponent(q)}`,
-  },
-  {
-    id:'rakuten', name:'Rakuten Advertising', icon:'🛍',
-    categories:'Fashion/Lifestyle', commission:'Variable',
-    signup:'https://rakutenadvertising.com',
+    id:'rakuten', name:'Rakuten Advertising', icon:'🛍', category:'Network',
+    commission:'Variable', signup:'https://rakutenadvertising.com/publishers',
     fields:[{key:'mid',label:'Member ID',placeholder:'your_mid'}],
-    buildLink:(url,cfg)=>`https://click.linksynergy.com/deeplink?id=${cfg.mid}&mid=0&murl=${encodeURIComponent(url)}`,
-    searchUrl:(q)=>`https://rakutenadvertising.com/publishers/?q=${encodeURIComponent(q)}`,
+    detect: url => /linksynergy\.com|rakutenadvertising\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://click.linksynergy.com/deeplink?id='+cfg.mid+'&mid=0&murl='+encodeURIComponent(url);
+    }
   },
   {
-    id:'etsy', name:'Etsy (via Awin)', icon:'🎨',
-    categories:'Handmade/Art', commission:'4%',
-    signup:'https://www.awin.com/us/advertiser/etsy',
+    id:'impact', name:'Impact', icon:'💥', category:'Network',
+    commission:'Variable', signup:'https://app.impact.com',
+    fields:[{key:'affid',label:'Affiliate ID',placeholder:'your_affid'},{key:'offerid',label:'Offer ID',placeholder:'1'}],
+    detect: url => /impact\.go2cloud\.org|ojrq\.net|impactradius/i.test(url),
+    buildLink(url, cfg){
+      return 'https://impact.go2cloud.org/aff_c?offer_id='+cfg.offerid+'&aff_id='+cfg.affid+'&url='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'clickbank', name:'ClickBank', icon:'💰', category:'Network',
+    commission:'50–75%', signup:'https://www.clickbank.com',
+    fields:[{key:'nickname',label:'Account Nickname',placeholder:'yournick'}],
+    detect: url => /clickbank\.net|hop\.clickbank\.net/i.test(url),
+    buildLink(url, cfg){
+      const match=url.match(/(\w+)\.hop\.clickbank\.net/)||url.match(/clickbank\.net\/(\w+)/);
+      const vendor=match?match[1]:'vendor';
+      return 'https://'+cfg.nickname+'.'+vendor+'.hop.clickbank.net';
+    }
+  },
+  {
+    id:'flexoffers', name:'FlexOffers', icon:'🔀', category:'Network',
+    commission:'Variable', signup:'https://www.flexoffers.com',
+    fields:[{key:'foid',label:'Publisher ID',placeholder:'your_foid'}],
+    detect: url => /flexoffers\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://track.flexlinkspro.com/a.ashx?foid='+cfg.foid+'&foc=1&fot=9999&fos=1&url='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'partnerstack', name:'PartnerStack', icon:'🥞', category:'Network',
+    commission:'Variable', signup:'https://partnerstack.com',
+    fields:[{key:'key',label:'Referral Key',placeholder:'your_key'}],
+    detect: url => /partnerstack\.com|gr8\.com/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('via',cfg.key);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+
+  // ── MODE / LIFESTYLE ─────────────────────────────────────────────────────
+  {
+    id:'etsy', name:'Etsy (via Awin)', icon:'🎨', category:'Fashion',
+    commission:'4%', signup:'https://www.awin.com/us/advertiser/etsy',
     fields:[{key:'awid',label:'Awin Publisher ID',placeholder:'123456'}],
-    buildLink:(url,cfg)=>`https://www.awin1.com/cread.php?awinmid=6220&awinaffid=${cfg.awid}&clickref=&p=${encodeURIComponent(url)}`,
-    searchUrl:(q)=>`https://www.etsy.com/search?q=${encodeURIComponent(q)}`,
+    detect: url => /etsy\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.awin1.com/cread.php?awinmid=6220&awinaffid='+cfg.awid+'&p='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'nordstrom', name:'Nordstrom', icon:'👗', category:'Fashion',
+    commission:'2–20%', signup:'https://www.rakutenadvertising.com',
+    fields:[{key:'mid',label:'Rakuten Member ID',placeholder:'your_mid'}],
+    detect: url => /nordstrom\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://click.linksynergy.com/deeplink?id='+cfg.mid+'&mid=0&murl='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'farfetch', name:'Farfetch', icon:'👜', category:'Fashion',
+    commission:'5–8%', signup:'https://www.awin.com',
+    fields:[{key:'awid',label:'Awin Publisher ID',placeholder:'123456'},{key:'awmid',label:'Farfetch Awin ID',placeholder:'14775'}],
+    detect: url => /farfetch\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.awin1.com/cread.php?awinmid='+(cfg.awmid||'14775')+'&awinaffid='+cfg.awid+'&p='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'ssense', name:'SSENSE', icon:'🖤', category:'Fashion',
+    commission:'3–5%', signup:'https://www.shareasale.com',
+    fields:[{key:'affid',label:'ShareASale Affiliate ID',placeholder:'123456'}],
+    detect: url => /ssense\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.shareasale.com/r.cfm?u='+cfg.affid+'&b=0&m=70522&urllink='+encodeURIComponent(url);
+    }
+  },
+
+  // ── TECH ─────────────────────────────────────────────────────────────────
+  {
+    id:'apple', name:'Apple Services', icon:'🍎', category:'Tech',
+    commission:'2.5–7%', signup:'https://affiliate.itunes.apple.com',
+    fields:[{key:'at',label:'Affiliate Token',placeholder:'your_token'}],
+    detect: url => /apple\.com|apps\.apple\.com|music\.apple\.com/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('at',cfg.at);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+  {
+    id:'microsoft', name:'Microsoft Store', icon:'🪟', category:'Tech',
+    commission:'2–10%', signup:'https://www.microsoft.com/en-us/store/b/affiliate',
+    fields:[{key:'ocid',label:'Affiliate OCID',placeholder:'your_ocid'}],
+    detect: url => /microsoft\.com|xbox\.com/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('ocid',cfg.ocid);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+  {
+    id:'newegg', name:'Newegg', icon:'🖥', category:'Tech',
+    commission:'0.5–1%', signup:'https://www.newegg.com/affiliate',
+    fields:[{key:'cm_mmc',label:'Campaign Code',placeholder:'affiliate-xxx'}],
+    detect: url => /newegg\.com/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('cm_mmc',cfg.cm_mmc);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+
+  // ── VOYAGE ──────────────────────────────────────────────────────────────
+  {
+    id:'booking', name:'Booking.com', icon:'🏨', category:'Travel',
+    commission:'25–40%', signup:'https://www.booking.com/affiliate-program.html',
+    fields:[{key:'aid',label:'Affiliate ID',placeholder:'123456'}],
+    detect: url => /booking\.com/i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('aid',cfg.aid);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+  {
+    id:'airbnb', name:'Airbnb', icon:'🏠', category:'Travel',
+    commission:'Variable', signup:'https://www.airbnb.com/associates',
+    fields:[{key:'r',label:'Referral Code',placeholder:'your_code'}],
+    detect: url => /airbnb\./i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('af',cfg.r);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+  {
+    id:'tripadvisor', name:'TripAdvisor', icon:'🦉', category:'Travel',
+    commission:'50% of TA revenue', signup:'https://www.tripadvisor.com/affiliates',
+    fields:[{key:'asrc',label:'Affiliate Source',placeholder:'your_source'}],
+    detect: url => /tripadvisor\./i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('asrc',cfg.asrc);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+  {
+    id:'skyscanner', name:'Skyscanner', icon:'✈️', category:'Travel',
+    commission:'Variable', signup:'https://www.partners.skyscanner.net',
+    fields:[{key:'associateid',label:'Associate ID',placeholder:'your_id'}],
+    detect: url => /skyscanner\./i.test(url),
+    buildLink(url, cfg){
+      try{const u=new URL(url);u.searchParams.set('associateid',cfg.associateid);return u.toString();}
+      catch(e){return url;}
+    }
+  },
+
+  // ── DIGITAL / SaaS ───────────────────────────────────────────────────────
+  {
+    id:'fiverr', name:'Fiverr', icon:'🟢', category:'Digital',
+    commission:'$15–150 CPA', signup:'https://affiliates.fiverr.com',
+    fields:[{key:'affid',label:'Affiliate ID',placeholder:'your_id'}],
+    detect: url => /fiverr\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://go.fiverr.com/visit/?bta='+cfg.affid+'&brand=fiverrcpa&landingPage='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'envato', name:'Envato Market', icon:'🎵', category:'Digital',
+    commission:'30%', signup:'https://affiliates.envato.com',
+    fields:[{key:'affid',label:'Affiliate ID',placeholder:'your_id'}],
+    detect: url => /envato\.com|themeforest\.net|codecanyon\.net|graphicriver\.net/i.test(url),
+    buildLink(url, cfg){
+      return 'https://1.envato.market/c/'+cfg.affid+'/0/0/0/?u='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'shopify', name:'Shopify Partners', icon:'🛍', category:'Digital',
+    commission:'$58–2000', signup:'https://www.shopify.com/affiliates',
+    fields:[{key:'ref',label:'Referral Handle',placeholder:'your_handle'}],
+    detect: url => /shopify\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://shopify.com/'+cfg.ref+'?ref='+cfg.ref;
+    }
+  },
+  {
+    id:'canva', name:'Canva', icon:'🎨', category:'Digital',
+    commission:'$36 CPA', signup:'https://www.canva.com/affiliates',
+    fields:[{key:'ref',label:'Referral Code',placeholder:'your_code'}],
+    detect: url => /canva\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.canva.com/join/'+cfg.ref;
+    }
+  },
+
+  // ── BEAUTÉ / SANTÉ ───────────────────────────────────────────────────────
+  {
+    id:'sephora', name:'Sephora', icon:'💄', category:'Beauty',
+    commission:'5–10%', signup:'https://www.rakutenadvertising.com',
+    fields:[{key:'mid',label:'Rakuten Member ID',placeholder:'your_mid'}],
+    detect: url => /sephora\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://click.linksynergy.com/deeplink?id='+cfg.mid+'&mid=44257&murl='+encodeURIComponent(url);
+    }
+  },
+  {
+    id:'lookfantastic', name:'Lookfantastic', icon:'🌸', category:'Beauty',
+    commission:'8–12%', signup:'https://www.awin.com',
+    fields:[{key:'awid',label:'Awin Publisher ID',placeholder:'123456'}],
+    detect: url => /lookfantastic\.com/i.test(url),
+    buildLink(url, cfg){
+      return 'https://www.awin1.com/cread.php?awinmid=5043&awinaffid='+cfg.awid+'&p='+encodeURIComponent(url);
+    }
+  },
+
+  // ── GÉNÉRIQUE (URL quelconque) ───────────────────────────────────────────
+  {
+    id:'generic', name:'Custom / Other', icon:'🔗', category:'Other',
+    commission:'—', signup:'',
+    fields:[{key:'ref',label:'Ref param name',placeholder:'ref'},{key:'val',label:'Your ref value',placeholder:'yourname'}],
+    detect: () => true, // fallback pour toute URL
+    buildLink(url, cfg){
+      if(!cfg.ref||!cfg.val)return url;
+      try{const u=new URL(url);u.searchParams.set(cfg.ref,cfg.val);return u.toString();}
+      catch(e){return url+(url.includes('?')?'&':'?')+cfg.ref+'='+cfg.val;}
+    }
   },
 ];
 
+// ── DETECT PROGRAM FROM URL ───────────────────────────────────────────────────
+function detectPrograms(url){
+  const settings=loadSettings();
+  // Programmes configurés qui matchent l'URL, generic en dernier recours
+  const matched=PROGRAMS.filter(p=>p.id!=='generic'&&p.detect(url)&&settings[p.id]&&Object.values(settings[p.id]).some(v=>v));
+  if(!matched.length){
+    const gen=PROGRAMS.find(p=>p.id==='generic');
+    if(settings.generic&&Object.values(settings.generic).some(v=>v))return[gen];
+    return[];
+  }
+  return matched;
+}
+
 // ── PANEL ────────────────────────────────────────────────────────────────────
-let _activeTab='search';
+let _activeTab='add';
 function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
   container.innerHTML='';
-
   const track=document.createElement('div');
   track.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
   container.appendChild(track);
-
   const tabs=document.createElement('div');
   tabs.className='ym-tabs';
   tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);margin:0;flex-shrink:0';
-  [['search','🔍 Find'],['list','📋 My List'],['settings','⚙ Settings']].forEach(([id,label])=>{
+  [['add','➕ Add'],['list','📋 List'],['settings','⚙ Config']].forEach(([id,label])=>{
     const t=document.createElement('div');
     t.className='ym-tab'+(_activeTab===id?' active':'');
     t.dataset.tab=id;t.textContent=label;
@@ -135,463 +373,358 @@ function renderPanel(container){
       _activeTab=id;
       tabs.querySelectorAll('.ym-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));
       track.innerHTML='';
-      if(id==='search')renderSearch(track);
+      if(id==='add')renderAdd(track);
       else if(id==='list')renderList(track);
       else renderSettings(track);
     });
     tabs.appendChild(t);
   });
   container.appendChild(tabs);
-
-  if(_activeTab==='search')renderSearch(track);
+  if(_activeTab==='add')renderAdd(track);
   else if(_activeTab==='list')renderList(track);
   else renderSettings(track);
 }
 
-// ── SEARCH TAB ───────────────────────────────────────────────────────────────
-function renderSearch(container){
+// ── ADD TAB ───────────────────────────────────────────────────────────────────
+function renderAdd(container){
   container.innerHTML='';
-  container.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden';
+  container.style.cssText='flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px';
 
   const settings=loadSettings();
-  const activePrograms=PROGRAMS.filter(p=>settings[p.id]&&Object.values(settings[p.id]).some(v=>v));
+  const configuredCount=PROGRAMS.filter(p=>p.id!=='generic'&&settings[p.id]&&Object.values(settings[p.id]).some(v=>v)).length;
 
-  // Search bar
-  const searchBar=document.createElement('div');
-  searchBar.style.cssText='flex-shrink:0;padding:12px 14px;border-bottom:1px solid var(--border)';
-  searchBar.innerHTML=
-    '<div style="display:flex;gap:8px;margin-bottom:8px">'+
-      '<input id="ds-query" class="ym-input" placeholder="Product name, reference, ASIN, URL…" style="flex:1;font-size:13px">'+
-      '<button id="ds-search" class="ym-btn ym-btn-accent" style="padding:8px 14px;font-size:14px">🔍</button>'+
-    '</div>'+
-    (activePrograms.length===0
-      ? '<div class="ym-notice info" style="font-size:11px">Configure your affiliate accounts in ⚙ Settings first.</div>'
-      : '<div style="font-size:10px;color:var(--text3)">Searching on: '+activePrograms.map(p=>p.icon+' '+p.name).join(' · ')+'</div>');
-  container.appendChild(searchBar);
-
-  const results=document.createElement('div');
-  results.style.cssText='flex:1;overflow-y:auto;padding:0';
-  container.appendChild(results);
-
-  if(activePrograms.length===0){
-    results.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">No affiliate programs configured.<br>Go to ⚙ Settings to add your accounts.</div>';
-    return;
+  if(configuredCount===0){
+    const notice=document.createElement('div');notice.className='ym-notice info';
+    notice.innerHTML='<b>No programs configured yet.</b><br>Go to ⚙ Config to add your affiliate IDs first.<br>You can also use the Generic program for any URL.';
+    container.appendChild(notice);
   }
 
-  async function doSearch(){
-    const q=searchBar.querySelector('#ds-query').value.trim();
-    if(!q)return;
-    results.innerHTML='<div style="color:var(--text3);font-size:11px;padding:12px;text-align:center">Searching…</div>';
+  // URL input
+  const urlCard=document.createElement('div');urlCard.className='ym-card';
+  urlCard.innerHTML=
+    '<div class="ym-card-title">Product URL</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+      '<input id="ds-url" class="ym-input" placeholder="Paste any product URL (Amazon, eBay, AliExpress…)" style="flex:1;font-size:12px">'+
+      '<button id="ds-detect" class="ym-btn ym-btn-accent" style="padding:8px 12px">→</button>'+
+    '</div>'+
+    '<div id="ds-url-hint" style="font-size:10px;color:var(--text3)">We\'ll detect the program and generate your affiliate link instantly.</div>';
+  container.appendChild(urlCard);
 
-    const allResults=[];
-    const promises=[];
+  const preview=document.createElement('div');
+  preview.style.cssText='display:flex;flex-direction:column;gap:8px';
+  container.appendChild(preview);
 
-    // ── eBay Finding API — seule API produit publique CORS-OK en front ────────
-    const ebayCfg=settings.ebay;
-    if(ebayCfg&&ebayCfg.campid){
-      const ebayAppId=ebayCfg.appid||'YourMine-00000'; // App ID eBay (gratuit)
-      promises.push(
-        fetch('https://svcs.ebay.com/services/search/FindingService/v1'+
-          '?OPERATION-NAME=findItemsByKeywords'+
-          '&SERVICE-VERSION=1.0.0'+
-          '&SECURITY-APPNAME='+encodeURIComponent(ebayAppId)+
-          '&RESPONSE-DATA-FORMAT=JSON'+
-          '&keywords='+encodeURIComponent(q)+
-          '&paginationInput.entriesPerPage=6'+
-          '&sortOrder=BestMatch',
-          {headers:{'Accept':'application/json'}})
-        .then(r=>r.json()).then(d=>{
-          const items=(d.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item)||[];
-          items.forEach(it=>{
-            const url=it.viewItemURL?.[0]||'';
-            const imgUrl=it.galleryURL?.[0]||'';
-            const price=it.sellingStatus?.[0]?.currentPrice?.[0]?.['__value__']||'';
-            const currency=it.sellingStatus?.[0]?.currentPrice?.[0]?.['@currencyId']||'';
-            const affLink=ebayCfg.campid?
-              'https://rover.ebay.com/rover/1/711-53200-19255-0/1?mpre='+encodeURIComponent(url)+'&campid='+ebayCfg.campid:'';
-            allResults.push({
-              prog:PROGRAMS.find(p=>p.id==='ebay'),cfg:ebayCfg,
-              name:it.title?.[0]||'',price:price?(currency+' '+price):'',
-              url,affLink:affLink||url,imageUrl:imgUrl,desc:''
-            });
-          });
-        }).catch(()=>{})
-      );
-    }
+  urlCard.querySelector('#ds-detect').addEventListener('click',()=>handleUrl(urlCard.querySelector('#ds-url').value.trim()));
+  urlCard.querySelector('#ds-url').addEventListener('keydown',e=>{if(e.key==='Enter')handleUrl(urlCard.querySelector('#ds-url').value.trim());});
+  urlCard.querySelector('#ds-url').addEventListener('paste',e=>{
+    setTimeout(()=>handleUrl(e.target.value.trim()),50);
+  });
 
-    // ── Pour chaque autre programme actif : génère un lien de recherche affilié
-    // L'utilisateur clique → va sur le site du programme avec son tag déjà actif
-    activePrograms.filter(p=>p.id!=='ebay').forEach(prog=>{
-      const cfg=settings[prog.id]||{};
-      const searchUrl=prog.searchUrl(q);
-      let affSearchLink=searchUrl;
-      try{affSearchLink=prog.buildLink(searchUrl,cfg);}catch(e){}
-      allResults.push({
-        prog,cfg,name:'Search "'+q+'" on '+prog.name,
-        price:'',url:searchUrl,affLink:affSearchLink,
-        imageUrl:'',desc:'Browse results with your affiliate tag active',
-        isSearchLink:true
-      });
-    });
-
-    await Promise.allSettled(promises);
-    results.innerHTML='';
-
-    if(!allResults.length){
-      results.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No programs configured.<br>Go to ⚙ Settings to add your affiliate IDs.</div>';
+  function handleUrl(url){
+    if(!url||!url.startsWith('http')){
+      urlCard.querySelector('#ds-url-hint').textContent='Please enter a valid URL starting with http…';
       return;
     }
-
-    // eBay real results first, then search links
-    const sorted=[...allResults.filter(r=>!r.isSearchLink),...allResults.filter(r=>r.isSearchLink)];
-
-    sorted.forEach(item=>{
-      const prog=item.prog;
-      const card=document.createElement('div');
-      card.style.cssText='display:flex;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05)';
-      card.innerHTML=
-        (item.imageUrl&&item.imageUrl.startsWith('http')
-          ?'<img src="'+esc(item.imageUrl)+'" style="width:64px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display=\'none\'">'
-          :'<div style="width:64px;height:64px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0">'+(prog&&prog.icon||'🛒')+'</div>')+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:2px">'+(prog?prog.icon+' '+prog.name:'')+' · '+(prog&&prog.commission||'')+'</div>'+
-          '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(item.name)+'</div>'+
-          (item.price?'<div style="font-size:12px;color:#30e880;margin-bottom:2px">'+esc(item.price)+'</div>':'')+
-          (item.desc?'<div style="font-size:11px;color:var(--text3);margin-bottom:6px">'+esc(item.desc)+'</div>':'')+
-          '<div style="display:flex;gap:6px">'+
-            '<a href="'+esc(item.affLink)+'" target="_blank" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px;text-decoration:none">'+(item.isSearchLink?'↗ Browse':'↗ View')+'</a>'+
-            (!item.isSearchLink?'<button class="ds-add-btn ym-btn ym-btn-accent" style="font-size:11px;padding:4px 10px">+ Add</button>':'')+
-          '</div>'+
-        '</div>';
-
-      if(!item.isSearchLink){
-        card.querySelector('.ds-add-btn').addEventListener('click',()=>{
-          _addProduct({name:item.name,price:item.price,affLink:item.affLink,
-            imageUrl:item.imageUrl,desc:item.desc,
-            program:prog&&prog.name||'',programIcon:prog&&prog.icon||'🛒',origUrl:item.url});
-          window.YM_toast?.('Added to your list!','success');
-          const btn=card.querySelector('.ds-add-btn');
-          btn.textContent='✓ Added';btn.disabled=true;
-        });
-      }
-      results.appendChild(card);
+    preview.innerHTML='';
+    const progs=detectPrograms(url);
+    if(!progs.length){
+      const msg=document.createElement('div');msg.className='ym-notice info';
+      msg.innerHTML='No configured program matches this URL.<br>Configure a program in ⚙ Config, or use the <b>Generic</b> program.';
+      preview.appendChild(msg);return;
+    }
+    // Affiche un bloc par programme détecté
+    progs.forEach(prog=>{
+      const cfg=settings[prog.id]||{};
+      let affLink=url;
+      try{affLink=prog.buildLink(url,cfg);}catch(e){}
+      const card=_renderLinkCard(prog,url,affLink,()=>{
+        // Après ajout → aller à la liste
+        _activeTab='list';
+        renderPanel(container.closest('[id]')||container.parentElement);
+      });
+      preview.appendChild(card);
     });
   }
-
-  searchBar.querySelector('#ds-search').addEventListener('click',doSearch);
-  searchBar.querySelector('#ds-query').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch();});
 }
 
-function _addProduct(data){
-  const products=loadProducts();
-  products.unshift({
-    id:gid(),
-    name:data.name||'Product',
-    price:data.price||'',
-    affLink:data.affLink,
-    imageUrl:data.imageUrl||'',
-    desc:data.desc||'',
-    program:data.program||'',
-    programIcon:data.programIcon||'🛒',
-    origUrl:data.origUrl||'',
-    createdAt:Date.now(),
-    clicks:0,
-    tags:[]
+function _renderLinkCard(prog,origUrl,affLink,onAdded){
+  const card=document.createElement('div');card.className='ym-card';
+  const qrId='qr-'+gid();
+  card.innerHTML=
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+      '<span style="font-size:20px">'+prog.icon+'</span>'+
+      '<div style="flex:1">'+
+        '<div style="font-size:13px;font-weight:600">'+esc(prog.name)+'</div>'+
+        '<div style="font-size:10px;color:var(--accent)">'+esc(prog.commission)+'</div>'+
+      '</div>'+
+    '</div>'+
+    '<div style="font-size:10px;color:var(--text3);margin-bottom:6px;word-break:break-all;padding:6px;background:rgba(255,255,255,.04);border-radius:6px">'+esc(affLink)+'</div>'+
+    '<div id="'+qrId+'" style="display:none;text-align:center;padding:8px 0"></div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+      '<button class="lc-copy ym-btn ym-btn-ghost" style="font-size:11px;flex:1">⧉ Copy link</button>'+
+      '<button class="lc-qr ym-btn ym-btn-ghost" style="font-size:11px">QR</button>'+
+      '<button class="lc-add ym-btn ym-btn-accent" style="font-size:11px;flex:1">+ Add to list</button>'+
+    '</div>'+
+    '<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">'+
+      '<input class="lc-name ym-input" placeholder="Product name (optional)" style="font-size:11px">'+
+      '<input class="lc-price ym-input" placeholder="Price (optional, e.g. $29.99)" style="font-size:11px">'+
+      '<input class="lc-img ym-input" placeholder="Image URL (optional)" style="font-size:11px">'+
+      '<textarea class="lc-desc ym-input" placeholder="Description (optional)" style="font-size:11px;height:50px;resize:none"></textarea>'+
+    '</div>';
+
+  card.querySelector('.lc-copy').addEventListener('click',()=>{
+    navigator.clipboard?.writeText(affLink);window.YM_toast?.('Link copied!','success');
   });
-  saveProducts(products);
+  let qrShown=false;
+  card.querySelector('.lc-qr').addEventListener('click',()=>{
+    const qrEl=card.querySelector('#'+qrId);
+    if(qrShown){qrEl.style.display='none';qrShown=false;return;}
+    qrEl.style.display='block';qrEl.innerHTML='';
+    _generateQR(qrEl,affLink);qrShown=true;
+  });
+  card.querySelector('.lc-add').addEventListener('click',()=>{
+    const name=card.querySelector('.lc-name').value.trim()||prog.name+' product';
+    const products=loadProducts();
+    products.unshift({
+      id:gid(),name,
+      price:card.querySelector('.lc-price').value.trim(),
+      affLink,origUrl,
+      imageUrl:card.querySelector('.lc-img').value.trim(),
+      desc:card.querySelector('.lc-desc').value.trim(),
+      program:prog.name,programIcon:prog.icon,
+      createdAt:Date.now()
+    });
+    saveProducts(products);
+    window.YM_toast?.('Added to your list!','success');
+    card.querySelector('.lc-add').textContent='✓ Added';
+    card.querySelector('.lc-add').disabled=true;
+    onAdded&&onAdded();
+  });
+  return card;
 }
 
-// ── LIST TAB ─────────────────────────────────────────────────────────────────
+// ── LIST TAB ──────────────────────────────────────────────────────────────────
 function renderList(container){
   container.innerHTML='';
   container.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden';
-
   const hdr=document.createElement('div');
   hdr.style.cssText='flex-shrink:0;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)';
   hdr.innerHTML=
-    '<input id="ds-list-search" class="ym-input" placeholder="Filter…" style="flex:1;font-size:12px">'+
-    '<button id="ds-add-manual" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">+ Manual</button>';
+    '<input id="ds-filter" class="ym-input" placeholder="Filter…" style="flex:1;font-size:12px">'+
+    '<button id="ds-manual" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">+ Manual</button>';
   container.appendChild(hdr);
-
   const list=document.createElement('div');
   list.style.cssText='flex:1;overflow-y:auto;padding:8px 14px;display:flex;flex-direction:column;gap:8px';
   container.appendChild(list);
 
-  function renderProducts(filter){
+  function render(filter){
     list.innerHTML='';
     var products=loadProducts();
-    if(filter)products=products.filter(p=>(p.name+p.desc+p.program).toLowerCase().includes(filter.toLowerCase()));
+    if(filter)products=products.filter(p=>(p.name+p.program+p.desc).toLowerCase().includes(filter.toLowerCase()));
     if(!products.length){
-      list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">'+(filter?'No results.':'No products yet.<br>Search for products in 🔍 Find.')+'</div>';
+      list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">'+(filter?'No results.':'No products yet.<br>Go to ➕ Add to generate your first affiliate link.')+'</div>';
       return;
     }
-    products.forEach(p=>_renderProductCard(list,p,()=>renderProducts(hdr.querySelector('#ds-list-search').value)));
+    products.forEach(p=>{
+      const card=document.createElement('div');card.className='ym-card';card.style.cssText='padding:10px';
+      const qrId='qr-l-'+p.id;
+      card.innerHTML=
+        '<div style="display:flex;gap:10px">'+
+          (p.imageUrl&&p.imageUrl.startsWith('http')
+            ?'<img src="'+esc(p.imageUrl)+'" style="width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display=\'none\'">'
+            :'<div style="width:52px;height:52px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+esc(p.programIcon||'🔗')+'</div>')+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:10px;color:var(--accent)">'+esc(p.programIcon||'')+'  '+esc(p.program||'')+'</div>'+
+            '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</div>'+
+            (p.price?'<div style="font-size:12px;color:#30e880">'+esc(p.price)+'</div>':'')+
+          '</div>'+
+        '</div>'+
+        '<div id="'+qrId+'" style="display:none;margin:8px 0;text-align:center"></div>'+
+        '<div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">'+
+          '<a href="'+esc(p.affLink)+'" target="_blank" class="ym-btn ym-btn-accent" style="font-size:11px;padding:4px 12px;text-decoration:none;flex:1;text-align:center">↗ My link</a>'+
+          '<button class="pl-copy ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 8px">⧉</button>'+
+          '<button class="pl-qr ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 8px">QR</button>'+
+          '<button class="pl-share ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 8px">Share</button>'+
+          '<button class="pl-del ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 8px;color:#e84040">×</button>'+
+        '</div>';
+
+      card.querySelector('.pl-copy').addEventListener('click',()=>{
+        navigator.clipboard?.writeText(p.affLink);window.YM_toast?.('Copied!','success');
+      });
+      let qrShown=false;
+      card.querySelector('.pl-qr').addEventListener('click',()=>{
+        const qrEl=card.querySelector('#'+qrId);
+        if(qrShown){qrEl.style.display='none';qrShown=false;return;}
+        qrEl.style.display='block';qrEl.innerHTML='';
+        _generateQR(qrEl,p.affLink);qrShown=true;
+      });
+      card.querySelector('.pl-share').addEventListener('click',()=>{
+        if(navigator.share){navigator.share({title:p.name,text:p.desc||p.name,url:p.affLink}).catch(()=>{});}
+        else{navigator.clipboard?.writeText(p.affLink);window.YM_toast?.('Link copied!','success');}
+      });
+      card.querySelector('.pl-del').addEventListener('click',()=>{
+        if(!confirm('Remove "'+p.name+'"?'))return;
+        saveProducts(loadProducts().filter(x=>x.id!==p.id));render(hdr.querySelector('#ds-filter').value);
+      });
+      list.appendChild(card);
+    });
   }
 
-  hdr.querySelector('#ds-list-search').addEventListener('input',e=>renderProducts(e.target.value));
-  hdr.querySelector('#ds-add-manual').addEventListener('click',()=>_showAddManual(()=>renderProducts('')));
-  renderProducts('');
-}
-
-function _renderProductCard(container,p,onUpdate){
-  const card=document.createElement('div');
-  card.className='ym-card';
-  card.style.cssText='padding:10px';
-
-  // QR code URL
-  const shareUrl=p.affLink;
-
-  card.innerHTML=
-    '<div style="display:flex;gap:10px">'+
-      (p.imageUrl&&p.imageUrl.startsWith('http')
-        ?'<img src="'+esc(p.imageUrl)+'" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0" onerror="this.style.display=\'none\'">'
-        :'<div style="width:56px;height:56px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">'+esc(p.programIcon||'🛒')+'</div>')+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="font-size:10px;color:var(--accent);margin-bottom:1px">'+esc(p.programIcon||'')+'  '+esc(p.program||'')+'</div>'+
-        '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</div>'+
-        (p.price?'<div style="font-size:12px;color:#30e880">'+esc(p.price)+'</div>':'')+
-        (p.desc?'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+esc(p.desc)+'</div>':'')+
-      '</div>'+
-    '</div>'+
-    '<div id="ds-qr-'+p.id+'" style="display:none;margin-top:8px;text-align:center"></div>'+
-    '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+
-      '<a href="'+esc(shareUrl)+'" target="_blank" class="ym-btn ym-btn-accent" style="font-size:11px;padding:4px 12px;text-decoration:none;flex:1;text-align:center">↗ My link</a>'+
-      '<button class="ds-qr-btn ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">QR</button>'+
-      '<button class="ds-share-btn ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">Share</button>'+
-      '<button class="ds-edit-btn ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">✏</button>'+
-      '<button class="ds-del-btn ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px;color:#e84040">×</button>'+
-    '</div>';
-
-  // QR toggle
-  let qrShown=false;
-  card.querySelector('.ds-qr-btn').addEventListener('click',()=>{
-    const qrEl=card.querySelector('#ds-qr-'+p.id);
-    if(qrShown){qrEl.style.display='none';qrShown=false;return;}
-    qrEl.style.display='block';qrEl.innerHTML='';
-    _generateQR(qrEl,shareUrl);
-    qrShown=true;
+  hdr.querySelector('#ds-filter').addEventListener('input',e=>render(e.target.value));
+  hdr.querySelector('#ds-manual').addEventListener('click',()=>{
+    _showManualForm(()=>render(''));
   });
-
-  // Share
-  card.querySelector('.ds-share-btn').addEventListener('click',()=>{
-    if(navigator.share){navigator.share({title:p.name,text:p.desc||p.name,url:shareUrl}).catch(()=>{});}
-    else{navigator.clipboard?.writeText(shareUrl);window.YM_toast?.('Link copied!','success');}
-  });
-
-  // Edit
-  card.querySelector('.ds-edit-btn').addEventListener('click',()=>_showEditProduct(p,onUpdate));
-
-  // Delete
-  card.querySelector('.ds-del-btn').addEventListener('click',()=>{
-    if(!confirm('Remove "'+p.name+'"?'))return;
-    const prods=loadProducts().filter(x=>x.id!==p.id);
-    saveProducts(prods);
-    onUpdate();
-  });
-
-  container.appendChild(card);
+  render('');
 }
 
-function _generateQR(container,url){
-  if(window.QRCode){
-    new window.QRCode(container,{text:url,width:140,height:140,correctLevel:QRCode.CorrectLevel.M});
-    return;
-  }
-  const s=document.createElement('script');
-  s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-  s.onload=()=>{new window.QRCode(container,{text:url,width:140,height:140,correctLevel:QRCode.CorrectLevel.M});};
-  document.head.appendChild(s);
-}
-
-function _showAddManual(onDone){
-  _showProductForm(null,onDone);
-}
-
-function _showEditProduct(p,onDone){
-  _showProductForm(p,onDone);
-}
-
-function _showProductForm(existing,onDone){
+function _showManualForm(onDone){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center';
   const box=document.createElement('div');
   box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto';
   box.innerHTML=
-    '<div style="font-size:14px;font-weight:600;margin-bottom:14px">'+(existing?'Edit Product':'Add Product Manually')+'</div>'+
+    '<div style="font-size:14px;font-weight:600;margin-bottom:14px">Add Manually</div>'+
     '<div style="display:flex;flex-direction:column;gap:8px">'+
-      '<input id="pf-name" class="ym-input" placeholder="Product name *" style="font-size:13px" value="'+esc(existing?existing.name:'')+'">'+
-      '<input id="pf-url" class="ym-input" placeholder="Affiliate link URL *" style="font-size:13px" value="'+esc(existing?existing.affLink:'')+'">'+
-      '<input id="pf-price" class="ym-input" placeholder="Price (e.g. $29.99)" style="font-size:13px" value="'+esc(existing?existing.price:'')+'">'+
-      '<input id="pf-img" class="ym-input" placeholder="Image URL (optional)" style="font-size:13px" value="'+esc(existing?existing.imageUrl:'')+'">'+
-      '<textarea id="pf-desc" class="ym-input" placeholder="Description (optional)" style="height:60px;resize:none;font-size:13px">'+esc(existing?existing.desc:'')+'</textarea>'+
-      '<input id="pf-prog" class="ym-input" placeholder="Program (e.g. Amazon)" style="font-size:13px" value="'+esc(existing?existing.program:'')+'">'+
+      '<input id="mf-name" class="ym-input" placeholder="Product name *" style="font-size:13px">'+
+      '<input id="mf-url" class="ym-input" placeholder="Affiliate link URL *" style="font-size:13px">'+
+      '<input id="mf-price" class="ym-input" placeholder="Price" style="font-size:13px">'+
+      '<input id="mf-img" class="ym-input" placeholder="Image URL" style="font-size:13px">'+
+      '<textarea id="mf-desc" class="ym-input" placeholder="Description" style="height:60px;resize:none;font-size:13px"></textarea>'+
+      '<input id="mf-prog" class="ym-input" placeholder="Program name (e.g. Amazon)" style="font-size:13px">'+
     '</div>'+
     '<div style="display:flex;gap:8px;margin-top:14px">'+
-      '<button id="pf-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
-      '<button id="pf-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
+      '<button id="mf-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
+      '<button id="mf-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
     '</div>';
   overlay.appendChild(box);document.body.appendChild(overlay);
-
-  box.querySelector('#pf-cancel').addEventListener('click',()=>overlay.remove());
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
-  box.querySelector('#pf-save').addEventListener('click',()=>{
-    const name=box.querySelector('#pf-name').value.trim();
-    const affLink=box.querySelector('#pf-url').value.trim();
-    if(!name||!affLink){window.YM_toast?.('Name and URL are required','error');return;}
-    if(existing){
-      const prods=loadProducts();
-      const idx=prods.findIndex(x=>x.id===existing.id);
-      if(idx>=0){
-        prods[idx]={...prods[idx],
-          name,affLink,
-          price:box.querySelector('#pf-price').value.trim(),
-          imageUrl:box.querySelector('#pf-img').value.trim(),
-          desc:box.querySelector('#pf-desc').value.trim(),
-          program:box.querySelector('#pf-prog').value.trim()};
-        saveProducts(prods);
-      }
-    }else{
-      _addProduct({
-        name,affLink,
-        price:box.querySelector('#pf-price').value.trim(),
-        imageUrl:box.querySelector('#pf-img').value.trim(),
-        desc:box.querySelector('#pf-desc').value.trim(),
-        program:box.querySelector('#pf-prog').value.trim(),
-        programIcon:'🛒'
-      });
-    }
-    overlay.remove();
-    onDone&&onDone();
+  box.querySelector('#mf-cancel').addEventListener('click',()=>overlay.remove());
+  box.querySelector('#mf-save').addEventListener('click',()=>{
+    const name=box.querySelector('#mf-name').value.trim();
+    const affLink=box.querySelector('#mf-url').value.trim();
+    if(!name||!affLink){window.YM_toast?.('Name and URL required','error');return;}
+    const products=loadProducts();
+    products.unshift({id:gid(),name,affLink,origUrl:affLink,
+      price:box.querySelector('#mf-price').value.trim(),
+      imageUrl:box.querySelector('#mf-img').value.trim(),
+      desc:box.querySelector('#mf-desc').value.trim(),
+      program:box.querySelector('#mf-prog').value.trim(),
+      programIcon:'🔗',createdAt:Date.now()});
+    saveProducts(products);
+    overlay.remove();onDone&&onDone();
     window.YM_toast?.('Saved','success');
   });
 }
 
-// ── SETTINGS TAB ─────────────────────────────────────────────────────────────
+// ── QR CODE ───────────────────────────────────────────────────────────────────
+function _generateQR(container,url){
+  if(window.QRCode){new window.QRCode(container,{text:url,width:140,height:140,correctLevel:QRCode.CorrectLevel.M});return;}
+  const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.onload=()=>new window.QRCode(container,{text:url,width:140,height:140,correctLevel:QRCode.CorrectLevel.M});
+  document.head.appendChild(s);
+}
+
+// ── SETTINGS TAB ──────────────────────────────────────────────────────────────
 function renderSettings(container){
   container.innerHTML='';
-  container.style.cssText='flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:14px';
-
+  container.style.cssText='flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px';
   const settings=loadSettings();
 
-  // Intro
-  const intro=document.createElement('div');
-  intro.className='ym-notice info';
-  intro.style.cssText='font-size:11px';
-  intro.innerHTML=
-    'Configure your affiliate IDs below. eBay returns real product results directly. '+
-    'Other programs generate a search link with your tag pre-activated.<br>'+
-    '<b>No account yet?</b> Click "Sign up" — it\'s free.';
-  container.appendChild(intro);
-
-  PROGRAMS.forEach(prog=>{
-    const cfg=settings[prog.id]||{};
-    const isActive=Object.values(cfg).some(v=>v);
-
-    const card=document.createElement('div');
-    card.className='ym-card';
-    card.style.cssText='padding:12px';
-
-    let fieldsHtml=prog.fields.map(f=>
-      '<div style="margin-bottom:6px">'+
-        '<label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">'+esc(f.label)+'</label>'+
-        '<input class="ym-input prog-field" data-key="'+f.key+'" placeholder="'+esc(f.placeholder)+'" value="'+esc(cfg[f.key]||'')+'" style="width:100%;font-size:12px;font-family:var(--font-m)">'+
-      '</div>'
-    ).join('');
-
-    card.innerHTML=
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-        '<span style="font-size:20px">'+prog.icon+'</span>'+
-        '<div style="flex:1">'+
-          '<div style="font-size:13px;font-weight:600">'+esc(prog.name)+'</div>'+
-          '<div style="font-size:10px;color:var(--text3)">'+esc(prog.categories)+' · '+esc(prog.commission)+'</div>'+
-        '</div>'+
-        '<div style="width:8px;height:8px;border-radius:50%;background:'+(isActive?'#30e880':'var(--surface3)')+';flex-shrink:0"></div>'+
-      '</div>'+
-      fieldsHtml+
-      '<div style="display:flex;gap:6px;margin-top:6px">'+
-        '<a href="'+esc(prog.signup)+'" target="_blank" class="ym-btn ym-btn-ghost" style="font-size:11px;text-decoration:none;padding:4px 10px">↗ Sign up</a>'+
-        '<button class="prog-save ym-btn ym-btn-accent" style="font-size:11px;flex:1">Save</button>'+
-        (isActive?'<button class="prog-clear ym-btn ym-btn-ghost" style="font-size:11px;color:#e84040">Clear</button>':'')+
-      '</div>';
-
-    card.querySelector('.prog-save').addEventListener('click',()=>{
-      const updated={...settings};
-      updated[prog.id]=updated[prog.id]||{};
-      card.querySelectorAll('.prog-field').forEach(input=>{
-        updated[prog.id][input.dataset.key]=input.value.trim();
-      });
-      saveSettings(updated);
-      window.YM_toast?.('Saved '+prog.name,'success');
-      // Refresh badge
-      const dot=card.querySelector('div[style*="border-radius:50%"]');
-      if(dot){const hasVal=Object.values(updated[prog.id]).some(v=>v);dot.style.background=hasVal?'#30e880':'var(--surface3)';}
+  // Filtre par catégorie
+  const cats=[...new Set(PROGRAMS.map(p=>p.category))];
+  let activeCat='All';
+  const catBar=document.createElement('div');
+  catBar.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px';
+  function renderCats(){
+    catBar.innerHTML='';
+    ['All',...cats].forEach(cat=>{
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-ghost';
+      btn.style.cssText='font-size:10px;padding:3px 8px'+(cat===activeCat?';background:var(--accent);color:#000':'');
+      btn.textContent=cat;
+      btn.addEventListener('click',()=>{activeCat=cat;renderCats();renderPrograms();});
+      catBar.appendChild(btn);
     });
-
-    card.querySelector('.prog-clear')?.addEventListener('click',()=>{
-      const updated={...settings};delete updated[prog.id];saveSettings(updated);
-      renderSettings(container);
-    });
-
-    container.appendChild(card);
-  });
-
-  // Stats
-  const products=loadProducts();
-  if(products.length){
-    const stats=document.createElement('div');
-    stats.className='ym-card';
-    stats.innerHTML=
-      '<div class="ym-card-title">My Stats</div>'+
-      '<div style="display:flex;gap:16px;flex-wrap:wrap">'+
-        '<div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--accent)">'+products.length+'</div><div style="font-size:10px;color:var(--text3)">Products</div></div>'+
-        '<div style="text-align:center"><div style="font-size:22px;font-weight:700;color:var(--accent)">'+[...new Set(products.map(p=>p.program).filter(Boolean))].length+'</div><div style="font-size:10px;color:var(--text3)">Programs</div></div>'+
-      '</div>';
-    container.appendChild(stats);
   }
+  container.appendChild(catBar);
+  renderCats();
+
+  const progList=document.createElement('div');
+  progList.style.cssText='display:flex;flex-direction:column;gap:10px';
+  container.appendChild(progList);
+
+  function renderPrograms(){
+    progList.innerHTML='';
+    const filtered=PROGRAMS.filter(p=>activeCat==='All'||p.category===activeCat);
+    filtered.forEach(prog=>{
+      const cfg=settings[prog.id]||{};
+      const isActive=Object.values(cfg).some(v=>v);
+      const card=document.createElement('div');card.className='ym-card';card.style.cssText='padding:12px';
+      card.innerHTML=
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+          '<span style="font-size:20px">'+prog.icon+'</span>'+
+          '<div style="flex:1">'+
+            '<div style="font-size:13px;font-weight:600">'+esc(prog.name)+'</div>'+
+            '<div style="font-size:10px;color:var(--text3)">'+esc(prog.category)+' · '+esc(prog.commission)+'</div>'+
+          '</div>'+
+          '<div style="width:8px;height:8px;border-radius:50%;background:'+(isActive?'#30e880':'var(--surface3)')+';flex-shrink:0"></div>'+
+        '</div>'+
+        prog.fields.map(f=>
+          '<div style="margin-bottom:6px">'+
+            '<label style="font-size:10px;color:var(--text3);display:block;margin-bottom:3px">'+esc(f.label)+(f.tip?'<span style="color:var(--text3)"> — '+esc(f.tip)+'</span>':'')+'</label>'+
+            '<input class="pf-field ym-input" data-key="'+f.key+'" placeholder="'+esc(f.placeholder)+'" value="'+esc(cfg[f.key]||'')+'" style="width:100%;font-size:12px;font-family:var(--font-m)">'+
+          '</div>'
+        ).join('')+
+        '<div style="display:flex;gap:6px;margin-top:6px">'+
+          (prog.signup?'<a href="'+esc(prog.signup)+'" target="_blank" class="ym-btn ym-btn-ghost" style="font-size:11px;text-decoration:none;padding:4px 10px">↗ Sign up</a>':'')+
+          '<button class="pf-save ym-btn ym-btn-accent" style="font-size:11px;flex:1">Save</button>'+
+          (isActive?'<button class="pf-clear ym-btn ym-btn-ghost" style="font-size:11px;color:#e84040">Clear</button>':'')+
+        '</div>';
+
+      card.querySelector('.pf-save').addEventListener('click',()=>{
+        const updated={...settings};updated[prog.id]=updated[prog.id]||{};
+        card.querySelectorAll('.pf-field').forEach(inp=>{updated[prog.id][inp.dataset.key]=inp.value.trim();});
+        saveSettings(updated);
+        window.YM_toast?.('Saved '+prog.name,'success');
+        const dot=card.querySelector('div[style*="border-radius:50%"]');
+        if(dot){dot.style.background=Object.values(updated[prog.id]).some(v=>v)?'#30e880':'var(--surface3)';}
+      });
+      card.querySelector('.pf-clear')?.addEventListener('click',()=>{
+        const updated={...settings};delete updated[prog.id];saveSettings(updated);
+        renderPrograms();
+      });
+      progList.appendChild(card);
+    });
+  }
+  renderPrograms();
 }
 
 // ── SPHERE ────────────────────────────────────────────────────────────────────
 window.YM_S['dropsharing.sphere.js']={
-  name:'Dropsharing',
-  icon:'🔗',
-  category:'Commerce',
-  description:'Find affiliate products, build your list, share & earn commissions',
+  name:'Dropsharing',icon:'🔗',category:'Commerce',
+  description:'Paste any product URL → instant affiliate link → share & earn',
   emit:[],receive:[],
-
   activate(ctx){
-    const prods=loadProducts();
-    if(prods.length)ctx.setNotification(prods.length);
+    const n=loadProducts().length;if(n>0)ctx.setNotification(n);
   },
   deactivate(){},
   renderPanel,
-
   profileSection(container){
-    const prods=loadProducts();
-    if(!prods.length)return;
+    const prods=loadProducts();if(!prods.length)return;
     const el=document.createElement('div');
-    el.style.cssText='display:flex;flex-direction:column;gap:4px';
-    el.innerHTML='<div style="font-size:10px;color:var(--text3);margin-bottom:2px">My affiliate picks</div>';
+    el.innerHTML='<div style="font-size:10px;color:var(--text3);margin-bottom:4px">My affiliate picks</div>';
     prods.slice(0,3).forEach(p=>{
-      const row=document.createElement('a');
-      row.href=p.affLink;row.target='_blank';
-      row.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);text-decoration:none;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)';
-      row.innerHTML='<span>'+esc(p.programIcon||'🛒')+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span>'+(p.price?'<span style="color:#30e880;font-size:11px">'+esc(p.price)+'</span>':'');
-      el.appendChild(row);
+      const a=document.createElement('a');a.href=p.affLink;a.target='_blank';
+      a.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);text-decoration:none;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)';
+      a.innerHTML='<span>'+esc(p.programIcon||'🔗')+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span>'+(p.price?'<span style="color:#30e880;font-size:11px">'+esc(p.price)+'</span>':'');
+      el.appendChild(a);
     });
-    if(prods.length>3){
-      const more=document.createElement('div');
-      more.style.cssText='font-size:10px;color:var(--text3);margin-top:2px';
-      more.textContent='+ '+(prods.length-3)+' more';
-      el.appendChild(more);
-    }
+    if(prods.length>3){const m=document.createElement('div');m.style.cssText='font-size:10px;color:var(--text3)';m.textContent='+'+(prods.length-3)+' more';el.appendChild(m);}
     container.appendChild(el);
   },
-
-  peerSection(container,ctx){
-    const el=document.createElement('div');
-    el.style.cssText='font-size:11px;color:var(--text3)';
-    el.textContent='🔗 Uses Dropsharing';
-    container.appendChild(el);
+  peerSection(container){
+    const el=document.createElement('div');el.style.cssText='font-size:11px;color:var(--text3)';el.textContent='🔗 Uses Dropsharing';container.appendChild(el);
   }
 };
 })();
