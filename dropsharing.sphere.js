@@ -365,7 +365,7 @@ function renderPanel(container){
   const tabs=document.createElement('div');
   tabs.className='ym-tabs';
   tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);margin:0;flex-shrink:0';
-  [['add','➕ Add'],['list','📋 List'],['settings','⚙ Config']].forEach(([id,label])=>{
+  [['add','➕ Add'],['list','📋 List']].forEach(([id,label])=>{
     const t=document.createElement('div');
     t.className='ym-tab'+(_activeTab===id?' active':'');
     t.dataset.tab=id;t.textContent=label;
@@ -374,15 +374,13 @@ function renderPanel(container){
       tabs.querySelectorAll('.ym-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));
       track.innerHTML='';
       if(id==='add')renderAdd(track);
-      else if(id==='list')renderList(track);
-      else renderSettings(track);
+      else renderList(track);
     });
     tabs.appendChild(t);
   });
   container.appendChild(tabs);
   if(_activeTab==='add')renderAdd(track);
-  else if(_activeTab==='list')renderList(track);
-  else renderSettings(track);
+  else renderList(track);
 }
 
 // ── ADD TAB ───────────────────────────────────────────────────────────────────
@@ -732,113 +730,218 @@ window.YM_S['dropsharing.sphere.js']={
     const meta=loadListMeta();
     const folders=loadFolders();
     const prods=loadProducts();
-
     const wrap=document.createElement('div');
-    wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
+    wrap.style.cssText='display:flex;flex-direction:column;gap:10px';
 
-    // Bandeau + titre
+    // ── Bandeau + titre ───────────────────────────────────────────────────
     const header=document.createElement('div');
-    header.style.cssText='position:relative;border-radius:10px;overflow:hidden;min-height:60px;background:var(--surface3)';
-    if(meta.banner&&meta.banner.startsWith('http')){
+    header.style.cssText='position:relative;border-radius:10px;overflow:hidden;min-height:70px;background:var(--surface3);cursor:pointer';
+    if(meta.banner){
       header.style.backgroundImage='url('+meta.banner+')';
-      header.style.backgroundSize='cover';
-      header.style.backgroundPosition='center';
+      header.style.backgroundSize='cover';header.style.backgroundPosition='center';
     }
     header.innerHTML=
-      '<div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.6))"></div>'+
-      '<div style="position:relative;padding:12px;display:flex;align-items:flex-end;justify-content:space-between;min-height:60px">'+
+      '<div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.65))"></div>'+
+      '<div style="position:relative;padding:12px;display:flex;align-items:flex-end;justify-content:space-between;min-height:70px">'+
         '<div style="font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5)">'+esc(meta.title||'My Picks')+'</div>'+
-        '<button id="ds-ps-edit" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:3px 8px;background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.3)">✏ Edit</button>'+
+        '<div style="display:flex;gap:6px">'+
+          '<button id="ds-ps-banner" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:3px 8px;background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.3)">🖼 Banner</button>'+
+          '<button id="ds-ps-edit" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:3px 8px;background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.3)">✏ Edit</button>'+
+        '</div>'+
       '</div>';
     wrap.appendChild(header);
 
-    // Dossiers + produits
-    if(!prods.length){
-      const empty=document.createElement('div');
-      empty.style.cssText='font-size:11px;color:var(--text3);padding:8px 0';
-      empty.textContent='No affiliate products yet. Go to 🔗 Dropsharing → ➕ Add.';
-      wrap.appendChild(empty);
-    }else{
-      // Produits sans dossier
-      const unfoldered=prods.filter(function(p){return !p.folderId;});
-      if(unfoldered.length){
-        _renderProductsMini(wrap,unfoldered,null);
-      }
-      // Dossiers
-      folders.forEach(function(f){
-        const folderProds=prods.filter(function(p){return p.folderId===f.id;});
-        if(!folderProds.length)return;
-        const fWrap=document.createElement('div');
-        fWrap.style.cssText='border:1px solid var(--border);border-radius:8px;overflow:hidden';
-        const fHdr=document.createElement('div');
-        fHdr.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.03);cursor:pointer';
-        fHdr.innerHTML='<span>📁</span><span style="font-size:12px;font-weight:600;flex:1">'+esc(f.name)+'</span><span style="font-size:10px;color:var(--text3)">'+folderProds.length+'</span><span class="f-arrow" style="font-size:10px;color:var(--text3)">›</span>';
-        const fBody=document.createElement('div');
-        fBody.style.display='none';fBody.style.padding='0 8px 8px';
-        _renderProductsMini(fBody,folderProds,f.id);
-        fHdr.addEventListener('click',function(){
-          const open=fBody.style.display!=='none';
-          fBody.style.display=open?'none':'block';
-          fHdr.querySelector('.f-arrow').textContent=open?'›':'⌄';
-        });
-        fWrap.appendChild(fHdr);fWrap.appendChild(fBody);
-        wrap.appendChild(fWrap);
+    // Upload bannière
+    header.querySelector('#ds-ps-banner').addEventListener('click',function(e){
+      e.stopPropagation();
+      const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+      inp.addEventListener('change',function(){
+        const file=inp.files[0];if(!file)return;
+        const reader=new FileReader();
+        reader.onload=function(ev){
+          saveListMeta({...loadListMeta(),banner:ev.target.result});
+          header.style.backgroundImage='url('+ev.target.result+')';
+          window.YM_toast&&window.YM_toast('Banner updated','success');
+        };
+        reader.readAsDataURL(file);
       });
-    }
+      inp.click();
+    });
 
-    // Bouton gérer les dossiers
-    const mgr=document.createElement('button');
-    mgr.className='ym-btn ym-btn-ghost';
-    mgr.style.cssText='font-size:11px;width:100%';
-    mgr.textContent='📁 Manage folders';
-    mgr.addEventListener('click',function(){_showFolderManager(function(){
-      wrap.remove();
-      var newWrap=document.createElement('div');
-      container.appendChild(newWrap);
-      window.YM_S['dropsharing.sphere.js'].profileSection(newWrap);
-    });});
-    wrap.appendChild(mgr);
-
-    // Edit meta (titre + bandeau)
-    wrap.querySelector('#ds-ps-edit').addEventListener('click',function(){
+    // Edit titre
+    header.querySelector('#ds-ps-edit').addEventListener('click',function(e){
+      e.stopPropagation();
       var overlay=document.createElement('div');
       overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center';
       var box=document.createElement('div');
       box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px;width:100%;max-width:500px';
       var m=loadListMeta();
       box.innerHTML=
-        '<div style="font-size:14px;font-weight:600;margin-bottom:12px">Customize my list</div>'+
-        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">List title</label>'+
-        '<input id="ds-meta-title" class="ym-input" style="width:100%;font-size:13px;margin-bottom:10px" value="'+esc(m.title||'My Picks')+'">'+
-        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Banner image URL</label>'+
-        '<input id="ds-meta-banner" class="ym-input" style="width:100%;font-size:13px;margin-bottom:14px" placeholder="https://…" value="'+esc(m.banner||'')+'">'+
+        '<div style="font-size:14px;font-weight:600;margin-bottom:12px">List title</div>'+
+        '<input id="ds-meta-title" class="ym-input" style="width:100%;font-size:13px;margin-bottom:14px" value="'+esc(m.title||'My Picks')+'">'+
         '<div style="display:flex;gap:8px">'+
           '<button id="ds-meta-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
           '<button id="ds-meta-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
         '</div>';
       overlay.appendChild(box);document.body.appendChild(overlay);
-      overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
+      overlay.addEventListener('click',function(ev){if(ev.target===overlay)overlay.remove();});
       box.querySelector('#ds-meta-cancel').addEventListener('click',function(){overlay.remove();});
       box.querySelector('#ds-meta-save').addEventListener('click',function(){
-        saveListMeta({title:box.querySelector('#ds-meta-title').value.trim()||'My Picks',banner:box.querySelector('#ds-meta-banner').value.trim()});
+        saveListMeta({...loadListMeta(),title:box.querySelector('#ds-meta-title').value.trim()||'My Picks'});
         overlay.remove();
-        // Rerender
         wrap.remove();var nw=document.createElement('div');container.appendChild(nw);
         window.YM_S['dropsharing.sphere.js'].profileSection(nw);
       });
     });
 
+    // ── Config comptes affiliés ────────────────────────────────────────────
+    const cfgBtn=document.createElement('button');
+    cfgBtn.className='ym-btn ym-btn-ghost';cfgBtn.style.cssText='width:100%;font-size:12px';
+    cfgBtn.textContent='⚙ Configure affiliate accounts ('+Object.keys(loadSettings()).filter(k=>Object.values(loadSettings()[k]||{}).some(v=>v)).length+' active)';
+    cfgBtn.addEventListener('click',function(){_showAffiliateConfig(function(){
+      cfgBtn.textContent='⚙ Configure affiliate accounts ('+Object.keys(loadSettings()).filter(k=>Object.values(loadSettings()[k]||{}).some(v=>v)).length+' active)';
+    });});
+    wrap.appendChild(cfgBtn);
+
+    // ── Produits + dossiers ────────────────────────────────────────────────
+    if(!prods.length){
+      var empty=document.createElement('div');empty.style.cssText='font-size:11px;color:var(--text3)';
+      empty.textContent='No affiliate products yet. Open 🔗 Dropsharing → ➕ Add.';
+      wrap.appendChild(empty);
+    }else{
+      var unfoldered=prods.filter(function(p){return !p.folderId;});
+      if(unfoldered.length)_renderProductsMini(wrap,unfoldered,null);
+      folders.forEach(function(f){
+        var fp=prods.filter(function(p){return p.folderId===f.id;});
+        if(!fp.length)return;
+        var fWrap=document.createElement('div');
+        fWrap.style.cssText='border:1px solid var(--border);border-radius:8px;overflow:hidden';
+        var fHdr=document.createElement('div');
+        fHdr.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(255,255,255,.03);cursor:pointer';
+        fHdr.innerHTML='<span>📁</span><span style="font-size:12px;font-weight:600;flex:1">'+esc(f.name)+'</span><span style="font-size:10px;color:var(--text3)">'+fp.length+'</span><span class="fa" style="font-size:10px;color:var(--text3)">›</span>';
+        var fBody=document.createElement('div');fBody.style.cssText='display:none;padding:0 8px 8px';
+        _renderProductsMini(fBody,fp,f.id);
+        fHdr.addEventListener('click',function(){var open=fBody.style.display!=='none';fBody.style.display=open?'none':'block';fHdr.querySelector('.fa').textContent=open?'›':'⌄';});
+        fWrap.appendChild(fHdr);fWrap.appendChild(fBody);wrap.appendChild(fWrap);
+      });
+
+      var folderBtn=document.createElement('button');
+      folderBtn.className='ym-btn ym-btn-ghost';folderBtn.style.cssText='font-size:11px;width:100%';
+      folderBtn.textContent='📁 Manage folders';
+      folderBtn.addEventListener('click',function(){_showFolderManager(function(){
+        wrap.remove();var nw=document.createElement('div');container.appendChild(nw);
+        window.YM_S['dropsharing.sphere.js'].profileSection(nw);
+      });});
+      wrap.appendChild(folderBtn);
+    }
+
     container.appendChild(wrap);
   },
 
-  // ── Vue peer dans fiche profil ─────────────────────────────────────────────
   peerSection(container,ctx){
-    const el=document.createElement('div');
-    el.style.cssText='font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px';
-    el.innerHTML='<span>🔗</span><span>Has a Dropsharing list</span>';
-    container.appendChild(el);
+    // Vue visiteur : bannière + liste produits
+    const meta=loadListMeta();
+    const prods=loadProducts();
+    const folders=loadFolders();
+    if(!prods.length){
+      var el=document.createElement('div');el.style.cssText='font-size:11px;color:var(--text3)';el.textContent='🔗 No products shared yet.';container.appendChild(el);return;
+    }
+    const wrap=document.createElement('div');wrap.style.cssText='display:flex;flex-direction:column;gap:6px';
+    // Mini bannière
+    const hdr=document.createElement('div');
+    hdr.style.cssText='border-radius:8px;overflow:hidden;min-height:48px;background:var(--surface3);position:relative';
+    if(meta.banner){hdr.style.backgroundImage='url('+meta.banner+')';hdr.style.backgroundSize='cover';hdr.style.backgroundPosition='center';}
+    hdr.innerHTML='<div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.6))"></div>'+
+      '<div style="position:relative;padding:8px 10px;font-size:13px;font-weight:700;color:#fff">'+esc(meta.title||'My Picks')+'</div>';
+    wrap.appendChild(hdr);
+    var unfoldered=prods.filter(function(p){return !p.folderId;});
+    if(unfoldered.length)_renderProductsMini(wrap,unfoldered,null);
+    folders.forEach(function(f){
+      var fp=prods.filter(function(p){return p.folderId===f.id;});
+      if(!fp.length)return;
+      var row=document.createElement('div');row.style.cssText='font-size:11px;color:var(--text3);padding:4px 0';row.textContent='📁 '+f.name+' ('+fp.length+')';
+      wrap.appendChild(row);
+      _renderProductsMini(wrap,fp,f.id);
+    });
+    container.appendChild(wrap);
   }
 };
+
+function _showAffiliateConfig(onDone){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center';
+  var box=document.createElement('div');
+  box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column';
+  overlay.appendChild(box);document.body.appendChild(overlay);
+  overlay.addEventListener('click',function(e){if(e.target===overlay){overlay.remove();if(onDone)onDone();}});
+
+  var inner=document.createElement('div');
+  inner.style.cssText='flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px';
+  box.innerHTML=
+    '<div style="display:flex;align-items:center;padding:16px 16px 0">'+
+      '<div style="font-size:14px;font-weight:600;flex:1">Affiliate Accounts</div>'+
+      '<button id="aff-close" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:0">✕</button>'+
+    '</div>';
+  box.querySelector('#aff-close').addEventListener('click',function(){overlay.remove();if(onDone)onDone();});
+  box.appendChild(inner);
+
+  var settings=loadSettings();
+  var cats=[...new Set(PROGRAMS.map(function(p){return p.category;}))];
+  var activeCat='All';
+
+  function renderCats(){
+    var catBar=inner.querySelector('#aff-catbar')||document.createElement('div');
+    catBar.id='aff-catbar';catBar.style.cssText='display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px;flex-shrink:0';
+    catBar.innerHTML='';
+    ['All',...cats].forEach(function(cat){
+      var btn=document.createElement('button');btn.className='ym-btn ym-btn-ghost';
+      btn.style.cssText='font-size:10px;padding:2px 8px'+(cat===activeCat?';background:var(--accent);color:#000':'');
+      btn.textContent=cat;
+      btn.addEventListener('click',function(){activeCat=cat;renderProgs();});
+      catBar.appendChild(btn);
+    });
+    if(!inner.querySelector('#aff-catbar'))inner.appendChild(catBar);
+  }
+
+  var progContainer=document.createElement('div');progContainer.style.cssText='display:flex;flex-direction:column;gap:8px';
+  inner.appendChild(progContainer);
+
+  function renderProgs(){
+    renderCats();
+    progContainer.innerHTML='';
+    PROGRAMS.filter(function(p){return activeCat==='All'||p.category===activeCat;}).forEach(function(prog){
+      var cfg=settings[prog.id]||{};
+      var isActive=Object.values(cfg).some(function(v){return v;});
+      var card=document.createElement('div');card.className='ym-card';card.style.cssText='padding:10px';
+      card.innerHTML=
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+          '<span style="font-size:18px">'+prog.icon+'</span>'+
+          '<div style="flex:1"><div style="font-size:12px;font-weight:600">'+esc(prog.name)+'</div>'+
+          '<div style="font-size:10px;color:var(--text3)">'+esc(prog.category)+' · '+esc(prog.commission)+'</div></div>'+
+          '<div style="width:7px;height:7px;border-radius:50%;background:'+(isActive?'#30e880':'var(--surface3)')+'"></div>'+
+        '</div>'+
+        prog.fields.map(function(f){return '<div style="margin-bottom:5px"><label style="font-size:10px;color:var(--text3);display:block;margin-bottom:2px">'+esc(f.label)+'</label>'+
+          '<input class="pf-field ym-input" data-key="'+f.key+'" placeholder="'+esc(f.placeholder)+'" value="'+esc(cfg[f.key]||'')+'" style="width:100%;font-size:11px;font-family:var(--font-m)"></div>';}).join('')+
+        '<div style="display:flex;gap:5px;margin-top:4px">'+
+          (prog.signup?'<a href="'+esc(prog.signup)+'" target="_blank" class="ym-btn ym-btn-ghost" style="font-size:10px;text-decoration:none;padding:3px 8px">↗ Sign up</a>':'')+
+          '<button class="pf-save ym-btn ym-btn-accent" style="font-size:11px;flex:1">Save</button>'+
+          (isActive?'<button class="pf-clear ym-btn ym-btn-ghost" style="font-size:10px;color:#e84040;padding:3px 8px">×</button>':'')+
+        '</div>';
+      card.querySelector('.pf-save').addEventListener('click',function(){
+        settings=loadSettings();settings[prog.id]=settings[prog.id]||{};
+        card.querySelectorAll('.pf-field').forEach(function(inp){settings[prog.id][inp.dataset.key]=inp.value.trim();});
+        saveSettings(settings);
+        window.YM_toast&&window.YM_toast('Saved '+prog.name,'success');
+        renderProgs();
+      });
+      card.querySelector('.pf-clear')&&card.querySelector('.pf-clear').addEventListener('click',function(){
+        settings=loadSettings();delete settings[prog.id];saveSettings(settings);renderProgs();
+      });
+      progContainer.appendChild(card);
+    });
+  }
+  renderProgs();
+}
 
 function _renderProductsMini(container,prods,folderId){
   prods.slice(0,6).forEach(function(p){
