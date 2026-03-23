@@ -8,7 +8,7 @@ const CIRCLES_KEY  = 'ym_act_circles_v1';
 const ANCHORS_KEY  = 'ym_act_anchors_v1';
 const SETTINGS_KEY = 'ym_act_settings_v1';
 
-let _ctx=null, _map=null, _myLat=null, _myLng=null;
+let _ctx=null, _map=null, _myLat=null, _myLng=null, _watchId=null;
 
 function loadCircles(){try{return JSON.parse(localStorage.getItem(CIRCLES_KEY)||'[]');}catch(e){return[];}}
 function saveCircles(d){localStorage.setItem(CIRCLES_KEY,JSON.stringify(d));}
@@ -722,23 +722,27 @@ window.YM_S['activity.sphere.js']={
 
   activate(ctx){
     _ctx=ctx;
-    // Géolocalise dès l'activation et met à jour l'anchor
     function updatePos(pos){
       _myLat=pos.coords.latitude;_myLng=pos.coords.longitude;
-      // Met à jour l'anchor existant avec la nouvelle position
       var anchors=loadAnchors();
       if(anchors.length){
         anchors[0].lat=_myLat;anchors[0].lng=_myLng;anchors[0].updated=Date.now();
         saveAnchors(anchors);
       }
     }
-    navigator.geolocation?.getCurrentPosition(updatePos,null,{enableHighAccuracy:true,timeout:8000});
-    // Suivi continu
-    _watchId=navigator.geolocation?.watchPosition(updatePos,null,{enableHighAccuracy:true,maximumAge:30000});
+    function onGeoError(){}
+    // Géoloc non bloquante — ne bloque pas l'activation des autres sphères
+    try{
+      if(navigator.geolocation){
+        navigator.geolocation.getCurrentPosition(updatePos,onGeoError,{enableHighAccuracy:true,timeout:8000});
+        if(_watchId!=null){navigator.geolocation.clearWatch(_watchId);_watchId=null;}
+        _watchId=navigator.geolocation.watchPosition(updatePos,onGeoError,{enableHighAccuracy:false,maximumAge:60000,timeout:15000});
+      }
+    }catch(e){}
   },
 
   deactivate(){
-    if(_watchId!=null){navigator.geolocation?.clearWatch(_watchId);_watchId=null;}
+    try{if(_watchId!=null&&navigator.geolocation){navigator.geolocation.clearWatch(_watchId);_watchId=null;}}catch(e){}
     _ctx=null;
     if(_map){try{_map.remove();}catch(e){}_map=null;}
   },
