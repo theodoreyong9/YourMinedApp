@@ -700,31 +700,241 @@ function renderSettings(container){
   renderPrograms();
 }
 
+// ── LISTE CONFIG (titre + bandeau + dossiers) ─────────────────────────────
+const LIST_META_KEY='ym_drop_listmeta_v1';
+const FOLDERS_KEY='ym_drop_folders_v1';
+function loadListMeta(){try{return JSON.parse(localStorage.getItem(LIST_META_KEY)||'{"title":"My Picks","banner":""}');}catch(e){return{title:'My Picks',banner:''};}}
+function saveListMeta(d){localStorage.setItem(LIST_META_KEY,JSON.stringify(d));}
+function loadFolders(){try{return JSON.parse(localStorage.getItem(FOLDERS_KEY)||'[]');}catch(e){return[];}}
+function saveFolders(d){localStorage.setItem(FOLDERS_KEY,JSON.stringify(d));}
+
+// Assigne un produit à un dossier
+function setProductFolder(productId,folderId){
+  var prods=loadProducts();
+  var p=prods.find(function(x){return x.id===productId;});
+  if(p){p.folderId=folderId;saveProducts(prods);}
+}
+
 // ── SPHERE ────────────────────────────────────────────────────────────────────
 window.YM_S['dropsharing.sphere.js']={
   name:'Dropsharing',icon:'🔗',category:'Commerce',
   description:'Paste any product URL → instant affiliate link → share & earn',
   emit:[],receive:[],
+
   activate(ctx){
     const n=loadProducts().length;if(n>0)ctx.setNotification(n);
   },
   deactivate(){},
   renderPanel,
+
+  // ── Config liste dans le profil ───────────────────────────────────────────
   profileSection(container){
-    const prods=loadProducts();if(!prods.length)return;
-    const el=document.createElement('div');
-    el.innerHTML='<div style="font-size:10px;color:var(--text3);margin-bottom:4px">My affiliate picks</div>';
-    prods.slice(0,3).forEach(p=>{
-      const a=document.createElement('a');a.href=p.affLink;a.target='_blank';
-      a.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);text-decoration:none;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)';
-      a.innerHTML='<span>'+esc(p.programIcon||'🔗')+'</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span>'+(p.price?'<span style="color:#30e880;font-size:11px">'+esc(p.price)+'</span>':'');
-      el.appendChild(a);
+    const meta=loadListMeta();
+    const folders=loadFolders();
+    const prods=loadProducts();
+
+    const wrap=document.createElement('div');
+    wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
+
+    // Bandeau + titre
+    const header=document.createElement('div');
+    header.style.cssText='position:relative;border-radius:10px;overflow:hidden;min-height:60px;background:var(--surface3)';
+    if(meta.banner&&meta.banner.startsWith('http')){
+      header.style.backgroundImage='url('+meta.banner+')';
+      header.style.backgroundSize='cover';
+      header.style.backgroundPosition='center';
+    }
+    header.innerHTML=
+      '<div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.1),rgba(0,0,0,.6))"></div>'+
+      '<div style="position:relative;padding:12px;display:flex;align-items:flex-end;justify-content:space-between;min-height:60px">'+
+        '<div style="font-size:15px;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5)">'+esc(meta.title||'My Picks')+'</div>'+
+        '<button id="ds-ps-edit" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:3px 8px;background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.3)">✏ Edit</button>'+
+      '</div>';
+    wrap.appendChild(header);
+
+    // Dossiers + produits
+    if(!prods.length){
+      const empty=document.createElement('div');
+      empty.style.cssText='font-size:11px;color:var(--text3);padding:8px 0';
+      empty.textContent='No affiliate products yet. Go to 🔗 Dropsharing → ➕ Add.';
+      wrap.appendChild(empty);
+    }else{
+      // Produits sans dossier
+      const unfoldered=prods.filter(function(p){return !p.folderId;});
+      if(unfoldered.length){
+        _renderProductsMini(wrap,unfoldered,null);
+      }
+      // Dossiers
+      folders.forEach(function(f){
+        const folderProds=prods.filter(function(p){return p.folderId===f.id;});
+        if(!folderProds.length)return;
+        const fWrap=document.createElement('div');
+        fWrap.style.cssText='border:1px solid var(--border);border-radius:8px;overflow:hidden';
+        const fHdr=document.createElement('div');
+        fHdr.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.03);cursor:pointer';
+        fHdr.innerHTML='<span>📁</span><span style="font-size:12px;font-weight:600;flex:1">'+esc(f.name)+'</span><span style="font-size:10px;color:var(--text3)">'+folderProds.length+'</span><span class="f-arrow" style="font-size:10px;color:var(--text3)">›</span>';
+        const fBody=document.createElement('div');
+        fBody.style.display='none';fBody.style.padding='0 8px 8px';
+        _renderProductsMini(fBody,folderProds,f.id);
+        fHdr.addEventListener('click',function(){
+          const open=fBody.style.display!=='none';
+          fBody.style.display=open?'none':'block';
+          fHdr.querySelector('.f-arrow').textContent=open?'›':'⌄';
+        });
+        fWrap.appendChild(fHdr);fWrap.appendChild(fBody);
+        wrap.appendChild(fWrap);
+      });
+    }
+
+    // Bouton gérer les dossiers
+    const mgr=document.createElement('button');
+    mgr.className='ym-btn ym-btn-ghost';
+    mgr.style.cssText='font-size:11px;width:100%';
+    mgr.textContent='📁 Manage folders';
+    mgr.addEventListener('click',function(){_showFolderManager(function(){
+      wrap.remove();
+      var newWrap=document.createElement('div');
+      container.appendChild(newWrap);
+      window.YM_S['dropsharing.sphere.js'].profileSection(newWrap);
+    });});
+    wrap.appendChild(mgr);
+
+    // Edit meta (titre + bandeau)
+    wrap.querySelector('#ds-ps-edit').addEventListener('click',function(){
+      var overlay=document.createElement('div');
+      overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center';
+      var box=document.createElement('div');
+      box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px;width:100%;max-width:500px';
+      var m=loadListMeta();
+      box.innerHTML=
+        '<div style="font-size:14px;font-weight:600;margin-bottom:12px">Customize my list</div>'+
+        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">List title</label>'+
+        '<input id="ds-meta-title" class="ym-input" style="width:100%;font-size:13px;margin-bottom:10px" value="'+esc(m.title||'My Picks')+'">'+
+        '<label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Banner image URL</label>'+
+        '<input id="ds-meta-banner" class="ym-input" style="width:100%;font-size:13px;margin-bottom:14px" placeholder="https://…" value="'+esc(m.banner||'')+'">'+
+        '<div style="display:flex;gap:8px">'+
+          '<button id="ds-meta-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
+          '<button id="ds-meta-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
+        '</div>';
+      overlay.appendChild(box);document.body.appendChild(overlay);
+      overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
+      box.querySelector('#ds-meta-cancel').addEventListener('click',function(){overlay.remove();});
+      box.querySelector('#ds-meta-save').addEventListener('click',function(){
+        saveListMeta({title:box.querySelector('#ds-meta-title').value.trim()||'My Picks',banner:box.querySelector('#ds-meta-banner').value.trim()});
+        overlay.remove();
+        // Rerender
+        wrap.remove();var nw=document.createElement('div');container.appendChild(nw);
+        window.YM_S['dropsharing.sphere.js'].profileSection(nw);
+      });
     });
-    if(prods.length>3){const m=document.createElement('div');m.style.cssText='font-size:10px;color:var(--text3)';m.textContent='+'+(prods.length-3)+' more';el.appendChild(m);}
-    container.appendChild(el);
+
+    container.appendChild(wrap);
   },
-  peerSection(container){
-    const el=document.createElement('div');el.style.cssText='font-size:11px;color:var(--text3)';el.textContent='🔗 Uses Dropsharing';container.appendChild(el);
+
+  // ── Vue peer dans fiche profil ─────────────────────────────────────────────
+  peerSection(container,ctx){
+    const el=document.createElement('div');
+    el.style.cssText='font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px';
+    el.innerHTML='<span>🔗</span><span>Has a Dropsharing list</span>';
+    container.appendChild(el);
   }
 };
+
+function _renderProductsMini(container,prods,folderId){
+  prods.slice(0,6).forEach(function(p){
+    var a=document.createElement('a');a.href=p.affLink;a.target='_blank';
+    a.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,.04);text-decoration:none;cursor:pointer';
+    a.innerHTML=
+      (p.imageUrl&&p.imageUrl.startsWith('http')
+        ?'<img src="'+esc(p.imageUrl)+'" style="width:32px;height:32px;object-fit:cover;border-radius:5px;flex-shrink:0" onerror="this.style.display=\'none\'">'
+        :'<div style="width:32px;height:32px;border-radius:5px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">'+esc(p.programIcon||'🔗')+'</div>')+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</div>'+
+        (p.price?'<div style="font-size:10px;color:#30e880">'+esc(p.price)+'</div>':'')+
+      '</div>'+
+      '<span style="font-size:10px;color:var(--accent)">→</span>';
+    container.appendChild(a);
+  });
+  if(prods.length>6){
+    var more=document.createElement('div');
+    more.style.cssText='font-size:10px;color:var(--text3);padding:4px';
+    more.textContent='+'+(prods.length-6)+' more';
+    container.appendChild(more);
+  }
+}
+
+function _showFolderManager(onDone){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center';
+  var box=document.createElement('div');
+  box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto';
+  overlay.appendChild(box);document.body.appendChild(overlay);
+  overlay.addEventListener('click',function(e){if(e.target===overlay){overlay.remove();onDone&&onDone();}});
+
+  function renderMgr(){
+    box.innerHTML='<div style="font-size:14px;font-weight:600;margin-bottom:12px">Manage Folders</div>';
+    var folders=loadFolders();
+    var prods=loadProducts();
+
+    // Nouvelle dossier
+    var addRow=document.createElement('div');
+    addRow.style.cssText='display:flex;gap:6px;margin-bottom:12px';
+    addRow.innerHTML=
+      '<input id="fm-new" class="ym-input" placeholder="New folder name…" style="flex:1;font-size:12px">'+
+      '<button id="fm-add" class="ym-btn ym-btn-accent" style="font-size:12px">+ Add</button>';
+    addRow.querySelector('#fm-add').addEventListener('click',function(){
+      var name=addRow.querySelector('#fm-new').value.trim();
+      if(!name)return;
+      var f=loadFolders();f.push({id:gid(),name:name});saveFolders(f);
+      addRow.querySelector('#fm-new').value='';renderMgr();
+    });
+    box.appendChild(addRow);
+
+    // Liste dossiers avec leurs produits
+    folders.forEach(function(f){
+      var fCard=document.createElement('div');fCard.className='ym-card';fCard.style.cssText='margin-bottom:8px;padding:10px';
+      fCard.innerHTML=
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+          '<span>📁</span>'+
+          '<span style="font-size:13px;font-weight:600;flex:1">'+esc(f.name)+'</span>'+
+          '<button data-delf="'+f.id+'" class="ym-btn ym-btn-ghost" style="font-size:11px;color:#e84040;padding:2px 8px">Delete</button>'+
+        '</div>';
+      var folderProds=prods.filter(function(p){return p.folderId===f.id;});
+      var unfoldered=prods.filter(function(p){return !p.folderId;});
+      // Produits dans ce dossier
+      folderProds.forEach(function(p){
+        var row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)';
+        row.innerHTML=
+          '<span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.name)+'</span>'+
+          '<button data-remove="'+p.id+'" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:2px 6px">↑ Remove</button>';
+        row.querySelector('[data-remove]').addEventListener('click',function(){setProductFolder(p.id,null);renderMgr();});
+        fCard.appendChild(row);
+      });
+      // Ajouter produit non assigné
+      if(unfoldered.length){
+        var sel=document.createElement('select');
+        sel.className='ym-input';sel.style.cssText='width:100%;font-size:11px;margin-top:6px';
+        sel.innerHTML='<option value="">+ Add product to this folder…</option>'+
+          unfoldered.map(function(p){return '<option value="'+p.id+'">'+esc(p.name)+'</option>';}).join('');
+        sel.addEventListener('change',function(){
+          if(!sel.value)return;setProductFolder(sel.value,f.id);renderMgr();
+        });
+        fCard.appendChild(sel);
+      }
+      fCard.querySelector('[data-delf]').addEventListener('click',function(){
+        // Désassigne les produits du dossier supprimé
+        var ps=loadProducts();ps.forEach(function(p){if(p.folderId===f.id)p.folderId=null;});saveProducts(ps);
+        var fs=loadFolders().filter(function(x){return x.id!==f.id;});saveFolders(fs);renderMgr();
+      });
+      box.appendChild(fCard);
+    });
+
+    var closeBtn=document.createElement('button');
+    closeBtn.className='ym-btn ym-btn-ghost';closeBtn.style.cssText='width:100%;margin-top:8px';closeBtn.textContent='Done';
+    closeBtn.addEventListener('click',function(){overlay.remove();onDone&&onDone();});
+    box.appendChild(closeBtn);
+  }
+  renderMgr();
+}
 })();
