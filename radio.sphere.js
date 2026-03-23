@@ -320,11 +320,16 @@ function _refreshWidget(){
 
 function _syncWidgetPage(){
   if(!_widget)return;
+  // Widget retiré du DOM (ex: navigation PWA) → recrée
+  if(!document.body.contains(_widget)){
+    _widget=null;
+    createWidget();
+    return;
+  }
   if(_widget._dragging)return;
   const pos=loadPos();
   const widgetPage=pos.page??0;
   const curPage=window._deskCurPage;
-  // Si _deskCurPage pas encore défini → on affiche (safe)
   if(curPage===undefined||curPage===null){_widget.style.display='block';return;}
   _widget.style.display=(curPage===widgetPage)?'block':'none';
 }
@@ -472,12 +477,31 @@ window.YM_S['radio.sphere.js']={
     _vol=st.vol||0.8;
     if(st.station){_curStation=st.station;if(st.playing)play(st.station);}
     createWidget();
+    // Recrée le widget si l'app revient au premier plan (mobile/PWA background)
+    document._ymRadioVisHandler=function(){
+      if(document.visibilityState==='visible'){
+        if(_widget&&!document.body.contains(_widget)){
+          _widget=null;
+        }
+        if(!_widget){
+          createWidget();
+        }else{
+          _refreshWidget();
+          _syncWidgetPage();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange',document._ymRadioVisHandler);
   },
 
   deactivate(){
     stop();removeWidget();_panelRefresh=null;
     document.getElementById('ym-radio-audio')?.remove();
     _audio=null;_ctx=null;
+    if(document._ymRadioVisHandler){
+      document.removeEventListener('visibilitychange',document._ymRadioVisHandler);
+      document._ymRadioVisHandler=null;
+    }
   },
 
   renderPanel,
