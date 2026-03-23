@@ -252,29 +252,9 @@ function createWidget(){
     }else if(cx>vw-ew){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
-        const targetPage=curPage+1;
-        // Crée une nouvelle page si nécessaire — comme les icônes bureau
-        if(targetPage>=pageCount){
-          const desk=window.YM_Desk;
-          if(desk){
-            const n=pageCount+1;
-            // Demande au bureau de créer la page
-            const slider=document.getElementById('desktop-slider');
-            if(slider){
-              const pg=document.createElement('div');
-              pg.className='desktop-page';
-              pg.id='page-'+(n-1);
-              pg.dataset.page=n-1;
-              slider.appendChild(pg);
-              const isPC=window.innerWidth>900;
-              const unit=isPC?'calc(100vw - 64px)':'100vw';
-              slider.style.width='calc('+n+' * '+unit+')';
-              // Met à jour le compteur de pages dans desk
-              try{const d=JSON.parse(localStorage.getItem('ym_desk_v1')||'{}');d.pgCount=n;localStorage.setItem('ym_desk_v1',JSON.stringify(d));}catch(e){}
-            }
-          }
-        }
-        window.YM_Desk?.goPage?.(targetPage);
+        const targetPage=(window._deskCurPage??0)+1;
+        // goPageOrCreate crée la page si besoin, puis navigue
+        window.YM_Desk?.goPageOrCreate?.(targetPage);
         const p=loadPos();savePos({...p,page:targetPage});
       },500);
     }else{clearTimeout(_edgeT);_edgeT=null;}
@@ -340,11 +320,12 @@ function _refreshWidget(){
 
 function _syncWidgetPage(){
   if(!_widget)return;
-  // Ne pas cacher pendant un drag — onEnd appellera _syncWidgetPage au bon moment
   if(_widget._dragging)return;
   const pos=loadPos();
   const widgetPage=pos.page??0;
-  const curPage=window._deskCurPage??0;
+  const curPage=window._deskCurPage;
+  // Si _deskCurPage pas encore défini → on affiche (safe)
+  if(curPage===undefined||curPage===null){_widget.style.display='block';return;}
   _widget.style.display=(curPage===widgetPage)?'block':'none';
 }
 
@@ -457,8 +438,10 @@ function renderPanel(container){
         (i>=BUILTIN.length?'<button data-del="'+(i-BUILTIN.length)+'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 6px">×</button>':'');
       row.addEventListener('click',function(e){
         if(e.target.dataset.del!==undefined)return;
+        const scrollY=list.scrollTop;
         if(isActive)toggle();else play(s);
         renderNow();renderStations();
+        requestAnimationFrame(()=>{list.scrollTop=scrollY;});
       });
       var delBtn=row.querySelector('[data-del]');
       if(delBtn){delBtn.addEventListener('click',function(e){
