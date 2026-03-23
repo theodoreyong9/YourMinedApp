@@ -223,7 +223,7 @@ function createWidget(){
   document.body.appendChild(_widget);
   _syncWidgetPage();
 
-  // Écoute les changements de page bureau
+  // Écoute les changements de page bureau — mais pas pendant le drag
   window.addEventListener('ym:page-change',_syncWidgetPage);
 
   let dragging=false,ox=0,oy=0,wx=0,wy=0,_edgeT=null;
@@ -235,39 +235,67 @@ function createWidget(){
     ox=cx;oy=cy;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
+    // Reste visible pendant tout le drag
+    _widget.style.display='block';
 
-    // Edge scroll — emmène le widget sur la page suivante/précédente
     const vw=window.innerWidth,ew=vw*0.15;
     const curPage=window._deskCurPage??0;
+    const pageCount=window._deskPageCount??1;
+
     if(cx<ew&&curPage>0){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
-        window.YM_Desk?.goPage?.(curPage-1);
-        const p=loadPos();savePos({...p,page:curPage-1});
+        const targetPage=curPage-1;
+        window.YM_Desk?.goPage?.(targetPage);
+        const p=loadPos();savePos({...p,page:targetPage});
       },500);
     }else if(cx>vw-ew){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
-        const next=(window._deskCurPage??0)+1;
-        window.YM_Desk?.goPage?.(next);
-        const p=loadPos();savePos({...p,page:next});
+        const targetPage=curPage+1;
+        // Crée une nouvelle page si nécessaire — comme les icônes bureau
+        if(targetPage>=pageCount){
+          const desk=window.YM_Desk;
+          if(desk){
+            const n=pageCount+1;
+            // Demande au bureau de créer la page
+            const slider=document.getElementById('desktop-slider');
+            if(slider){
+              const pg=document.createElement('div');
+              pg.className='desktop-page';
+              pg.id='page-'+(n-1);
+              pg.dataset.page=n-1;
+              slider.appendChild(pg);
+              const isPC=window.innerWidth>900;
+              const unit=isPC?'calc(100vw - 64px)':'100vw';
+              slider.style.width='calc('+n+' * '+unit+')';
+              // Met à jour le compteur de pages dans desk
+              try{const d=JSON.parse(localStorage.getItem('ym_desk_v1')||'{}');d.pgCount=n;localStorage.setItem('ym_desk_v1',JSON.stringify(d));}catch(e){}
+            }
+          }
+        }
+        window.YM_Desk?.goPage?.(targetPage);
+        const p=loadPos();savePos({...p,page:targetPage});
       },500);
     }else{clearTimeout(_edgeT);_edgeT=null;}
   }
 
   function onEnd(){
     if(!dragging)return;dragging=false;
+    _widget._dragging=false;
     clearTimeout(_edgeT);_edgeT=null;
     const r=Math.max(0,window.innerWidth-wx-_widget.offsetWidth);
     const b=Math.max(0,window.innerHeight-wy-_widget.offsetHeight);
     const curPage=window._deskCurPage??0;
     savePos({right:r,bottom:b,page:curPage});
+    // Maintenant on sync (drag terminé)
     _syncWidgetPage();
   }
 
   _widget.addEventListener('pointerdown',e=>{
     if(e.target.closest('button'))return;
     dragging=true;
+    _widget._dragging=true;
     const rect=_widget.getBoundingClientRect();
     wx=rect.left;wy=rect.top;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
@@ -312,10 +340,11 @@ function _refreshWidget(){
 
 function _syncWidgetPage(){
   if(!_widget)return;
+  // Ne pas cacher pendant un drag — onEnd appellera _syncWidgetPage au bon moment
+  if(_widget._dragging)return;
   const pos=loadPos();
   const widgetPage=pos.page??0;
   const curPage=window._deskCurPage??0;
-  // Visible seulement sur sa page assignée, ou si aucune page assignée (page 0)
   _widget.style.display=(curPage===widgetPage)?'block':'none';
 }
 
