@@ -10,16 +10,45 @@ const CUSTOM_KEY = 'ym_radio_custom_v1';
 const POS_KEY    = 'ym_radio_pos_v1';
 
 const BUILTIN = [
-  {name:'FIP',         url:'https://icecast.radiofrance.fr/fip-midfi.mp3',         genre:'Eclectic'},
-  {name:'Nova Jazz',   url:'https://novazz.ice.infomaniak.ch/novazz-128.mp3',      genre:'Jazz/Soul'},
-  {name:'Groove Salad',url:'https://ice6.somafm.com/groovesalad-128-mp3',          genre:'Ambient'},
-  {name:'Drone Zone',  url:'https://ice6.somafm.com/dronezone-128-mp3',            genre:'Drone'},
-  {name:'Lush',        url:'https://ice6.somafm.com/lush-128-mp3',                 genre:'Indie Pop'},
-  {name:'Lofi Hip-Hop',url:'https://streams.ilovemusic.de/iloveradio17.mp3',       genre:'Lofi'},
-  {name:'Chillhop',   url:'https://streams.ilovemusic.de/iloveradio18.mp3',        genre:'Chillhop'},
-  {name:'Jazz FM',     url:'https://streaming.radio.co/s6f1f4e490/listen',         genre:'Jazz'},
-  {name:'Classical',   url:'https://streaming.radio.co/s5e0e21e58/listen',         genre:'Classical'},
-  {name:'BBC World',   url:'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service',genre:'News'},
+  // ── France ──────────────────────────────────────────────────────────────
+  {name:'FIP',           url:'https://icecast.radiofrance.fr/fip-midfi.mp3',              genre:'Eclectic',     country:'🇫🇷'},
+  {name:'France Inter',  url:'https://icecast.radiofrance.fr/franceinter-midfi.mp3',      genre:'Talk/Music',   country:'🇫🇷'},
+  {name:'France Info',   url:'https://icecast.radiofrance.fr/franceinfo-midfi.mp3',       genre:'News',         country:'🇫🇷'},
+  {name:'France Culture',url:'https://icecast.radiofrance.fr/franceculture-midfi.mp3',    genre:'Culture',      country:'🇫🇷'},
+  {name:'France Musique',url:'https://icecast.radiofrance.fr/francemusique-midfi.mp3',    genre:'Classical',    country:'🇫🇷'},
+  {name:'Nova',          url:'https://novazz.ice.infomaniak.ch/novazz-128.mp3',           genre:'Jazz/Soul',    country:'🇫🇷'},
+  {name:'Mouv\'',        url:'https://icecast.radiofrance.fr/mouv-midfi.mp3',             genre:'Hip-Hop',      country:'🇫🇷'},
+  {name:'TSF Jazz',      url:'https://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3',        genre:'Jazz',         country:'🇫🇷'},
+  // ── UK ──────────────────────────────────────────────────────────────────
+  {name:'BBC Radio 1',   url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one',       genre:'Pop/Chart',    country:'🇬🇧'},
+  {name:'BBC Radio 2',   url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_two',       genre:'Easy Listening',country:'🇬🇧'},
+  {name:'BBC Radio 3',   url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_three',     genre:'Classical',    country:'🇬🇧'},
+  {name:'BBC Radio 4',   url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_four_fm',   genre:'Talk',         country:'🇬🇧'},
+  {name:'BBC World',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service',   genre:'News',         country:'🇬🇧'},
+  {name:'BBC 6 Music',   url:'https://stream.live.vc.bbcmedia.co.uk/bbc_6music',          genre:'Alternative',  country:'🇬🇧'},
+  {name:'Jazz FM UK',    url:'https://streaming.radio.co/s6f1f4e490/listen',              genre:'Jazz',         country:'🇬🇧'},
+  // ── USA ─────────────────────────────────────────────────────────────────
+  {name:'NPR News',      url:'https://npr-ice.streamguys1.com/live.mp3',                  genre:'News/Talk',    country:'🇺🇸'},
+  {name:'KCRW',          url:'https://kcrw.streamguys1.com/kcrw_192k_mp3_on_air',         genre:'Indie/World',  country:'🇺🇸'},
+  {name:'WNYC',          url:'https://fm939.wnyc.org/wnycfm-tunein.aac',                  genre:'Public Radio',  country:'🇺🇸'},
+  // ── Germany ─────────────────────────────────────────────────────────────
+  {name:'Deutschlandfunk',url:'https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3', genre:'Culture/Talk', country:'🇩🇪'},
+  {name:'Bayern 3',      url:'https://br-br3-live.cast.addradio.de/br/br3/live/mp3/128/stream.mp3',genre:'Pop',country:'🇩🇪'},
+  // ── Spain ────────────────────────────────────────────────────────────────
+  {name:'Radio Nacional',url:'https://rne.rtveradio.cires21.com/rne1.mp3',               genre:'Talk',         country:'🇪🇸'},
+  {name:'Cadena SER',    url:'https://playerservices.streamtheworld.com/api/livestream-redirect/SER_SPAIN_SC',genre:'Talk',country:'🇪🇸'},
+  // ── Internet / Genre ─────────────────────────────────────────────────────
+  {name:'Groove Salad',  url:'https://ice6.somafm.com/groovesalad-128-mp3',               genre:'Ambient',      country:'🌐'},
+  {name:'Drone Zone',    url:'https://ice6.somafm.com/dronezone-128-mp3',                 genre:'Drone',        country:'🌐'},
+  {name:'Lush',          url:'https://ice6.somafm.com/lush-128-mp3',                      genre:'Indie Pop',    country:'🌐'},
+  {name:'Indie Pop Rocks',url:'https://ice6.somafm.com/indiepop-128-mp3',                genre:'Indie',        country:'🌐'},
+  {name:'Deep Space One',url:'https://ice6.somafm.com/deepspaceone-128-mp3',              genre:'Ambient',      country:'🌐'},
+  {name:'Lofi Hip-Hop',  url:'https://streams.ilovemusic.de/iloveradio17.mp3',            genre:'Lofi',         country:'🌐'},
+  {name:'Chillhop',      url:'https://streams.ilovemusic.de/iloveradio18.mp3',            genre:'Chillhop',     country:'🌐'},
+  {name:'Smooth Jazz',   url:'https://streams.ilovemusic.de/iloveradio14.mp3',            genre:'Jazz',         country:'🌐'},
+  {name:'Classical KDFC',url:'https://playerservices.streamtheworld.com/api/livestream-redirect/KDFCFM_SC',genre:'Classical',country:'🌐'},
+  {name:'Nightwave Plaza',url:'https://radio.plaza.one/mp3',                              genre:'City Pop',     country:'🌐'},
+  {name:'Poolsuite FM',  url:'https://poolsuite.net/stations/poolsuite-fm.mp3',           genre:'Summer/Disco', country:'🌐'},
 ];
 
 let _ctx=null, _audio=null, _playing=false, _curStation=null, _widget=null, _vol=0.8;
@@ -97,7 +126,7 @@ let _panelRefresh=null; // callback pour rafraîchir le panel si ouvert
 function _refreshPanel(){if(_panelRefresh)_panelRefresh();}
 
 function createWidget(){
-  if(_widget&&document.body.contains(_widget)){_refreshWidget();return;}
+  if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
   const pos=loadPos();
   _widget=document.createElement('div');
   _widget.id='ym-radio-widget';
@@ -112,8 +141,11 @@ function createWidget(){
 
   _refreshWidget();
   document.body.appendChild(_widget);
+  _syncWidgetPage();
 
-  // Drag — avec edge scroll vers autres pages comme les icônes bureau
+  // Écoute les changements de page bureau
+  window.addEventListener('ym:page-change',_syncWidgetPage);
+
   let dragging=false,ox=0,oy=0,wx=0,wy=0,_edgeT=null;
 
   function onMove(cx,cy){
@@ -124,25 +156,23 @@ function createWidget(){
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
 
-    // Edge scroll — même logique que les icônes bureau
-    const vw=window.innerWidth,ew=vw*0.14;
+    // Edge scroll — emmène le widget sur la page suivante/précédente
+    const vw=window.innerWidth,ew=vw*0.15;
     const curPage=window._deskCurPage??0;
-    const pageCount=window._deskPageCount??1;
     if(cx<ew&&curPage>0){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
         window.YM_Desk?.goPage?.(curPage-1);
-        savePos({...loadPos(),page:curPage-1});
-      },550);
+        const p=loadPos();savePos({...p,page:curPage-1});
+      },500);
     }else if(cx>vw-ew){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
-        window.YM_Desk?.goPage?.(curPage+1);
-        savePos({...loadPos(),page:curPage+1});
-      },550);
-    }else{
-      clearTimeout(_edgeT);_edgeT=null;
-    }
+        const next=(window._deskCurPage??0)+1;
+        window.YM_Desk?.goPage?.(next);
+        const p=loadPos();savePos({...p,page:next});
+      },500);
+    }else{clearTimeout(_edgeT);_edgeT=null;}
   }
 
   function onEnd(){
@@ -152,6 +182,7 @@ function createWidget(){
     const b=Math.max(0,window.innerHeight-wy-_widget.offsetHeight);
     const curPage=window._deskCurPage??0;
     savePos({right:r,bottom:b,page:curPage});
+    _syncWidgetPage();
   }
 
   _widget.addEventListener('pointerdown',e=>{
@@ -199,7 +230,21 @@ function _refreshWidget(){
   },{passive:true,once:false});
 }
 
-function removeWidget(){if(_widget){_widget.remove();_widget=null;}}
+function _syncWidgetPage(){
+  if(!_widget)return;
+  const pos=loadPos();
+  const widgetPage=pos.page??0;
+  const curPage=window._deskCurPage??0;
+  // Visible seulement sur sa page assignée, ou si aucune page assignée (page 0)
+  _widget.style.display=(curPage===widgetPage)?'block':'none';
+}
+
+function removeWidget(){
+  if(_widget){
+    window.removeEventListener('ym:page-change',_syncWidgetPage);
+    _widget.remove();_widget=null;
+  }
+}
 
 // ── PANEL ──────────────────────────────────────────────────────────────────
 function renderPanel(container){
@@ -273,28 +318,43 @@ function renderPanel(container){
 
   function renderStations(){
     list.innerHTML='';
-    allStations().forEach((s,i)=>{
-      const isActive=_curStation?.url===s.url;
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04)'+
-        (isActive?';background:rgba(232,160,32,.07)':'');
+    var countries=[...new Set(allStations().map(s=>s.country||'🌐'))];
+    // Filtre pays actif
+    var activeCo=list._activeCo||'All';
+    // Barre pays
+    var coBar=document.createElement('div');
+    coBar.style.cssText='display:flex;gap:4px;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid var(--border)';
+    ['All',...countries].forEach(function(co){
+      var b=document.createElement('button');
+      b.className='ym-btn ym-btn-ghost';
+      b.style.cssText='font-size:11px;padding:2px 8px'+(co===activeCo?';background:var(--accent);color:#000':'');
+      b.textContent=co;
+      b.addEventListener('click',function(){list._activeCo=co;renderStations();});
+      coBar.appendChild(b);
+    });
+    list.appendChild(coBar);
+    var stations=allStations().filter(function(s){return activeCo==='All'||(s.country||'🌐')===activeCo;});
+    stations.forEach(function(s,i){
+      var isActive=_curStation&&_curStation.url===s.url;
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04)'+(isActive?';background:rgba(232,160,32,.07)':'');
       row.innerHTML=
         '<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+(isActive&&_playing?'var(--accent)':'var(--surface3)')+'"></div>'+
+        '<span style="font-size:14px;flex-shrink:0">'+(s.country||'🌐')+'</span>'+
         '<div style="flex:1;min-width:0">'+
           '<div style="font-size:13px;font-weight:'+(isActive?600:400)+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+'</div>'+
           (s.genre?'<div style="font-size:10px;color:var(--text3)">'+s.genre+'</div>':'')+
         '</div>'+
         (i>=BUILTIN.length?'<button data-del="'+(i-BUILTIN.length)+'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 6px">×</button>':'');
-      row.addEventListener('click',e=>{
+      row.addEventListener('click',function(e){
         if(e.target.dataset.del!==undefined)return;
         if(isActive)toggle();else play(s);
         renderNow();renderStations();
       });
-      row.querySelector('[data-del]')?.addEventListener('click',e=>{
-        e.stopPropagation();
-        const c=loadCustom();c.splice(parseInt(e.target.dataset.del),1);saveCustom(c);
-        renderStations();
-      });
+      var delBtn=row.querySelector('[data-del]');
+      if(delBtn){delBtn.addEventListener('click',function(e){
+        e.stopPropagation();var c=loadCustom();c.splice(parseInt(e.target.dataset.del),1);saveCustom(c);renderStations();
+      });}
       list.appendChild(row);
     });
   }
