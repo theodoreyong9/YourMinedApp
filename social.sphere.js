@@ -63,6 +63,15 @@ function buildProfilePacket(){
   const p = _ctx?.loadProfile?.() ?? {};
   const state = loadState();
   const contactUUIDs = loadContacts().map(c=>c.uuid);
+  // Collecte les données broadcastées par chaque sphère active
+  const extraData={};
+  if(window.YM_sphereRegistry){
+    window.YM_sphereRegistry.forEach((sphere)=>{
+      if(typeof sphere.broadcastData==='function'){
+        try{Object.assign(extraData,sphere.broadcastData());}catch(e){}
+      }
+    });
+  }
   return {
     uuid:     p.uuid,
     name:     p.name,
@@ -75,6 +84,7 @@ function buildProfilePacket(){
     lng:      _myCoords?.lng,
     networks: (state.networks || []).map(n => ({id:n.id, handle:n.handle})),
     contacts: contactUUIDs,
+    ...extraData,
     ts:       Date.now()
   };
 }
