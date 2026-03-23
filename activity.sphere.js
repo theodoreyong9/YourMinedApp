@@ -23,7 +23,7 @@ function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
 
-  const TABS=[['zones','📍 Zones'],['extract','🔍 Extract'],['anchors','👤 Anchors'],['settings','⚙']];
+  const TABS=[['zones','📍 Zones'],['extract','🔍 Extract']];
   let curTab='zones';
 
   const track=document.createElement('div');
@@ -42,9 +42,7 @@ function renderPanel(container){
       tabs.querySelectorAll('.ym-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));
       track.innerHTML='';track.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
       if(id==='zones')renderZonesTab(track);
-      else if(id==='extract')renderExtractTab(track);
-      else if(id==='anchors')renderAnchorsTab(track);
-      else renderActivitySettings(track);
+      else renderExtractTab(track);
     });
     tabs.appendChild(t);
   });
@@ -54,7 +52,6 @@ function renderPanel(container){
 }
 
 // ── ONGLET ZONES ────────────────────────────────────────────────────────────
-let _watchId=null;
 function renderZonesTab(container){
   container.innerHTML='';
 
@@ -229,19 +226,28 @@ function renderZonesTab(container){
       saveCircles(circles);renderList();redrawMap();
     });
 
-    // Vue initiale
-    if(_myLat!==null){
-      _map.setView([_myLat,_myLng],15);redrawMap();
-    }else{
-      navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
-        _myLat=pos.coords.latitude;_myLng=pos.coords.longitude;
+    // Vue initiale — toujours sur la position utilisateur
+    function setInitialView(){
+      if(_myLat!==null){
         _map.setView([_myLat,_myLng],15);redrawMap();
-      },function(){
+      }else{
+        // Demande la géoloc immédiatement, sinon fallback zones
+        navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
+          _myLat=pos.coords.latitude;_myLng=pos.coords.longitude;
+          _map.setView([_myLat,_myLng],15);redrawMap();
+        },function(){
+          var circles=loadCircles();
+          if(circles.length)_map.setView([circles[0].lat,circles[0].lng],15);
+          else _map.setView([48.8566,2.3522],12); // Paris par défaut
+        },{timeout:5000,enableHighAccuracy:true});
+        // Affiche la carte immédiatement pendant qu'on attend
         var circles=loadCircles();
         if(circles.length)_map.setView([circles[0].lat,circles[0].lng],15);
-        else _map.setView([20,0],2);
-      },{timeout:5000,enableHighAccuracy:true});
+        else _map.setView([48.8566,2.3522],12);
+        redrawMap();
+      }
     }
+    setInitialView();
   }
 
   function loadLeaflet(cb){
@@ -288,114 +294,6 @@ function renderZonesTab(container){
 }
 
 // ── ONGLET ANCHORS ──────────────────────────────────────────────────────────
-function renderAnchorsTab(container){
-  container.innerHTML='';
-  container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
-
-  var anchors=loadAnchors();
-  var circles=loadCircles();
-
-  const hdr=document.createElement('div');
-  hdr.style.cssText='flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between';
-  hdr.innerHTML=
-    '<div style="font-size:11px;color:var(--text3)">Your anchor message — attached to your profile at a location</div>'+
-    '<button id="anch-edit" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">'+(anchors.length?'✏ Edit':'+ Add')+'</button>';
-  container.appendChild(hdr);
-
-  const body=document.createElement('div');
-  body.style.cssText='flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px';
-  container.appendChild(body);
-
-  function refresh(){
-    body.innerHTML='';
-    anchors=loadAnchors();
-    if(!anchors.length){
-      body.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No anchor yet.<br>Click + Add to attach a message to your location.</div>';
-      return;
-    }
-    anchors.forEach(function(a,i){
-      var inZone=circles.some(function(z){return _dist(a.lat,a.lng,z.lat,z.lng)<=150;});
-      var card=document.createElement('div');
-      card.className='ym-card';
-      card.innerHTML=
-        '<div style="display:flex;align-items:flex-start;gap:10px">'+
-          '<span style="font-size:24px;flex-shrink:0">👤</span>'+
-          '<div style="flex:1;min-width:0">'+
-            '<div style="font-size:13px;color:var(--text);line-height:1.5;margin-bottom:6px">'+_esc(a.text)+'</div>'+
-            '<div style="font-size:10px;color:var(--text3)">'+a.lat.toFixed(5)+', '+a.lng.toFixed(5)+
-              (inZone?' · <span style="color:#30e880">in a zone</span>':' · <span style="color:#e84040">outside zones</span>')+
-            '</div>'+
-            '<div style="font-size:10px;color:var(--text3)">'+new Date(a.ts||0).toLocaleString()+'</div>'+
-          '</div>'+
-          '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'+
-            '<button data-view="'+i+'" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:3px 8px">🗺</button>'+
-            '<button data-del="'+i+'" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:3px 8px;color:#e84040">×</button>'+
-          '</div>'+
-        '</div>';
-      card.querySelector('[data-view]').addEventListener('click',function(){
-        // Ouvre l'onglet Zones et navigue sur l'anchor
-        // On stocke les coords à centrer pour que renderZonesTab les utilise
-        window._actJumpTo={lat:a.lat,lng:a.lng};
-        var zonesTab=container.closest('[id]')&&document.querySelector('.ym-tab[data-tab="zones"]');
-        zonesTab&&zonesTab.click();
-      });
-      card.querySelector('[data-del]').addEventListener('click',function(e){
-        var arr=loadAnchors();arr.splice(parseInt(e.target.dataset.del),1);saveAnchors(arr);refresh();
-      });
-      body.appendChild(card);
-    });
-  }
-  refresh();
-
-  hdr.querySelector('#anch-edit').addEventListener('click',function(){
-    // Overlay d'édition
-    var overlay=document.createElement('div');
-    overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;justify-content:center';
-    var box=document.createElement('div');
-    box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px;width:100%;max-width:500px;max-height:80vh;overflow-y:auto';
-    var existing=anchors.length?anchors[0]:{text:'',lat:_myLat||0,lng:_myLng||0};
-    box.innerHTML=
-      '<div style="font-size:13px;font-weight:600;margin-bottom:12px">My Anchor</div>'+
-      '<textarea id="anch-text" class="ym-input" style="width:100%;height:80px;resize:none;font-size:13px;margin-bottom:10px" placeholder="Message attached to your profile at your current location…">'+_esc(existing.text)+'</textarea>'+
-      '<div style="display:flex;gap:8px">'+
-        '<button id="anch-use-pos" class="ym-btn ym-btn-ghost" style="flex:1;font-size:12px">📍 Use my position</button>'+
-        '<button id="anch-use-map" class="ym-btn ym-btn-ghost" style="flex:1;font-size:12px">🗺 Use map center</button>'+
-      '</div>'+
-      '<div id="anch-coords" style="font-size:10px;color:var(--text3);margin:6px 0">'+existing.lat.toFixed(5)+', '+existing.lng.toFixed(5)+'</div>'+
-      '<div style="display:flex;gap:8px;margin-top:8px">'+
-        '<button id="anch-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
-        '<button id="anch-save" class="ym-btn ym-btn-accent" style="flex:1">Save Anchor</button>'+
-      '</div>';
-    overlay.appendChild(box);document.body.appendChild(overlay);
-
-    var lat=existing.lat,lng=existing.lng;
-    box.querySelector('#anch-coords').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
-
-    box.querySelector('#anch-use-pos').addEventListener('click',function(){
-      navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
-        lat=pos.coords.latitude;lng=pos.coords.longitude;
-        box.querySelector('#anch-coords').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
-      });
-    });
-    box.querySelector('#anch-use-map').addEventListener('click',function(){
-      if(window._actMapCenter){lat=window._actMapCenter.lat;lng=window._actMapCenter.lng;}
-      box.querySelector('#anch-coords').textContent=lat.toFixed(5)+', '+lng.toFixed(5);
-    });
-    box.querySelector('#anch-cancel').addEventListener('click',function(){overlay.remove();});
-    overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
-    box.querySelector('#anch-save').addEventListener('click',function(){
-      var text=box.querySelector('#anch-text').value.trim();
-      if(!text){window.YM_toast&&window.YM_toast('Enter a message','warn');return;}
-      // Un seul anchor par profil
-      saveAnchors([{lat:lat,lng:lng,text:text,ts:Date.now()}]);
-      overlay.remove();
-      hdr.querySelector('#anch-edit').textContent='✏ Edit';
-      refresh();
-      window.YM_toast&&window.YM_toast('Anchor saved','success');
-    });
-  });
-}
-
 // ── ONGLET EXTRACT ──────────────────────────────────────────────────────────
 function renderExtractTab(container){
   container.innerHTML='';
@@ -751,10 +649,27 @@ async function _fetchAllSources(zone,period,filters){
 }
 
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
-function renderActivitySettings(container){
-  container.innerHTML='';
-  container.style.cssText='flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px';
+// Config extract — ouverte depuis profileSection
+function _showActivityConfig(onDone){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center';
+  var box=document.createElement('div');
+  box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:500px;max-height:90vh;display:flex;flex-direction:column';
+  overlay.appendChild(box);document.body.appendChild(overlay);
+  overlay.addEventListener('click',function(e){if(e.target===overlay){overlay.remove();if(onDone)onDone();}});
+
+  box.innerHTML='<div style="display:flex;align-items:center;padding:16px"><div style="font-size:14px;font-weight:600;flex:1">Extract Settings</div>'+
+    '<button id="act-cfg-close" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">✕</button></div>';
+  box.querySelector('#act-cfg-close').addEventListener('click',function(){overlay.remove();if(onDone)onDone();});
+
+  var inner=document.createElement('div');
+  inner.style.cssText='flex:1;overflow-y:auto;padding:0 16px 16px;display:flex;flex-direction:column;gap:8px';
+  box.appendChild(inner);
+
   var s=loadActSettings();
+  var intro=document.createElement('div');intro.className='ym-notice info';intro.style.cssText='font-size:11px';
+  intro.innerHTML='Configure alternative frontends and API keys. Leave blank to use defaults or disable a source. <b>Instances must support CORS.</b>';
+  inner.appendChild(intro);
 
   function mkField(title,key,placeholder,helpUrl,helpLabel,isKey){
     var val=s[key]||'';
@@ -763,12 +678,12 @@ function renderActivitySettings(container){
       '<div class="ym-card-title">'+title+'</div>'+
       (helpUrl?'<div style="font-size:10px;color:var(--text3);margin-bottom:6px">Get at <a href="'+helpUrl+'" target="_blank" style="color:var(--accent)">'+helpLabel+'</a></div>':'')+
       '<div style="display:flex;gap:6px">'+
-        '<input class="sf-inp ym-input" type="'+(isKey?'password':'text')+'" placeholder="'+placeholder+'" style="flex:1;font-size:11px;font-family:var(--font-m)" value="'+(val&&isKey?'•'.repeat(14):esc(val))+'">'+
+        '<input class="sf-inp ym-input" type="'+(isKey?'password':'text')+'" placeholder="'+placeholder+'" style="flex:1;font-size:11px;font-family:var(--font-m)" value="'+(val&&isKey?'•'.repeat(14):_esc(val))+'">'+
         '<button class="sf-save ym-btn ym-btn-accent" style="font-size:11px;padding:4px 10px">Save</button>'+
         (val?'<button class="sf-clear ym-btn ym-btn-ghost" style="font-size:11px;color:#e84040;padding:4px 8px">×</button>':'')+
       '</div>'+
       '<div class="sf-st" style="font-size:10px;margin-top:4px;color:'+(val?'#30e880':'var(--text3)')+'">'+
-        (val?'✓ '+esc(val.slice(0,40)):'Not set — optional')+'</div>';
+        (val?'✓ '+_esc(val.slice(0,40)):'Not set — optional')+'</div>';
     var inp=card.querySelector('.sf-inp');
     if(isKey)inp.addEventListener('focus',function(){if(s[key])inp.value='';});
     card.querySelector('.sf-save').addEventListener('click',function(){
@@ -778,7 +693,7 @@ function renderActivitySettings(container){
       card.querySelector('.sf-st').textContent='✓ '+(isKey?'Saved':v.slice(0,40));
       card.querySelector('.sf-st').style.color='#30e880';
     });
-    card.querySelector('.sf-clear')?.addEventListener('click',function(){
+    if(card.querySelector('.sf-clear'))card.querySelector('.sf-clear').addEventListener('click',function(){
       var u=loadActSettings();delete u[key];saveActSettings(u);s=u;
       inp.value='';card.querySelector('.sf-st').textContent='Not set — optional';
       card.querySelector('.sf-st').style.color='';
@@ -786,24 +701,17 @@ function renderActivitySettings(container){
     return card;
   }
 
-  var intro=document.createElement('div');intro.className='ym-notice info';intro.style.cssText='font-size:11px';
-  intro.innerHTML='Configure alternative frontends and API keys. Leave blank to use defaults or disable a source. <b>Instances must support CORS.</b>';
-  container.appendChild(intro);
-
-  // Groupe : Alternative frontends
   var g1=document.createElement('div');g1.innerHTML='<div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:4px 0">🔄 Alternative Frontends</div>';
-  container.appendChild(g1);
-  container.appendChild(mkField('🐦 Nitter instance (Twitter)','nitterInstance','https://nitter.net','https://github.com/zedeus/nitter/wiki/Instances','instances list',false));
-  container.appendChild(mkField('📹 Piped instance (YouTube)','pipedInstance','https://pipedapi.kavin.rocks','https://github.com/TeamPiped/Piped/wiki/Instances','instances list',false));
-  container.appendChild(mkField('💬 Teddit instance (Reddit)','tedditInstance','https://teddit.net','https://codeberg.org/teddit/teddit','codeberg.org/teddit',false));
-  container.appendChild(mkField('🐘 Mastodon instance','mastodonInstance','https://mastodon.social','https://instances.social','instances.social',false));
-  container.appendChild(mkField('🖼 Pixelfed instance','pixelfedInstance','https://pixelfed.social','https://pixelfed.social/site/about','pixelfed.social',false));
-
-  // Groupe : API keys
-  var g2=document.createElement('div');g2.innerHTML='<div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px">🔑 API Keys (optional)</div>';
-  container.appendChild(g2);
-  container.appendChild(mkField('⭐ Yelp API Key','yelpKey','Bearer token…','https://www.yelp.com/developers','yelp.com/developers',true));
-  container.appendChild(mkField('📍 Foursquare API Key','foursquareKey','fsq3…','https://developer.foursquare.com','developer.foursquare.com',true));
+  inner.appendChild(g1);
+  inner.appendChild(mkField('🐦 Nitter (Twitter)','nitterInstance','https://nitter.net','https://github.com/zedeus/nitter/wiki/Instances','instances list',false));
+  inner.appendChild(mkField('📹 Piped (YouTube)','pipedInstance','https://pipedapi.kavin.rocks','https://github.com/TeamPiped/Piped/wiki/Instances','instances list',false));
+  inner.appendChild(mkField('💬 Teddit (Reddit)','tedditInstance','https://teddit.net','https://codeberg.org/teddit/teddit','codeberg.org',false));
+  inner.appendChild(mkField('🐘 Mastodon instance','mastodonInstance','https://mastodon.social','https://instances.social','instances.social',false));
+  inner.appendChild(mkField('🖼 Pixelfed instance','pixelfedInstance','https://pixelfed.social','https://pixelfed.social','pixelfed.social',false));
+  var g2=document.createElement('div');g2.innerHTML='<div style="font-size:10px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:8px 0 4px">🔑 API Keys</div>';
+  inner.appendChild(g2);
+  inner.appendChild(mkField('⭐ Yelp API Key','yelpKey','Bearer token…','https://www.yelp.com/developers','yelp.com/developers',true));
+  inner.appendChild(mkField('📍 Foursquare Key','foursquareKey','fsq3…','https://developer.foursquare.com','developer.foursquare.com',true));
 }
 
 // ── SPHERE ─────────────────────────────────────────────────────────────────
@@ -901,6 +809,14 @@ window.YM_S['activity.sphere.js']={
     });
 
     container.appendChild(wrap);
+
+    // Bouton config Extract (instances + clés API)
+    var cfgBtn=document.createElement('button');
+    cfgBtn.className='ym-btn ym-btn-ghost';
+    cfgBtn.style.cssText='width:100%;font-size:11px;margin-top:4px';
+    cfgBtn.textContent='⚙ Extract configuration (frontends & API keys)';
+    cfgBtn.addEventListener('click',function(){_showActivityConfig();});
+    container.appendChild(cfgBtn);
   },
 
   // Données broadcastées avec le profil social
