@@ -1,194 +1,252 @@
 /* jshint esversion:11, browser:true */
-// deeplink.sphere.js — Open native apps via URI schemes on mobile & desktop
-// Example: spotify:// → opens Spotify, vscode:// → opens VS Code
+// deeplink.sphere.js — Lance les apps natives via URI schemes
+// Tap → ouvre l'app si installée. Sinon → rien (ou store sur mobile)
 (function(){
 'use strict';
-window.YM_S = window.YM_S || {};
+window.YM_S=window.YM_S||{};
 
-const LINKS_KEY = 'ym_deeplink_v1';
+const SAVED_KEY='ym_deeplink_v1';
 
-// ── BUILT-IN APPS ────────────────────────────────────────────────────────────
-// uri: URI scheme to launch the app
-// fallback: web URL if app not installed
-// ios / android / desktop: platform availability hints
-const BUILTIN_APPS = [
-  // ── Music & Media ──────────────────────────────────────────────────────────
-  {id:'spotify',    name:'Spotify',         icon:'🎵', category:'Music',
-   uri:'spotify://',                        fallback:'https://open.spotify.com',
-   ios:true, android:true, desktop:true,    desc:'Open Spotify'},
-  {id:'deezer',     name:'Deezer',          icon:'🎶', category:'Music',
-   uri:'deezer://',                         fallback:'https://www.deezer.com',
-   ios:true, android:true, desktop:false,   desc:'Open Deezer'},
-  {id:'applemusic', name:'Apple Music',     icon:'🍎', category:'Music',
-   uri:'music://',                          fallback:'https://music.apple.com',
-   ios:true, android:false, desktop:true,   desc:'Open Apple Music'},
-  {id:'youtube',    name:'YouTube',         icon:'📺', category:'Video',
-   uri:'youtube://',                        fallback:'https://www.youtube.com',
-   ios:true, android:true, desktop:false,   desc:'Open YouTube'},
-  {id:'netflix',    name:'Netflix',         icon:'🎬', category:'Video',
-   uri:'nflx://',                           fallback:'https://www.netflix.com',
-   ios:true, android:true, desktop:false,   desc:'Open Netflix'},
-  {id:'twitch',     name:'Twitch',          icon:'🎮', category:'Video',
-   uri:'twitch://',                         fallback:'https://www.twitch.tv',
-   ios:true, android:true, desktop:false,   desc:'Open Twitch'},
-  {id:'tiktok',     name:'TikTok',          icon:'🎵', category:'Video',
-   uri:'snssdk1233://',                     fallback:'https://www.tiktok.com',
-   ios:true, android:true, desktop:false,   desc:'Open TikTok'},
+// ── APPS NATIVES PAR PLATEFORME ───────────────────────────────────────────────
+// uri     : schéma qui ouvre l'app native (si installée)
+// android : Intent URL Android pour forcer l'app (sinon Play Store)
+// ios_store / android_store : fallback store si app absente
+const APPS=[
+  // ── 🎵 Musique ─────────────────────────────────────────────────────────────
+  {id:'spotify',     name:'Spotify',      icon:'🎵', cat:'Music',
+   uri:'spotify://',
+   android:'intent://open#Intent;scheme=spotify;package=com.spotify.music;end',
+   ios_store:'https://apps.apple.com/app/spotify/id324684580',
+   android_store:'https://play.google.com/store/apps/details?id=com.spotify.music'},
+  {id:'deezer',      name:'Deezer',       icon:'🎶', cat:'Music',
+   uri:'deezer://',
+   android:'intent://open#Intent;scheme=deezer;package=deezer.android.app;end',
+   ios_store:'https://apps.apple.com/app/deezer/id292738169',
+   android_store:'https://play.google.com/store/apps/details?id=deezer.android.app'},
+  {id:'applemusic',  name:'Apple Music',  icon:'🍎', cat:'Music',
+   uri:'music://',
+   ios_store:'https://apps.apple.com/app/apple-music/id1108187390'},
+  {id:'soundcloud',  name:'SoundCloud',   icon:'☁️', cat:'Music',
+   uri:'soundcloud://',
+   android:'intent://soundcloud.com#Intent;scheme=https;package=com.soundcloud.android;end',
+   ios_store:'https://apps.apple.com/app/soundcloud/id336353151',
+   android_store:'https://play.google.com/store/apps/details?id=com.soundcloud.android'},
+  {id:'shazam',      name:'Shazam',       icon:'🎯', cat:'Music',
+   uri:'shazam://',
+   android:'intent://open#Intent;scheme=shazam;package=com.shazam.android;end',
+   ios_store:'https://apps.apple.com/app/shazam/id284993459',
+   android_store:'https://play.google.com/store/apps/details?id=com.shazam.android'},
 
-  // ── Social ─────────────────────────────────────────────────────────────────
-  {id:'instagram',  name:'Instagram',       icon:'📸', category:'Social',
-   uri:'instagram://',                      fallback:'https://www.instagram.com',
-   ios:true, android:true, desktop:false,   desc:'Open Instagram'},
-  {id:'twitter',    name:'Twitter / X',     icon:'🐦', category:'Social',
-   uri:'twitter://',                        fallback:'https://x.com',
-   ios:true, android:true, desktop:false,   desc:'Open Twitter/X'},
-  {id:'facebook',   name:'Facebook',        icon:'👥', category:'Social',
-   uri:'fb://',                             fallback:'https://www.facebook.com',
-   ios:true, android:true, desktop:false,   desc:'Open Facebook'},
-  {id:'whatsapp',   name:'WhatsApp',        icon:'💬', category:'Messaging',
-   uri:'whatsapp://',                       fallback:'https://web.whatsapp.com',
-   ios:true, android:true, desktop:true,    desc:'Open WhatsApp'},
-  {id:'telegram',   name:'Telegram',        icon:'✈️', category:'Messaging',
-   uri:'tg://',                             fallback:'https://web.telegram.org',
-   ios:true, android:true, desktop:true,    desc:'Open Telegram'},
-  {id:'signal',     name:'Signal',          icon:'🔒', category:'Messaging',
-   uri:'sgnl://',                           fallback:'https://signal.org',
-   ios:true, android:true, desktop:true,    desc:'Open Signal'},
-  {id:'discord',    name:'Discord',         icon:'💜', category:'Messaging',
-   uri:'discord://',                        fallback:'https://discord.com/app',
-   ios:true, android:true, desktop:true,    desc:'Open Discord'},
-  {id:'slack',      name:'Slack',           icon:'#️⃣', category:'Messaging',
-   uri:'slack://',                          fallback:'https://app.slack.com',
-   ios:true, android:true, desktop:true,    desc:'Open Slack'},
+  // ── 📺 Vidéo ───────────────────────────────────────────────────────────────
+  {id:'youtube',     name:'YouTube',      icon:'📺', cat:'Video',
+   uri:'youtube://',
+   android:'intent://www.youtube.com#Intent;scheme=https;package=com.google.android.youtube;end',
+   ios_store:'https://apps.apple.com/app/youtube/id544007664',
+   android_store:'https://play.google.com/store/apps/details?id=com.google.android.youtube'},
+  {id:'netflix',     name:'Netflix',      icon:'🎬', cat:'Video',
+   uri:'nflx://www.netflix.com',
+   android:'intent://www.netflix.com#Intent;scheme=https;package=com.netflix.mediaclient;end',
+   ios_store:'https://apps.apple.com/app/netflix/id363590051',
+   android_store:'https://play.google.com/store/apps/details?id=com.netflix.mediaclient'},
+  {id:'twitch',      name:'Twitch',       icon:'💜', cat:'Video',
+   uri:'twitch://open',
+   android:'intent://open#Intent;scheme=twitch;package=tv.twitch.android.app;end',
+   ios_store:'https://apps.apple.com/app/twitch/id460177396',
+   android_store:'https://play.google.com/store/apps/details?id=tv.twitch.android.app'},
+  {id:'tiktok',      name:'TikTok',       icon:'🎵', cat:'Video',
+   uri:'snssdk1233://feed',
+   android:'intent://open#Intent;scheme=snssdk1233;package=com.zhiliaoapp.musically;end',
+   ios_store:'https://apps.apple.com/app/tiktok/id835599320',
+   android_store:'https://play.google.com/store/apps/details?id=com.zhiliaoapp.musically'},
 
-  // ── Productivity ────────────────────────────────────────────────────────────
-  {id:'notion',     name:'Notion',          icon:'📝', category:'Productivity',
-   uri:'notion://',                         fallback:'https://www.notion.so',
-   ios:true, android:true, desktop:true,    desc:'Open Notion'},
-  {id:'obsidian',   name:'Obsidian',        icon:'💎', category:'Productivity',
-   uri:'obsidian://',                       fallback:'https://obsidian.md',
-   ios:true, android:true, desktop:true,    desc:'Open Obsidian'},
-  {id:'vscode',     name:'VS Code',         icon:'🖥', category:'Dev',
-   uri:'vscode://',                         fallback:'https://vscode.dev',
-   ios:false, android:false, desktop:true,  desc:'Open VS Code'},
-  {id:'figma',      name:'Figma',           icon:'🎨', category:'Design',
-   uri:'figma://',                          fallback:'https://www.figma.com',
-   ios:false, android:false, desktop:true,  desc:'Open Figma'},
-  {id:'linear',     name:'Linear',          icon:'📐', category:'Productivity',
-   uri:'linear://',                         fallback:'https://linear.app',
-   ios:true, android:false, desktop:true,   desc:'Open Linear'},
+  // ── 💬 Messaging ───────────────────────────────────────────────────────────
+  {id:'whatsapp',    name:'WhatsApp',     icon:'💬', cat:'Messaging',
+   uri:'whatsapp://send',
+   android:'intent://send#Intent;scheme=whatsapp;package=com.whatsapp;end',
+   ios_store:'https://apps.apple.com/app/whatsapp/id310633997',
+   android_store:'https://play.google.com/store/apps/details?id=com.whatsapp'},
+  {id:'telegram',    name:'Telegram',     icon:'✈️', cat:'Messaging',
+   uri:'tg://resolve',
+   android:'intent://resolve#Intent;scheme=tg;package=org.telegram.messenger;end',
+   ios_store:'https://apps.apple.com/app/telegram/id686449807',
+   android_store:'https://play.google.com/store/apps/details?id=org.telegram.messenger'},
+  {id:'signal',      name:'Signal',       icon:'🔒', cat:'Messaging',
+   uri:'sgnl://',
+   android:'intent://open#Intent;scheme=sgnl;package=org.thoughtcrime.securesms;end',
+   ios_store:'https://apps.apple.com/app/signal/id874139669',
+   android_store:'https://play.google.com/store/apps/details?id=org.thoughtcrime.securesms'},
+  {id:'discord',     name:'Discord',      icon:'🎮', cat:'Messaging',
+   uri:'discord://',
+   android:'intent://discord.com#Intent;scheme=https;package=com.discord;end',
+   ios_store:'https://apps.apple.com/app/discord/id985746746',
+   android_store:'https://play.google.com/store/apps/details?id=com.discord'},
+  {id:'slack',       name:'Slack',        icon:'#️⃣', cat:'Messaging',
+   uri:'slack://',
+   android:'intent://open#Intent;scheme=slack;package=com.Slack;end',
+   ios_store:'https://apps.apple.com/app/slack/id618783545',
+   android_store:'https://play.google.com/store/apps/details?id=com.Slack'},
+  {id:'messenger',   name:'Messenger',    icon:'💙', cat:'Messaging',
+   uri:'fb-messenger://',
+   android:'intent://open#Intent;scheme=fb-messenger;package=com.facebook.orca;end',
+   ios_store:'https://apps.apple.com/app/messenger/id454638411',
+   android_store:'https://play.google.com/store/apps/details?id=com.facebook.orca'},
 
-  // ── Maps & Navigation ───────────────────────────────────────────────────────
-  {id:'maps',       name:'Apple Maps',      icon:'🗺', category:'Maps',
-   uri:'maps://',                           fallback:'https://maps.apple.com',
-   ios:true, android:false, desktop:false,  desc:'Open Apple Maps'},
-  {id:'googlemaps', name:'Google Maps',     icon:'📍', category:'Maps',
-   uri:'comgooglemaps://',                  fallback:'https://maps.google.com',
-   ios:true, android:true, desktop:false,   desc:'Open Google Maps'},
-  {id:'waze',       name:'Waze',            icon:'🚗', category:'Maps',
-   uri:'waze://',                           fallback:'https://www.waze.com',
-   ios:true, android:true, desktop:false,   desc:'Open Waze'},
+  // ── 📸 Social ─────────────────────────────────────────────────────────────
+  {id:'instagram',   name:'Instagram',    icon:'📸', cat:'Social',
+   uri:'instagram://app',
+   android:'intent://instagram.com#Intent;scheme=https;package=com.instagram.android;end',
+   ios_store:'https://apps.apple.com/app/instagram/id389801252',
+   android_store:'https://play.google.com/store/apps/details?id=com.instagram.android'},
+  {id:'twitter',     name:'X (Twitter)',  icon:'🐦', cat:'Social',
+   uri:'twitter://timeline',
+   android:'intent://timeline#Intent;scheme=twitter;package=com.twitter.android;end',
+   ios_store:'https://apps.apple.com/app/x/id333903271',
+   android_store:'https://play.google.com/store/apps/details?id=com.twitter.android'},
+  {id:'linkedin',    name:'LinkedIn',     icon:'💼', cat:'Social',
+   uri:'linkedin://',
+   android:'intent://open#Intent;scheme=linkedin;package=com.linkedin.android;end',
+   ios_store:'https://apps.apple.com/app/linkedin/id288429040',
+   android_store:'https://play.google.com/store/apps/details?id=com.linkedin.android'},
+  {id:'snapchat',    name:'Snapchat',     icon:'👻', cat:'Social',
+   uri:'snapchat://',
+   android:'intent://open#Intent;scheme=snapchat;package=com.snapchat.android;end',
+   ios_store:'https://apps.apple.com/app/snapchat/id447188370',
+   android_store:'https://play.google.com/store/apps/details?id=com.snapchat.android'},
+  {id:'reddit',      name:'Reddit',       icon:'🤖', cat:'Social',
+   uri:'reddit://',
+   android:'intent://open#Intent;scheme=reddit;package=com.reddit.frontpage;end',
+   ios_store:'https://apps.apple.com/app/reddit/id1064216828',
+   android_store:'https://play.google.com/store/apps/details?id=com.reddit.frontpage'},
+  {id:'mastodon',    name:'Mastodon',     icon:'🐘', cat:'Social',
+   uri:'mastodon://',
+   android:'intent://open#Intent;scheme=mastodon;package=org.joinmastodon.android;end',
+   ios_store:'https://apps.apple.com/app/mastodon/id1571998974',
+   android_store:'https://play.google.com/store/apps/details?id=org.joinmastodon.android'},
 
-  // ── Shopping ────────────────────────────────────────────────────────────────
-  {id:'amazon',     name:'Amazon',          icon:'🛒', category:'Shopping',
-   uri:'com.amazon.mobile.shopping://www.amazon.com',fallback:'https://www.amazon.com',
-   ios:true, android:true, desktop:false,   desc:'Open Amazon'},
+  // ── 🗺 Maps & Transports ──────────────────────────────────────────────────
+  {id:'googlemaps',  name:'Google Maps',  icon:'🗺', cat:'Maps',
+   uri:'comgooglemaps://',
+   android:'intent://maps.google.com#Intent;scheme=https;package=com.google.android.apps.maps;end',
+   ios_store:'https://apps.apple.com/app/google-maps/id585027354',
+   android_store:'https://play.google.com/store/apps/details?id=com.google.android.apps.maps'},
+  {id:'applemaps',   name:'Apple Maps',   icon:'🍎', cat:'Maps',
+   uri:'maps://',
+   ios_store:'https://apps.apple.com/app/plans/id915056765'},
+  {id:'waze',        name:'Waze',         icon:'🚗', cat:'Maps',
+   uri:'waze://',
+   android:'intent://open#Intent;scheme=waze;package=com.waze;end',
+   ios_store:'https://apps.apple.com/app/waze/id323229106',
+   android_store:'https://play.google.com/store/apps/details?id=com.waze'},
+  {id:'uber',        name:'Uber',         icon:'🚕', cat:'Maps',
+   uri:'uber://',
+   android:'intent://open#Intent;scheme=uber;package=com.ubercab;end',
+   ios_store:'https://apps.apple.com/app/uber/id368677368',
+   android_store:'https://play.google.com/store/apps/details?id=com.ubercab'},
 
-  // ── Health & Fitness ────────────────────────────────────────────────────────
-  {id:'strava',     name:'Strava',          icon:'🏃', category:'Health',
-   uri:'strava://',                         fallback:'https://www.strava.com',
-   ios:true, android:true, desktop:false,   desc:'Open Strava'},
+  // ── 💳 Finance ────────────────────────────────────────────────────────────
+  {id:'paypal',      name:'PayPal',       icon:'💳', cat:'Finance',
+   uri:'paypal://touchWallet',
+   android:'intent://touchWallet#Intent;scheme=paypal;package=com.paypal.android.p2pmobile;end',
+   ios_store:'https://apps.apple.com/app/paypal/id283646709',
+   android_store:'https://play.google.com/store/apps/details?id=com.paypal.android.p2pmobile'},
+  {id:'revolut',     name:'Revolut',      icon:'🔵', cat:'Finance',
+   uri:'revolut://',
+   android:'intent://open#Intent;scheme=revolut;package=com.revolut.revolut;end',
+   ios_store:'https://apps.apple.com/app/revolut/id932493382',
+   android_store:'https://play.google.com/store/apps/details?id=com.revolut.revolut'},
 
-  // ── Finance ────────────────────────────────────────────────────────────────
-  {id:'paypal',     name:'PayPal',          icon:'💳', category:'Finance',
-   uri:'paypal://',                         fallback:'https://www.paypal.com',
-   ios:true, android:true, desktop:false,   desc:'Open PayPal'},
+  // ── 🏃 Sport & Santé ──────────────────────────────────────────────────────
+  {id:'strava',      name:'Strava',       icon:'🏃', cat:'Health',
+   uri:'strava://',
+   android:'intent://open#Intent;scheme=strava;package=com.strava;end',
+   ios_store:'https://apps.apple.com/app/strava/id426826309',
+   android_store:'https://play.google.com/store/apps/details?id=com.strava'},
+
+  // ── 🖥 Desktop only ───────────────────────────────────────────────────────
+  {id:'vscode',      name:'VS Code',      icon:'🖥', cat:'Dev',
+   uri:'vscode://', desktop:true,
+   ios_store:null, android_store:null},
+  {id:'obsidian',    name:'Obsidian',     icon:'💎', cat:'Productivity',
+   uri:'obsidian://', desktop:true,
+   android:'intent://open#Intent;scheme=obsidian;package=md.obsidian;end',
+   ios_store:'https://apps.apple.com/app/obsidian/id1557175442',
+   android_store:'https://play.google.com/store/apps/details?id=md.obsidian'},
+  {id:'notion',      name:'Notion',       icon:'📝', cat:'Productivity',
+   uri:'notion://', desktop:true,
+   android:'intent://open#Intent;scheme=notion;package=notion.id;end',
+   ios_store:'https://apps.apple.com/app/notion/id1232780281',
+   android_store:'https://play.google.com/store/apps/details?id=notion.id'},
+  {id:'figma',       name:'Figma',        icon:'🎨', cat:'Design',
+   uri:'figma://', desktop:true,
+   ios_store:null, android_store:null},
 ];
 
-// ── STORAGE ───────────────────────────────────────────────────────────────────
-function loadLinks(){try{return JSON.parse(localStorage.getItem(LINKS_KEY)||'[]');}catch(e){return[];}}
-function saveLinks(d){localStorage.setItem(LINKS_KEY,JSON.stringify(d));}
-function gid(){return 'dl'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// ── DETECT PLATFORM ───────────────────────────────────────────────────────────
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent);}
+function isAndroid(){return /android/i.test(navigator.userAgent);}
+function isMobile(){return isIOS()||isAndroid();}
 
-// ── OPEN ──────────────────────────────────────────────────────────────────────
-// Tente d'ouvrir l'URI native. Si l'app n'est pas installée, redirige vers fallback après délai
-function openDeepLink(uri,fallback){
-  if(!uri)return;
-  const start=Date.now();
-  const fallbackUrl=fallback||null;
+// ── LAUNCH ────────────────────────────────────────────────────────────────────
+function launch(app){
+  let uri=app.uri;
 
-  // Crée un iframe invisible pour déclencher le scheme URI sans navigation
-  const frame=document.createElement('iframe');
-  frame.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0';
-  frame.src=uri;
-  document.body.appendChild(frame);
-
-  if(fallbackUrl){
-    // Si on est encore dans l'app après 2s, l'app native n'a pas été ouverte → fallback web
-    setTimeout(()=>{
-      if(document.hidden)return; // App s'est mise en background = succès
-      if(Date.now()-start>1800){
-        window.open(fallbackUrl,'_blank');
-      }
-      frame.remove();
-    },2000);
-  }else{
-    setTimeout(()=>frame.remove(),3000);
+  if(isAndroid()&&app.android){
+    // Intent URL Android → ouvre l'app ou propose le Play Store
+    uri=app.android;
   }
+
+  // Tente l'ouverture via window.location (pas de popup blocker)
+  window.location.href=uri;
+
+  // Après 2s, si on est toujours là, l'app n'est pas installée
+  if(isMobile()){
+    setTimeout(()=>{
+      if(document.hidden)return; // App ouverte → on est en background
+      const store=isIOS()?app.ios_store:app.android_store;
+      if(store){
+        if(confirm(app.name+' not found. Open App Store?')){
+          window.open(store,'_blank');
+        }
+      }
+    },2000);
+  }
+  window.YM_toast?.('Opening '+app.name+'…','info');
 }
 
+// ── STORAGE ───────────────────────────────────────────────────────────────────
+function loadSaved(){try{return JSON.parse(localStorage.getItem(SAVED_KEY)||'[]');}catch(e){return[];}}
+function saveSaved(d){localStorage.setItem(SAVED_KEY,JSON.stringify(d));}
+function isSaved(id){return loadSaved().some(s=>s.id===id);}
+function toggleSaved(app){
+  const saved=loadSaved();
+  const idx=saved.findIndex(s=>s.id===app.id);
+  if(idx>=0){saved.splice(idx,1);}else{saved.unshift({id:app.id,name:app.name,icon:app.icon});}
+  saveSaved(saved);
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
 // ── PANEL ─────────────────────────────────────────────────────────────────────
-let _activeTab='apps';
 function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
   container.innerHTML='';
 
-  const track=document.createElement('div');
-  track.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
-  container.appendChild(track);
-
-  const tabs=document.createElement('div');
-  tabs.className='ym-tabs';
-  tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);margin:0;flex-shrink:0';
-  [['apps','📱 Apps'],['custom','⚙ Custom']].forEach(([id,label])=>{
-    const t=document.createElement('div');
-    t.className='ym-tab'+(_activeTab===id?' active':'');
-    t.dataset.tab=id;t.textContent=label;
-    t.addEventListener('click',()=>{
-      _activeTab=id;
-      tabs.querySelectorAll('.ym-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));
-      track.innerHTML='';
-      if(id==='apps')renderAppsTab(track);
-      else renderCustomTab(track);
-    });
-    tabs.appendChild(t);
-  });
-  container.appendChild(tabs);
-
-  if(_activeTab==='apps')renderAppsTab(track);
-  else renderCustomTab(track);
-}
-
-function renderAppsTab(container){
-  container.innerHTML='';
-  container.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden';
-
-  // Barre de recherche + filtre catégorie
+  // Header — recherche + filtre catégorie
   const hdr=document.createElement('div');
   hdr.style.cssText='flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px';
-  hdr.innerHTML='<input id="dl-search" class="ym-input" placeholder="Search apps…" style="font-size:12px">';
+  hdr.innerHTML='<input id="dl-q" class="ym-input" placeholder="Search apps…" style="font-size:12px">';
   container.appendChild(hdr);
 
-  // Filtre catégorie
-  const cats=[...new Set(BUILTIN_APPS.map(a=>a.category))];
+  const cats=[...new Set(APPS.map(a=>a.cat))];
   let activeCat='All';
-  const catBar=document.createElement('div');
-  catBar.style.cssText='display:flex;gap:4px;flex-wrap:wrap';
+  const catBar=document.createElement('div');catBar.style.cssText='display:flex;gap:4px;flex-wrap:wrap';
+
+  const list=document.createElement('div');
+  list.style.cssText='flex:1;overflow-y:auto';
+  container.appendChild(list);
 
   function renderCats(){
     catBar.innerHTML='';
-    ['All',...cats].forEach(cat=>{
+    ['All','⭐ Saved',...cats].forEach(cat=>{
       const b=document.createElement('button');
       b.className='ym-btn ym-btn-ghost';
       b.style.cssText='font-size:10px;padding:2px 8px'+(cat===activeCat?';background:var(--accent);color:#000':'');
@@ -200,102 +258,73 @@ function renderAppsTab(container){
   hdr.appendChild(catBar);
   renderCats();
 
-  const list=document.createElement('div');
-  list.style.cssText='flex:1;overflow-y:auto;padding:8px 14px';
-  container.appendChild(list);
+  // Ajouter un scheme custom
+  const addBtn=document.createElement('button');
+  addBtn.className='ym-btn ym-btn-ghost';
+  addBtn.style.cssText='font-size:11px;align-self:flex-start';
+  addBtn.textContent='+ Custom scheme';
+  addBtn.addEventListener('click',()=>_showAddCustom(()=>renderList()));
+  hdr.appendChild(addBtn);
 
   function renderList(){
     list.innerHTML='';
-    const q=hdr.querySelector('#dl-search').value.toLowerCase();
-    const apps=BUILTIN_APPS.filter(a=>{
-      if(activeCat!=='All'&&a.category!==activeCat)return false;
-      if(q&&!a.name.toLowerCase().includes(q)&&!a.category.toLowerCase().includes(q))return false;
-      return true;
-    });
-    if(!apps.length){list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No apps found.</div>';return;}
-    apps.forEach(app=>{
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer';
-      const platforms=[app.ios&&'iOS',app.android&&'Android',app.desktop&&'Desktop'].filter(Boolean).join(' · ');
-      row.innerHTML=
-        '<div style="font-size:28px;width:40px;text-align:center;flex-shrink:0">'+app.icon+'</div>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600">'+esc(app.name)+'</div>'+
-          '<div style="font-size:10px;color:var(--text3)">'+esc(app.category)+' · '+esc(platforms)+'</div>'+
-        '</div>'+
-        '<button class="dl-open ym-btn ym-btn-accent" style="font-size:12px;padding:6px 14px;flex-shrink:0">Open</button>'+
-        '<button class="dl-add ym-btn ym-btn-ghost" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Add to My Links">+</button>';
-      row.querySelector('.dl-open').addEventListener('click',e=>{
-        e.stopPropagation();
-        openDeepLink(app.uri,app.fallback);
-        window.YM_toast?.('Opening '+app.name+'…','info');
-      });
-      row.querySelector('.dl-add').addEventListener('click',e=>{
-        e.stopPropagation();
-        const links=loadLinks();
-        if(links.find(l=>l.uri===app.uri)){window.YM_toast?.('Already in My Links','warn');return;}
-        links.unshift({id:gid(),name:app.name,icon:app.icon,uri:app.uri,fallback:app.fallback,category:app.category});
-        saveLinks(links);
-        window.YM_toast?.(app.name+' added to My Links','success');
-      });
-      list.appendChild(row);
-    });
-  }
+    const q=hdr.querySelector('#dl-q').value.toLowerCase();
+    const saved=loadSaved();
 
-  hdr.querySelector('#dl-search').addEventListener('input',renderList);
-  renderList();
-}
+    let apps=APPS;
+    if(activeCat==='⭐ Saved'){
+      apps=saved.map(s=>APPS.find(a=>a.id===s.id)).filter(Boolean);
+      // Ajoute les customs
+      const customs=saved.filter(s=>s.custom).map(s=>({...s,uri:s.uri}));
+      apps=[...apps,...customs];
+    }else if(activeCat!=='All'){
+      apps=APPS.filter(a=>a.cat===activeCat);
+    }
+    if(q)apps=apps.filter(a=>a.name.toLowerCase().includes(q)||a.cat?.toLowerCase().includes(q));
 
-function renderCustomTab(container){
-  container.innerHTML='';
-  container.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden';
-
-  const hdr=document.createElement('div');
-  hdr.style.cssText='flex-shrink:0;padding:10px 14px;border-bottom:1px solid var(--border)';
-  hdr.innerHTML=
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">My saved links — saved apps + custom URI schemes</div>'+
-    '<button id="dl-add-custom" class="ym-btn ym-btn-accent" style="width:100%;font-size:12px">+ Add custom link</button>';
-  container.appendChild(hdr);
-
-  const list=document.createElement('div');
-  list.style.cssText='flex:1;overflow-y:auto;padding:8px 14px';
-  container.appendChild(list);
-
-  function renderLinks(){
-    list.innerHTML='';
-    const links=loadLinks();
-    if(!links.length){
-      list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px;text-align:center">No saved links.<br>Open 📱 Apps and tap + to save links here.</div>';
+    if(!apps.length){
+      list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:24px;text-align:center">No apps found.</div>';
       return;
     }
-    links.forEach((link,i)=>{
-      const row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)';
-      row.innerHTML=
-        '<div style="font-size:24px;width:36px;text-align:center;flex-shrink:0">'+esc(link.icon||'🔗')+'</div>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(link.name)+'</div>'+
-          '<div style="font-size:10px;color:var(--text3);font-family:var(--font-m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(link.uri)+'</div>'+
-        '</div>'+
-        '<button class="dl-open ym-btn ym-btn-accent" style="font-size:12px;padding:5px 12px">Open</button>'+
-        '<button class="dl-del ym-btn ym-btn-ghost" style="font-size:12px;padding:5px 8px;color:#e84040">×</button>';
-      row.querySelector('.dl-open').addEventListener('click',()=>{
-        openDeepLink(link.uri,link.fallback);
-        window.YM_toast?.('Opening '+link.name+'…','info');
+
+    // Regroupe par catégorie
+    const byCat={};
+    apps.forEach(a=>{const c=a.cat||'Custom';if(!byCat[c])byCat[c]=[];byCat[c].push(a);});
+
+    Object.entries(byCat).forEach(([cat,catApps])=>{
+      if(activeCat==='All'||activeCat==='⭐ Saved'){
+        const lbl=document.createElement('div');
+        lbl.style.cssText='font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:10px 16px 4px;font-weight:600';
+        lbl.textContent=cat;
+        list.appendChild(lbl);
+      }
+      catApps.forEach(app=>{
+        const starred=isSaved(app.id||(app.uri));
+        const row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;transition:background .12s';
+        row.innerHTML=
+          '<div style="font-size:30px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border-radius:12px;flex-shrink:0">'+esc(app.icon||'🔗')+'</div>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:14px;font-weight:600">'+esc(app.name)+'</div>'+
+            '<div style="font-size:10px;color:var(--text3);font-family:var(--font-m)">'+esc(app.uri)+'</div>'+
+          '</div>'+
+          '<button class="dl-star ym-btn ym-btn-ghost" style="font-size:16px;padding:4px 8px;flex-shrink:0">'+(starred?'⭐':'☆')+'</button>'+
+          '<button class="dl-launch ym-btn ym-btn-accent" style="padding:8px 16px;font-size:13px;font-weight:600;flex-shrink:0">▶</button>';
+        row.addEventListener('mouseenter',()=>row.style.background='rgba(255,255,255,.03)');
+        row.addEventListener('mouseleave',()=>row.style.background='');
+        row.querySelector('.dl-launch').addEventListener('click',e=>{e.stopPropagation();launch(app);});
+        row.querySelector('.dl-star').addEventListener('click',e=>{
+          e.stopPropagation();
+          toggleSaved(app);
+          renderList();
+        });
+        list.appendChild(row);
       });
-      row.querySelector('.dl-del').addEventListener('click',()=>{
-        if(!confirm('Remove "'+link.name+'"?'))return;
-        const arr=loadLinks();arr.splice(i,1);saveLinks(arr);renderLinks();
-      });
-      list.appendChild(row);
     });
   }
 
-  hdr.querySelector('#dl-add-custom').addEventListener('click',()=>{
-    _showAddCustom(renderLinks);
-  });
-
-  renderLinks();
+  hdr.querySelector('#dl-q').addEventListener('input',renderList);
+  renderList();
 }
 
 function _showAddCustom(onDone){
@@ -304,70 +333,63 @@ function _showAddCustom(onDone){
   const box=document.createElement('div');
   box.style.cssText='background:var(--surface2);border-radius:var(--r-lg) var(--r-lg) 0 0;padding:20px;width:100%;max-width:500px';
   box.innerHTML=
-    '<div style="font-size:14px;font-weight:600;margin-bottom:14px">Add Custom Deep Link</div>'+
+    '<div style="font-size:14px;font-weight:600;margin-bottom:10px">Custom URI Scheme</div>'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">'+
-      'URI scheme examples:<br>'+
-      '<code style="font-size:11px;color:var(--accent)">spotify://</code> · <code style="font-size:11px;color:var(--accent)">vscode://</code> · <code style="font-size:11px;color:var(--accent)">notion://</code>'+
+      'Enter any URI scheme registered on your device.<br>'+
+      'Examples: <code style="color:var(--accent)">spotify://</code>  <code style="color:var(--accent)">vscode://</code>  <code style="color:var(--accent)">obsidian://</code>'+
     '</div>'+
-    '<div style="display:flex;flex-direction:column;gap:8px">'+
-      '<input id="cl-icon" class="ym-input" placeholder="Icon (emoji)" style="font-size:16px;width:60px">'+
-      '<input id="cl-name" class="ym-input" placeholder="App name *" style="font-size:13px">'+
-      '<input id="cl-uri" class="ym-input" placeholder="URI scheme (e.g. spotify://) *" style="font-size:12px;font-family:var(--font-m)">'+
-      '<input id="cl-fallback" class="ym-input" placeholder="Fallback URL (https://…)" style="font-size:12px">'+
-      '<input id="cl-cat" class="ym-input" placeholder="Category" style="font-size:12px">'+
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">'+
+      '<div style="display:flex;gap:8px">'+
+        '<input id="cc-icon" class="ym-input" placeholder="🔗" style="width:56px;font-size:18px;text-align:center">'+
+        '<input id="cc-name" class="ym-input" placeholder="App name *" style="flex:1;font-size:13px">'+
+      '</div>'+
+      '<input id="cc-uri" class="ym-input" placeholder="URI scheme, e.g. myapp:// *" style="font-size:12px;font-family:var(--font-m)">'+
     '</div>'+
-    '<div style="display:flex;gap:8px;margin-top:14px">'+
-      '<button id="cl-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
-      '<button id="cl-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
+    '<div style="display:flex;gap:8px">'+
+      '<button id="cc-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
+      '<button id="cc-save" class="ym-btn ym-btn-accent" style="flex:1">Save & Launch</button>'+
     '</div>';
   overlay.appendChild(box);document.body.appendChild(overlay);
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
-  box.querySelector('#cl-cancel').addEventListener('click',()=>overlay.remove());
-  box.querySelector('#cl-save').addEventListener('click',()=>{
-    const name=box.querySelector('#cl-name').value.trim();
-    const uri=box.querySelector('#cl-uri').value.trim();
+  box.querySelector('#cc-cancel').addEventListener('click',()=>overlay.remove());
+  box.querySelector('#cc-save').addEventListener('click',()=>{
+    const name=box.querySelector('#cc-name').value.trim();
+    const uri=box.querySelector('#cc-uri').value.trim();
     if(!name||!uri){window.YM_toast?.('Name and URI required','error');return;}
-    const links=loadLinks();
-    links.unshift({
-      id:gid(),
-      name,
-      icon:box.querySelector('#cl-icon').value.trim()||'🔗',
-      uri,
-      fallback:box.querySelector('#cl-fallback').value.trim()||null,
-      category:box.querySelector('#cl-cat').value.trim()||'Custom'
-    });
-    saveLinks(links);
+    const app={id:'custom_'+Date.now(),name,icon:box.querySelector('#cc-icon').value.trim()||'🔗',uri,cat:'Custom',custom:true};
+    const saved=loadSaved();saved.unshift({...app});saveSaved(saved);
     overlay.remove();
     if(onDone)onDone();
-    window.YM_toast?.('Link saved','success');
+    launch(app);
   });
 }
 
 // ── SPHERE ────────────────────────────────────────────────────────────────────
 window.YM_S['deeplink.sphere.js']={
-  name:'DeepLink',icon:'🔗',category:'Tools',
-  description:'Open native apps via URI schemes — mobile & desktop',
+  name:'DeepLink',icon:'🚀',category:'Tools',
+  description:'Launch native apps via URI schemes — mobile & desktop',
   emit:[],receive:[],
   activate(ctx){},
   deactivate(){},
   renderPanel,
   profileSection(container){
-    const links=loadLinks();
-    if(!links.length)return;
+    const saved=loadSaved();
+    if(!saved.length)return;
     const wrap=document.createElement('div');
     wrap.style.cssText='display:flex;flex-direction:column;gap:6px';
     const title=document.createElement('div');
-    title.style.cssText='font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px';
+    title.style.cssText='font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px';
     title.textContent='My Apps';
     wrap.appendChild(title);
     const grid=document.createElement('div');
-    grid.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
-    links.slice(0,8).forEach(link=>{
+    grid.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
+    saved.slice(0,8).forEach(s=>{
+      const app=APPS.find(a=>a.id===s.id)||s;
       const btn=document.createElement('button');
       btn.className='ym-btn ym-btn-ghost';
       btn.style.cssText='display:flex;align-items:center;gap:6px;font-size:12px;padding:6px 10px';
-      btn.innerHTML='<span>'+esc(link.icon||'🔗')+'</span><span>'+esc(link.name)+'</span>';
-      btn.addEventListener('click',()=>{openDeepLink(link.uri,link.fallback);});
+      btn.innerHTML='<span style="font-size:16px">'+esc(app.icon||'🔗')+'</span><span>'+esc(app.name)+'</span>';
+      btn.addEventListener('click',()=>launch(app));
       grid.appendChild(btn);
     });
     wrap.appendChild(grid);
