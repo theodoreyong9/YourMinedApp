@@ -320,18 +320,20 @@ function _refreshWidget(){
 
 function _syncWidgetPage(){
   if(!_widget)return;
-  // Widget retiré du DOM (ex: navigation PWA) → recrée
+  // Widget retiré du DOM → recrée
   if(!document.body.contains(_widget)){
-    _widget=null;
-    createWidget();
-    return;
+    _widget=null;createWidget();return;
   }
   if(_widget._dragging)return;
   const pos=loadPos();
   const widgetPage=pos.page??0;
   const curPage=window._deskCurPage;
-  if(curPage===undefined||curPage===null){_widget.style.display='block';return;}
-  _widget.style.display=(curPage===widgetPage)?'block':'none';
+  if(curPage===undefined||curPage===null){_widget.style.opacity='1';_widget.style.pointerEvents='all';return;}
+  const visible=curPage===widgetPage;
+  // Fondu au lieu de display:none pour éviter la disparition sèche
+  _widget.style.transition='opacity .25s ease';
+  _widget.style.opacity=visible?'1':'0';
+  _widget.style.pointerEvents=visible?'all':'none';
 }
 
 function removeWidget(){
