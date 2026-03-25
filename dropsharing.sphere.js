@@ -14,6 +14,12 @@ function loadProducts(){try{return JSON.parse(localStorage.getItem(PRODUCTS_KEY)
 function saveProducts(d){localStorage.setItem(PRODUCTS_KEY,JSON.stringify(d));}
 function gid(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _addProduct(p){
+  var prods=loadProducts();
+  prods.unshift({id:gid(),name:p.name||'Product',price:p.price||'',affLink:p.affLink||'',origUrl:p.origUrl||'',
+    imageUrl:p.imageUrl||'',desc:p.desc||'',program:p.program||'',programIcon:p.programIcon||'🔗',folderId:p.folderId||null,createdAt:Date.now()});
+  saveProducts(prods);
+}
 
 // ── AFFILIATE PROGRAMS ────────────────────────────────────────────────────────
 // detect(url) → true si cette URL appartient au programme
@@ -389,60 +395,122 @@ function renderAdd(container){
   container.style.cssText='flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px';
 
   const settings=loadSettings();
-  const configuredCount=PROGRAMS.filter(p=>p.id!=='generic'&&settings[p.id]&&Object.values(settings[p.id]).some(v=>v)).length;
+  const activeProgs=PROGRAMS.filter(p=>p.id!=='generic'&&settings[p.id]&&Object.values(settings[p.id]).some(v=>v));
 
-  if(configuredCount===0){
+  if(activeProgs.length===0){
     const notice=document.createElement('div');notice.className='ym-notice info';
-    notice.innerHTML='<b>No programs configured yet.</b><br>Go to ⚙ Config to add your affiliate IDs first.<br>You can also use the Generic program for any URL.';
+    notice.innerHTML='<b>No programs configured yet.</b><br>Go to your Profile → Dropsharing to add your affiliate IDs.';
     container.appendChild(notice);
   }
 
-  // URL input
-  const urlCard=document.createElement('div');urlCard.className='ym-card';
-  urlCard.innerHTML=
-    '<div class="ym-card-title">Product URL</div>'+
+  // Input : URL ou référence produit
+  const inputCard=document.createElement('div');inputCard.className='ym-card';
+  inputCard.innerHTML=
+    '<div class="ym-card-title">Product reference or URL</div>'+
     '<div style="display:flex;gap:8px;margin-bottom:8px">'+
-      '<input id="ds-url" class="ym-input" placeholder="Paste any product URL (Amazon, eBay, AliExpress…)" style="flex:1;font-size:12px">'+
-      '<button id="ds-detect" class="ym-btn ym-btn-accent" style="padding:8px 12px">→</button>'+
+      '<input id="ds-url" class="ym-input" placeholder="ASIN, model ref, product name, or paste URL…" style="flex:1;font-size:12px">'+
+      '<button id="ds-detect" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button>'+
     '</div>'+
-    '<div id="ds-url-hint" style="font-size:10px;color:var(--text3)">We\'ll detect the program and generate your affiliate link instantly.</div>';
-  container.appendChild(urlCard);
+    '<div id="ds-url-hint" style="font-size:10px;color:var(--text3)">'+
+      'Paste a product URL (auto-detects program) or type a reference to search across all configured affiliates.'+
+    '</div>';
+  container.appendChild(inputCard);
 
   const preview=document.createElement('div');
   preview.style.cssText='display:flex;flex-direction:column;gap:8px';
   container.appendChild(preview);
 
-  urlCard.querySelector('#ds-detect').addEventListener('click',()=>handleUrl(urlCard.querySelector('#ds-url').value.trim()));
-  urlCard.querySelector('#ds-url').addEventListener('keydown',e=>{if(e.key==='Enter')handleUrl(urlCard.querySelector('#ds-url').value.trim());});
-  urlCard.querySelector('#ds-url').addEventListener('paste',e=>{
-    setTimeout(()=>handleUrl(e.target.value.trim()),50);
-  });
+  function handleInput(input){
+    input=input.trim();
+    if(!input){inputCard.querySelector('#ds-url-hint').textContent='Enter a product URL or reference.';return;}
+    preview.innerHTML='';
 
-  function handleUrl(url){
-    if(!url||!url.startsWith('http')){
-      urlCard.querySelector('#ds-url-hint').textContent='Please enter a valid URL starting with http…';
+    // Cas 1 : URL → détecte le programme
+    if(input.startsWith('http')){
+      const progs=detectPrograms(input);
+      if(!progs.length){
+        const msg=document.createElement('div');msg.className='ym-notice info';
+        msg.innerHTML='No configured program matches this URL.<br>Configure programs in your Profile → Dropsharing.';
+        preview.appendChild(msg);return;
+      }
+      progs.forEach(prog=>{
+        const cfg=settings[prog.id]||{};
+        let affLink=input;
+        try{affLink=prog.buildLink(input,cfg);}catch(e){}
+        preview.appendChild(_renderLinkCard(prog,input,affLink,()=>{_activeTab='list';renderPanel(container.closest('[id]')||container.parentElement);}));
+      });
       return;
     }
-    preview.innerHTML='';
-    const progs=detectPrograms(url);
-    if(!progs.length){
+
+    // Cas 2 : Référence → génère des liens de recherche sur tous les affiliés configurés
+    if(!activeProgs.length){
       const msg=document.createElement('div');msg.className='ym-notice info';
-      msg.innerHTML='No configured program matches this URL.<br>Configure a program in ⚙ Config, or use the <b>Generic</b> program.';
+      msg.textContent='Configure at least one affiliate program in your Profile → Dropsharing.';
       preview.appendChild(msg);return;
     }
-    // Affiche un bloc par programme détecté
-    progs.forEach(prog=>{
+    inputCard.querySelector('#ds-url-hint').textContent='Generating search links for "'+input+'" across '+activeProgs.length+' program(s)…';
+    activeProgs.forEach(prog=>{
       const cfg=settings[prog.id]||{};
-      let affLink=url;
-      try{affLink=prog.buildLink(url,cfg);}catch(e){}
-      const card=_renderLinkCard(prog,url,affLink,()=>{
-        // Après ajout → aller à la liste
-        _activeTab='list';
-        renderPanel(container.closest('[id]')||container.parentElement);
-      });
-      preview.appendChild(card);
+      const searchBase={amazon:'https://www.amazon.com/s?k=',aliexpress:'https://www.aliexpress.com/wholesale?SearchText=',walmart:'https://www.walmart.com/search?q=',bestbuy:'https://www.bestbuy.com/site/searchpage.jsp?st=',target:'https://www.target.com/s?searchTerm=',etsy:'https://www.etsy.com/search?q=',sephora:'https://www.sephora.com/search?keyword=',newegg:'https://www.newegg.com/p/pl?d=',fiverr:'https://www.fiverr.com/search/gigs?query='};
+      const baseQ=(searchBase[prog.id]||'https://www.google.com/search?q=')+encodeURIComponent(input);
+      const searchUrl=prog.searchUrl?prog.searchUrl(input):baseQ;
+      let affSearchLink=searchUrl;
+      try{affSearchLink=prog.buildLink(searchUrl,cfg);}catch(e){}
+      // eBay Finding API si App ID configuré
+      if(prog.id==='ebay'&&cfg.appid){
+        const ebayUrl='https://svcs.ebay.com/services/search/FindingService/v1'+
+          '?OPERATION-NAME=findItemsByKeywords&SERVICE-VERSION=1.0.0'+
+          '&SECURITY-APPNAME='+encodeURIComponent(cfg.appid)+
+          '&RESPONSE-DATA-FORMAT=JSON&keywords='+encodeURIComponent(input)+
+          '&paginationInput.entriesPerPage=3&sortOrder=BestMatch';
+        const row=document.createElement('div');row.className='ym-card';row.style.cssText='padding:10px';
+        row.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:18px">'+prog.icon+'</span><b style="font-size:12px">'+esc(prog.name)+'</b><span style="font-size:10px;color:var(--text3);margin-left:auto">Loading…</span></div><div class="ebay-results"></div>';
+        preview.appendChild(row);
+        fetch(ebayUrl,{headers:{'Accept':'application/json'}}).then(r=>r.json()).then(d=>{
+          const items=(d.findItemsByKeywordsResponse?.[0]?.searchResult?.[0]?.item)||[];
+          row.querySelector('.ebay-results').innerHTML='';
+          items.forEach(it=>{
+            const url=it.viewItemURL?.[0]||'';
+            const price=it.sellingStatus?.[0]?.currentPrice?.[0]?.['__value__']||'';
+            const cur=it.sellingStatus?.[0]?.currentPrice?.[0]?.['@currencyId']||'';
+            const affLink=cfg.campid?'https://rover.ebay.com/rover/1/711-53200-19255-0/1?mpre='+encodeURIComponent(url)+'&campid='+cfg.campid:url;
+            const itEl=document.createElement('div');itEl.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.05)';
+            itEl.innerHTML='<div style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(it.title?.[0]||'')+'</div><span style="color:#30e880;font-size:11px;flex-shrink:0">'+(price?cur+' '+price:'')+'</span>';
+            const addB=document.createElement('button');addB.className='ym-btn ym-btn-accent';addB.style.cssText='font-size:10px;padding:3px 8px;flex-shrink:0';addB.textContent='+';
+            addB.addEventListener('click',()=>{
+              _addProduct({name:it.title?.[0]||prog.name+' product',price:price?cur+' '+price:'',affLink,origUrl:url,imageUrl:it.galleryURL?.[0]||'',program:prog.name,programIcon:prog.icon});
+              window.YM_toast?.('Added!','success');addB.textContent='✓';addB.disabled=true;
+            });
+            itEl.appendChild(addB);row.querySelector('.ebay-results').appendChild(itEl);
+          });
+          row.querySelector('span[style*="Loading"]').textContent=items.length+' results';
+          if(!items.length){
+            const sl=document.createElement('a');sl.href=affSearchLink;sl.target='_blank';sl.className='ym-btn ym-btn-ghost';sl.style.cssText='font-size:11px;text-decoration:none;display:block;text-align:center;margin-top:4px';sl.textContent='→ Search on eBay';
+            row.querySelector('.ebay-results').appendChild(sl);
+          }
+        }).catch(()=>{
+          row.querySelector('span[style*="Loading"]').textContent='';
+          const sl=document.createElement('a');sl.href=affSearchLink;sl.target='_blank';sl.className='ym-btn ym-btn-ghost';sl.style.cssText='font-size:11px;text-decoration:none;display:block;text-align:center';sl.textContent='→ Search on '+prog.name;
+          row.querySelector('.ebay-results').appendChild(sl);
+        });
+        return;
+      }
+      // Autres programmes : lien de recherche affilié
+      const row=document.createElement('div');row.className='ym-card';row.style.cssText='padding:10px;display:flex;align-items:center;gap:10px';
+      row.innerHTML=
+        '<span style="font-size:20px;flex-shrink:0">'+prog.icon+'</span>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:12px;font-weight:600">'+esc(prog.name)+'</div>'+
+          '<div style="font-size:10px;color:var(--text3)">Search "'+esc(input)+'" with your affiliate tag</div>'+
+        '</div>'+
+        '<a href="'+esc(affSearchLink)+'" target="_blank" class="ym-btn ym-btn-accent" style="font-size:11px;text-decoration:none;flex-shrink:0">→ Open</a>';
+      preview.appendChild(row);
     });
   }
+
+  inputCard.querySelector('#ds-detect').addEventListener('click',()=>handleInput(inputCard.querySelector('#ds-url').value));
+  inputCard.querySelector('#ds-url').addEventListener('keydown',e=>{if(e.key==='Enter')handleInput(inputCard.querySelector('#ds-url').value);});
+  inputCard.querySelector('#ds-url').addEventListener('paste',e=>{setTimeout(()=>handleInput(e.target.value.trim()),50);});
 }
 
 function _renderLinkCard(prog,origUrl,affLink,onAdded){
@@ -506,14 +574,19 @@ function renderList(container){
   container.innerHTML='';
   container.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden';
   const hdr=document.createElement('div');
-  hdr.style.cssText='flex-shrink:0;display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)';
+  hdr.style.cssText='flex-shrink:0;display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border)';
   hdr.innerHTML=
     '<input id="ds-filter" class="ym-input" placeholder="Filter…" style="flex:1;font-size:12px">'+
+    '<button id="ds-folder-btn" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 8px" title="Manage folders">📁</button>'+
     '<button id="ds-manual" class="ym-btn ym-btn-ghost" style="font-size:11px;padding:4px 10px">+ Manual</button>';
   container.appendChild(hdr);
   const list=document.createElement('div');
   list.style.cssText='flex:1;overflow-y:auto;padding:8px 14px;display:flex;flex-direction:column;gap:8px';
   container.appendChild(list);
+
+  hdr.querySelector('#ds-folder-btn').addEventListener('click',()=>{
+    _showFolderManager(()=>render(hdr.querySelector('#ds-filter').value));
+  });
 
   function render(filter){
     list.innerHTML='';
