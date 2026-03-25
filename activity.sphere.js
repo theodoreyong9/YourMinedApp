@@ -215,7 +215,8 @@ function renderZonesTab(container){
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_map);
     window._actMapCenter=_map.getCenter();
     _map.on('moveend',function(){window._actMapCenter=_map.getCenter();});
-    redrawMap();
+    // Force recalcul taille après rendu DOM
+    setTimeout(function(){if(_map)_map.invalidateSize();},100);
 
     _map.on('click',function(e){
       var lat=e.latlng.lat,lng=e.latlng.lng;
@@ -226,28 +227,22 @@ function renderZonesTab(container){
       saveCircles(circles);renderList();redrawMap();
     });
 
-    // Vue initiale — toujours sur la position utilisateur
-    function setInitialView(){
-      if(_myLat!==null){
+    // Vue initiale — position utilisateur en priorité
+    if(_myLat!==null){
+      _map.setView([_myLat,_myLng],15);redrawMap();
+    }else{
+      // Affiche Paris d'abord pendant qu'on attend la géoloc
+      _map.setView([48.8566,2.3522],12);
+      navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
+        _myLat=pos.coords.latitude;_myLng=pos.coords.longitude;
         _map.setView([_myLat,_myLng],15);redrawMap();
-      }else{
-        // Demande la géoloc immédiatement, sinon fallback zones
-        navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
-          _myLat=pos.coords.latitude;_myLng=pos.coords.longitude;
-          _map.setView([_myLat,_myLng],15);redrawMap();
-        },function(){
-          var circles=loadCircles();
-          if(circles.length)_map.setView([circles[0].lat,circles[0].lng],15);
-          else _map.setView([48.8566,2.3522],12); // Paris par défaut
-        },{timeout:5000,enableHighAccuracy:true});
-        // Affiche la carte immédiatement pendant qu'on attend
+      },function(){
+        // Pas de géoloc : reste sur Paris ou zones existantes
         var circles=loadCircles();
         if(circles.length)_map.setView([circles[0].lat,circles[0].lng],15);
-        else _map.setView([48.8566,2.3522],12);
         redrawMap();
-      }
+      },{timeout:6000,enableHighAccuracy:true});
     }
-    setInitialView();
   }
 
   function loadLeaflet(cb){
@@ -264,23 +259,58 @@ function renderZonesTab(container){
     }else{var t=setInterval(function(){if(window.L){clearInterval(t);cb();}},100);}
   }
 
-  // Recherche adresse via Nominatim
-  function searchAddress(q){
-    if(!q.trim()||!_map)return;
-    fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=1',{headers:{'User-Agent':'YourMine/1.0'}})
-      .then(function(r){return r.json();})
-      .then(function(d){
-        if(!d.length){window.YM_toast&&window.YM_toast('Address not found','warn');return;}
-        var lat=parseFloat(d[0].lat),lng=parseFloat(d[0].lon);
-        _map.setView([lat,lng],16);
-      }).catch(function(){window.YM_toast&&window.YM_toast('Search failed','error');});
+  // Recherche adresse avec suggestions à la volée
+  var _searchT=null;
+  var suggestEl=document.createElement('div');
+  suggestEl.style.cssText='position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:0 0 8px 8px;z-index:100;max-height:180px;overflow-y:auto;display:none';
+
+  var searchWrap=document.createElement('div');
+  searchWrap.style.cssText='position:relative;flex:1';
+  var addrInp=searchBar.querySelector('#act-addr');
+  addrInp.parentNode.insertBefore(searchWrap,addrInp);
+  searchWrap.appendChild(addrInp);
+  searchWrap.appendChild(suggestEl);
+
+  function fetchSuggestions(q){
+    if(q.length<3){suggestEl.style.display='none';return;}
+    clearTimeout(_searchT);
+    _searchT=setTimeout(function(){
+      fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(q)+'&format=json&limit=5&addressdetails=0',{headers:{'User-Agent':'YourMine/1.0'}})
+      .then(function(r){return r.json();}).then(function(results){
+        suggestEl.innerHTML='';
+        if(!results.length){suggestEl.style.display='none';return;}
+        results.forEach(function(r){
+          var item=document.createElement('div');
+          item.style.cssText='padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05)';
+          item.textContent=r.display_name;
+          item.addEventListener('mouseenter',function(){item.style.background='rgba(232,160,32,.1)';});
+          item.addEventListener('mouseleave',function(){item.style.background='';});
+          item.addEventListener('click',function(){
+            addrInp.value=r.display_name;
+            suggestEl.style.display='none';
+            if(_map)_map.setView([parseFloat(r.lat),parseFloat(r.lon)],16);
+          });
+          suggestEl.appendChild(item);
+        });
+        suggestEl.style.display='block';
+      }).catch(function(){suggestEl.style.display='none';});
+    },350);
   }
 
+  addrInp.addEventListener('input',function(){fetchSuggestions(addrInp.value);});
+  addrInp.addEventListener('blur',function(){setTimeout(function(){suggestEl.style.display='none';},200);});
+  addrInp.addEventListener('focus',function(){if(addrInp.value.length>=3)fetchSuggestions(addrInp.value);});
+
   searchBar.querySelector('#act-addr-go').addEventListener('click',function(){
-    searchAddress(searchBar.querySelector('#act-addr').value);
+    if(!addrInp.value.trim()||!_map)return;
+    fetch('https://nominatim.openstreetmap.org/search?q='+encodeURIComponent(addrInp.value)+'&format=json&limit=1',{headers:{'User-Agent':'YourMine/1.0'}})
+    .then(function(r){return r.json();}).then(function(d){
+      if(!d.length){window.YM_toast&&window.YM_toast('Address not found','warn');return;}
+      _map.setView([parseFloat(d[0].lat),parseFloat(d[0].lon)],16);
+    }).catch(function(){});
   });
-  searchBar.querySelector('#act-addr').addEventListener('keydown',function(e){
-    if(e.key==='Enter')searchAddress(e.target.value);
+  addrInp.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){suggestEl.style.display='none';searchBar.querySelector('#act-addr-go').click();}
   });
   searchBar.querySelector('#act-locate').addEventListener('click',function(){
     navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
@@ -649,7 +679,56 @@ async function _fetchAllSources(zone,period,filters){
 }
 
 // ── SETTINGS ─────────────────────────────────────────────────────────────────
-// Config extract — ouverte depuis profileSection
+// Render config Extract directement dans un container (pour profileSection)
+function _showActivityConfigInline(container){
+  container.innerHTML='';
+  var s=loadActSettings();
+
+  function mkField(title,key,placeholder,helpUrl,helpLabel,isKey){
+    var val=s[key]||'';
+    var wrap=document.createElement('div');wrap.style.cssText='margin-bottom:8px';
+    wrap.innerHTML=
+      '<div style="font-size:10px;color:var(--text3);margin-bottom:3px">'+title+
+        (helpUrl?' — <a href="'+helpUrl+'" target="_blank" style="color:var(--accent)">'+helpLabel+'</a>':'')+
+      '</div>'+
+      '<div style="display:flex;gap:4px">'+
+        '<input class="sf-inp ym-input" type="'+(isKey?'password':'text')+'" placeholder="'+placeholder+'" style="flex:1;font-size:11px;font-family:var(--font-m)" value="'+(val&&isKey?'•'.repeat(12):_esc(val))+'">'+
+        '<button class="sf-save ym-btn ym-btn-accent" style="font-size:10px;padding:3px 8px">Save</button>'+
+        (val?'<button class="sf-clear ym-btn ym-btn-ghost" style="font-size:10px;color:#e84040;padding:3px 6px">×</button>':'')+
+      '</div>';
+    var inp=wrap.querySelector('.sf-inp');
+    if(isKey)inp.addEventListener('focus',function(){if(s[key])inp.value='';});
+    wrap.querySelector('.sf-save').addEventListener('click',function(){
+      var v=inp.value.trim();if(!v)return;
+      var u=loadActSettings();u[key]=v;saveActSettings(u);s=u;
+      if(isKey)inp.value='•'.repeat(12);
+      window.YM_toast&&window.YM_toast('Saved','success');
+    });
+    if(wrap.querySelector('.sf-clear'))wrap.querySelector('.sf-clear').addEventListener('click',function(){
+      var u=loadActSettings();delete u[key];saveActSettings(u);s=u;inp.value='';
+    });
+    return wrap;
+  }
+
+  var note=document.createElement('div');note.className='ym-notice info';note.style.cssText='font-size:10px;margin-bottom:8px';
+  note.innerHTML='Alternative frontends are public mirrors of social networks. They can be down — leave blank to skip that source.';
+  container.appendChild(note);
+
+  var g1=document.createElement('div');g1.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:4px 0 6px">🔄 Frontends</div>';
+  container.appendChild(g1);
+  container.appendChild(mkField('🐦 Nitter (Twitter)','nitterInstance','https://nitter.net','https://github.com/zedeus/nitter/wiki/Instances','list',false));
+  container.appendChild(mkField('📹 Piped (YouTube)','pipedInstance','https://pipedapi.kavin.rocks','https://github.com/TeamPiped/Piped/wiki/Instances','list',false));
+  container.appendChild(mkField('💬 Teddit (Reddit)','tedditInstance','https://teddit.net','https://codeberg.org/teddit/teddit','codeberg',false));
+  container.appendChild(mkField('🐘 Mastodon','mastodonInstance','https://mastodon.social','https://instances.social','instances',false));
+  container.appendChild(mkField('🖼 Pixelfed','pixelfedInstance','https://pixelfed.social','https://pixelfed.social','pixelfed',false));
+
+  var g2=document.createElement('div');g2.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:8px 0 6px">🔑 API Keys</div>';
+  container.appendChild(g2);
+  container.appendChild(mkField('⭐ Yelp','yelpKey','Bearer token…','https://www.yelp.com/developers','yelp.com',true));
+  container.appendChild(mkField('📍 Foursquare','foursquareKey','fsq3…','https://developer.foursquare.com','foursquare',true));
+}
+
+// Config Extract en overlay (pour usage direct)
 function _showActivityConfig(onDone){
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center';
@@ -814,13 +893,22 @@ window.YM_S['activity.sphere.js']={
 
     container.appendChild(wrap);
 
-    // Bouton config Extract (instances + clés API)
-    var cfgBtn=document.createElement('button');
-    cfgBtn.className='ym-btn ym-btn-ghost';
-    cfgBtn.style.cssText='width:100%;font-size:11px;margin-top:4px';
-    cfgBtn.textContent='⚙ Extract configuration (frontends & API keys)';
-    cfgBtn.addEventListener('click',function(){_showActivityConfig();});
-    container.appendChild(cfgBtn);
+    // Config Extract inline — instances + clés API
+    var cfgSection=document.createElement('div');
+    cfgSection.style.cssText='margin-top:6px';
+    var cfgToggle=document.createElement('div');
+    cfgToggle.style.cssText='display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 0;font-size:11px;color:var(--text3)';
+    cfgToggle.innerHTML='<span id="act-cfg-arrow" style="font-size:10px">›</span><span>Extract sources configuration</span>';
+    var cfgBody=document.createElement('div');
+    cfgBody.style.cssText='display:none;margin-top:6px';
+    cfgToggle.addEventListener('click',function(){
+      var open=cfgBody.style.display!=='none';
+      cfgBody.style.display=open?'none':'block';
+      cfgToggle.querySelector('#act-cfg-arrow').textContent=open?'›':'⌄';
+      if(!open&&!cfgBody.children.length)_showActivityConfigInline(cfgBody);
+    });
+    cfgSection.appendChild(cfgToggle);cfgSection.appendChild(cfgBody);
+    container.appendChild(cfgSection);
   },
 
   // Données broadcastées avec le profil social
