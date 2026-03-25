@@ -33,19 +33,34 @@ async function calcHMAC(method,endpoint,body,secret){
   return `HMAC ${time}:${hex}`;
 }
 
-async function strigaFetch(method,endpoint,body={}){
-  const cfg=loadCfg();
-  if(!cfg.apiKey||!cfg.apiSecret)throw new Error('API keys not configured');
-  const auth=await calcHMAC(method,endpoint,body,cfg.apiSecret);
-  const url=BASE_URL+endpoint;
-  const opts={
+async function strigaFetch(method, endpoint, body={}){
+  const cfg = loadCfg();
+  if(!cfg.workerUrl && !cfg.apiKey) throw new Error('Configure Worker URL or API keys');
+
+  // Mode proxy Worker (recommandé — clés côté serveur)
+  if(cfg.workerUrl){
+    const r = await fetch(cfg.workerUrl.replace(/\/$/,'')+'/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method, endpoint, body })
+    });
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error || data.errorDetails || data.message || 'API error '+r.status);
+    return data;
+  }
+
+  // Mode direct (sandbox/dev uniquement — clés exposées)
+  if(!cfg.apiKey || !cfg.apiSecret) throw new Error('API keys not configured');
+  const auth = await calcHMAC(method, endpoint, body, cfg.apiSecret);
+  const base = cfg.live ? 'https://api.striga.com/api/v1' : 'https://www.sandbox.striga.com/api/v1';
+  const opts = {
     method,
-    headers:{'Content-Type':'application/json','api-key':cfg.apiKey,'Authorization':auth},
+    headers: {'Content-Type':'application/json','api-key':cfg.apiKey,'Authorization':auth},
   };
-  if(method!=='GET')opts.body=JSON.stringify(body);
-  const r=await fetch(url,opts);
-  const data=await r.json();
-  if(!r.ok)throw new Error(data.errorDetails||data.message||'API error '+r.status);
+  if(method !== 'GET') opts.body = JSON.stringify(body);
+  const r = await fetch(base + endpoint, opts);
+  const data = await r.json();
+  if(!r.ok) throw new Error(data.errorDetails || data.message || 'API error '+r.status);
   return data;
 }
 
@@ -181,41 +196,61 @@ function renderPanel(container){
 // ── SETUP ─────────────────────────────────────────────────────────────────────
 function renderSetup(container){
   container.style.cssText=S({display:'flex',flexDirection:'column',height:'100%',background:C.bg,fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',overflowY:'auto',padding:'24px'});
-  // Logo Striga-style
   container.innerHTML=`
-    <div style="text-align:center;margin-bottom:28px;animation:striga-fade .4s ease">
+    <div style="text-align:center;margin-bottom:24px;animation:striga-fade .4s ease">
       <div style="font-size:36px;margin-bottom:8px">🟣</div>
       <div style="font-size:22px;font-weight:700;color:${C.text};letter-spacing:-0.5px">Striga</div>
-      <div style="font-size:12px;color:${C.text3};margin-top:4px">Banking API for YourMine</div>
+      <div style="font-size:12px;color:${C.text3};margin-top:4px">Banking API — KYC · Wallet · Carte virtuelle</div>
     </div>`;
   if(!document.getElementById('striga-css')){const s=document.createElement('style');s.id='striga-css';s.textContent='@keyframes striga-spin{to{transform:rotate(360deg)}}@keyframes striga-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}';document.head.appendChild(s);}
 
   const form=document.createElement('div');
   const cfg=loadCfg();
-  form.appendChild(field('API Key','s-apikey','znxN-…','password',cfg.apiKey||''));
-  form.appendChild(field('API Secret','s-apisecret','Ir4Ra…','password',cfg.apiSecret||''));
-  form.appendChild(field('Application ID','s-appid','665ac529-…','text',cfg.appId||''));
-  const isLive=document.createElement('div');
-  isLive.style.cssText=S({display:'flex',alignItems:'center',gap:'10px',marginBottom:'16px'});
-  isLive.innerHTML=`<input type="checkbox" id="s-live" style="width:16px;height:16px;accent-color:${C.accent}" ${cfg.live?'checked':''}>
-    <label for="s-live" style="font-size:13px;color:${C.text2}">Production (uncheck = Sandbox)</label>`;
-  form.appendChild(isLive);
 
-  const saveBtn=btn('Connect to Striga',true,async()=>{
+  // Section Worker (recommandé)
+  const workerSection=card(`<div style="font-size:12px;color:${C.accent};font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+    <span>☁️</span><span>Via Cloudflare Worker (Recommended)</span></div>
+    <div style="font-size:11px;color:${C.text3};margin-bottom:10px">Your API keys stay on the server. Deploy <code style="color:${C.accent}">striga-worker.js</code> on Cloudflare Workers (free).</div>`);
+  const wf=field('Worker URL','s-worker','https://striga-proxy.your-name.workers.dev','text',cfg.workerUrl||'');
+  workerSection.appendChild(wf);
+  form.appendChild(workerSection);
+
+  // Séparateur
+  const sep=document.createElement('div');
+  sep.style.cssText=S({display:'flex',alignItems:'center',gap:'10px',margin:'4px 0 12px',color:C.text3,fontSize:'11px'});
+  sep.innerHTML=`<div style="flex:1;height:1px;background:${C.border}"></div>or direct (sandbox only)<div style="flex:1;height:1px;background:${C.border}"></div>`;
+  form.appendChild(sep);
+
+  // Section directe (sandbox)
+  const directSection=card(`<div style="font-size:12px;color:${C.text3};font-weight:700;margin-bottom:10px">⚠️ Direct (Sandbox / Dev only)</div>`);
+  directSection.appendChild(field('API Key','s-apikey','znxN-…','password',cfg.apiKey||''));
+  directSection.appendChild(field('API Secret','s-apisecret','Ir4Ra…','password',cfg.apiSecret||''));
+  directSection.appendChild(field('Application ID','s-appid','665ac529-…','text',cfg.appId||''));
+  const isLive=document.createElement('div');
+  isLive.style.cssText=S({display:'flex',alignItems:'center',gap:'10px',marginBottom:'4px'});
+  isLive.innerHTML=`<input type="checkbox" id="s-live" style="width:16px;height:16px;accent-color:${C.accent}" ${cfg.live?'checked':''}>
+    <label for="s-live" style="font-size:12px;color:${C.text2}">Production mode</label>`;
+  directSection.appendChild(isLive);
+  form.appendChild(directSection);
+
+  const status=document.createElement('div');form.appendChild(status);
+
+  const saveBtn=btn('Connect →',true,async()=>{
+    const workerUrl=document.getElementById('s-worker').value.trim();
     const key=document.getElementById('s-apikey').value.trim();
     const secret=document.getElementById('s-apisecret').value.trim();
     const appId=document.getElementById('s-appid').value.trim();
     const live=document.getElementById('s-live').checked;
-    if(!key||!secret){toast(form,'API Key and Secret required','error');return;}
-    saveCfg({apiKey:key,apiSecret:secret,appId,live});
+    if(!workerUrl&&!key){toast(status,'Enter Worker URL or API keys','error');return;}
+    saveCfg({workerUrl,apiKey:key,apiSecret:secret,appId,live});
     saveBtn.textContent='Testing…';saveBtn.disabled=true;
     try{
-      await strigaFetch('POST','/ping',{ping:'pong'});
+      await strigaFetch('POST','/ping',{});
       window.YM_toast?.('Connected to Striga ✓','success');
-      _tab='home';renderPanel(container.parentElement||container);
+      _tab='home';renderPanel(container);
     }catch(e){
-      toast(form,'Connection failed: '+e.message,'error');
-      saveBtn.textContent='Connect to Striga';saveBtn.disabled=false;
+      toast(status,'Connection failed: '+e.message,'error');
+      saveBtn.textContent='Connect →';saveBtn.disabled=false;
     }
   });
   form.appendChild(saveBtn);
