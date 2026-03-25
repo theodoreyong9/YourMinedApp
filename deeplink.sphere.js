@@ -159,17 +159,29 @@ function isAndroid(){return /android/i.test(navigator.userAgent);}
 function launch(app){
   var uri=isAndroid()&&app.android?app.android:app.uri;
   if(!uri)return;
-  window.location.href=uri;
-  // Fallback store sur mobile si app absente
-  if((isIOS()||isAndroid())){
-    setTimeout(function(){
-      if(document.hidden)return;
-      var store=isIOS()?app.ios_store:app.android_store;
-      if(store&&confirm(app.name+' not installed. Open Store?')){
-        window.open(store,'_blank');
-      }
-    },2000);
+  // window.location.href naviguerait hors du PWA — on utilise un iframe invisible
+  // ou window.open selon le type de scheme
+  if(uri.startsWith('http')){
+    window.open(uri,'_blank');
+    return;
   }
+  // Scheme natif — iframe invisible pour déclencher sans naviguer
+  var frame=document.createElement('iframe');
+  frame.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;border:none';
+  frame.src=uri;
+  document.body.appendChild(frame);
+  setTimeout(function(){
+    if(frame.parentNode)frame.remove();
+    // Fallback store si on est toujours là après 2s (app non installée)
+    if(!document.hidden){
+      var store=isIOS()?app.ios_store:app.android_store;
+      if(store){
+        window.open(store,'_blank');
+        window.YM_toast&&window.YM_toast(app.name+' not found — opening store','info');
+      }
+    }
+  },2000);
+  window.YM_toast&&window.YM_toast('Opening '+app.name+'…','info');
 }
 
 // ── STORAGE ───────────────────────────────────────────────────────────────────
@@ -189,33 +201,49 @@ function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
   container.innerHTML='';
 
-  // Tabs : Favoris | Tous | Catégorie
-  const cats=[...new Set(APPS.map(function(a){return a.cat;}))];
-  var activeTab='favs';
-
-  const hdr=document.createElement('div');
-  hdr.style.cssText='flex-shrink:0;padding:10px 14px 6px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px';
-  hdr.innerHTML='<input id="dl-q" class="ym-input" placeholder="Search apps…" style="font-size:12px">';
-
-  const catBar=document.createElement('div');
-  catBar.style.cssText='display:flex;gap:4px;flex-wrap:wrap;overflow-x:auto;padding-bottom:2px';
-
+  // Panel = UNIQUEMENT les favoris (grille) + bouton browse
+  // La config (ajout/retrait d'apps) est dans profileSection
   const body=document.createElement('div');
   body.style.cssText='flex:1;overflow-y:auto';
-
-  container.appendChild(hdr);
-  hdr.appendChild(catBar);
   container.appendChild(body);
 
-  // Bouton + custom
-  const addBtn=document.createElement('button');
-  addBtn.style.cssText='position:absolute;top:8px;right:14px;z-index:2';
-  addBtn.className='ym-btn ym-btn-ghost';
-  addBtn.textContent='+ Custom';
-  addBtn.style.cssText='background:none;border:none;color:var(--accent);font-size:11px;cursor:pointer;padding:4px 0';
-  addBtn.addEventListener('click',function(){_showAddCustom(function(){render();});});
-  hdr.style.position='relative';
-  hdr.appendChild(addBtn);
+  function renderFavGrid(){
+    body.innerHTML='';
+    var favs=loadFavs();
+    if(!favs.length){
+      body.innerHTML='<div style="color:var(--text3);font-size:12px;padding:24px 16px;text-align:center">No apps yet.<br>Go to your Profile → DeepLink to add apps.</div>';
+      return;
+    }
+    var grid=document.createElement('div');
+    grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:16px';
+    favs.forEach(function(f){
+      var app=APPS.find(function(a){return a.id===f.id;})||f;
+      var btn=document.createElement('div');
+      btn.style.cssText='display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer';
+      var iconDiv=document.createElement('div');
+      iconDiv.style.cssText='width:56px;height:56px;border-radius:14px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;transition:transform .12s';
+      iconDiv.textContent=app.icon||'🔗';
+      var lbl=document.createElement('span');
+      lbl.style.cssText='font-size:10px;color:var(--text2);text-align:center;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      lbl.textContent=app.name;
+      btn.appendChild(iconDiv);btn.appendChild(lbl);
+      iconDiv.addEventListener('mouseenter',function(){iconDiv.style.transform='scale(1.1)';});
+      iconDiv.addEventListener('mouseleave',function(){iconDiv.style.transform='';});
+      btn.addEventListener('click',function(){launch(app);});
+      grid.appendChild(btn);
+    });
+    body.appendChild(grid);
+    var hint=document.createElement('div');
+    hint.style.cssText='font-size:10px;color:var(--text3);text-align:center;padding:4px 8px 16px';
+    hint.textContent='Tap to open · Manage in Profile';
+    body.appendChild(hint);
+  }
+  renderFavGrid();
+
+  // Variables pour le reste du panel (Browse)
+  const cats=[...new Set(APPS.map(function(a){return a.cat;}))];
+  var activeTab='all';
+  const hdr=null; // unused placeholder for compat
 
   function renderCats(){
     catBar.innerHTML='';
@@ -362,6 +390,65 @@ function _showAddCustom(onDone){
   });
 }
 
+function _showBrowseApps(onDone){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;flex-direction:column';
+  var header=document.createElement('div');
+  header.style.cssText='flex-shrink:0;background:var(--surface2);padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)';
+  header.innerHTML=
+    '<input id="ba-q" class="ym-input" placeholder="Search apps…" style="flex:1;font-size:13px">'+
+    '<button id="ba-close" class="ym-btn ym-btn-ghost" style="font-size:12px">Done</button>';
+  var catBar=document.createElement('div');
+  catBar.style.cssText='flex-shrink:0;display:flex;gap:4px;flex-wrap:wrap;padding:8px 16px;background:var(--surface2);border-bottom:1px solid var(--border);overflow-x:auto';
+  var list=document.createElement('div');
+  list.style.cssText='flex:1;overflow-y:auto;background:var(--surface)';
+  overlay.appendChild(header);overlay.appendChild(catBar);overlay.appendChild(list);
+  document.body.appendChild(overlay);
+
+  var cats=[...new Set(APPS.map(function(a){return a.cat;}))];
+  var activeC='All';
+
+  function renderC(){
+    catBar.innerHTML='';
+    ['All',...cats].forEach(function(cat){
+      var b=document.createElement('button');b.className='ym-btn ym-btn-ghost';
+      b.style.cssText='font-size:10px;padding:2px 9px;white-space:nowrap;flex-shrink:0'+(cat===activeC?';background:var(--accent);color:#000':'');
+      b.textContent=cat;b.addEventListener('click',function(){activeC=cat;renderC();renderList();});catBar.appendChild(b);
+    });
+  }
+  function renderList(){
+    list.innerHTML='';
+    var q=header.querySelector('#ba-q').value.toLowerCase();
+    var apps=APPS.filter(function(a){return(activeC==='All'||a.cat===activeC)&&(!q||a.name.toLowerCase().includes(q));});
+    apps.forEach(function(app){
+      var fav=isFav(app.id);
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04)';
+      var iconEl=document.createElement('div');
+      iconEl.style.cssText='width:40px;height:40px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0';
+      iconEl.textContent=app.icon||'🔗';
+      var info=document.createElement('div');info.style.cssText='flex:1;min-width:0';
+      info.innerHTML='<div style="font-size:13px;font-weight:500">'+esc(app.name)+'</div><div style="font-size:10px;color:var(--text3)">'+esc(app.cat)+'</div>';
+      var starBtn=document.createElement('button');
+      starBtn.style.cssText='background:none;border:none;font-size:20px;cursor:pointer;padding:4px 8px;flex-shrink:0;color:'+(fav?'#f4c430':'var(--text3)');
+      starBtn.textContent=fav?'⭐':'☆';
+      starBtn.addEventListener('click',function(e){
+        e.stopPropagation();
+        toggleFav(app);fav=!fav;
+        starBtn.textContent=fav?'⭐':'☆';
+        starBtn.style.color=fav?'#f4c430':'var(--text3)';
+        window.YM_toast&&window.YM_toast(fav?app.name+' added':'Removed','info');
+      });
+      row.appendChild(iconEl);row.appendChild(info);row.appendChild(starBtn);
+      list.appendChild(row);
+    });
+    if(!apps.length)list.innerHTML='<div style="color:var(--text3);font-size:12px;padding:24px;text-align:center">No apps found.</div>';
+  }
+  renderC();renderList();
+  header.querySelector('#ba-q').addEventListener('input',renderList);
+  header.querySelector('#ba-close').addEventListener('click',function(){overlay.remove();if(onDone)onDone();});
+}
+
 // ── SPHERE ─────────────────────────────────────────────────────────────────────
 window.YM_S['deeplink.sphere.js']={
   name:'DeepLink',icon:'🚀',category:'Tools',
@@ -370,22 +457,81 @@ window.YM_S['deeplink.sphere.js']={
   activate:function(){},
   deactivate:function(){},
   renderPanel,
+
+  // ── Config apps dans le profil ─────────────────────────────────────────────
   profileSection:function(container){
+    var self=this;
+    function refresh(){
+      container.innerHTML='';
+      var favs=loadFavs();
+
+      // Grille des apps favorites
+      if(favs.length){
+        var grid=document.createElement('div');
+        grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px';
+        favs.forEach(function(f){
+          var app=APPS.find(function(a){return a.id===f.id;})||f;
+          var btn=document.createElement('div');
+          btn.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;position:relative';
+          var iconEl=document.createElement('div');
+          iconEl.style.cssText='width:48px;height:48px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px';
+          iconEl.textContent=app.icon||'🔗';
+          var lblEl=document.createElement('span');
+          lblEl.style.cssText='font-size:9px;color:var(--text2);text-align:center;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+          lblEl.textContent=app.name;
+          var delEl=document.createElement('div');
+          delEl.style.cssText='position:absolute;top:-4px;left:-4px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#000;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1';
+          delEl.textContent='×';
+          delEl.addEventListener('click',function(e){e.stopPropagation();toggleFav(app);refresh();});
+          btn.appendChild(iconEl);btn.appendChild(lblEl);btn.appendChild(delEl);
+          btn.addEventListener('click',function(){launch(app);});
+          grid.appendChild(btn);
+        });
+        container.appendChild(grid);
+      }
+
+      // Bouton + ajouter des apps
+      var browseBtn=document.createElement('button');
+      browseBtn.className='ym-btn ym-btn-ghost';
+      browseBtn.style.cssText='width:100%;font-size:12px;margin-bottom:8px';
+      browseBtn.textContent='+ Add apps to my launcher';
+      browseBtn.addEventListener('click',function(){_showBrowseApps(refresh);});
+      container.appendChild(browseBtn);
+
+      // Bouton + custom scheme
+      var customBtn=document.createElement('button');
+      customBtn.className='ym-btn ym-btn-ghost';
+      customBtn.style.cssText='width:100%;font-size:11px;color:var(--text3)';
+      customBtn.textContent='+ Custom URI scheme';
+      customBtn.addEventListener('click',function(){_showAddCustom(refresh);});
+      container.appendChild(customBtn);
+    }
+    refresh();
+  },
+
+  // ── Vue visiteur — liens publics ───────────────────────────────────────────
+  peerSection:function(container){
     var favs=loadFavs();
     if(!favs.length)return;
+    var wrap=document.createElement('div');
+    wrap.style.cssText='display:flex;flex-direction:column;gap:6px';
+    var title=document.createElement('div');
+    title.style.cssText='font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px';
+    title.textContent='Apps';
+    wrap.appendChild(title);
     var grid=document.createElement('div');
-    grid.style.cssText='display:flex;flex-wrap:wrap;gap:10px';
-    favs.slice(0,8).forEach(function(f){
+    grid.style.cssText='display:flex;flex-wrap:wrap;gap:8px';
+    favs.slice(0,10).forEach(function(f){
       var app=APPS.find(function(a){return a.id===f.id;})||f;
-      var btn=document.createElement('div');
-      btn.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;width:52px';
-      btn.innerHTML=
-        '<div style="width:44px;height:44px;border-radius:11px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px">'+esc(app.icon||'🔗')+'</div>'+
-        '<span style="font-size:9px;color:var(--text2);text-align:center;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(app.name)+'</span>';
+      var btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-ghost';
+      btn.style.cssText='display:flex;align-items:center;gap:5px;font-size:11px;padding:5px 10px';
+      btn.innerHTML='<span style="font-size:15px">'+esc(app.icon||'🔗')+'</span><span>'+esc(app.name)+'</span>';
       btn.addEventListener('click',function(){launch(app);});
       grid.appendChild(btn);
     });
-    container.appendChild(grid);
+    wrap.appendChild(grid);
+    container.appendChild(wrap);
   }
 };
 })();
