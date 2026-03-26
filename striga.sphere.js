@@ -162,7 +162,8 @@ function renderPanel(container){
   container.innerHTML='';
 
   const cfg=loadCfg();
-  if(!cfg.apiKey||!cfg.apiSecret){
+  // Worker URL suffit — pas besoin des clés côté client
+  if(!cfg.workerUrl && (!cfg.apiKey||!cfg.apiSecret)){
     renderSetup(container);
     return;
   }
@@ -193,68 +194,74 @@ function renderPanel(container){
   else if(_tab==='settings')renderSettings(body);
 }
 
-// ── SETUP ─────────────────────────────────────────────────────────────────────
+// ── SETUP — beau, minimaliste, juste l'URL worker ────────────────────────────
 function renderSetup(container){
-  container.style.cssText=S({display:'flex',flexDirection:'column',height:'100%',background:C.bg,fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',overflowY:'auto',padding:'24px'});
-  container.innerHTML=`
-    <div style="text-align:center;margin-bottom:24px;animation:striga-fade .4s ease">
-      <div style="font-size:36px;margin-bottom:8px">🟣</div>
-      <div style="font-size:22px;font-weight:700;color:${C.text};letter-spacing:-0.5px">Striga</div>
-      <div style="font-size:12px;color:${C.text3};margin-top:4px">Banking API — KYC · Wallet · Carte virtuelle</div>
-    </div>`;
-  if(!document.getElementById('striga-css')){const s=document.createElement('style');s.id='striga-css';s.textContent='@keyframes striga-spin{to{transform:rotate(360deg)}}@keyframes striga-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}';document.head.appendChild(s);}
+  if(!document.getElementById('striga-css')){
+    const s=document.createElement('style');s.id='striga-css';
+    s.textContent='@keyframes striga-spin{to{transform:rotate(360deg)}}@keyframes striga-fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes striga-glow{0%,100%{box-shadow:0 0 20px rgba(123,47,255,.3)}50%{box-shadow:0 0 40px rgba(123,47,255,.6)}}';
+    document.head.appendChild(s);
+  }
+  container.style.cssText=S({display:'flex',flexDirection:'column',height:'100%',background:C.bg,fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',justifyContent:'center',alignItems:'center',padding:'32px'});
+  container.innerHTML='';
 
-  const form=document.createElement('div');
+  // Logo animé
+  const logo=document.createElement('div');
+  logo.style.cssText='text-align:center;margin-bottom:36px;animation:striga-fade .5s ease';
+  logo.innerHTML=`
+    <div style="width:72px;height:72px;border-radius:22px;background:linear-gradient(135deg,${C.accent},#4F46E5);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 16px;animation:striga-glow 3s ease infinite">🟣</div>
+    <div style="font-size:28px;font-weight:800;color:${C.text};letter-spacing:-1px;margin-bottom:6px">Striga</div>
+    <div style="font-size:13px;color:${C.text3};line-height:1.5">Your banking sphere<br>KYC · Wallet · Carte virtuelle Mastercard</div>`;
+  container.appendChild(logo);
+
+  // Card principale — juste l'URL
+  const inputCard=document.createElement('div');
+  inputCard.style.cssText=S({background:C.surface,border:'1px solid '+C.border,borderRadius:'20px',padding:'24px',width:'100%',maxWidth:'340px',animation:'striga-fade .6s ease'});
+
+  const inputLabel=document.createElement('div');
+  inputLabel.style.cssText=S({fontSize:'11px',color:C.text3,textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'});
+  inputLabel.textContent='Worker URL';
+  inputCard.appendChild(inputLabel);
+
+  const inp=document.createElement('input');
   const cfg=loadCfg();
+  inp.type='text';
+  inp.value=cfg.workerUrl||'';
+  inp.placeholder='https://striga-proxy.xxx.workers.dev';
+  inp.style.cssText=`width:100%;background:${C.surface2};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;color:${C.text};font-size:14px;outline:none;box-sizing:border-box;margin-bottom:16px;transition:border-color .2s`;
+  inp.addEventListener('focus',()=>inp.style.borderColor=C.accent);
+  inp.addEventListener('blur',()=>inp.style.borderColor=C.border);
+  inputCard.appendChild(inp);
 
-  // Section Worker (recommandé)
-  const workerSection=card(`<div style="font-size:12px;color:${C.accent};font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px">
-    <span>☁️</span><span>Via Cloudflare Worker (Recommended)</span></div>
-    <div style="font-size:11px;color:${C.text3};margin-bottom:10px">Your API keys stay on the server. Deploy <code style="color:${C.accent}">striga-worker.js</code> on Cloudflare Workers (free).</div>`);
-  const wf=field('Worker URL','s-worker','https://striga-proxy.your-name.workers.dev','text',cfg.workerUrl||'');
-  workerSection.appendChild(wf);
-  form.appendChild(workerSection);
+  const status=document.createElement('div');status.style.cssText='margin-bottom:12px';
+  inputCard.appendChild(status);
 
-  // Séparateur
-  const sep=document.createElement('div');
-  sep.style.cssText=S({display:'flex',alignItems:'center',gap:'10px',margin:'4px 0 12px',color:C.text3,fontSize:'11px'});
-  sep.innerHTML=`<div style="flex:1;height:1px;background:${C.border}"></div>or direct (sandbox only)<div style="flex:1;height:1px;background:${C.border}"></div>`;
-  form.appendChild(sep);
-
-  // Section directe (sandbox)
-  const directSection=card(`<div style="font-size:12px;color:${C.text3};font-weight:700;margin-bottom:10px">⚠️ Direct (Sandbox / Dev only)</div>`);
-  directSection.appendChild(field('API Key','s-apikey','znxN-…','password',cfg.apiKey||''));
-  directSection.appendChild(field('API Secret','s-apisecret','Ir4Ra…','password',cfg.apiSecret||''));
-  directSection.appendChild(field('Application ID','s-appid','665ac529-…','text',cfg.appId||''));
-  const isLive=document.createElement('div');
-  isLive.style.cssText=S({display:'flex',alignItems:'center',gap:'10px',marginBottom:'4px'});
-  isLive.innerHTML=`<input type="checkbox" id="s-live" style="width:16px;height:16px;accent-color:${C.accent}" ${cfg.live?'checked':''}>
-    <label for="s-live" style="font-size:12px;color:${C.text2}">Production mode</label>`;
-  directSection.appendChild(isLive);
-  form.appendChild(directSection);
-
-  const status=document.createElement('div');form.appendChild(status);
-
-  const saveBtn=btn('Connect →',true,async()=>{
-    const workerUrl=document.getElementById('s-worker').value.trim();
-    const key=document.getElementById('s-apikey').value.trim();
-    const secret=document.getElementById('s-apisecret').value.trim();
-    const appId=document.getElementById('s-appid').value.trim();
-    const live=document.getElementById('s-live').checked;
-    if(!workerUrl&&!key){toast(status,'Enter Worker URL or API keys','error');return;}
-    saveCfg({workerUrl,apiKey:key,apiSecret:secret,appId,live});
-    saveBtn.textContent='Testing…';saveBtn.disabled=true;
+  const connectBtn=document.createElement('button');
+  connectBtn.style.cssText=`width:100%;background:linear-gradient(135deg,${C.accent},#4F46E5);border:none;color:#fff;font-weight:700;font-size:15px;padding:14px;border-radius:12px;cursor:pointer;transition:opacity .15s;letter-spacing:.3px`;
+  connectBtn.textContent='Connect →';
+  connectBtn.addEventListener('mouseenter',()=>connectBtn.style.opacity='.85');
+  connectBtn.addEventListener('mouseleave',()=>connectBtn.style.opacity='1');
+  connectBtn.addEventListener('click',async()=>{
+    const url=inp.value.trim();
+    if(!url){inp.style.borderColor=C.red;inp.style.animation='';setTimeout(()=>{inp.style.borderColor=C.border;},1000);return;}
+    connectBtn.textContent='Testing…';connectBtn.disabled=true;connectBtn.style.opacity='.6';
+    saveCfg({...loadCfg(),workerUrl:url});
     try{
       await strigaFetch('POST','/ping',{});
-      window.YM_toast?.('Connected to Striga ✓','success');
+      window.YM_toast?.('Striga connected ✓','success');
       _tab='home';renderPanel(container);
     }catch(e){
-      toast(status,'Connection failed: '+e.message,'error');
-      saveBtn.textContent='Connect →';saveBtn.disabled=false;
+      status.innerHTML=`<div style="background:rgba(239,68,68,.1);border:1px solid ${C.red};border-radius:8px;padding:10px;font-size:12px;color:${C.red}">${esc(e.message)}</div>`;
+      connectBtn.textContent='Connect →';connectBtn.disabled=false;connectBtn.style.opacity='1';
     }
   });
-  form.appendChild(saveBtn);
-  container.appendChild(form);
+  inputCard.appendChild(connectBtn);
+  container.appendChild(inputCard);
+
+  // Hint
+  const hint=document.createElement('div');
+  hint.style.cssText=S({marginTop:'20px',fontSize:'11px',color:C.text3,textAlign:'center',lineHeight:'1.6',animation:'striga-fade .8s ease'});
+  hint.innerHTML=`Deploy <span style="color:${C.accent};font-family:monospace">striga-worker.js</span> on Cloudflare Workers<br>then paste your worker URL above`;
+  container.appendChild(hint);
 }
 
 // ── HOME ──────────────────────────────────────────────────────────────────────
