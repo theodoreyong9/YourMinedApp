@@ -1,28 +1,23 @@
 /* jshint esversion:11, browser:true */
 // striga.sphere.js — Striga Banking API
 // KYC onboarding, wallet, carte virtuelle Mastercard
-// Couleurs Striga : #0A0A0A fond, #7B2FFF accent violet
 (function(){
 'use strict';
 window.YM_S=window.YM_S||{};
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
 const CFG_KEY   ='ym_striga_cfg_v1';
 const USER_KEY  ='ym_striga_user_v1';
-const BASE_URL  ='https://www.sandbox.striga.com/api/v1';
+const DEFAULT_WORKER='https://striga-proxy.yourmine.workers.dev';
 
 function loadCfg(){try{return JSON.parse(localStorage.getItem(CFG_KEY)||'{}');}catch(e){return{};}}
 function saveCfg(d){localStorage.setItem(CFG_KEY,JSON.stringify(d));}
 function loadUser(){try{return JSON.parse(localStorage.getItem(USER_KEY)||'null');}catch(e){return null;}}
 function saveUser(d){localStorage.setItem(USER_KEY,JSON.stringify(d));}
 
-// ── HMAC AUTH (browser SubtleCrypto) ─────────────────────────────────────────
+// ── HMAC AUTH ─────────────────────────────────────────────────────────────────
 async function calcHMAC(method,endpoint,body,secret){
   const time=Date.now().toString();
-  // MD5 du body en hex
   const bodyStr=JSON.stringify(body);
-  const msgBuf=new TextEncoder().encode(bodyStr);
-  // MD5 via SubtleCrypto n'existe pas nativement — on utilise une implémentation JS légère
   const md5hex=_md5(bodyStr);
   const message=time+method+endpoint+md5hex;
   const keyBuf=new TextEncoder().encode(secret);
@@ -33,38 +28,33 @@ async function calcHMAC(method,endpoint,body,secret){
   return `HMAC ${time}:${hex}`;
 }
 
-async function strigaFetch(method, endpoint, body={}){
-  const cfg = loadCfg();
-  if(!cfg.workerUrl && !cfg.apiKey) throw new Error('Configure Worker URL or API keys');
+async function strigaFetch(method,endpoint,body={}){
+  const cfg=loadCfg();
+  const workerUrl=cfg.workerUrl||DEFAULT_WORKER;
 
-  // Mode proxy Worker (recommandé — clés côté serveur)
-  if(cfg.workerUrl){
-    const r = await fetch(cfg.workerUrl.replace(/\/$/,'')+'/proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ method, endpoint, body })
+  if(workerUrl){
+    const r=await fetch(workerUrl.replace(/\/$/,'')+'/proxy',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({method,endpoint,body})
     });
-    const data = await r.json();
-    if(!r.ok) throw new Error(data.error || data.errorDetails || data.message || 'API error '+r.status);
+    const data=await r.json();
+    if(!r.ok)throw new Error(data.error||data.errorDetails||data.message||'API error '+r.status);
     return data;
   }
 
-  // Mode direct (sandbox/dev uniquement — clés exposées)
-  if(!cfg.apiKey || !cfg.apiSecret) throw new Error('API keys not configured');
-  const auth = await calcHMAC(method, endpoint, body, cfg.apiSecret);
-  const base = cfg.live ? 'https://api.striga.com/api/v1' : 'https://www.sandbox.striga.com/api/v1';
-  const opts = {
-    method,
-    headers: {'Content-Type':'application/json','api-key':cfg.apiKey,'Authorization':auth},
-  };
-  if(method !== 'GET') opts.body = JSON.stringify(body);
-  const r = await fetch(base + endpoint, opts);
-  const data = await r.json();
-  if(!r.ok) throw new Error(data.errorDetails || data.message || 'API error '+r.status);
+  if(!cfg.apiKey||!cfg.apiSecret)throw new Error('Not configured');
+  const auth=await calcHMAC(method,endpoint,body,cfg.apiSecret);
+  const base=cfg.live?'https://api.striga.com/api/v1':'https://www.sandbox.striga.com/api/v1';
+  const opts={method,headers:{'Content-Type':'application/json','api-key':cfg.apiKey,'Authorization':auth}};
+  if(method!=='GET')opts.body=JSON.stringify(body);
+  const r=await fetch(base+endpoint,opts);
+  const data=await r.json();
+  if(!r.ok)throw new Error(data.errorDetails||data.message||'API error '+r.status);
   return data;
 }
 
-// ── MD5 (implémentation JS minimaliste pour le hash du body) ──────────────────
+// ── MD5 ───────────────────────────────────────────────────────────────────────
 function _md5(str){
   function safeAdd(x,y){const lsw=(x&0xffff)+(y&0xffff);const msw=(x>>16)+(y>>16)+(lsw>>16);return(msw<<16)|(lsw&0xffff);}
   function bitRotateLeft(num,cnt){return(num<<cnt)|(num>>>(32-cnt));}
@@ -77,8 +67,7 @@ function _md5(str){
   str=utf8Encode(str);
   const x=Array(Math.ceil((str.length+8)/64)*16).fill(0);
   for(let i=0;i<str.length;i++){x[i>>2]|=str.charCodeAt(i)<<((i%4)*8);}
-  x[str.length>>2]|=0x80<<((str.length%4)*8);
-  x[x.length-2]=str.length*8;
+  x[str.length>>2]|=0x80<<((str.length%4)*8);x[x.length-2]=str.length*8;
   let a=1732584193,b=-271733879,c=-1732584194,d=271733878;
   for(let i=0;i<x.length;i+=16){
     const[A,B,C,D]=[a,b,c,d];
@@ -103,504 +92,531 @@ function _md5(str){
   return[a,b,c,d].map(n=>Array.from({length:4},(_,i)=>((n>>>(i*8))&0xff).toString(16).padStart(2,'0')).join('')).join('');
 }
 
-// ── UI HELPERS ────────────────────────────────────────────────────────────────
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function S(styles){return Object.entries(styles).map(([k,v])=>k.replace(/([A-Z])/g,'-$1').toLowerCase()+':'+v).join(';');}
-const C={bg:'#0A0A0A',surface:'#141414',surface2:'#1E1E1E',border:'rgba(255,255,255,.08)',accent:'#7B2FFF',accentLight:'rgba(123,47,255,.15)',text:'#FFFFFF',text2:'rgba(255,255,255,.7)',text3:'rgba(255,255,255,.35)',green:'#22C55E',red:'#EF4444'};
+// ── DESIGN TOKENS ─────────────────────────────────────────────────────────────
+// Palette violet + noir — identité Striga
+const T={
+  bg:'#080810',
+  surface:'rgba(255,255,255,.03)',
+  surface2:'rgba(255,255,255,.06)',
+  border:'rgba(255,255,255,.07)',
+  borderFocus:'rgba(138,92,255,.5)',
+  accent:'#8A5CFF',
+  accentDark:'#6B3FE0',
+  accentGlow:'rgba(138,92,255,.2)',
+  accentSoft:'rgba(138,92,255,.1)',
+  text:'rgba(255,255,255,.92)',
+  text2:'rgba(255,255,255,.55)',
+  text3:'rgba(255,255,255,.28)',
+  green:'#34D399',
+  greenSoft:'rgba(52,211,153,.1)',
+  red:'#F87171',
+  redSoft:'rgba(248,113,113,.1)',
+  amber:'#FBBF24',
+};
 
-function btn(label,accent,handler){
-  const b=document.createElement('button');
-  b.textContent=label;
-  b.style.cssText=S({background:accent?C.accent:'transparent',color:accent?'#fff':C.text2,border:'1px solid '+(accent?C.accent:C.border),borderRadius:'10px',padding:'10px 20px',fontSize:'13px',fontWeight:'600',cursor:'pointer',transition:'opacity .15s',width:'100%'});
-  b.addEventListener('mouseenter',()=>b.style.opacity='.8');
-  b.addEventListener('mouseleave',()=>b.style.opacity='1');
-  b.addEventListener('click',handler);
-  return b;
+// ── CSS INJECTION (once) ──────────────────────────────────────────────────────
+function injectCSS(){
+  if(document.getElementById('striga-v2-css'))return;
+  const s=document.createElement('style');s.id='striga-v2-css';
+  s.textContent=`
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+    .sg-root *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+    .sg-root{font-family:'DM Sans',system-ui,sans-serif;color:${T.text};background:${T.bg};height:100%;display:flex;flex-direction:column;overflow:hidden}
+    .sg-input{width:100%;background:${T.surface2};border:1px solid ${T.border};border-radius:14px;padding:13px 16px;color:${T.text};font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none}
+    .sg-input:focus{border-color:${T.borderFocus};box-shadow:0 0 0 3px ${T.accentGlow}}
+    .sg-input::placeholder{color:${T.text3}}
+    .sg-btn{width:100%;padding:14px;border-radius:14px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .18s;border:none;letter-spacing:-.1px}
+    .sg-btn-primary{background:linear-gradient(135deg,${T.accent},${T.accentDark});color:#fff;box-shadow:0 4px 20px ${T.accentGlow}}
+    .sg-btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 28px ${T.accentGlow}}
+    .sg-btn-primary:active{transform:scale(.98)}
+    .sg-btn-ghost{background:${T.surface2};color:${T.text2};border:1px solid ${T.border}}
+    .sg-btn-ghost:hover{border-color:${T.accent};color:${T.accent}}
+    .sg-btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+    .sg-card{background:${T.surface};border:1px solid ${T.border};border-radius:20px;padding:18px}
+    .sg-tab-bar{display:flex;border-bottom:1px solid ${T.border};background:${T.bg};flex-shrink:0}
+    .sg-tab{flex:1;background:none;border:none;color:${T.text3};font-size:20px;padding:12px 0 10px;cursor:pointer;border-bottom:2px solid transparent;transition:all .18s;-webkit-tap-highlight-color:transparent}
+    .sg-tab.active{color:${T.accent};border-bottom-color:${T.accent}}
+    .sg-label{font-size:11px;color:${T.text3};text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;display:block;font-family:'DM Mono',monospace}
+    .sg-value{font-size:14px;color:${T.text};font-weight:500}
+    .sg-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid ${T.border}}
+    .sg-row:last-child{border-bottom:none}
+    .sg-badge{display:inline-flex;align-items:center;padding:4px 12px;border-radius:999px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace}
+    .sg-badge.ok{background:${T.greenSoft};color:${T.green}}
+    .sg-badge.warn{background:${T.accentSoft};color:${T.accent}}
+    .sg-badge.err{background:${T.redSoft};color:${T.red}}
+    .sg-notice{padding:12px 14px;border-radius:12px;font-size:12px;line-height:1.6;margin-bottom:10px}
+    .sg-notice.info{background:${T.accentSoft};border:1px solid ${T.borderFocus};color:${T.accent}}
+    .sg-notice.success{background:${T.greenSoft};border:1px solid rgba(52,211,153,.3);color:${T.green}}
+    .sg-notice.error{background:${T.redSoft};border:1px solid rgba(248,113,113,.3);color:${T.red}}
+    .sg-spinner{width:20px;height:20px;border:2px solid ${T.border};border-top-color:${T.accent};border-radius:50%;animation:sg-spin .6s linear infinite;margin:0 auto}
+    @keyframes sg-spin{to{transform:rotate(360deg)}}
+    @keyframes sg-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .sg-anim{animation:sg-up .3s ease forwards}
+    .sg-scroll{flex:1;overflow-y:auto;padding:16px;-webkit-overflow-scrolling:touch}
+    .sg-scroll::-webkit-scrollbar{width:2px}
+    .sg-scroll::-webkit-scrollbar-thumb{background:rgba(138,92,255,.25);border-radius:2px}
+    .sg-field{margin-bottom:14px}
+    .sg-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .sg-section-title{font-size:11px;font-weight:500;color:${T.text3};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;font-family:'DM Mono',monospace}
+    .sg-dev-link{font-size:10px;color:${T.text3};text-align:center;cursor:pointer;padding:8px;text-decoration:underline;opacity:.5;transition:opacity .2s}
+    .sg-dev-link:hover{opacity:1;color:${T.accent}}
+  `;
+  document.head.appendChild(s);
 }
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function notice(msg,type='info'){
+  const d=document.createElement('div');
+  d.className=`sg-notice ${type} sg-anim`;d.textContent=msg;return d;
+}
+
+function spinner(){const d=document.createElement('div');d.style.cssText='padding:32px;text-align:center';d.innerHTML='<div class="sg-spinner"></div>';return d;}
 
 function field(label,id,placeholder,type='text',value=''){
-  const wrap=document.createElement('div');wrap.style.cssText=S({marginBottom:'12px'});
-  wrap.innerHTML=`<label style="font-size:11px;color:${C.text3};display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">${esc(label)}</label>`+
-    `<input id="${id}" type="${type}" placeholder="${esc(placeholder)}" value="${esc(value)}" style="width:100%;background:${C.surface2};border:1px solid ${C.border};border-radius:10px;padding:11px 14px;color:${C.text};font-size:13px;outline:none;box-sizing:border-box;-webkit-appearance:none">`;
-  return wrap;
+  const w=document.createElement('div');w.className='sg-field';
+  const lbl=document.createElement('label');lbl.className='sg-label';lbl.htmlFor=id;lbl.textContent=label;
+  const inp=document.createElement('input');
+  inp.className='sg-input';inp.id=id;inp.type=type;inp.placeholder=placeholder;if(value)inp.value=value;
+  w.appendChild(lbl);w.appendChild(inp);return w;
 }
 
-function card(content='',style=''){
-  const d=document.createElement('div');
-  d.style.cssText=S({background:C.surface,border:'1px solid '+C.border,borderRadius:'16px',padding:'18px',marginBottom:'12px'})+';'+style;
-  d.innerHTML=content;
-  return d;
-}
-
-function toast(container,msg,type='info'){
-  const t=document.createElement('div');
-  t.style.cssText=S({padding:'10px 16px',borderRadius:'10px',fontSize:'12px',marginBottom:'8px',
-    background:type==='error'?'rgba(239,68,68,.15)':type==='success'?'rgba(34,197,94,.15)':C.accentLight,
-    border:`1px solid ${type==='error'?C.red:type==='success'?C.green:C.accent}`,
-    color:type==='error'?C.red:type==='success'?C.green:C.accent});
-  t.textContent=msg;container.prepend(t);
-  setTimeout(()=>t.remove(),4000);
-}
-
-function loader(container,label='Loading…'){
-  const d=document.createElement('div');
-  d.style.cssText=S({textAlign:'center',padding:'24px',color:C.text3,fontSize:'13px'});
-  d.innerHTML=`<div style="width:28px;height:28px;border:2px solid ${C.border};border-top-color:${C.accent};border-radius:50%;animation:striga-spin .7s linear infinite;margin:0 auto 10px"></div>${esc(label)}`;
-  container.appendChild(d);
-  if(!document.getElementById('striga-css')){
-    const s=document.createElement('style');s.id='striga-css';
-    s.textContent=`@keyframes striga-spin{to{transform:rotate(360deg)}}@keyframes striga-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`;
-    document.head.appendChild(s);
-  }
-  return d;
-}
-
-// ── PANEL ─────────────────────────────────────────────────────────────────────
+// ── TABS ──────────────────────────────────────────────────────────────────────
 let _tab='home';
+const TABS=[['home','🏠'],['wallet','💳'],['kyc','👤'],['card','🃏'],['settings','⚙']];
+
 function renderPanel(container){
-  container.style.cssText=S({display:'flex',flexDirection:'column',height:'100%',overflow:'hidden',background:C.bg,fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'});
+  injectCSS();
   container.innerHTML='';
+  container.className='sg-root';
 
-  const cfg=loadCfg();
-  // Worker URL suffit — pas besoin des clés côté client
-  if(!cfg.workerUrl && (!cfg.apiKey||!cfg.apiSecret)){
-    renderSetup(container);
-    return;
-  }
-
-  // Nav tabs
-  const nav=document.createElement('div');
-  nav.style.cssText=S({display:'flex',borderBottom:'1px solid '+C.border,flexShrink:'0',background:C.bg,paddingTop:'4px'});
-  const TABS=[['home','🏠'],['wallet','💳'],['kyc','👤'],['card','🃏'],['settings','⚙']];
+  // Nav
+  const nav=document.createElement('div');nav.className='sg-tab-bar';
   TABS.forEach(([id,icon])=>{
-    const t=document.createElement('button');
-    const active=_tab===id;
-    t.style.cssText=S({flex:'1',background:'transparent',border:'none',color:active?C.accent:C.text3,fontSize:'18px',padding:'10px 0 8px',cursor:'pointer',borderBottom:`2px solid ${active?C.accent:'transparent'}`,transition:'color .15s'});
-    t.textContent=icon;
-    t.title=id.charAt(0).toUpperCase()+id.slice(1);
-    t.addEventListener('click',()=>{_tab=id;renderPanel(container);});
-    nav.appendChild(t);
+    const b=document.createElement('button');b.className='sg-tab'+(id===_tab?' active':'');
+    b.textContent=icon;b.title=id;
+    b.addEventListener('click',()=>{_tab=id;renderPanel(container);});
+    nav.appendChild(b);
   });
   container.appendChild(nav);
 
-  const body=document.createElement('div');
-  body.style.cssText=S({flex:'1',overflowY:'auto',padding:'16px'});
-  container.appendChild(body);
-
-  if(_tab==='home')renderHome(body);
+  const body=document.createElement('div');body.className='sg-scroll';container.appendChild(body);
+  if(_tab==='home')renderHome(body,container);
   else if(_tab==='wallet')renderWallet(body);
-  else if(_tab==='kyc')renderKYC(body);
-  else if(_tab==='card')renderCard(body);
-  else if(_tab==='settings')renderSettings(body);
+  else if(_tab==='kyc')renderKYC(body,container);
+  else if(_tab==='card')renderCard(body,container);
+  else if(_tab==='settings')renderSettings(body,container);
 }
 
-// ── SETUP — beau, minimaliste, juste l'URL worker ────────────────────────────
-function renderSetup(container){
-  if(!document.getElementById('striga-css')){
-    const s=document.createElement('style');s.id='striga-css';
-    s.textContent='@keyframes striga-spin{to{transform:rotate(360deg)}}@keyframes striga-fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes striga-glow{0%,100%{box-shadow:0 0 20px rgba(123,47,255,.3)}50%{box-shadow:0 0 40px rgba(123,47,255,.6)}}';
-    document.head.appendChild(s);
-  }
-  container.style.cssText=S({display:'flex',flexDirection:'column',height:'100%',background:C.bg,fontFamily:'-apple-system,BlinkMacSystemFont,sans-serif',justifyContent:'center',alignItems:'center',padding:'32px'});
-  container.innerHTML='';
-
-  // Logo animé
-  const logo=document.createElement('div');
-  logo.style.cssText='text-align:center;margin-bottom:36px;animation:striga-fade .5s ease';
-  logo.innerHTML=`
-    <div style="width:72px;height:72px;border-radius:22px;background:linear-gradient(135deg,${C.accent},#4F46E5);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 16px;animation:striga-glow 3s ease infinite">🟣</div>
-    <div style="font-size:28px;font-weight:800;color:${C.text};letter-spacing:-1px;margin-bottom:6px">Striga</div>
-    <div style="font-size:13px;color:${C.text3};line-height:1.5">Your banking sphere<br>KYC · Wallet · Carte virtuelle Mastercard</div>`;
-  container.appendChild(logo);
-
-  // Card principale — juste l'URL
-  const inputCard=document.createElement('div');
-  inputCard.style.cssText=S({background:C.surface,border:'1px solid '+C.border,borderRadius:'20px',padding:'24px',width:'100%',maxWidth:'340px',animation:'striga-fade .6s ease'});
-
-  const inputLabel=document.createElement('div');
-  inputLabel.style.cssText=S({fontSize:'11px',color:C.text3,textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'});
-  inputLabel.textContent='Worker URL';
-  inputCard.appendChild(inputLabel);
-
-  const inp=document.createElement('input');
-  const cfg=loadCfg();
-  inp.type='text';
-  inp.value=cfg.workerUrl||'';
-  inp.placeholder='https://striga-proxy.xxx.workers.dev';
-  inp.style.cssText=`width:100%;background:${C.surface2};border:1px solid ${C.border};border-radius:12px;padding:14px 16px;color:${C.text};font-size:14px;outline:none;box-sizing:border-box;margin-bottom:16px;transition:border-color .2s`;
-  inp.addEventListener('focus',()=>inp.style.borderColor=C.accent);
-  inp.addEventListener('blur',()=>inp.style.borderColor=C.border);
-  inputCard.appendChild(inp);
-
-  const status=document.createElement('div');status.style.cssText='margin-bottom:12px';
-  inputCard.appendChild(status);
-
-  const connectBtn=document.createElement('button');
-  connectBtn.style.cssText=`width:100%;background:linear-gradient(135deg,${C.accent},#4F46E5);border:none;color:#fff;font-weight:700;font-size:15px;padding:14px;border-radius:12px;cursor:pointer;transition:opacity .15s;letter-spacing:.3px`;
-  connectBtn.textContent='Connect →';
-  connectBtn.addEventListener('mouseenter',()=>connectBtn.style.opacity='.85');
-  connectBtn.addEventListener('mouseleave',()=>connectBtn.style.opacity='1');
-  connectBtn.addEventListener('click',async()=>{
-    const url=inp.value.trim();
-    if(!url){inp.style.borderColor=C.red;inp.style.animation='';setTimeout(()=>{inp.style.borderColor=C.border;},1000);return;}
-    connectBtn.textContent='Testing…';connectBtn.disabled=true;connectBtn.style.opacity='.6';
-    saveCfg({...loadCfg(),workerUrl:url});
-    try{
-      await strigaFetch('POST','/ping',{});
-      window.YM_toast?.('Striga connected ✓','success');
-      _tab='home';renderPanel(container);
-    }catch(e){
-      status.innerHTML=`<div style="background:rgba(239,68,68,.1);border:1px solid ${C.red};border-radius:8px;padding:10px;font-size:12px;color:${C.red}">${esc(e.message)}</div>`;
-      connectBtn.textContent='Connect →';connectBtn.disabled=false;connectBtn.style.opacity='1';
-    }
-  });
-  inputCard.appendChild(connectBtn);
-  container.appendChild(inputCard);
-
-  // Hint
-  const hint=document.createElement('div');
-  hint.style.cssText=S({marginTop:'20px',fontSize:'11px',color:C.text3,textAlign:'center',lineHeight:'1.6',animation:'striga-fade .8s ease'});
-  hint.innerHTML=`Deploy <span style="color:${C.accent};font-family:monospace">striga-worker.js</span> on Cloudflare Workers<br>then paste your worker URL above`;
-  container.appendChild(hint);
-}
-
-// ── HOME ──────────────────────────────────────────────────────────────────────
-function renderHome(container){
+// ── HOME ─────────────────────────────────────────────────────────────────────
+function renderHome(body,root){
   const user=loadUser();
-  // Header avec gradient violet
-  const hero=document.createElement('div');
-  hero.style.cssText=S({background:`linear-gradient(135deg,${C.accent},#4F46E5)`,borderRadius:'20px',padding:'20px',marginBottom:'16px',animation:'striga-fade .3s ease'});
-  hero.innerHTML=`
-    <div style="font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">YourMine × Striga</div>
-    <div style="font-size:20px;font-weight:700;color:#fff;margin-bottom:2px">${user?esc(user.firstName+' '+user.lastName):'Your Wallet'}</div>
-    <div style="font-size:12px;color:rgba(255,255,255,.6)">${user?('ID: '+esc(user.id.slice(0,12)+'…')):'Complete KYC to activate'}</div>`;
-  container.appendChild(hero);
 
-  // Actions rapides
-  const grid=document.createElement('div');
-  grid.style.cssText=S({display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'16px'});
-  [['💳','Wallet','wallet'],['👤','KYC','kyc'],['🃏','My Card','card'],['⚙','Settings','settings']].forEach(([icon,label,tab])=>{
+  // Hero card avec gradient
+  const hero=document.createElement('div');
+  hero.style.cssText=`background:linear-gradient(135deg,#1A0A3D,#2D1275,${T.accentDark});border-radius:24px;padding:24px;margin-bottom:16px;position:relative;overflow:hidden`;
+  hero.innerHTML=`
+    <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
+    <div style="position:absolute;bottom:-20px;left:60px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.03)"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-bottom:12px">STRIGA · BANKING</div>
+    <div style="font-size:22px;font-weight:600;color:#fff;margin-bottom:4px">${user?esc(user.firstName+' '+user.lastName):'Bienvenue'}</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.5)">${user?'ID · '+esc((user.id||user.userId||'').slice(0,16)+'…'):'Créez un compte pour commencer'}</div>
+    ${user?`<div style="margin-top:12px"><span class="sg-badge ${user.kycStatus==='APPROVED'?'ok':'warn'}">${esc(user.kycStatus||'PENDING')}</span></div>`:''}
+  `;
+  body.appendChild(hero);
+  body.classList.add('sg-anim');
+
+  // Quick actions
+  const grid=document.createElement('div');grid.className='sg-grid-2';grid.style.marginBottom='16px';
+  [['💳','Wallet','wallet'],['👤','Vérification','kyc'],['🃏','Ma carte','card'],['⚙','Paramètres','settings']].forEach(([icon,label,tab])=>{
     const c=document.createElement('div');
-    c.style.cssText=S({background:C.surface,border:'1px solid '+C.border,borderRadius:'14px',padding:'16px',cursor:'pointer',textAlign:'center',transition:'border-color .15s'});
-    c.innerHTML=`<div style="font-size:24px;margin-bottom:6px">${icon}</div><div style="font-size:12px;font-weight:600;color:${C.text2}">${label}</div>`;
-    c.addEventListener('mouseenter',()=>c.style.borderColor=C.accent);
-    c.addEventListener('mouseleave',()=>c.style.borderColor=C.border);
-    c.addEventListener('click',()=>{_tab=tab;renderPanel(container.closest('[id]')||container.parentElement.parentElement);});
+    c.className='sg-card';c.style.cursor='pointer';c.style.textAlign='center';c.style.transition='border-color .18s';
+    c.innerHTML=`<div style="font-size:26px;margin-bottom:8px">${icon}</div><div style="font-size:12px;font-weight:500;color:${T.text2}">${label}</div>`;
+    c.addEventListener('mouseenter',()=>c.style.borderColor=T.accent);
+    c.addEventListener('mouseleave',()=>c.style.borderColor=T.border);
+    c.addEventListener('click',()=>{_tab=tab;renderPanel(root);});
     grid.appendChild(c);
   });
-  container.appendChild(grid);
-
-  // Statut KYC
-  if(user){
-    const kycCard=card(`<div style="display:flex;align-items:center;gap:10px">
-      <div style="width:36px;height:36px;border-radius:50%;background:${user.kycStatus==='APPROVED'?'rgba(34,197,94,.2)':'rgba(123,47,255,.2)'};display:flex;align-items:center;justify-content:center;font-size:18px">${user.kycStatus==='APPROVED'?'✅':'⏳'}</div>
-      <div><div style="font-size:13px;font-weight:600;color:${C.text}">KYC Status</div>
-      <div style="font-size:11px;color:${user.kycStatus==='APPROVED'?C.green:C.accent}">${esc(user.kycStatus||'PENDING')}</div></div></div>`);
-    container.appendChild(kycCard);
-  }else{
-    const onboard=btn('🚀 Create Account & Start KYC',true,()=>{_tab='kyc';renderPanel(container.closest('[id]')||container.parentElement.parentElement);});
-    container.appendChild(onboard);
-  }
-}
-
-// ── KYC ───────────────────────────────────────────────────────────────────────
-function renderKYC(container){
-  const user=loadUser();
-  const title=document.createElement('div');
-  title.style.cssText=S({fontSize:'18px',fontWeight:'700',color:C.text,marginBottom:'16px',animation:'striga-fade .3s ease'});
-  title.textContent=user?'KYC Status':'Create Account';
-  container.appendChild(title);
-
-  if(user){
-    renderKYCStatus(container,user);
-    return;
-  }
-
-  // Formulaire de création de compte
-  const status=document.createElement('div');container.appendChild(status);
-  const form=document.createElement('div');
-
-  const row1=document.createElement('div');row1.style.cssText=S({display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'});
-  const f1=field('First Name','k-first','John');f1.style.marginBottom='0';
-  const f2=field('Last Name','k-last','Doe');f2.style.marginBottom='0';
-  row1.appendChild(f1);row1.appendChild(f2);
-  form.appendChild(row1);
-  form.style.marginTop='10px';
-  form.appendChild(field('Date of Birth (YYYY-MM-DD)','k-dob','1990-01-15'));
-  form.appendChild(field('Email','k-email','john@example.com','email'));
-  form.appendChild(field('Mobile (E.164 format)','k-phone','+33612345678','tel'));
-  form.appendChild(field('Nationality (ISO 3166-1 alpha-2)','k-country','FR'));
-  form.appendChild(field('Address Line 1','k-addr1','123 Main Street'));
-  form.appendChild(field('City','k-city','Paris'));
-  form.appendChild(field('Postal Code','k-postal','75001'));
-  form.appendChild(field('Country of Residence','k-country2','FR'));
-
-  const createBtn=btn('Create Account',true,async()=>{
-    createBtn.textContent='Creating…';createBtn.disabled=true;
-    const cfg=loadCfg();
-    const body={
-      firstName:document.getElementById('k-first').value.trim(),
-      lastName:document.getElementById('k-last').value.trim(),
-      dateOfBirth:{year:parseInt((document.getElementById('k-dob').value||'').split('-')[0]),month:parseInt((document.getElementById('k-dob').value||'').split('-')[1]),day:parseInt((document.getElementById('k-dob').value||'').split('-')[2])},
-      email:document.getElementById('k-email').value.trim(),
-      mobile:{phoneNumber:document.getElementById('k-phone').value.trim().replace(/\s/g,'').replace(/^\+/,'')},
-      nationality:document.getElementById('k-country').value.trim().toUpperCase(),
-      address:{addressLine1:document.getElementById('k-addr1').value.trim(),city:document.getElementById('k-city').value.trim(),postalCode:document.getElementById('k-postal').value.trim(),state:'',country:document.getElementById('k-country2').value.trim().toUpperCase()},
-    };
-    try{
-      const r=await strigaFetch('POST','/user/create',body);
-      saveUser({...r,kycStatus:'NOT_STARTED'});
-      window.YM_toast?.('Account created!','success');
-      renderKYC(container.parentElement||container);
-    }catch(e){
-      toast(status,'Error: '+e.message,'error');
-      createBtn.textContent='Create Account';createBtn.disabled=false;
-    }
-  });
-  form.appendChild(createBtn);
-  container.appendChild(form);
-}
-
-function renderKYCStatus(container,user){
-  container.appendChild(card(`
-    <div style="margin-bottom:12px">
-      <div style="font-size:11px;color:${C.text3};margin-bottom:3px">USER ID</div>
-      <div style="font-size:12px;color:${C.text2};font-family:monospace">${esc(user.id||user.userId||'—')}</div>
-    </div>
-    <div style="margin-bottom:12px">
-      <div style="font-size:11px;color:${C.text3};margin-bottom:3px">NAME</div>
-      <div style="font-size:14px;font-weight:600;color:${C.text}">${esc((user.firstName||'')+' '+(user.lastName||''))}</div>
-    </div>
-    <div>
-      <div style="font-size:11px;color:${C.text3};margin-bottom:3px">KYC STATUS</div>
-      <div style="font-size:13px;font-weight:700;color:${user.kycStatus==='APPROVED'?C.green:user.kycStatus==='REJECTED'?C.red:C.accent}">${esc(user.kycStatus||'PENDING')}</div>
-    </div>`));
-
-  if(user.kycStatus!=='APPROVED'){
-    const status=document.createElement('div');container.appendChild(status);
-    const kycBtn=btn('🪪 Start KYC (Get SDK Link)',true,async()=>{
-      kycBtn.textContent='Loading…';kycBtn.disabled=true;
-      try{
-        const userId=user.id||user.userId;
-        const r=await strigaFetch('POST',`/user/${userId}/kyc/start`,{});
-        if(r.verificationLink){
-          window.open(r.verificationLink,'_blank');
-          toast(status,'KYC link opened in browser. Complete verification there.','info');
-        }
-        kycBtn.textContent='🪪 Start KYC';kycBtn.disabled=false;
-      }catch(e){toast(status,'Error: '+e.message,'error');kycBtn.textContent='🪪 Start KYC';kycBtn.disabled=false;}
-    });
-    container.appendChild(kycBtn);
-    // Vérifier le statut
-    const checkBtn=btn('🔄 Refresh KYC Status',false,async()=>{
-      checkBtn.textContent='Checking…';checkBtn.disabled=true;
-      try{
-        const userId=user.id||user.userId;
-        const r=await strigaFetch('GET',`/user/${userId}`,{});
-        saveUser({...user,...r,kycStatus:r.kycStatus||user.kycStatus});
-        window.YM_toast?.(r.kycStatus==='APPROVED'?'KYC Approved! 🎉':'Status: '+r.kycStatus,'info');
-        renderKYC(container.parentElement||container);
-      }catch(e){toast(status,'Error: '+e.message,'error');checkBtn.textContent='🔄 Refresh';checkBtn.disabled=false;}
-    });
-    container.appendChild(checkBtn);
-  }
-}
-
-// ── WALLET ────────────────────────────────────────────────────────────────────
-function renderWallet(container){
-  const user=loadUser();
-  const title=document.createElement('div');
-  title.style.cssText=S({fontSize:'18px',fontWeight:'700',color:C.text,marginBottom:'16px'});
-  title.textContent='My Wallet';
-  container.appendChild(title);
+  body.appendChild(grid);
 
   if(!user){
-    container.appendChild(card(`<div style="text-align:center;color:${C.text3};font-size:13px;padding:8px">Create an account first (KYC tab)</div>`));
-    return;
+    const cta=document.createElement('button');cta.className='sg-btn sg-btn-primary';cta.textContent='Créer mon compte →';
+    cta.addEventListener('click',()=>{_tab='kyc';renderPanel(root);});
+    body.appendChild(cta);
   }
-
-  const status=document.createElement('div');container.appendChild(status);
-  const walletsEl=document.createElement('div');container.appendChild(walletsEl);
-  const l=loader(walletsEl,'Loading wallets…');
-
-  strigaFetch('POST',`/user/${user.id||user.userId}/wallets`,{startDate:0,endDate:Date.now(),page:0}).then(r=>{
-    l.remove();walletsEl.innerHTML='';
-    const wallets=r.wallets||[];
-    if(!wallets.length){
-      walletsEl.appendChild(card(`<div style="text-align:center;color:${C.text3};font-size:13px">No wallets yet. Complete KYC to get your wallet.</div>`));
-      return;
-    }
-    wallets.forEach(w=>{
-      const wCard=card(`<div style="font-size:12px;color:${C.text3};margin-bottom:10px">WALLET · ${esc(w.walletId||w.id||'')}</div>`);
-      const accounts=w.accounts||{};
-      Object.entries(accounts).forEach(([currency,acc])=>{
-        const bal=document.createElement('div');
-        bal.style.cssText=S({display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid '+C.border});
-        bal.innerHTML=`<div style="display:flex;align-items:center;gap:10px">
-          <div style="width:36px;height:36px;border-radius:50%;background:${C.accentLight};display:flex;align-items:center;justify-content:center;font-size:16px">${currency==='EUR'?'€':currency==='BTC'?'₿':currency==='ETH'?'Ξ':'💰'}</div>
-          <div><div style="font-size:14px;font-weight:600;color:${C.text}">${esc(currency)}</div>
-          <div style="font-size:10px;color:${C.text3}">${esc(acc.status||'')}</div></div></div>
-          <div style="text-align:right">
-          <div style="font-size:16px;font-weight:700;color:${C.text}">${acc.availableBalance?((parseInt(acc.availableBalance)/100).toFixed(2)):('—')}</div>
-          <div style="font-size:10px;color:${C.text3}">Available</div></div>`;
-        wCard.appendChild(bal);
-      });
-      walletsEl.appendChild(wCard);
-    });
-  }).catch(e=>{l.remove();toast(status,'Error loading wallets: '+e.message,'error');});
 }
 
-// ── CARD ──────────────────────────────────────────────────────────────────────
-function renderCard(container){
+// ── KYC ──────────────────────────────────────────────────────────────────────
+function renderKYC(body,root){
   const user=loadUser();
-  const title=document.createElement('div');
-  title.style.cssText=S({fontSize:'18px',fontWeight:'700',color:C.text,marginBottom:'16px'});
-  title.textContent='My Card';
-  container.appendChild(title);
+  body.classList.add('sg-anim');
 
-  if(!user||user.kycStatus!=='APPROVED'){
-    container.appendChild(card(`<div style="text-align:center;color:${C.text3};font-size:13px;padding:8px">KYC must be approved to get a card</div>`));
-    return;
+  if(user){renderKYCStatus(body,user,root);return;}
+
+  // Titre
+  const h=document.createElement('div');
+  h.style.cssText='margin-bottom:24px';
+  h.innerHTML=`<div style="font-size:22px;font-weight:600;color:${T.text};margin-bottom:6px">Créer un compte</div>
+    <div style="font-size:13px;color:${T.text2};line-height:1.6">Vérification d'identité requise pour activer votre wallet et votre carte Mastercard virtuelle.</div>`;
+  body.appendChild(h);
+
+  const status=document.createElement('div');body.appendChild(status);
+
+  // Formulaire en sections
+  function section(title){
+    const d=document.createElement('div');d.style.cssText='margin-bottom:20px';
+    const t=document.createElement('div');t.className='sg-section-title';t.textContent=title;
+    d.appendChild(t);return d;
   }
 
-  const status=document.createElement('div');container.appendChild(status);
+  const s1=section('Identité');
+  const nameRow=document.createElement('div');nameRow.className='sg-grid-2';
+  const f1=field('Prénom','k-first','Jean');f1.style.marginBottom='0';
+  const f2=field('Nom','k-last','Dupont');f2.style.marginBottom='0';
+  nameRow.appendChild(f1);nameRow.appendChild(f2);
+  s1.appendChild(nameRow);s1.style.marginTop='8px';
+  s1.appendChild(field('Date de naissance','k-dob','1990-01-15'));
+  s1.appendChild(field('Nationalité (FR, DE…)','k-country','FR'));
+  body.appendChild(s1);
+
+  const s2=section('Contact');
+  s2.appendChild(field('Email','k-email','jean@example.com','email'));
+  s2.appendChild(field('Téléphone (ex: +33612345678)','k-phone','+33612345678','tel'));
+  body.appendChild(s2);
+
+  const s3=section('Adresse');
+  s3.appendChild(field('Adresse','k-addr1','12 rue de la Paix'));
+  const cityRow=document.createElement('div');cityRow.className='sg-grid-2';
+  const fc=field('Ville','k-city','Paris');fc.style.marginBottom='0';
+  const fp=field('Code postal','k-postal','75001');fp.style.marginBottom='0';
+  cityRow.appendChild(fc);cityRow.appendChild(fp);
+  s3.appendChild(cityRow);
+  s3.style.marginTop='8px';
+  s3.appendChild(field('Pays de résidence','k-country2','FR'));
+  body.appendChild(s3);
+
+  const createBtn=document.createElement('button');createBtn.className='sg-btn sg-btn-primary';createBtn.style.marginBottom='8px';
+  createBtn.textContent='Créer mon compte';
+  createBtn.addEventListener('click',async()=>{
+    createBtn.textContent='';createBtn.disabled=true;
+    const sp=document.createElement('div');sp.className='sg-spinner';sp.style.margin='0 auto';createBtn.appendChild(sp);
+    const body2={
+      firstName:document.getElementById('k-first')?.value.trim()||'',
+      lastName:document.getElementById('k-last')?.value.trim()||'',
+      dateOfBirth:{
+        year:parseInt((document.getElementById('k-dob')?.value||'').split('-')[0])||1990,
+        month:parseInt((document.getElementById('k-dob')?.value||'').split('-')[1])||1,
+        day:parseInt((document.getElementById('k-dob')?.value||'').split('-')[2])||1
+      },
+      email:document.getElementById('k-email')?.value.trim()||'',
+      mobile:{phoneNumber:(document.getElementById('k-phone')?.value.trim()||'').replace(/\s/g,'').replace(/^\+/,'')},
+      nationality:(document.getElementById('k-country')?.value.trim()||'FR').toUpperCase(),
+      address:{
+        addressLine1:document.getElementById('k-addr1')?.value.trim()||'',
+        city:document.getElementById('k-city')?.value.trim()||'',
+        postalCode:document.getElementById('k-postal')?.value.trim()||'',
+        state:'',
+        country:(document.getElementById('k-country2')?.value.trim()||'FR').toUpperCase()
+      }
+    };
+    try{
+      const r=await strigaFetch('POST','/user/create',body2);
+      saveUser({...r,kycStatus:'NOT_STARTED'});
+      window.YM_toast?.('Compte créé avec succès !','success');
+      renderKYC(body,root);
+    }catch(e){
+      status.innerHTML='';status.appendChild(notice('Erreur : '+e.message,'error'));
+      createBtn.innerHTML='Créer mon compte';createBtn.disabled=false;
+    }
+  });
+  body.appendChild(createBtn);
+}
+
+function renderKYCStatus(body,user,root){
+  // Statut card
+  const statusCard=document.createElement('div');statusCard.className='sg-card';statusCard.style.marginBottom='16px';
+  statusCard.innerHTML=`
+    <div class="sg-row" style="padding-top:0">
+      <div style="width:48px;height:48px;border-radius:16px;background:${T.accentSoft};display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👤</div>
+      <div style="flex:1">
+        <div style="font-size:16px;font-weight:600;color:${T.text}">${esc(user.firstName||'')} ${esc(user.lastName||'')}</div>
+        <div style="font-size:12px;color:${T.text3};font-family:'DM Mono',monospace;margin-top:2px">${esc((user.id||user.userId||'').slice(0,20)+'…')}</div>
+      </div>
+    </div>
+    <div class="sg-row">
+      <span class="sg-label" style="margin:0;flex:1">Statut KYC</span>
+      <span class="sg-badge ${user.kycStatus==='APPROVED'?'ok':user.kycStatus==='REJECTED'?'err':'warn'}">${esc(user.kycStatus||'PENDING')}</span>
+    </div>
+    <div class="sg-row" style="padding-bottom:0">
+      <span class="sg-label" style="margin:0;flex:1">Email</span>
+      <span style="font-size:13px;color:${T.text2}">${esc(user.email||'—')}</span>
+    </div>`;
+  body.appendChild(statusCard);
+  body.classList.add('sg-anim');
+
+  const feedback=document.createElement('div');body.appendChild(feedback);
+
+  if(user.kycStatus!=='APPROVED'){
+    const kycBtn=document.createElement('button');kycBtn.className='sg-btn sg-btn-primary';kycBtn.style.marginBottom='10px';
+    kycBtn.textContent='🪪 Vérifier mon identité';
+    kycBtn.addEventListener('click',async()=>{
+      kycBtn.disabled=true;kycBtn.textContent='Chargement…';
+      try{
+        const r=await strigaFetch('POST',`/user/${user.id||user.userId}/kyc/start`,{});
+        if(r.verificationLink)window.open(r.verificationLink,'_blank');
+        feedback.innerHTML='';feedback.appendChild(notice('Lien KYC ouvert dans le navigateur. Revenez ici une fois complété.','info'));
+        kycBtn.textContent='🪪 Vérifier mon identité';kycBtn.disabled=false;
+      }catch(e){feedback.innerHTML='';feedback.appendChild(notice('Erreur : '+e.message,'error'));kycBtn.textContent='🪪 Vérifier mon identité';kycBtn.disabled=false;}
+    });
+    body.appendChild(kycBtn);
+
+    const refreshBtn=document.createElement('button');refreshBtn.className='sg-btn sg-btn-ghost';
+    refreshBtn.textContent='↻  Actualiser le statut';
+    refreshBtn.addEventListener('click',async()=>{
+      refreshBtn.disabled=true;refreshBtn.textContent='Vérification…';
+      try{
+        const r=await strigaFetch('GET',`/user/${user.id||user.userId}`,{});
+        saveUser({...user,...r});
+        window.YM_toast?.(r.kycStatus==='APPROVED'?'KYC approuvé ! 🎉':'Statut : '+r.kycStatus,'info');
+        renderKYC(body,root);
+      }catch(e){feedback.innerHTML='';feedback.appendChild(notice('Erreur : '+e.message,'error'));refreshBtn.textContent='↻  Actualiser';refreshBtn.disabled=false;}
+    });
+    body.appendChild(refreshBtn);
+  }else{
+    body.appendChild(notice('Votre identité est vérifiée. Wallet et carte disponibles.','success'));
+  }
+}
+
+// ── WALLET ───────────────────────────────────────────────────────────────────
+function renderWallet(body){
+  const user=loadUser();
+  body.classList.add('sg-anim');
+
+  if(!user){
+    const card=document.createElement('div');card.className='sg-card';
+    card.innerHTML=`<div style="text-align:center;padding:16px;color:${T.text3};font-size:13px">Créez un compte d'abord (onglet 👤)</div>`;
+    body.appendChild(card);return;
+  }
+
+  const h=document.createElement('div');
+  h.style.cssText='font-size:18px;font-weight:600;margin-bottom:18px';h.textContent='Mon Wallet';
+  body.appendChild(h);
+
+  const feedback=document.createElement('div');body.appendChild(feedback);
+  const sp=spinner();body.appendChild(sp);
+
+  strigaFetch('POST',`/user/${user.id||user.userId}/wallets`,{startDate:0,endDate:Date.now(),page:0}).then(r=>{
+    sp.remove();
+    const wallets=r.wallets||[];
+    if(!wallets.length){
+      feedback.appendChild(notice('Aucun wallet trouvé. Complétez votre KYC pour activer votre wallet.','info'));return;
+    }
+    wallets.forEach(w=>{
+      const wCard=document.createElement('div');wCard.className='sg-card';wCard.style.marginBottom='12px';
+      const wHeader=document.createElement('div');
+      wHeader.style.cssText=`font-family:'DM Mono',monospace;font-size:10px;color:${T.text3};margin-bottom:14px`;
+      wHeader.textContent='WALLET · '+(w.walletId||w.id||'').slice(0,20)+'…';
+      wCard.appendChild(wHeader);
+      const accounts=w.accounts||{};
+      Object.entries(accounts).forEach(([currency,acc])=>{
+        const icons={EUR:'€',BTC:'₿',ETH:'Ξ',USDC:'$',SOL:'◎'};
+        const row=document.createElement('div');row.className='sg-row';
+        row.innerHTML=`
+          <div style="width:40px;height:40px;border-radius:14px;background:${T.accentSoft};display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${icons[currency]||'💰'}</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600;color:${T.text}">${esc(currency)}</div>
+            <div style="font-size:11px;color:${T.text3}">${esc(acc.status||'')}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:18px;font-weight:600;color:${T.text}">${acc.availableBalance?((parseInt(acc.availableBalance)/100).toFixed(2)):'—'}</div>
+            <div style="font-size:11px;color:${T.text3}">Disponible</div>
+          </div>`;
+        wCard.appendChild(row);
+      });
+      body.appendChild(wCard);
+    });
+  }).catch(e=>{sp.remove();feedback.appendChild(notice('Erreur : '+e.message,'error'));});
+}
+
+// ── CARD ─────────────────────────────────────────────────────────────────────
+function renderCard(body,root){
+  const user=loadUser();
+  body.classList.add('sg-anim');
+
+  if(!user||user.kycStatus!=='APPROVED'){
+    const c=document.createElement('div');c.className='sg-card';
+    c.innerHTML=`<div style="text-align:center;padding:16px;color:${T.text3};font-size:13px">Le KYC doit être approuvé pour obtenir une carte.</div>`;
+    body.appendChild(c);return;
+  }
+
+  const h=document.createElement('div');h.style.cssText='font-size:18px;font-weight:600;margin-bottom:18px';h.textContent='Ma Carte';
+  body.appendChild(h);
 
   // Visual card
   const vizCard=document.createElement('div');
-  vizCard.style.cssText=S({background:`linear-gradient(135deg,#1a0533,${C.accent})`,borderRadius:'20px',padding:'22px',marginBottom:'16px',position:'relative',overflow:'hidden',aspectRatio:'1.586/1'});
+  vizCard.style.cssText=`
+    background:linear-gradient(135deg,#0D0020,#1A0050,${T.accentDark});
+    border-radius:24px;padding:24px;margin-bottom:20px;
+    position:relative;overflow:hidden;aspect-ratio:1.586/1;
+    box-shadow:0 20px 60px ${T.accentGlow}`;
   vizCard.innerHTML=`
-    <div style="position:absolute;top:-20px;right:-20px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.05)"></div>
-    <div style="position:absolute;bottom:-30px;right:30px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
-    <div style="font-size:14px;font-weight:700;color:rgba(255,255,255,.5);letter-spacing:2px;margin-bottom:20px">STRIGA</div>
-    <div style="font-size:16px;color:#fff;letter-spacing:3px;font-family:monospace;margin-bottom:20px" id="card-num">•••• •••• •••• ••••</div>
+    <div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;border-radius:50%;background:rgba(138,92,255,.12)"></div>
+    <div style="position:absolute;bottom:-20px;left:40px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.04)"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.4);letter-spacing:3px;margin-bottom:24px">STRIGA</div>
+    <div style="font-family:'DM Mono',monospace;font-size:17px;color:rgba(255,255,255,.8);letter-spacing:4px;margin-bottom:24px">•••• •••• •••• ••••</div>
     <div style="display:flex;justify-content:space-between;align-items:flex-end">
-      <div><div style="font-size:9px;color:rgba(255,255,255,.5);margin-bottom:2px">CARD HOLDER</div>
-      <div style="font-size:13px;font-weight:600;color:#fff">${esc((user.firstName||'')+ ' '+(user.lastName||'')).toUpperCase()}</div></div>
-      <div style="font-size:22px;opacity:.7">💳</div></div>`;
-  container.appendChild(vizCard);
+      <div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px;letter-spacing:1px">TITULAIRE</div>
+        <div style="font-size:14px;font-weight:500;color:#fff;letter-spacing:.5px">${esc((user.firstName||'').toUpperCase()+' '+(user.lastName||'').toUpperCase())}</div>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,.35);letter-spacing:2px;font-family:'DM Mono',monospace">MASTERCARD</div>
+    </div>`;
+  body.appendChild(vizCard);
 
-  // Actions carte
-  const actGrid=document.createElement('div');
-  actGrid.style.cssText=S({display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px'});
-  const cardsEl=document.createElement('div');
+  const feedback=document.createElement('div');body.appendChild(feedback);
+  const cardsEl=document.createElement('div');body.appendChild(cardsEl);
 
-  const fetchCardsBtn=btn('📋 View My Cards',true,async()=>{
-    fetchCardsBtn.textContent='Loading…';fetchCardsBtn.disabled=true;
-    cardsEl.innerHTML='';
+  const grid=document.createElement('div');grid.className='sg-grid-2';grid.style.marginBottom='12px';
+
+  const viewBtn=document.createElement('button');viewBtn.className='sg-btn sg-btn-primary';viewBtn.textContent='📋 Mes cartes';
+  viewBtn.addEventListener('click',async()=>{
+    viewBtn.disabled=true;viewBtn.textContent='…';cardsEl.innerHTML='';
     try{
       const r=await strigaFetch('GET',`/card/all?userId=${user.id||user.userId}`,{});
       const cards=(r.cards||r.data||[]);
-      if(!cards.length){
-        toast(status,'No cards found. Issue a new card.','info');
-      }else{
-        cards.forEach(c=>{
-          const cCard=card(`
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-              <div style="font-size:13px;font-weight:600;color:${C.text}">••••  ${esc(c.maskedCardNumber?.slice(-4)||'••••')}</div>
-              <div style="font-size:11px;padding:3px 10px;border-radius:999px;background:${c.status==='ACTIVE'?'rgba(34,197,94,.15)':'rgba(239,68,68,.15)'};color:${c.status==='ACTIVE'?C.green:C.red}">${esc(c.status||'')}</div>
-            </div>
-            <div style="font-size:11px;color:${C.text3}">ID: ${esc(c.cardId||c.id||'')}</div>`);
-          cardsEl.appendChild(cCard);
-        });
-      }
-      fetchCardsBtn.textContent='📋 View My Cards';fetchCardsBtn.disabled=false;
-    }catch(e){toast(status,'Error: '+e.message,'error');fetchCardsBtn.textContent='📋 View My Cards';fetchCardsBtn.disabled=false;}
+      if(!cards.length){feedback.appendChild(notice('Aucune carte. Émettez-en une ci-dessous.','info'));}
+      else cards.forEach(c=>{
+        const cc=document.createElement('div');cc.className='sg-card';cc.style.marginBottom='10px';
+        cc.innerHTML=`
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div style="font-family:'DM Mono',monospace;font-size:14px;color:${T.text}">•••• ${esc(c.maskedCardNumber?.slice(-4)||'••••')}</div>
+            <span class="sg-badge ${c.status==='ACTIVE'?'ok':'err'}">${esc(c.status||'')}</span>
+          </div>
+          <div style="font-size:11px;color:${T.text3};font-family:'DM Mono',monospace">${esc(c.cardId||c.id||'')}</div>`;
+        cardsEl.appendChild(cc);
+      });
+      viewBtn.textContent='📋 Mes cartes';viewBtn.disabled=false;
+    }catch(e){feedback.innerHTML='';feedback.appendChild(notice('Erreur : '+e.message,'error'));viewBtn.textContent='📋 Mes cartes';viewBtn.disabled=false;}
   });
-  actGrid.appendChild(fetchCardsBtn);
+  grid.appendChild(viewBtn);
 
-  const issueBtn=btn('✨ Issue New Card',false,async()=>{
-    issueBtn.textContent='Issuing…';issueBtn.disabled=true;
+  const issueBtn=document.createElement('button');issueBtn.className='sg-btn sg-btn-ghost';issueBtn.textContent='✦ Émettre';
+  issueBtn.addEventListener('click',async()=>{
+    issueBtn.disabled=true;issueBtn.textContent='…';
     try{
-      // Récupère les wallets pour trouver l'accountId EUR
-      const walletR=await strigaFetch('POST',`/user/${user.id||user.userId}/wallets`,{startDate:0,endDate:Date.now(),page:0});
-      const wallet=(walletR.wallets||[])[0];
-      if(!wallet){toast(status,'No wallet found. Complete KYC first.','error');issueBtn.textContent='✨ Issue New Card';issueBtn.disabled=false;return;}
+      const wr=await strigaFetch('POST',`/user/${user.id||user.userId}/wallets`,{startDate:0,endDate:Date.now(),page:0});
+      const wallet=(wr.wallets||[])[0];
+      if(!wallet){feedback.appendChild(notice('Aucun wallet. Complétez le KYC.','error'));issueBtn.textContent='✦ Émettre';issueBtn.disabled=false;return;}
       const eurAcc=Object.entries(wallet.accounts||{}).find(([cur])=>cur==='EUR');
-      if(!eurAcc){toast(status,'No EUR account found.','error');issueBtn.textContent='✨ Issue New Card';issueBtn.disabled=false;return;}
-      const r=await strigaFetch('POST','/card/issue',{userId:user.id||user.userId,accountId:eurAcc[1].accountId||eurAcc[1].id,cardType:'VIRTUAL'});
-      window.YM_toast?.('Card issued! 🎉','success');
-      issueBtn.textContent='✨ Issue New Card';issueBtn.disabled=false;
-      renderCard(container.parentElement||container);
-    }catch(e){toast(status,'Error: '+e.message,'error');issueBtn.textContent='✨ Issue New Card';issueBtn.disabled=false;}
+      if(!eurAcc){feedback.appendChild(notice('Aucun compte EUR trouvé.','error'));issueBtn.textContent='✦ Émettre';issueBtn.disabled=false;return;}
+      await strigaFetch('POST','/card/issue',{userId:user.id||user.userId,accountId:eurAcc[1].accountId||eurAcc[1].id,cardType:'VIRTUAL'});
+      window.YM_toast?.('Carte émise ! 🎉','success');
+      issueBtn.textContent='✦ Émettre';issueBtn.disabled=false;
+      renderCard(body,root);
+    }catch(e){feedback.innerHTML='';feedback.appendChild(notice('Erreur : '+e.message,'error'));issueBtn.textContent='✦ Émettre';issueBtn.disabled=false;}
   });
-  actGrid.appendChild(issueBtn);
-  container.appendChild(actGrid);
-  container.appendChild(status);
-  container.appendChild(cardsEl);
+  grid.appendChild(issueBtn);
+  body.insertBefore(grid,feedback);
 }
 
-// ── SETTINGS ──────────────────────────────────────────────────────────────────
-function renderSettings(container){
-  const cfg=loadCfg();
-  const user=loadUser();
+// ── SETTINGS ─────────────────────────────────────────────────────────────────
+function renderSettings(body,root){
+  const cfg=loadCfg();const user=loadUser();
+  body.classList.add('sg-anim');
 
-  const title=document.createElement('div');
-  title.style.cssText=S({fontSize:'18px',fontWeight:'700',color:C.text,marginBottom:'16px'});
-  title.textContent='Settings';
-  container.appendChild(title);
+  const h=document.createElement('div');h.style.cssText='font-size:18px;font-weight:600;margin-bottom:18px';h.textContent='Paramètres';
+  body.appendChild(h);
 
-  const status=document.createElement('div');container.appendChild(status);
+  const feedback=document.createElement('div');body.appendChild(feedback);
 
-  container.appendChild(card(`
-    <div style="font-size:11px;color:${C.text3};margin-bottom:3px">ENVIRONMENT</div>
-    <div style="font-size:13px;color:${C.text};font-weight:600">${cfg.live?'🟢 Production':'🟡 Sandbox'}</div>
-    <div style="font-size:11px;color:${C.text3};margin-top:6px">API Key: ${cfg.apiKey?cfg.apiKey.slice(0,8)+'…':'—'}</div>`));
-
+  // Info compte
   if(user){
-    container.appendChild(card(`
-      <div style="font-size:11px;color:${C.text3};margin-bottom:3px">ACCOUNT</div>
-      <div style="font-size:13px;font-weight:600;color:${C.text}">${esc(user.firstName||'')} ${esc(user.lastName||'')}</div>
-      <div style="font-size:11px;color:${C.text3};margin-top:4px;font-family:monospace">${esc(user.id||user.userId||'')}</div>`));
+    const c=document.createElement('div');c.className='sg-card';c.style.marginBottom='12px';
+    c.innerHTML=`<div class="sg-label">Compte</div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:4px">${esc(user.firstName||'')} ${esc(user.lastName||'')}</div>
+      <div style="font-size:11px;color:${T.text3};font-family:'DM Mono',monospace">${esc(user.id||user.userId||'')}</div>`;
+    body.appendChild(c);
   }
 
-  // Ping test
-  const pingBtn=btn('🔔 Test API Connection',false,async()=>{
-    pingBtn.textContent='Testing…';pingBtn.disabled=true;
-    try{
-      await strigaFetch('POST','/ping',{ping:'pong'});
-      toast(status,'API connection OK ✓','success');
-    }catch(e){toast(status,'Connection failed: '+e.message,'error');}
-    pingBtn.textContent='🔔 Test API Connection';pingBtn.disabled=false;
+  const pingBtn=document.createElement('button');pingBtn.className='sg-btn sg-btn-ghost';pingBtn.style.marginBottom='10px';
+  pingBtn.textContent='↻  Tester la connexion';
+  pingBtn.addEventListener('click',async()=>{
+    pingBtn.disabled=true;pingBtn.textContent='Test…';
+    try{await strigaFetch('POST','/ping',{});feedback.appendChild(notice('Connexion API OK ✓','success'));}
+    catch(e){feedback.innerHTML='';feedback.appendChild(notice('Échec : '+e.message,'error'));}
+    pingBtn.textContent='↻  Tester la connexion';pingBtn.disabled=false;
   });
-  container.appendChild(pingBtn);
+  body.appendChild(pingBtn);
 
-  // Reconfigurer
-  const reconfigBtn=btn('🔧 Reconfigure API Keys',false,()=>{
-    if(confirm('Reconfigure API keys?')){saveCfg({});renderPanel(container.closest('[id]')||container.parentElement.parentElement);}
-  });
-  container.appendChild(reconfigBtn);
-
-  // Reset user
   if(user){
-    const resetBtn=btn('🗑 Clear Saved Account',false,()=>{
-      if(confirm('Remove saved account data?')){saveUser(null);window.YM_toast?.('Account cleared','info');renderPanel(container.closest('[id]')||container.parentElement.parentElement);}
+    const resetBtn=document.createElement('button');resetBtn.className='sg-btn sg-btn-ghost';resetBtn.style.marginBottom='10px';
+    resetBtn.style.cssText+=`color:${T.red};border-color:rgba(248,113,113,.3)`;
+    resetBtn.textContent='Supprimer les données locales';
+    resetBtn.addEventListener('click',()=>{
+      if(confirm('Supprimer le compte sauvegardé localement ?')){saveUser(null);window.YM_toast?.('Données supprimées','info');renderPanel(body.parentElement||root);}
     });
-    resetBtn.style.color=C.red;
-    container.appendChild(resetBtn);
+    body.appendChild(resetBtn);
   }
+
+  // Lien developer discret tout en bas
+  const devLink=document.createElement('div');devLink.className='sg-dev-link';devLink.textContent='Configuration avancée (développeurs)';
+  devLink.addEventListener('click',()=>{renderDevConfig(body,root,devLink);});
+  body.appendChild(devLink);
 }
 
-// ── SPHERE ─────────────────────────────────────────────────────────────────────
+// ── DEV CONFIG (caché) ────────────────────────────────────────────────────────
+function renderDevConfig(body,root,triggerEl){
+  triggerEl?.remove();
+  const devCard=document.createElement('div');devCard.className='sg-card sg-anim';devCard.style.marginTop='10px';
+  const cfg=loadCfg();
+  devCard.innerHTML=`
+    <div class="sg-label" style="color:${T.amber}">⚠ Mode développeur</div>
+    <div style="font-size:11px;color:${T.text3};margin-bottom:12px;line-height:1.5">Ces paramètres sont destinés aux développeurs qui déploient leur propre worker Cloudflare. Les utilisateurs normaux n'ont pas besoin de les modifier.</div>`;
+  const wf=field('Worker URL','sg-dev-worker',DEFAULT_WORKER,'text',cfg.workerUrl||'');
+  devCard.appendChild(wf);
+
+  const feedback=document.createElement('div');devCard.appendChild(feedback);
+
+  const saveBtn=document.createElement('button');saveBtn.className='sg-btn sg-btn-ghost';saveBtn.textContent='Sauvegarder';
+  saveBtn.addEventListener('click',async()=>{
+    const url=document.getElementById('sg-dev-worker')?.value.trim()||'';
+    saveCfg({...cfg,workerUrl:url});
+    if(url){
+      saveBtn.disabled=true;saveBtn.textContent='Test…';
+      try{await strigaFetch('POST','/ping',{});feedback.appendChild(notice('Worker connecté ✓','success'));}
+      catch(e){feedback.appendChild(notice('Erreur : '+e.message,'error'));}
+      saveBtn.textContent='Sauvegarder';saveBtn.disabled=false;
+    }else{
+      feedback.appendChild(notice('Sauvegardé (URL vide = worker par défaut)','info'));
+    }
+  });
+  devCard.appendChild(saveBtn);
+  body.appendChild(devCard);
+}
+
+// ── SPHERE EXPORT ─────────────────────────────────────────────────────────────
 window.YM_S['striga.sphere.js']={
   name:'Striga',icon:'🟣',category:'Finance',
-  description:'Striga Banking API — KYC, wallet EUR/crypto, carte virtuelle Mastercard',
+  description:'Banking API — KYC, wallet EUR/crypto, carte virtuelle Mastercard',
   emit:[],receive:[],
-  activate:function(){},
+  activate:function(){injectCSS();},
   deactivate:function(){},
   renderPanel,
   profileSection:function(container){
     const user=loadUser();
     if(!user)return;
+    injectCSS();
     const el=document.createElement('div');
-    el.style.cssText=S({display:'flex',flexDirection:'column',gap:'6px'});
+    el.style.cssText='font-family:"DM Sans",sans-serif';
     el.innerHTML=`
-      <div style="display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#1a0533,${C.accent});border-radius:12px;padding:12px">
-        <div style="font-size:24px">🟣</div>
+      <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#1A0A3D,${T.accentDark});border-radius:16px;padding:14px">
+        <div style="width:40px;height:40px;border-radius:14px;background:${T.accentSoft};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🟣</div>
         <div style="flex:1">
-          <div style="font-size:13px;font-weight:700;color:#fff">${esc((user.firstName||'')+' '+(user.lastName||''))}</div>
-          <div style="font-size:11px;color:rgba(255,255,255,.6)">KYC: ${esc(user.kycStatus||'—')}</div>
+          <div style="font-size:13px;font-weight:600;color:#fff">${esc(user.firstName||'')} ${esc(user.lastName||'')}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.5)">KYC : ${esc(user.kycStatus||'—')}</div>
         </div>
-        <div style="font-size:11px;padding:3px 10px;border-radius:999px;background:${user.kycStatus==='APPROVED'?'rgba(34,197,94,.2)':'rgba(123,47,255,.2)'};color:${user.kycStatus==='APPROVED'?C.green:C.accent}">${user.kycStatus==='APPROVED'?'Active':'Pending'}</div>
+        <span style="font-size:10px;padding:3px 10px;border-radius:999px;background:${user.kycStatus==='APPROVED'?T.greenSoft:T.accentSoft};color:${user.kycStatus==='APPROVED'?T.green:T.accent};font-family:'DM Mono',monospace">${user.kycStatus==='APPROVED'?'Actif':'En attente'}</span>
       </div>`;
     container.appendChild(el);
   }
