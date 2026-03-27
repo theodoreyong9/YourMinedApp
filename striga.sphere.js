@@ -6,7 +6,7 @@
 'use strict';
 window.YM_S = window.YM_S || {};
 
-const WORKER_URL = 'https://striga-proxy.REMPLACE_TON_SUBDOMAIN.workers.dev';
+const WORKER_URL = 'https://striga-proxy.yourmine.workers.dev';
 const USER_KEY   = 'ym_striga_user_v2';
 
 function loadUser(){ try{ return JSON.parse(localStorage.getItem(USER_KEY)||'null'); }catch{ return null; } }
