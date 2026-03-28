@@ -1,5 +1,5 @@
 // merge.js — Merge vers main + update files.json
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -30,8 +30,8 @@ async function main() {
   run('git checkout main');
   run(`git merge --no-ff origin/${branchName} -m "feat: merge ${filename} from ${walletPubkey}"`);
 
-  // 2. Update files.json
-  const filesJsonPath = path.join('src', 'files.json');
+  // 2. Update files.json (FIX: racine, plus de src/)
+  const filesJsonPath = 'files.json';
   const filesJson = fs.existsSync(filesJsonPath)
     ? JSON.parse(fs.readFileSync(filesJsonPath, 'utf8'))
     : [];
@@ -39,17 +39,17 @@ async function main() {
   const existingIdx = filesJson.findIndex(f => f.filename === filename);
   const entry = {
     filename,
-    branch: branchName,
-    author: walletPubkey,
+    branch:         branchName,
+    author:         walletPubkey,
     last_committer: walletPubkey,
-    score: parseFloat(score.toFixed(6)),
-    laps: parseFloat(laps.toFixed(6)),
+    score:          parseFloat(score.toFixed(6)),
+    laps:           parseFloat(laps.toFixed(0)),   // nombre de slots (entier)
     timestamp,
-    merged_at: Math.floor(Date.now() / 1000)
+    merged_at:      Math.floor(Date.now() / 1000)
   };
 
   if (existingIdx >= 0) {
-    // Mise à jour last_committer (collaboration)
+    // Mise à jour (collaboration possible sur une sphere existante)
     filesJson[existingIdx] = { ...filesJson[existingIdx], ...entry };
   } else {
     filesJson.push(entry);
@@ -59,7 +59,8 @@ async function main() {
   console.log('✓ files.json updated');
 
   // 3. Commit + push
-  run('git add src/files.json');
+  // FIX: git add files.json à la racine
+  run('git add files.json');
   run(`git commit -m "bot: update files.json for ${filename}"`);
   run('git push origin main');
 
