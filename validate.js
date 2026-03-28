@@ -11,7 +11,6 @@ async function main() {
     process.exit(0);
   }
 
-  // Extrait wallet + filename : user/<wallet>/<filename>
   const parts = branchName.split('/');
   if (parts.length < 3) {
     console.error('Invalid branch format. Expected user/<wallet>/<filename>');
@@ -21,7 +20,7 @@ async function main() {
   const filename     = parts.slice(2).join('/');
   console.log(`Validating: ${filename} from wallet ${walletPubkey}`);
 
-  // 1. Trouve l'event log dans events/ (racine)
+  // 1. Trouve l'event log dans events/
   const eventsDir = 'events';
   let event = null;
   if (fs.existsSync(eventsDir)) {
@@ -39,26 +38,25 @@ async function main() {
     process.exit(1);
   }
 
-  // 2. Vérifie que le fichier source existe (racine)
-  const srcPath = filename;
-  if (!fs.existsSync(srcPath)) {
-    console.error(`Source file not found: ${srcPath}`);
+  // 2. Vérifie que le fichier source existe
+  if (!fs.existsSync(filename)) {
+    console.error(`Source file not found: ${filename}`);
     process.exit(1);
   }
-  const sourceCode = fs.readFileSync(srcPath, 'utf8');
+  // FIX: normalise les fins de ligne — GitHub peut changer \r\n en \n au checkout
+  const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
 
-  // 3. Lit files.json pour savoir si c'est une nouvelle pub ou un update
+  // 3. Lit files.json — détermine si c'est une nouvelle pub ou un update
   const filesJsonPath = 'files.json';
   const filesJson = fs.existsSync(filesJsonPath)
     ? JSON.parse(fs.readFileSync(filesJsonPath, 'utf8'))
     : [];
 
   const isUpdate = filesJson.some(f => f.filename === filename && f.author === walletPubkey);
-  console.log(isUpdate ? '→ Update detected (same wallet, same file)' : '→ New publication');
+  console.log(isUpdate ? '→ Update (same wallet, same file)' : '→ New publication');
 
-  // 4. Vérifie le hash du contenu
-  // Strict pour une nouvelle pub (le code ne doit pas avoir changé depuis la signature)
-  // Ignoré pour un update (le wallet met à jour son propre fichier)
+  // 4. Hash du contenu
+  // FIX: même normalisation \r\n → \n que côté browser
   const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
   if (!isUpdate && actualHash !== event.content_hash) {
     console.error(`Hash mismatch! Expected ${event.content_hash}, got ${actualHash}`);
@@ -66,9 +64,8 @@ async function main() {
   }
   console.log('✓ Hash verified');
 
-  // 5. Vérifie la signature Solana
-  // IMPORTANT : toujours vérifier sur les données ORIGINALES de l'event log
-  // (event.content_hash = hash au moment de la signature, pas le hash actuel)
+  // 5. Signature — TOUJOURS vérifiée sur les données ORIGINALES de l'event
+  // (event.content_hash = hash au moment de la signature, jamais modifié)
   const message = JSON.stringify({
     action:       event.action,
     filename:     event.filename,
@@ -85,7 +82,7 @@ async function main() {
   }
   console.log('✓ Signature verified');
 
-  // 6. Vérifie le score on-chain
+  // 6. Score on-chain
   const walletPubs = filesJson
     .filter(f => f.author === walletPubkey)
     .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
@@ -98,26 +95,22 @@ async function main() {
     console.error(`✗ Score not eligible: ${scoreCheck.reason}`);
     process.exit(1);
   }
-  console.log(`✓ Score eligible (claimable=${scoreCheck.score.toFixed(4)} YRM, curRatio=${scoreCheck.curRatio.toFixed(6)})`);
+  console.log(`✓ Score eligible (claimable=${scoreCheck.score.toFixed(4)} YRM)`);
 
-  // 7. Vérifie l'unicité seulement pour une nouvelle pub
+  // 7. Unicité — seulement pour une nouvelle pub
   if (!isUpdate && filesJson.some(f => f.filename === filename)) {
-    console.error(`✗ Filename "${filename}" already exists in files.json`);
+    console.error(`✗ "${filename}" already published by another wallet`);
     process.exit(1);
   }
-  console.log('✓ Filename unique (or authorized update)');
+  console.log('✓ OK');
 
-  // Sauvegarde pour merge.js
-  const validationResult = {
-    filename,
-    walletPubkey,
-    isUpdate,
+  fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
+    filename, walletPubkey, isUpdate,
     score:     scoreCheck.score,
     laps:      scoreCheck.currentLaps,
     timestamp: event.timestamp,
     nonce:     event.nonce
-  };
-  fs.writeFileSync('/tmp/validation_result.json', JSON.stringify(validationResult, null, 2));
+  }, null, 2));
   console.log('✓ Validation passed');
 }
 
