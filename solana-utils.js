@@ -1,18 +1,19 @@
 // solana-utils.js — Signature verification + score on-chain
-// Score = YRM claimable (lu depuis le compte on-chain)
+// Doit utiliser exactement la même formule que mine.js calcClaimable()
 const { Connection, PublicKey } = require('@solana/web3.js');
-const { Buffer } = require('buffer');
 const nacl = require('tweetnacl');
 
+// FIX: RPC public devnet par défaut, pas besoin de secret
 const RPC_URL = process.env.SOLANA_RPC || 'https://api.devnet.solana.com';
-const YRM_DECIMALS = 1e18;
-const PROGRAM_ID = new PublicKey('YRMine11111111111111111111111111111111111111');
 
-// Vérifie la signature ed25519 Solana
+// FIX: bon PROGRAM_ID (celui de mine.js)
+const PROGRAM_ID = new PublicKey('6ue88JtUXzKN5yrFkauU85EHpg4aSsM9QfarvHBQS7TZ');
+
+// Vérifie la signature ed25519
 function verifySignature(message, signatureB64, walletPubkey) {
   try {
-    const msgBytes = Buffer.from(message, 'utf8');
-    const sigBytes = Buffer.from(signatureB64, 'base64');
+    const msgBytes  = Buffer.from(message, 'utf8');
+    const sigBytes  = Buffer.from(signatureB64, 'base64');
     const pubkeyBytes = new PublicKey(walletPubkey).toBytes();
     return nacl.sign.detached.verify(msgBytes, sigBytes, pubkeyBytes);
   } catch (e) {
@@ -21,9 +22,9 @@ function verifySignature(message, signatureB64, walletPubkey) {
   }
 }
 
-// Lit le score on-chain = YRM claimable
-// Formule : lastBurnAmount / lastLaps < claimable / currentLaps
-async function checkScoreEligibility(walletPubkey) {
+// Lit le compte on-chain et calcule le score
+// lastPubScore / lastPubLaps = ratio de la dernière pub de ce wallet (0/1 si première pub)
+async function checkScoreEligibility(walletPubkey, lastPubScore = 0, lastPubLaps = 1) {
   const conn = new Connection(RPC_URL, 'confirmed');
 
   // Dérive le PDA userAccount
@@ -33,52 +34,64 @@ async function checkScoreEligibility(walletPubkey) {
   );
 
   const info = await conn.getAccountInfo(userAccountPDA);
-  if (!info) return { eligible: false, reason: 'No on-chain account found', score: 0 };
+  if (!info) return { eligible: false, reason: 'No on-chain account found', score: 0, currentSlot: 0, lastActionSlot: 0 };
 
   const data = info.data;
   const view = new DataView(data.buffer, data.byteOffset);
-  
-  // Layout userAccount (offset 8 = discriminator)
-  let o = 8;
-  // pubkey (32) 
-  o += 32;
-  // lastBurnAmount (u64)
-  const lastBurnAmount = Number(view.getBigUint64(o, true)) / YRM_DECIMALS;
-  o += 8;
-  // lastActionSlot (u64)
-  const lastActionSlot = Number(view.getBigUint64(o, true));
-  o += 8;
+
+  // FIX: layout exact de mine.js refreshBalances()
+  // offset 0-7  : discriminator (8 bytes)
+  // offset 8-39 : user pubkey (32 bytes)
+  // offset 40   : taxRate (u8)
+  // offset 41-48: lastActionSlot (u64 LE)
+  // offset 49-56: totalBurned (u64 LE)
+  // offset 57-64: lastBurnAmount (u64 LE, lamports)
+  let o = 40;
+  const taxRate       = view.getUint8(o);              o += 1;
+  const lastActionSlot= Number(view.getBigUint64(o, true)); o += 8;
+  /* totalBurned */                                     o += 8;
+  const lastBurnLamports = Number(view.getBigUint64(o, true));
 
   const currentSlot = await conn.getSlot();
-  const currentLaps = Math.max(1, currentSlot - lastActionSlot);
-  const lastLaps = Math.max(1, lastActionSlot);
 
-  // Calcul claimable simplifié (même formule que mine.js)
-  const alpha = 1.2, beta = 0.8, gamma = 0.5, C = 1000;
-  const globalInfo = await conn.getAccountInfo(
-    PublicKey.findProgramAddressSync([Buffer.from('global_state')], PROGRAM_ID)[0]
-  );
-  const protocolAge = globalInfo
-    ? Number(new DataView(globalInfo.data.buffer, globalInfo.data.byteOffset).getBigUint64(8, true))
-    : 1000;
-  
-  const patience = 0.2; // taxRate par défaut
-  const numerator = lastBurnAmount * Math.pow(currentLaps, alpha);
-  const denominator = Math.pow(Math.log(Math.pow(protocolAge, beta * (1 - patience)) + C), gamma);
-  const claimable = denominator > 0 ? numerator / denominator : 0;
+  // FIX: même formule exacte que mine.js calcClaimable()
+  if (!lastBurnLamports || !lastActionSlot || currentSlot <= lastActionSlot || currentSlot - lastActionSlot < 30) {
+    return { eligible: false, reason: 'Nothing claimable yet', score: 0, currentSlot, lastActionSlot };
+  }
 
-  // Permission : lastBurnAmount/lastLaps < claimable/currentLaps
-  const lastRatio = lastBurnAmount / lastLaps;
-  const curRatio = claimable / currentLaps;
-  const eligible = claimable > 0 && curRatio >= lastRatio;
+  const S   = lastBurnLamports / 1e9;                       // lamports → SOL
+  const tau = Math.min(taxRate, 40) / 100;
+  const dSlot = Math.max(1, currentSlot - lastActionSlot);
+  const dGen  = Math.max(1, currentSlot - 111111111);
+  const num   = Math.pow(dSlot, 1.1) * S;
+  const inner = Math.pow(dGen, 2.2 * (1 - tau)) + Math.pow(33, 3);
+  if (inner <= 1) return { eligible: false, reason: 'Formula inner ≤ 1', score: 0, currentSlot, lastActionSlot };
+  const den = Math.pow(Math.log(inner), 3);
+  if (den <= 0 || !isFinite(den) || !isFinite(num)) {
+    return { eligible: false, reason: 'Formula error', score: 0, currentSlot, lastActionSlot };
+  }
+  const claimable = num / den;
+  if (claimable <= 0 || !isFinite(claimable) || claimable > 1e12) {
+    return { eligible: false, reason: 'Claimable out of range', score: 0, currentSlot, lastActionSlot };
+  }
+
+  const currentLaps = Math.max(1, dSlot);
+
+  // FIX: formule d'éligibilité correcte
+  // "score dernière pub / dernier laps < score actuel / laps actuels"
+  // première pub : eligible si claimable > 0
+  const lastRatio = lastPubScore / Math.max(1, lastPubLaps);
+  const curRatio  = claimable / currentLaps;
+  const eligible  = claimable > 0 && (lastPubScore === 0 || curRatio >= lastRatio);
 
   return {
     eligible,
-    reason: eligible ? 'Score eligible' : 'Claimable ratio too low',
+    reason: eligible ? 'Score eligible' : `Claimable ratio too low (${curRatio.toFixed(6)} < ${lastRatio.toFixed(6)})`,
     score: claimable,
-    lastBurnAmount,
+    lastBurnLamports,
     lastActionSlot,
     currentSlot,
+    currentLaps,
     curRatio,
     lastRatio
   };
