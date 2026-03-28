@@ -57,20 +57,18 @@ async function main() {
   console.log(isUpdate ? '→ Update detected (same wallet, same file)' : '→ New publication');
 
   // 4. Vérifie le hash du contenu
-  // Strict pour une nouvelle pub, flexible pour un update (le code a pu changer)
+  // Strict pour une nouvelle pub (le code ne doit pas avoir changé depuis la signature)
+  // Ignoré pour un update (le wallet met à jour son propre fichier)
   const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
   if (!isUpdate && actualHash !== event.content_hash) {
     console.error(`Hash mismatch! Expected ${event.content_hash}, got ${actualHash}`);
     process.exit(1);
   }
-  if (isUpdate) {
-    // On met à jour le hash dans l'event pour que la suite soit cohérente
-    event.content_hash = actualHash;
-  }
   console.log('✓ Hash verified');
 
   // 5. Vérifie la signature Solana
-  // Le message signé lors du submit original (score + laps inclus)
+  // IMPORTANT : toujours vérifier sur les données ORIGINALES de l'event log
+  // (event.content_hash = hash au moment de la signature, pas le hash actuel)
   const message = JSON.stringify({
     action:       event.action,
     filename:     event.filename,
@@ -88,7 +86,6 @@ async function main() {
   console.log('✓ Signature verified');
 
   // 6. Vérifie le score on-chain
-  // Récupère la dernière pub de ce wallet pour comparer les ratios
   const walletPubs = filesJson
     .filter(f => f.author === walletPubkey)
     .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
