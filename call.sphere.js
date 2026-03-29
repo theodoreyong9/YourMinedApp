@@ -4,7 +4,7 @@
 'use strict';
 window.YM_S = window.YM_S || {};
 
-const HISTORY_KEY = 'ym_call_history_v1r';
+const HISTORY_KEY = 'ym_call_history_v1';
 
 let _ctx = null;
 let _callPeer = null;
