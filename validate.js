@@ -67,7 +67,15 @@ async function main() {
       eventsByFile[ev.filename] = ev;
     }
   }
-  console.log(`Files to validate: ${Object.keys(eventsByFile).join(', ')}`);
+  console.log(`Events found: ${Object.keys(eventsByFile).join(', ')}`);
+
+  // Ne valide que les fichiers qui existent réellement sur le disque
+  const presentFiles = Object.values(eventsByFile).filter(ev => fs.existsSync(ev.filename));
+  if (!presentFiles.length) {
+    console.error('None of the event log files exist on disk — nothing to merge');
+    process.exit(1);
+  }
+  console.log(`Files on disk: ${presentFiles.map(e => e.filename).join(', ')}`);
 
   // ── Score on-chain ─────────────────────────────────────────────────────────
   const walletPubs = filesJsonMain
@@ -87,34 +95,31 @@ async function main() {
   // ── Validation fichier par fichier ────────────────────────────────────────
   const results = [];
 
-  for (const event of Object.values(eventsByFile)) {
+  for (const event of presentFiles) {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
-    // SEUL AJOUT : check auteur — refuse si le fichier appartient à un autre wallet
+    // Check auteur — refuse si appartient à un autre wallet
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
     if (existingEntry && existingEntry.author !== walletPubkey) {
-      console.error(`✗ REFUSED: ${filename} belongs to wallet ${existingEntry.author.slice(0,8)}…`);
-      process.exit(1);
+      console.error(`✗ REFUSED: ${filename} belongs to wallet ${existingEntry.author.slice(0,8)}… — skipped`);
+      continue; // skip ce fichier, pas exit — les autres peuvent passer
     }
 
     const isUpdate = !!(existingEntry && existingEntry.author === walletPubkey);
-    if (isUpdate) console.log('→ Update (same wallet)');
-    else console.log('→ New file');
+    console.log(isUpdate ? '→ Update (same wallet)' : '→ New file');
 
-    if (!fs.existsSync(filename)) {
-      console.error(`✗ ${filename} not found on disk`);
-      process.exit(1);
-    }
     const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
 
+    // Hash — strict pour nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
-      console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
-      process.exit(1);
+      console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash} — skipped`);
+      continue;
     }
     console.log('✓ Hash OK');
 
+    // Signature — toujours sur les données originales de l'event
     const message = JSON.stringify({
       action:       event.action,
       filename:     event.filename,
@@ -125,8 +130,8 @@ async function main() {
       laps:         event.laps
     });
     if (!verifySignature(message, event.signature, walletPubkey)) {
-      console.error(`✗ Invalid signature for ${filename}`);
-      process.exit(1);
+      console.error(`✗ Invalid signature for ${filename} — skipped`);
+      continue;
     }
     console.log('✓ Signature OK');
 
