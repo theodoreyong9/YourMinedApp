@@ -10,10 +10,7 @@ function safeParseJson(raw) {
   try {
     return JSON.parse(raw);
   } catch(e) {
-    // Nettoie les virgules traînantes avant ] ou }
-    const cleaned = raw
-      .replace(/,\s*([}\]])/g, '$1')
-      .trim();
+    const cleaned = raw.replace(/,\s*([}\]])/g, '$1').trim();
     try {
       return JSON.parse(cleaned);
     } catch(e2) {
@@ -33,7 +30,7 @@ async function main() {
   const walletPubkey = branchName.split('/')[1];
   console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
 
-  // Lit files.json depuis main via git (pas depuis le disque de la branche)
+  // Lit files.json depuis main via git
   let filesJsonMain = [];
   try {
     const raw = execSync('git show origin/main:files.json', { encoding: 'utf8' });
@@ -44,7 +41,7 @@ async function main() {
   }
   console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
 
-  // ── Event logs sur le disque (branche checkoutée par Actions) ─────────────
+  // ── Event logs sur le disque ───────────────────────────────────────────────
   const eventsDir = 'events';
   if (!fs.existsSync(eventsDir)) {
     console.error('No events/ directory on branch');
@@ -95,27 +92,43 @@ async function main() {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
-    const otherOwner = filesJsonMain.find(f => f.filename === filename && f.author !== walletPubkey);
-    if (otherOwner) {
-      console.error(`✗ ${filename} belongs to another wallet — skipped`);
-      continue;
+    const existingEntry = filesJsonMain.find(f => f.filename === filename);
+
+    if (existingEntry) {
+      // Le fichier existe déjà dans main
+      if (existingEntry.author !== walletPubkey) {
+        // Appartient à un autre wallet — refus strict
+        console.error(`✗ ${filename} already published by wallet ${existingEntry.author} — refused`);
+        process.exit(1); // erreur bloquante, pas juste un skip
+      }
+      // Même wallet → c'est un update, autorisé
+      console.log(`→ Update authorized for ${filename}`);
+    } else {
+      // Nouveau fichier — vérifie qu'il n'existe pas déjà (double sécurité)
+      if (filesJsonMain.some(f => f.filename === filename)) {
+        console.error(`✗ ${filename} already exists in files.json — refused`);
+        process.exit(1);
+      }
+      console.log(`→ New file: ${filename}`);
     }
 
-    const isUpdate = filesJsonMain.some(f => f.filename === filename && f.author === walletPubkey);
+    const isUpdate = !!(existingEntry && existingEntry.author === walletPubkey);
 
     if (!fs.existsSync(filename)) {
       console.error(`✗ ${filename} not found on disk`);
-      continue;
+      process.exit(1);
     }
     const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
 
+    // Hash — strict pour nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
       console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
-      continue;
+      process.exit(1);
     }
     console.log('✓ Hash OK');
 
+    // Signature — toujours sur les données originales de l'event
     const message = JSON.stringify({
       action:       event.action,
       filename:     event.filename,
@@ -127,7 +140,7 @@ async function main() {
     });
     if (!verifySignature(message, event.signature, walletPubkey)) {
       console.error(`✗ Invalid signature for ${filename}`);
-      continue;
+      process.exit(1);
     }
     console.log('✓ Signature OK');
 
