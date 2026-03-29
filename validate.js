@@ -1,9 +1,27 @@
 // validate.js — Vérifie signature Solana + score YRM
-// Le checkout Actions a déjà mis les fichiers de la branche sur le disque
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
+
+function safeParseJson(raw) {
+  if (!raw || !raw.trim()) return [];
+  try {
+    return JSON.parse(raw);
+  } catch(e) {
+    // Nettoie les virgules traînantes avant ] ou }
+    const cleaned = raw
+      .replace(/,\s*([}\]])/g, '$1')
+      .trim();
+    try {
+      return JSON.parse(cleaned);
+    } catch(e2) {
+      console.warn('Warning: could not parse JSON, using []:', e2.message);
+      return [];
+    }
+  }
+}
 
 async function main() {
   const branchName = process.env.BRANCH_NAME;
@@ -12,17 +30,21 @@ async function main() {
     process.exit(0);
   }
 
-  // Branche = user/<wallet>
   const walletPubkey = branchName.split('/')[1];
   console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
 
-  // Lit files.json (version de la branche courante, sur le disque)
-  const filesJsonPath = 'files.json';
-  const filesJson = fs.existsSync(filesJsonPath)
-    ? JSON.parse(fs.readFileSync(filesJsonPath, 'utf8'))
-    : [];
+  // Lit files.json depuis main via git (pas depuis le disque de la branche)
+  let filesJsonMain = [];
+  try {
+    const raw = execSync('git show origin/main:files.json', { encoding: 'utf8' });
+    filesJsonMain = safeParseJson(raw);
+  } catch(e) {
+    console.warn('files.json not found on main or unreadable, using []');
+    filesJsonMain = [];
+  }
+  console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
 
-  // ── Source de vérité : tous les event logs dans events/ ───────────────────
+  // ── Event logs sur le disque (branche checkoutée par Actions) ─────────────
   const eventsDir = 'events';
   if (!fs.existsSync(eventsDir)) {
     console.error('No events/ directory on branch');
@@ -49,18 +71,9 @@ async function main() {
       eventsByFile[ev.filename] = ev;
     }
   }
-
   console.log(`Files to validate: ${Object.keys(eventsByFile).join(', ')}`);
 
-  // ── Score on-chain — une seule fois ───────────────────────────────────────
-  // files.json sur la branche peut différer de main — on lit main via git
-  const { execSync } = require('child_process');
-  let filesJsonMain = [];
-  try {
-    const raw = execSync('git show origin/main:files.json', { encoding: 'utf8' });
-    filesJsonMain = JSON.parse(raw);
-  } catch(e) { filesJsonMain = []; }
-
+  // ── Score on-chain ─────────────────────────────────────────────────────────
   const walletPubs = filesJsonMain
     .filter(f => f.author === walletPubkey)
     .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
@@ -82,7 +95,6 @@ async function main() {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
-    // Refuse si ce fichier appartient à un autre wallet sur main
     const otherOwner = filesJsonMain.find(f => f.filename === filename && f.author !== walletPubkey);
     if (otherOwner) {
       console.error(`✗ ${filename} belongs to another wallet — skipped`);
@@ -91,14 +103,12 @@ async function main() {
 
     const isUpdate = filesJsonMain.some(f => f.filename === filename && f.author === walletPubkey);
 
-    // Lit le fichier source depuis le disque (déjà checkouted par Actions)
     if (!fs.existsSync(filename)) {
       console.error(`✗ ${filename} not found on disk`);
       continue;
     }
     const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
 
-    // Hash — strict nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
       console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
@@ -106,7 +116,6 @@ async function main() {
     }
     console.log('✓ Hash OK');
 
-    // Signature — toujours sur les données ORIGINALES de l'event
     const message = JSON.stringify({
       action:       event.action,
       filename:     event.filename,
