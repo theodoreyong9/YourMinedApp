@@ -1,20 +1,9 @@
-// validate.js — Vérifie signature Solana + score YRM pour chaque fichier pushé
+// validate.js — Vérifie signature Solana + score YRM
+// Le checkout Actions a déjà mis les fichiers de la branche sur le disque
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
-
-function gitShow(ref, filePath) {
-  return execSync(`git show "${ref}:${filePath}"`, { encoding: 'utf8' });
-}
-
-function gitLsTree(ref, dir) {
-  try {
-    return execSync(`git ls-tree --name-only "${ref}" "${dir}/"`, { encoding: 'utf8' })
-      .trim().split('\n').filter(Boolean);
-  } catch(e) { return []; }
-}
 
 async function main() {
   const branchName = process.env.BRANCH_NAME;
@@ -23,49 +12,56 @@ async function main() {
     process.exit(0);
   }
 
+  // Branche = user/<wallet>
   const walletPubkey = branchName.split('/')[1];
   console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
 
-  // Lit files.json depuis main
+  // Lit files.json (version de la branche courante, sur le disque)
   const filesJsonPath = 'files.json';
   const filesJson = fs.existsSync(filesJsonPath)
     ? JSON.parse(fs.readFileSync(filesJsonPath, 'utf8'))
     : [];
 
-  // ── Source de vérité : les event logs sur la branche ──────────────────────
-  const eventPaths = gitLsTree(`origin/${branchName}`, 'events');
-  console.log(`Found ${eventPaths.length} event log(s) on branch`);
-
-  if (!eventPaths.length) {
-    console.error('No event logs found on branch');
+  // ── Source de vérité : tous les event logs dans events/ ───────────────────
+  const eventsDir = 'events';
+  if (!fs.existsSync(eventsDir)) {
+    console.error('No events/ directory on branch');
     process.exit(1);
   }
 
-  // Parse tous les events du bon wallet
-  const events = [];
-  for (const evPath of eventPaths) {
-    try {
-      const content = gitShow(`origin/${branchName}`, evPath);
-      const ev = JSON.parse(content);
-      if (ev.wallet === walletPubkey && ev.filename) {
-        events.push(ev);
-      }
-    } catch(e) { continue; }
+  const allEvents = fs.readdirSync(eventsDir)
+    .filter(f => f.endsWith('.json'))
+    .map(f => {
+      try { return JSON.parse(fs.readFileSync(path.join(eventsDir, f), 'utf8')); }
+      catch(e) { return null; }
+    })
+    .filter(e => e && e.wallet === walletPubkey && e.filename);
+
+  if (!allEvents.length) {
+    console.error(`No event logs found for wallet ${walletPubkey}`);
+    process.exit(1);
   }
 
-  // Garde un seul event par filename (le plus récent = timestamp le plus grand)
+  // Un seul event par filename — le plus récent
   const eventsByFile = {};
-  for (const ev of events) {
+  for (const ev of allEvents) {
     if (!eventsByFile[ev.filename] || ev.timestamp > eventsByFile[ev.filename].timestamp) {
       eventsByFile[ev.filename] = ev;
     }
   }
 
-  const filesToValidate = Object.values(eventsByFile);
-  console.log(`Files to validate: ${filesToValidate.map(e => e.filename).join(', ')}`);
+  console.log(`Files to validate: ${Object.keys(eventsByFile).join(', ')}`);
 
-  // ── Score on-chain — une seule fois pour le wallet ────────────────────────
-  const walletPubs = filesJson
+  // ── Score on-chain — une seule fois ───────────────────────────────────────
+  // files.json sur la branche peut différer de main — on lit main via git
+  const { execSync } = require('child_process');
+  let filesJsonMain = [];
+  try {
+    const raw = execSync('git show origin/main:files.json', { encoding: 'utf8' });
+    filesJsonMain = JSON.parse(raw);
+  } catch(e) { filesJsonMain = []; }
+
+  const walletPubs = filesJsonMain
     .filter(f => f.author === walletPubkey)
     .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
   const lastPub      = walletPubs[0] || null;
@@ -82,29 +78,27 @@ async function main() {
   // ── Validation fichier par fichier ────────────────────────────────────────
   const results = [];
 
-  for (const event of filesToValidate) {
+  for (const event of Object.values(eventsByFile)) {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
-    // Refuse si appartient à un autre wallet
-    const otherOwner = filesJson.find(f => f.filename === filename && f.author !== walletPubkey);
+    // Refuse si ce fichier appartient à un autre wallet sur main
+    const otherOwner = filesJsonMain.find(f => f.filename === filename && f.author !== walletPubkey);
     if (otherOwner) {
-      console.error(`✗ ${filename} belongs to ${otherOwner.author} — refused`);
+      console.error(`✗ ${filename} belongs to another wallet — skipped`);
       continue;
     }
 
-    const isUpdate = filesJson.some(f => f.filename === filename && f.author === walletPubkey);
+    const isUpdate = filesJsonMain.some(f => f.filename === filename && f.author === walletPubkey);
 
-    // Lit le fichier source depuis la branche
-    let sourceCode;
-    try {
-      sourceCode = gitShow(`origin/${branchName}`, filename).replace(/\r\n/g, '\n');
-    } catch(e) {
-      console.error(`✗ Cannot read ${filename} from branch: ${e.message}`);
+    // Lit le fichier source depuis le disque (déjà checkouted par Actions)
+    if (!fs.existsSync(filename)) {
+      console.error(`✗ ${filename} not found on disk`);
       continue;
     }
+    const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
 
-    // Hash — strict pour nouvelle pub, ignoré pour update
+    // Hash — strict nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
       console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
@@ -143,11 +137,10 @@ async function main() {
     score:     scoreCheck.score,
     laps:      scoreCheck.currentLaps,
     timestamp: Math.floor(Date.now() / 1000),
-    files:     results,
-    allPassed: true
+    files:     results
   }, null, 2));
 
-  console.log(`\n✓ Validation passed — ${results.length} file(s) ready to merge`);
+  console.log(`\n✓ Validation passed — ${results.length} file(s) ready`);
 }
 
 main().catch(e => {
