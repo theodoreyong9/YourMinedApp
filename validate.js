@@ -1,7 +1,8 @@
-// validate.js — Vérifie signature Solana + score YRM + unicité du nom
+// validate.js — Vérifie signature Solana + score YRM pour chaque fichier pushé
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
 async function main() {
@@ -11,78 +12,49 @@ async function main() {
     process.exit(0);
   }
 
+  // FIX: branche par wallet — user/<wallet>
   const parts = branchName.split('/');
-  if (parts.length < 3) {
-    console.error('Invalid branch format. Expected user/<wallet>/<filename>');
+  if (parts.length < 2) {
+    console.error('Invalid branch format. Expected user/<wallet>');
     process.exit(1);
   }
   const walletPubkey = parts[1];
-  const filename     = parts.slice(2).join('/');
-  console.log(`Validating: ${filename} from wallet ${walletPubkey}`);
+  console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
 
-  // 1. Trouve l'event log dans events/
-  const eventsDir = 'events';
-  let event = null;
-  if (fs.existsSync(eventsDir)) {
-    const eventFiles = fs.readdirSync(eventsDir).filter(f => f.endsWith('.json'));
-    for (const ef of eventFiles) {
-      const e = JSON.parse(fs.readFileSync(path.join(eventsDir, ef), 'utf8'));
-      if (e.filename === filename && e.wallet === walletPubkey) {
-        event = e;
-        break;
-      }
-    }
-  }
-  if (!event) {
-    console.error(`No event log found for ${filename} from ${walletPubkey}`);
-    process.exit(1);
-  }
-
-  // 2. Vérifie que le fichier source existe
-  if (!fs.existsSync(filename)) {
-    console.error(`Source file not found: ${filename}`);
-    process.exit(1);
-  }
-  // FIX: normalise les fins de ligne — GitHub peut changer \r\n en \n au checkout
-  const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
-
-  // 3. Lit files.json — détermine si c'est une nouvelle pub ou un update
+  // Lit files.json sur main
   const filesJsonPath = 'files.json';
   const filesJson = fs.existsSync(filesJsonPath)
     ? JSON.parse(fs.readFileSync(filesJsonPath, 'utf8'))
     : [];
 
-  const isUpdate = filesJson.some(f => f.filename === filename && f.author === walletPubkey);
-  console.log(isUpdate ? '→ Update (same wallet, same file)' : '→ New publication');
-
-  // 4. Hash du contenu
-  // FIX: même normalisation \r\n → \n que côté browser
-  const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
-  if (!isUpdate && actualHash !== event.content_hash) {
-    console.error(`Hash mismatch! Expected ${event.content_hash}, got ${actualHash}`);
+  // Trouve tous les fichiers .sphere.js modifiés/ajoutés sur cette branche vs main
+  let changedFiles = [];
+  try {
+    const output = execSync(
+      `git diff --name-only origin/main...origin/${branchName}`,
+      { encoding: 'utf8' }
+    ).trim();
+    changedFiles = output.split('\n').filter(f =>
+      f.endsWith('.sphere.js') && !f.startsWith('events/')
+    );
+  } catch(e) {
+    console.error('Could not diff branch vs main:', e.message);
     process.exit(1);
   }
-  console.log('✓ Hash verified');
 
-  // 5. Signature — TOUJOURS vérifiée sur les données ORIGINALES de l'event
-  // (event.content_hash = hash au moment de la signature, jamais modifié)
-  const message = JSON.stringify({
-    action:       event.action,
-    filename:     event.filename,
-    content_hash: event.content_hash,
-    nonce:        event.nonce,
-    timestamp:    event.timestamp,
-    score:        event.score,
-    laps:         event.laps
-  });
-  const sigValid = verifySignature(message, event.signature, walletPubkey);
-  if (!sigValid) {
-    console.error('✗ Invalid Solana signature');
-    process.exit(1);
+  if (!changedFiles.length) {
+    console.log('No sphere files changed, nothing to validate.');
+    // Sauvegarde résultat vide pour merge.js
+    fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
+      walletPubkey, ghActor: process.env.GH_ACTOR || walletPubkey,
+      files: [], allPassed: true
+    }, null, 2));
+    process.exit(0);
   }
-  console.log('✓ Signature verified');
 
-  // 6. Score on-chain
+  console.log(`Files to validate: ${changedFiles.join(', ')}`);
+
+  // Score on-chain — calculé une seule fois pour le wallet
   const walletPubs = filesJson
     .filter(f => f.author === walletPubkey)
     .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
@@ -97,21 +69,113 @@ async function main() {
   }
   console.log(`✓ Score eligible (claimable=${scoreCheck.score.toFixed(4)} YRM)`);
 
-  // 7. Unicité — seulement pour une nouvelle pub
-  if (!isUpdate && filesJson.some(f => f.filename === filename)) {
-    console.error(`✗ "${filename}" already published by another wallet`);
+  const results = [];
+
+  for (const filename of changedFiles) {
+    console.log(`\n--- Validating: ${filename} ---`);
+
+    const isUpdate = filesJson.some(f => f.filename === filename && f.author === walletPubkey);
+    const isOtherOwner = filesJson.some(f => f.filename === filename && f.author !== walletPubkey);
+
+    // Refuse si le fichier appartient à un autre wallet
+    if (isOtherOwner) {
+      console.error(`✗ ${filename} belongs to another wallet — skipping`);
+      continue;
+    }
+
+    // Vérifie que le fichier existe sur la branche (checkout pour lire)
+    let sourceCode = '';
+    try {
+      sourceCode = execSync(
+        `git show origin/${branchName}:${filename}`,
+        { encoding: 'utf8' }
+      ).replace(/\r\n/g, '\n');
+    } catch(e) {
+      console.error(`✗ Cannot read ${filename} from branch: ${e.message}`);
+      continue;
+    }
+
+    // Hash du contenu actuel
+    const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
+
+    // Trouve l'event log correspondant sur la branche
+    let event = null;
+    try {
+      const eventsOutput = execSync(
+        `git ls-tree --name-only origin/${branchName} events/`,
+        { encoding: 'utf8' }
+      ).trim().split('\n').filter(Boolean);
+
+      for (const evPath of eventsOutput) {
+        try {
+          const evContent = execSync(
+            `git show origin/${branchName}:${evPath}`,
+            { encoding: 'utf8' }
+          );
+          const e = JSON.parse(evContent);
+          if (e.filename === filename && e.wallet === walletPubkey) {
+            event = e;
+            break;
+          }
+        } catch(e2) { continue; }
+      }
+    } catch(e) { /* pas de dossier events encore */ }
+
+    if (!event) {
+      console.error(`✗ No event log found for ${filename}`);
+      continue;
+    }
+
+    // Hash — strict pour nouvelle pub, ignoré pour update
+    if (!isUpdate && actualHash !== event.content_hash) {
+      console.error(`✗ Hash mismatch for ${filename}: expected ${event.content_hash}, got ${actualHash}`);
+      continue;
+    }
+    console.log(`✓ Hash OK`);
+
+    // Signature — toujours sur les données originales de l'event
+    const message = JSON.stringify({
+      action:       event.action,
+      filename:     event.filename,
+      content_hash: event.content_hash,
+      nonce:        event.nonce,
+      timestamp:    event.timestamp,
+      score:        event.score,
+      laps:         event.laps
+    });
+    const sigValid = verifySignature(message, event.signature, walletPubkey);
+    if (!sigValid) {
+      console.error(`✗ Invalid signature for ${filename}`);
+      continue;
+    }
+    console.log(`✓ Signature OK`);
+
+    // Unicité — seulement pour nouvelle pub
+    if (!isUpdate && filesJson.some(f => f.filename === filename)) {
+      console.error(`✗ ${filename} already exists in files.json`);
+      continue;
+    }
+
+    console.log(`✓ ${filename} validated (${isUpdate ? 'update' : 'new'})`);
+    results.push({ filename, isUpdate });
+  }
+
+  if (!results.length) {
+    console.error('No files passed validation');
     process.exit(1);
   }
-  console.log('✓ OK');
 
   fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
-    filename, walletPubkey, isUpdate,
+    walletPubkey,
+    ghActor:   process.env.GH_ACTOR || walletPubkey,
     score:     scoreCheck.score,
     laps:      scoreCheck.currentLaps,
-    timestamp: event.timestamp,
-    nonce:     event.nonce
+    timestamp: Math.floor(Date.now() / 1000),
+    files:     results,
+    allPassed: true
   }, null, 2));
-  console.log('✓ Validation passed');
+
+  console.log(`\n✓ Validation passed for ${results.length} file(s)`);
 }
 
 main().catch(e => {
