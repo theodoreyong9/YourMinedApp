@@ -21,16 +21,16 @@ jobs:
         with:
           node-version: '20'
       - name: Install dependencies
-        # npm install au lieu de npm ci (pas besoin de package-lock.json)
         run: npm install
       - name: Validate signature + score
-        # FIX: scripts à la racine, pas dans scripts/
         run: node validate.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH_NAME: ${{ github.ref_name }}
+          GH_ACTOR: ${{ github.actor }}
       - name: Merge to main + update JSON
         run: node merge.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH_NAME: ${{ github.ref_name }}
+          GH_ACTOR: ${{ github.actor }}
