@@ -5,16 +5,19 @@ const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
+function run(cmd) {
+  return execSync(cmd, { encoding: 'utf8' });
+}
+
 function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
   try {
     return JSON.parse(raw);
   } catch(e) {
     const cleaned = raw.replace(/,\s*([}\]])/g, '$1').trim();
-    try {
-      return JSON.parse(cleaned);
-    } catch(e2) {
-      console.warn('Warning: could not parse JSON, using []:', e2.message);
+    try { return JSON.parse(cleaned); }
+    catch(e2) {
+      console.warn('Warning: could not parse JSON:', e2.message);
       return [];
     }
   }
@@ -30,18 +33,28 @@ async function main() {
   const walletPubkey = branchName.split('/')[1];
   console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
 
-  // Lit files.json depuis main via git
+  // FIX: force fetch de main pour être sûr d'avoir la version à jour
+  try {
+    run('git fetch origin main');
+    console.log('✓ Fetched origin/main');
+  } catch(e) {
+    console.error('Could not fetch origin/main:', e.message);
+    process.exit(1);
+  }
+
+  // Lit files.json depuis main — source de vérité absolue
   let filesJsonMain = [];
   try {
-    const raw = execSync('git show origin/main:files.json', { encoding: 'utf8' });
+    const raw = run('git show origin/main:files.json');
     filesJsonMain = safeParseJson(raw);
+    console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
   } catch(e) {
-    console.warn('files.json not found on main or unreadable, using []');
+    // files.json absent de main = repo vide, c'est ok
+    console.warn('files.json not found on main, using []');
     filesJsonMain = [];
   }
-  console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
 
-  // ── Event logs sur le disque ───────────────────────────────────────────────
+  // ── Event logs sur le disque (branche checkoutée par Actions) ─────────────
   const eventsDir = 'events';
   if (!fs.existsSync(eventsDir)) {
     console.error('No events/ directory on branch');
@@ -92,28 +105,23 @@ async function main() {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
+    // Cherche le fichier dans main
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
 
     if (existingEntry) {
-      // Le fichier existe déjà dans main
+      // Le fichier existe dans main — seul le wallet auteur peut le modifier
       if (existingEntry.author !== walletPubkey) {
-        // Appartient à un autre wallet — refus strict
-        console.error(`✗ ${filename} already published by wallet ${existingEntry.author} — refused`);
-        process.exit(1); // erreur bloquante, pas juste un skip
-      }
-      // Même wallet → c'est un update, autorisé
-      console.log(`→ Update authorized for ${filename}`);
-    } else {
-      // Nouveau fichier — vérifie qu'il n'existe pas déjà (double sécurité)
-      if (filesJsonMain.some(f => f.filename === filename)) {
-        console.error(`✗ ${filename} already exists in files.json — refused`);
+        console.error(`✗ REFUSED: ${filename} was published by wallet ${existingEntry.author.slice(0,8)}… — only the original author can update it`);
         process.exit(1);
       }
-      console.log(`→ New file: ${filename}`);
+      console.log(`→ Update authorized (same wallet)`);
+    } else {
+      console.log(`→ New file`);
     }
 
     const isUpdate = !!(existingEntry && existingEntry.author === walletPubkey);
 
+    // Fichier source sur le disque
     if (!fs.existsSync(filename)) {
       console.error(`✗ ${filename} not found on disk`);
       process.exit(1);
