@@ -10,7 +10,7 @@ function run(cmd) {
 async function main() {
   const branchName = process.env.BRANCH_NAME;
   if (!branchName || !branchName.startsWith('user/')) {
-    console.log('Not a user branch, skipping merge.');
+    console.log('Not a user branch, skipping.');
     process.exit(0);
   }
 
@@ -20,70 +20,69 @@ async function main() {
     process.exit(1);
   }
 
-  const validation = JSON.parse(fs.readFileSync(validationPath, 'utf8'));
-  const { walletPubkey, ghActor, score, laps, timestamp, files } = validation;
+  const { walletPubkey, ghActor, score, laps, timestamp, files } = JSON.parse(
+    fs.readFileSync(validationPath, 'utf8')
+  );
 
   if (!files || !files.length) {
     console.log('No files to merge.');
     process.exit(0);
   }
 
-  // 1. Checkout main à jour
+  // 1. Passe sur main et se met à jour
   run('git checkout main');
   run('git pull origin main');
 
-  // 2. Copie chaque fichier validé depuis la branche (pas de git merge)
+  // 2. Copie chaque fichier validé depuis la branche — pas de git merge
   for (const { filename } of files) {
-    console.log(`Copying ${filename} from ${branchName}…`);
-    run(`git checkout origin/${branchName} -- ${filename}`);
+    console.log(`Copying ${filename}…`);
+    run(`git checkout origin/${branchName} -- "${filename}"`);
   }
 
-  // 3. Copie les nouveaux event logs (ceux pas encore sur main)
+  // 3. Copie les event logs nouveaux (pas encore sur main)
+  const eventsOnMain = fs.existsSync('events')
+    ? fs.readdirSync('events').map(f => `events/${f}`)
+    : [];
+
+  let eventsOnBranch = [];
   try {
-    const eventsOnBranch = execSync(
-      `git ls-tree --name-only origin/${branchName} events/`,
+    eventsOnBranch = execSync(
+      `git ls-tree --name-only "origin/${branchName}" events/`,
       { encoding: 'utf8' }
     ).trim().split('\n').filter(Boolean);
+  } catch(e) { /* pas de events/ sur la branche */ }
 
-    const eventsOnMain = fs.existsSync('events')
-      ? fs.readdirSync('events').map(f => `events/${f}`)
-      : [];
-
-    for (const evFile of eventsOnBranch) {
-      if (!eventsOnMain.includes(evFile)) {
-        run(`git checkout origin/${branchName} -- ${evFile}`);
-      }
+  for (const evFile of eventsOnBranch) {
+    if (!eventsOnMain.includes(evFile)) {
+      run(`git checkout origin/${branchName} -- "${evFile}"`);
     }
-  } catch(e) {
-    console.log('No events/ on branch or already up to date');
   }
 
-  // 4. Update files.json
+  // 4. Lit files.json depuis main (déjà à jour sur le disque)
   const filesJsonPath = 'files.json';
   const filesJson = fs.existsSync(filesJsonPath)
     ? JSON.parse(fs.readFileSync(filesJsonPath, 'utf8'))
     : [];
 
   for (const { filename, isUpdate } of files) {
-    const existingIdx = filesJson.findIndex(f => f.filename === filename);
     const entry = {
       filename,
-      branch:    branchName,
-      author:    walletPubkey,
-      // FIX: github username du dernier commit, pas l'adresse wallet
-      last_committer: ghActor || walletPubkey,
-      score:     parseFloat(score.toFixed(6)),
-      laps:      parseInt(laps, 10),
+      branch:         branchName,
+      author:         walletPubkey,
+      last_committer: ghActor || walletPubkey,  // username GitHub, pas adresse wallet
+      score:          parseFloat(score.toFixed(6)),
+      laps:           parseInt(laps, 10),
       timestamp,
-      merged_at: Math.floor(Date.now() / 1000)
+      merged_at:      Math.floor(Date.now() / 1000)
     };
 
-    if (existingIdx >= 0) {
-      filesJson[existingIdx] = { ...filesJson[existingIdx], ...entry };
-      console.log(`✓ Updated ${filename} in files.json`);
+    const idx = filesJson.findIndex(f => f.filename === filename);
+    if (idx >= 0) {
+      filesJson[idx] = { ...filesJson[idx], ...entry };
+      console.log(`✓ Updated ${filename}`);
     } else {
       filesJson.push(entry);
-      console.log(`✓ Added ${filename} to files.json`);
+      console.log(`✓ Added ${filename}`);
     }
   }
 
@@ -95,7 +94,7 @@ async function main() {
   run(`git commit -m "bot: merge [${fileList}] from ${ghActor || walletPubkey}"`);
   run('git push origin main');
 
-  console.log(`✓ Done — ${files.length} file(s) merged to main`);
+  console.log(`\n✓ Done — ${files.length} file(s) on main`);
 }
 
 main().catch(e => {
