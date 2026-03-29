@@ -5,10 +5,6 @@ const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
-function run(cmd) {
-  return execSync(cmd, { encoding: 'utf8' });
-}
-
 function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
   try {
@@ -33,28 +29,22 @@ async function main() {
   const walletPubkey = branchName.split('/')[1];
   console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
 
-  // FIX: force fetch de main pour être sûr d'avoir la version à jour
-  try {
-    run('git fetch origin main');
-    console.log('✓ Fetched origin/main');
-  } catch(e) {
-    console.error('Could not fetch origin/main:', e.message);
-    process.exit(1);
-  }
-
-  // Lit files.json depuis main — source de vérité absolue
+  // Lit files.json depuis origin/main
+  // fetch-depth: 0 dans le checkout garantit que origin/main est disponible
   let filesJsonMain = [];
   try {
-    const raw = run('git show origin/main:files.json');
+    const raw = execSync('git show origin/main:files.json', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe']  // capture stdout+stderr, pas de throw sur stderr
+    });
     filesJsonMain = safeParseJson(raw);
     console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
   } catch(e) {
-    // files.json absent de main = repo vide, c'est ok
-    console.warn('files.json not found on main, using []');
+    console.warn('files.json not found on main or empty, using []');
     filesJsonMain = [];
   }
 
-  // ── Event logs sur le disque (branche checkoutée par Actions) ─────────────
+  // ── Event logs sur le disque ───────────────────────────────────────────────
   const eventsDir = 'events';
   if (!fs.existsSync(eventsDir)) {
     console.error('No events/ directory on branch');
@@ -109,9 +99,9 @@ async function main() {
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
 
     if (existingEntry) {
-      // Le fichier existe dans main — seul le wallet auteur peut le modifier
+      // Fichier déjà dans main — seul le wallet auteur peut le modifier
       if (existingEntry.author !== walletPubkey) {
-        console.error(`✗ REFUSED: ${filename} was published by wallet ${existingEntry.author.slice(0,8)}… — only the original author can update it`);
+        console.error(`✗ REFUSED: ${filename} was created by wallet ${existingEntry.author.slice(0,8)}… — only the original author can update it`);
         process.exit(1);
       }
       console.log(`→ Update authorized (same wallet)`);
@@ -121,7 +111,6 @@ async function main() {
 
     const isUpdate = !!(existingEntry && existingEntry.author === walletPubkey);
 
-    // Fichier source sur le disque
     if (!fs.existsSync(filename)) {
       console.error(`✗ ${filename} not found on disk`);
       process.exit(1);
