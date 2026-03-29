@@ -1,6 +1,7 @@
-// merge.js — Merge vers main + update files.json
+// merge.js — Copie les fichiers de la branche vers main + update files.json
+// FIX: utilise git checkout <branch> -- <file> au lieu de git merge
+// pour éviter les conflits sur files.json lors des updates
 const fs   = require('fs');
-const path = require('path');
 const { execSync } = require('child_process');
 
 function run(cmd) {
@@ -15,22 +16,45 @@ async function main() {
     process.exit(0);
   }
 
-  // Lit le résultat de validation
   const validationPath = '/tmp/validation_result.json';
   if (!fs.existsSync(validationPath)) {
     console.error('No validation result found. Run validate.js first.');
     process.exit(1);
   }
-  const validation = JSON.parse(fs.readFileSync(validationPath, 'utf8'));
-  const { filename, walletPubkey, score, laps, timestamp } = validation;
+  const { filename, walletPubkey, isUpdate, score, laps, timestamp } = JSON.parse(
+    fs.readFileSync(validationPath, 'utf8')
+  );
 
-  console.log(`Merging ${filename} from ${branchName} to main`);
+  console.log(`${isUpdate ? 'Updating' : 'Merging'} ${filename} from ${branchName} to main`);
 
   // 1. Checkout main
   run('git checkout main');
-  run(`git merge --no-ff origin/${branchName} -m "feat: merge ${filename} from ${walletPubkey}"`);
+  run('git pull origin main');
 
-  // 2. Update files.json (FIX: racine, plus de src/)
+  // FIX: copie uniquement les fichiers nécessaires depuis la branche
+  // Évite tout conflit — pas de merge, pas de rebase
+  run(`git checkout origin/${branchName} -- ${filename}`);
+
+  // Copie aussi les nouveaux event logs de la branche (pas déjà sur main)
+  try {
+    const eventsOnBranch = execSync(
+      `git ls-tree --name-only origin/${branchName} events/`, { encoding: 'utf8' }
+    ).trim().split('\n').filter(Boolean);
+
+    const eventsOnMain = fs.existsSync('events')
+      ? fs.readdirSync('events').map(f => `events/${f}`)
+      : [];
+
+    for (const evFile of eventsOnBranch) {
+      if (!eventsOnMain.includes(evFile)) {
+        run(`git checkout origin/${branchName} -- ${evFile}`);
+      }
+    }
+  } catch(e) {
+    console.log('No events/ dir on branch or already up to date');
+  }
+
+  // 2. Update files.json sur main (lu depuis le disque = version main à jour)
   const filesJsonPath = 'files.json';
   const filesJson = fs.existsSync(filesJsonPath)
     ? JSON.parse(fs.readFileSync(filesJsonPath, 'utf8'))
@@ -43,13 +67,12 @@ async function main() {
     author:         walletPubkey,
     last_committer: walletPubkey,
     score:          parseFloat(score.toFixed(6)),
-    laps:           parseFloat(laps.toFixed(0)),   // nombre de slots (entier)
+    laps:           parseInt(laps, 10),
     timestamp,
     merged_at:      Math.floor(Date.now() / 1000)
   };
 
   if (existingIdx >= 0) {
-    // Mise à jour (collaboration possible sur une sphere existante)
     filesJson[existingIdx] = { ...filesJson[existingIdx], ...entry };
   } else {
     filesJson.push(entry);
@@ -59,12 +82,11 @@ async function main() {
   console.log('✓ files.json updated');
 
   // 3. Commit + push
-  // FIX: git add files.json à la racine
-  run('git add files.json');
-  run(`git commit -m "bot: update files.json for ${filename}"`);
+  run('git add .');
+  run(`git commit -m "bot: ${isUpdate ? 'update' : 'add'} ${filename} from ${walletPubkey}"`);
   run('git push origin main');
 
-  console.log(`✓ Merged ${filename} to main`);
+  console.log(`✓ ${isUpdate ? 'Updated' : 'Merged'} ${filename} to main`);
 }
 
 main().catch(e => {
