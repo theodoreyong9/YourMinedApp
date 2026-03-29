@@ -410,3 +410,4 @@ window.YM_S['call.sphere.js']={
 window.YM_Call={startVoiceCall,hangUp};
 
 })();
+
