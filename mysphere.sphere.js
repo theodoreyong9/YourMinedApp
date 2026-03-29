@@ -4,7 +4,7 @@
 window.YM_S = window.YM_S || {};
 
 window.YM_S['mysphere.sphere.js'] = {
-  name: 'MySphere',
+  name: 'MySphere2',
   icon: '⬡',
   category: 'Other',
   description: 'My custom sphere',

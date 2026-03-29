@@ -1,0 +1,11 @@
+{
+  "action": "create",
+  "filename": "mysphere.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "99bf330a7859ea59f416ddb8ba0f3f77b97d13eeba6d42bbcdafc0093b06cf20",
+  "signature": "y0UV7IkB1nZWlRDQhJD6iPm4SgE8tK/hjkRVeItxD+b1VeiyuL0Jit4d+syh6FUnBgNK4iZZ7+f+WVPnhJLnAw==",
+  "nonce": "ada99280-e1b3-4120-a960-3104e4187019",
+  "timestamp": 1774803373,
+  "score": 0.3354120470356719,
+  "laps": 1.0786080443637097e-7
+}
