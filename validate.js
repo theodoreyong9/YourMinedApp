@@ -30,17 +30,13 @@ async function main() {
   console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
 
   // Lit files.json depuis origin/main
-  // fetch-depth: 0 dans le checkout garantit que origin/main est disponible
   let filesJsonMain = [];
   try {
-    const raw = execSync('git show origin/main:files.json', {
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe']  // capture stdout+stderr, pas de throw sur stderr
-    });
+    const raw = execSync('git show origin/main:files.json', { encoding: 'utf8' });
     filesJsonMain = safeParseJson(raw);
     console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
   } catch(e) {
-    console.warn('files.json not found on main or empty, using []');
+    console.warn('files.json not found on main, using []');
     filesJsonMain = [];
   }
 
@@ -95,21 +91,16 @@ async function main() {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
-    // Cherche le fichier dans main
+    // SEUL AJOUT : check auteur — refuse si le fichier appartient à un autre wallet
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
-
-    if (existingEntry) {
-      // Fichier déjà dans main — seul le wallet auteur peut le modifier
-      if (existingEntry.author !== walletPubkey) {
-        console.error(`✗ REFUSED: ${filename} was created by wallet ${existingEntry.author.slice(0,8)}… — only the original author can update it`);
-        process.exit(1);
-      }
-      console.log(`→ Update authorized (same wallet)`);
-    } else {
-      console.log(`→ New file`);
+    if (existingEntry && existingEntry.author !== walletPubkey) {
+      console.error(`✗ REFUSED: ${filename} belongs to wallet ${existingEntry.author.slice(0,8)}…`);
+      process.exit(1);
     }
 
     const isUpdate = !!(existingEntry && existingEntry.author === walletPubkey);
+    if (isUpdate) console.log('→ Update (same wallet)');
+    else console.log('→ New file');
 
     if (!fs.existsSync(filename)) {
       console.error(`✗ ${filename} not found on disk`);
@@ -117,7 +108,6 @@ async function main() {
     }
     const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
 
-    // Hash — strict pour nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
       console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
@@ -125,7 +115,6 @@ async function main() {
     }
     console.log('✓ Hash OK');
 
-    // Signature — toujours sur les données originales de l'event
     const message = JSON.stringify({
       action:       event.action,
       filename:     event.filename,
