@@ -2,9 +2,9 @@
 const fs  = require('fs');
 const { execSync } = require('child_process');
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const BASE_REPO    = process.env.BASE_REPO;
-const PR_NUMBER    = process.env.PR_NUMBER;
+const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
+const BASE_REPO      = process.env.BASE_REPO;
+const PR_NUMBER      = process.env.PR_NUMBER;
 const PR_CONTENT_DIR = process.env.PR_CONTENT_DIR || '_pr_content';
 
 function run(cmd) {
@@ -54,36 +54,33 @@ async function main() {
     process.exit(0);
   }
 
-  console.log(`Merging ${files.length} file(s) from @${ghActor} to main`);
+  console.log(`Merging files from @${ghActor} to main`);
 
-  // 1. Configure git
+  // 1. Configure git + on est déjà sur main
   run('git config user.name "YourMine Bot"');
   run('git config user.email "bot@yourmine.xyz"');
-
-  // On est déjà sur main (checkout du repo principal dans bot.yml)
-  // S'assure qu'on est bien sur main et à jour
   run('git checkout main');
   run('git pull origin main');
 
-  // 2. Copie les fichiers validés depuis _pr_content/ vers la racine
+  // 2. Copie les fichiers validés depuis _pr_content/
   for (const { filename } of files) {
     const src = `${PR_CONTENT_DIR}/${filename}`;
     if (!fs.existsSync(src)) {
-      console.error(`File not found in PR content: ${src}`);
+      console.error(`File not found: ${src}`);
       process.exit(1);
     }
     fs.copyFileSync(src, filename);
     console.log(`✓ Copied ${filename}`);
   }
 
-  // 3. Copie les nouveaux event logs
-  const eventsDir = `${PR_CONTENT_DIR}/events`;
-  if (fs.existsSync(eventsDir)) {
+  // 3. Copie les nouveaux event logs depuis _pr_content/events/
+  const prEventsDir = `${PR_CONTENT_DIR}/events`;
+  if (fs.existsSync(prEventsDir)) {
     if (!fs.existsSync('events')) fs.mkdirSync('events');
     const mainEvents = fs.readdirSync('events');
-    for (const evFile of fs.readdirSync(eventsDir)) {
+    for (const evFile of fs.readdirSync(prEventsDir)) {
       if (!mainEvents.includes(evFile)) {
-        fs.copyFileSync(`${eventsDir}/${evFile}`, `events/${evFile}`);
+        fs.copyFileSync(`${prEventsDir}/${evFile}`, `events/${evFile}`);
         console.log(`✓ Copied event ${evFile}`);
       }
     }
@@ -117,16 +114,17 @@ async function main() {
   }
   fs.writeFileSync('files.json', JSON.stringify(filesJson, null, 2));
 
-  // 5. Commit + push sur main
+  // 5. Commit + push — message = bot: merge @username
   run('git add .');
-  run(`git commit -m "bot: merge [${files.map(f=>f.filename).join(', ')}] from @${ghActor}"`);
+  run(`git commit -m "bot: merge @${ghActor}"`);
   run(`git push https://x-access-token:${GITHUB_TOKEN}@github.com/${BASE_REPO}.git main`);
   console.log('✓ Pushed to main');
 
-  // 6. Ferme la PR avec un commentaire
+  // 6. Commentaire + fermeture PR
   try {
+    const fileList = files.map(f => `- \`${f.filename}\` (${f.isUpdate ? 'updated' : 'new'})`).join('\n');
     await ghAPI(`/repos/${BASE_REPO}/issues/${PR_NUMBER}/comments`, 'POST', {
-      body: `✅ Merged by YourMine Bot\n\n${files.map(f => `- \`${f.filename}\` (${f.isUpdate ? 'updated' : 'new'})`).join('\n')}`
+      body: `✅ Merged by YourMine Bot\n\n${fileList}`
     });
     await ghAPI(`/repos/${BASE_REPO}/pulls/${PR_NUMBER}`, 'PATCH', { state: 'closed' });
     console.log('✓ PR closed');
