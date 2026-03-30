@@ -1,4 +1,4 @@
-// validate.js — Vérifie signature Solana + score YRM
+// validate.js — Vérifie signature Solana + score YRM + ownership GitHub
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
@@ -7,32 +7,30 @@ const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
 function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
-  try {
-    return JSON.parse(raw);
-  } catch(e) {
+  try { return JSON.parse(raw); }
+  catch(e) {
     const cleaned = raw.replace(/,\s*([}\]])/g, '$1').trim();
     try { return JSON.parse(cleaned); }
-    catch(e2) {
-      console.warn('Warning: could not parse JSON:', e2.message);
-      return [];
-    }
+    catch(e2) { console.warn('Warning: JSON parse failed:', e2.message); return []; }
   }
 }
 
 async function main() {
-  const branchName = process.env.BRANCH_NAME;
-  if (!branchName || !branchName.startsWith('user/')) {
+  const ghActor    = process.env.GH_ACTOR;
+  const headBranch = process.env.HEAD_BRANCH; // ex: user/<wallet>
+
+  if (!headBranch || !headBranch.startsWith('user/')) {
     console.log('Not a user branch, skipping.');
     process.exit(0);
   }
 
-  const walletPubkey = branchName.split('/')[1];
-  console.log(`Branch: ${branchName} — Wallet: ${walletPubkey}`);
+  const walletPubkey = headBranch.split('/')[1];
+  console.log(`PR from @${ghActor} — Branch: ${headBranch} — Wallet: ${walletPubkey}`);
 
-  // Lit files.json depuis origin/main
+  // Lit files.json depuis upstream/main (repo principal)
   let filesJsonMain = [];
   try {
-    const raw = execSync('git show origin/main:files.json', { encoding: 'utf8' });
+    const raw = execSync('git show upstream/main:files.json', { encoding: 'utf8' });
     filesJsonMain = safeParseJson(raw);
     console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
   } catch(e) {
@@ -40,10 +38,10 @@ async function main() {
     filesJsonMain = [];
   }
 
-  // ── Event logs sur le disque ───────────────────────────────────────────────
+  // ── Event logs sur le disque (PR head checkouted) ─────────────────────────
   const eventsDir = 'events';
   if (!fs.existsSync(eventsDir)) {
-    console.error('No events/ directory on branch');
+    console.error('No events/ directory in PR');
     process.exit(1);
   }
 
@@ -67,15 +65,14 @@ async function main() {
       eventsByFile[ev.filename] = ev;
     }
   }
-  console.log(`Events found: ${Object.keys(eventsByFile).join(', ')}`);
 
-  // Ne valide que les fichiers qui existent réellement sur le disque
+  // Ne garde que les fichiers présents sur le disque
   const presentFiles = Object.values(eventsByFile).filter(ev => fs.existsSync(ev.filename));
   if (!presentFiles.length) {
-    console.error('None of the event log files exist on disk — nothing to merge');
+    console.error('No sphere files found on disk');
     process.exit(1);
   }
-  console.log(`Files on disk: ${presentFiles.map(e => e.filename).join(', ')}`);
+  console.log(`Files to validate: ${presentFiles.map(e => e.filename).join(', ')}`);
 
   // ── Score on-chain ─────────────────────────────────────────────────────────
   const walletPubs = filesJsonMain
@@ -99,23 +96,28 @@ async function main() {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
-    // Check auteur — refuse si appartient à un autre wallet
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
-    if (existingEntry && existingEntry.author !== walletPubkey) {
-      console.error(`✗ REFUSED: ${filename} belongs to wallet ${existingEntry.author.slice(0,8)}… — skipped`);
-      continue; // skip ce fichier, pas exit — les autres peuvent passer
+
+    if (existingEntry) {
+      // Fichier déjà dans main — ownership = compte GitHub (ghAuthor)
+      if (existingEntry.ghAuthor !== ghActor) {
+        console.error(`✗ REFUSED: ${filename} belongs to @${existingEntry.ghAuthor} — only the original author can update it`);
+        process.exit(1);
+      }
+      console.log(`→ Update authorized (@${ghActor})`);
+    } else {
+      console.log(`→ New file`);
     }
 
-    const isUpdate = !!(existingEntry && existingEntry.author === walletPubkey);
-    console.log(isUpdate ? '→ Update (same wallet)' : '→ New file');
+    const isUpdate = !!(existingEntry && existingEntry.ghAuthor === ghActor);
 
     const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
 
     // Hash — strict pour nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
-      console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash} — skipped`);
-      continue;
+      console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
+      process.exit(1);
     }
     console.log('✓ Hash OK');
 
@@ -130,8 +132,8 @@ async function main() {
       laps:         event.laps
     });
     if (!verifySignature(message, event.signature, walletPubkey)) {
-      console.error(`✗ Invalid signature for ${filename} — skipped`);
-      continue;
+      console.error(`✗ Invalid signature for ${filename}`);
+      process.exit(1);
     }
     console.log('✓ Signature OK');
 
@@ -146,7 +148,7 @@ async function main() {
 
   fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
     walletPubkey,
-    ghActor:   process.env.GH_ACTOR || walletPubkey,
+    ghActor,
     score:     scoreCheck.score,
     laps:      scoreCheck.currentLaps,
     timestamp: Math.floor(Date.now() / 1000),
