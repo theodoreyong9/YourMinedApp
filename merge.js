@@ -1,8 +1,16 @@
-// merge.js — Merge PR via API GitHub + update files.json
-const fs = require('fs');
+// merge.js — Push direct sur main + ferme la PR + update files.json
+const fs  = require('fs');
+const { execSync } = require('child_process');
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const BASE_REPO    = process.env.BASE_REPO; // theodoreyong9/YourMinedApp
+const BASE_REPO    = process.env.BASE_REPO;
+const PR_NUMBER    = process.env.PR_NUMBER;
+const PR_CONTENT_DIR = process.env.PR_CONTENT_DIR || '_pr_content';
+
+function run(cmd) {
+  console.log(`$ ${cmd}`);
+  return execSync(cmd, { encoding: 'utf8', stdio: ['pipe','pipe','pipe'] });
+}
 
 async function ghAPI(path, method, body) {
   const r = await fetch('https://api.github.com' + path, {
@@ -46,30 +54,47 @@ async function main() {
     process.exit(0);
   }
 
-  const prNumber = process.env.PR_NUMBER;
-  console.log(`Merging PR #${prNumber} from @${ghActor}`);
+  console.log(`Merging ${files.length} file(s) from @${ghActor} to main`);
 
-  // 1. Merge la PR via API GitHub
-  await ghAPI('/repos/' + BASE_REPO + '/pulls/' + prNumber + '/merge', 'PUT', {
-    commit_title: 'bot: merge [' + files.map(f => f.filename).join(', ') + '] from @' + ghActor,
-    merge_method: 'squash'
-  });
-  console.log('✓ PR merged');
+  // 1. Configure git
+  run('git config user.name "YourMine Bot"');
+  run('git config user.email "bot@yourmine.xyz"');
 
-  // 2. Lit files.json actuel depuis main via API
-  let filesJson = [];
-  let currentSha;
-  try {
-    const current = await ghAPI('/repos/' + BASE_REPO + '/contents/files.json?ref=main');
-    currentSha = current.sha;
-    filesJson = safeParseJson(Buffer.from(current.content, 'base64').toString('utf8'));
-    console.log(`files.json on main: ${filesJson.length} entry(ies)`);
-  } catch(e) {
-    console.warn('files.json not found on main, starting fresh');
-    filesJson = [];
+  // On est déjà sur main (checkout du repo principal dans bot.yml)
+  // S'assure qu'on est bien sur main et à jour
+  run('git checkout main');
+  run('git pull origin main');
+
+  // 2. Copie les fichiers validés depuis _pr_content/ vers la racine
+  for (const { filename } of files) {
+    const src = `${PR_CONTENT_DIR}/${filename}`;
+    if (!fs.existsSync(src)) {
+      console.error(`File not found in PR content: ${src}`);
+      process.exit(1);
+    }
+    fs.copyFileSync(src, filename);
+    console.log(`✓ Copied ${filename}`);
   }
 
-  // 3. Met à jour les entrées
+  // 3. Copie les nouveaux event logs
+  const eventsDir = `${PR_CONTENT_DIR}/events`;
+  if (fs.existsSync(eventsDir)) {
+    if (!fs.existsSync('events')) fs.mkdirSync('events');
+    const mainEvents = fs.readdirSync('events');
+    for (const evFile of fs.readdirSync(eventsDir)) {
+      if (!mainEvents.includes(evFile)) {
+        fs.copyFileSync(`${eventsDir}/${evFile}`, `events/${evFile}`);
+        console.log(`✓ Copied event ${evFile}`);
+      }
+    }
+  }
+
+  // 4. Update files.json
+  let filesJson = [];
+  try {
+    filesJson = safeParseJson(fs.readFileSync('files.json', 'utf8'));
+  } catch(e) { filesJson = []; }
+
   for (const { filename, isUpdate } of files) {
     const entry = {
       filename,
@@ -81,30 +106,35 @@ async function main() {
       timestamp,
       merged_at:      Math.floor(Date.now() / 1000)
     };
-
     const idx = filesJson.findIndex(f => f.filename === filename);
     if (idx >= 0) {
       filesJson[idx] = { ...filesJson[idx], ...entry };
-      console.log(`✓ Updated ${filename}`);
+      console.log(`✓ Updated ${filename} in files.json`);
     } else {
       filesJson.push(entry);
-      console.log(`✓ Added ${filename}`);
+      console.log(`✓ Added ${filename} to files.json`);
     }
   }
+  fs.writeFileSync('files.json', JSON.stringify(filesJson, null, 2));
 
-  // 4. Push files.json via API (pas de git, pas de conflit)
-  const content = Buffer.from(JSON.stringify(filesJson, null, 2)).toString('base64');
-  const body = {
-    message: 'bot: update files.json for [' + files.map(f => f.filename).join(', ') + ']',
-    content,
-    branch: 'main'
-  };
-  if (currentSha) body.sha = currentSha;
+  // 5. Commit + push sur main
+  run('git add .');
+  run(`git commit -m "bot: merge [${files.map(f=>f.filename).join(', ')}] from @${ghActor}"`);
+  run(`git push https://x-access-token:${GITHUB_TOKEN}@github.com/${BASE_REPO}.git main`);
+  console.log('✓ Pushed to main');
 
-  await ghAPI('/repos/' + BASE_REPO + '/contents/files.json', 'PUT', body);
-  console.log('✓ files.json updated on main');
+  // 6. Ferme la PR avec un commentaire
+  try {
+    await ghAPI(`/repos/${BASE_REPO}/issues/${PR_NUMBER}/comments`, 'POST', {
+      body: `✅ Merged by YourMine Bot\n\n${files.map(f => `- \`${f.filename}\` (${f.isUpdate ? 'updated' : 'new'})`).join('\n')}`
+    });
+    await ghAPI(`/repos/${BASE_REPO}/pulls/${PR_NUMBER}`, 'PATCH', { state: 'closed' });
+    console.log('✓ PR closed');
+  } catch(e) {
+    console.warn('Could not close PR:', e.message);
+  }
 
-  console.log(`\n✓ Done — ${files.length} file(s) merged to main`);
+  console.log(`\n✓ Done — ${files.length} file(s) on main`);
 }
 
 main().catch(e => {
