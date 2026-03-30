@@ -7,7 +7,7 @@ window.YM_S['mysphere.sphere.js'] = {
   name: 'MySphere',
   icon: '⬡',
   category: 'Other',
-  description: 'My custom sphere21111111',
+  description: 'My custom sphere21111111333333333333',
   emit: [], receive: [],
 
   activate(ctx) {},
