@@ -2,7 +2,6 @@
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
 function safeParseJson(raw) {
@@ -16,29 +15,21 @@ function safeParseJson(raw) {
 
 async function main() {
   const ghActor      = process.env.GH_ACTOR;
-  const headBranch   = process.env.HEAD_BRANCH;
   const prContentDir = process.env.PR_CONTENT_DIR || '_pr_content';
 
-  if (!headBranch || !headBranch.startsWith('user/')) {
-    console.log('Not a user branch, skipping.');
-    process.exit(0);
-  }
+  console.log(`PR from @${ghActor}`);
 
-  const walletPubkey = headBranch.split('/')[1];
-  console.log(`PR from @${ghActor} — Branch: ${headBranch} — Wallet: ${walletPubkey}`);
-
-  // Lit files.json depuis main (repo principal, déjà checkouted à la racine)
+  // Lit files.json depuis main (repo principal checkouted à la racine)
   let filesJsonMain = [];
   try {
-    const raw = fs.readFileSync('files.json', 'utf8');
-    filesJsonMain = safeParseJson(raw);
+    filesJsonMain = safeParseJson(fs.readFileSync('files.json', 'utf8'));
     console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
   } catch(e) {
-    console.warn('files.json not found on main, using []');
+    console.warn('files.json not found, using []');
     filesJsonMain = [];
   }
 
-  // ── Event logs depuis le contenu de la PR ────────────────────────────────
+  // ── Event logs depuis le contenu de la PR ─────────────────────────────────
   const eventsDir = path.join(prContentDir, 'events');
   if (!fs.existsSync(eventsDir)) {
     console.error('No events/ directory in PR content');
@@ -51,10 +42,10 @@ async function main() {
       try { return JSON.parse(fs.readFileSync(path.join(eventsDir, f), 'utf8')); }
       catch(e) { return null; }
     })
-    .filter(e => e && e.wallet === walletPubkey && e.filename);
+    .filter(e => e && e.wallet && e.filename);
 
   if (!allEvents.length) {
-    console.error(`No event logs found for wallet ${walletPubkey}`);
+    console.error('No event logs found in PR');
     process.exit(1);
   }
 
@@ -76,6 +67,10 @@ async function main() {
   }
   console.log(`Files to validate: ${presentFiles.map(e => e.filename).join(', ')}`);
 
+  // Wallet = depuis l'event log (pas depuis le nom de branche)
+  const walletPubkey = presentFiles[0].wallet;
+  console.log(`Wallet: ${walletPubkey}`);
+
   // ── Score on-chain ─────────────────────────────────────────────────────────
   const walletPubs = filesJsonMain
     .filter(f => f.author === walletPubkey)
@@ -95,13 +90,19 @@ async function main() {
   const results = [];
 
   for (const event of presentFiles) {
-    const { filename } = event;
+    const { filename, wallet } = event;
     console.log(`\n--- ${filename} ---`);
+
+    // Vérifie que tous les events appartiennent au même wallet
+    if (wallet !== walletPubkey) {
+      console.error(`✗ Mixed wallets in PR — refused`);
+      process.exit(1);
+    }
 
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
 
     if (existingEntry) {
-      // Ownership = compte GitHub (ghAuthor)
+      // Ownership = compte GitHub
       if (existingEntry.ghAuthor !== ghActor) {
         console.error(`✗ REFUSED: ${filename} belongs to @${existingEntry.ghAuthor}`);
         process.exit(1);
@@ -113,12 +114,10 @@ async function main() {
 
     const isUpdate = !!(existingEntry && existingEntry.ghAuthor === ghActor);
 
-    // Lit le fichier depuis le contenu de la PR
     const sourceCode = fs.readFileSync(
       path.join(prContentDir, filename), 'utf8'
     ).replace(/\r\n/g, '\n');
 
-    // Hash — strict pour nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
       console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
@@ -126,7 +125,6 @@ async function main() {
     }
     console.log('✓ Hash OK');
 
-    // Signature — toujours sur les données originales de l'event
     const message = JSON.stringify({
       action:       event.action,
       filename:     event.filename,
