@@ -13,7 +13,7 @@ jobs:
       pull-requests: write
 
     steps:
-      # 1. Checkout du repo PRINCIPAL (main) — pour avoir validate.js, merge.js, package.json
+      # Checkout du repo principal (main) — scripts + files.json
       - name: Checkout main repo
         uses: actions/checkout@v4
         with:
@@ -21,20 +21,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      # 2. Checkout du contenu de la PR (le fork) dans un sous-dossier
+      # Checkout du contenu de la PR (fork) dans _pr_content/
       - name: Checkout PR content
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           path: _pr_content
-          fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Git
-        run: |
-          git config user.name "YourMine Bot"
-          git config user.email "bot@yourmine.xyz"
 
       - uses: actions/setup-node@v4
         with:
@@ -53,10 +47,11 @@ jobs:
           BASE_REPO: ${{ github.repository }}
           PR_CONTENT_DIR: _pr_content
 
-      - name: Merge PR + update files.json
+      - name: Merge + update files.json
         run: node merge.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_ACTOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REPO: ${{ github.repository }}
+          PR_CONTENT_DIR: _pr_content
