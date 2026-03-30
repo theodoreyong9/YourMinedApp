@@ -1,36 +1,54 @@
 name: Bot — Validate & Merge Sphere
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize]
     branches:
-      - 'user/**'
+      - main
+
 jobs:
   validate-and-merge:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout PR head
+        uses: actions/checkout@v4
         with:
+          # Checkout le contenu du fork (PR head)
+          ref: ${{ github.event.pull_request.head.sha }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Setup Git
         run: |
           git config user.name "YourMine Bot"
           git config user.email "bot@yourmine.xyz"
+          # Ajoute le repo principal comme remote pour lire main
+          git remote add upstream https://github.com/theodoreyong9/YourMinedApp.git || true
+          git fetch upstream main
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
       - name: Install dependencies
         run: npm install
+
       - name: Validate signature + score
         run: node validate.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ github.ref_name }}
           GH_ACTOR: ${{ github.actor }}
-      - name: Merge to main + update JSON
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          BASE_REPO: ${{ github.repository }}
+
+      - name: Merge PR + update files.json
         run: node merge.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ github.ref_name }}
           GH_ACTOR: ${{ github.actor }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REPO: ${{ github.repository }}
