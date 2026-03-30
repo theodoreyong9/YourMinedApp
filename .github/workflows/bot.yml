@@ -13,7 +13,6 @@ jobs:
       pull-requests: write
 
     steps:
-      # Checkout du repo principal (main) — scripts + files.json
       - name: Checkout main repo
         uses: actions/checkout@v4
         with:
@@ -21,7 +20,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      # Checkout du contenu de la PR (fork) dans _pr_content/
       - name: Checkout PR content
         uses: actions/checkout@v4
         with:
@@ -37,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Validate signature + score
+      - name: Validate
         run: node validate.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,7 +45,7 @@ jobs:
           BASE_REPO: ${{ github.repository }}
           PR_CONTENT_DIR: _pr_content
 
-      - name: Merge + update files.json
+      - name: Merge
         run: node merge.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
