@@ -1,6 +1,6 @@
 name: Bot — Validate & Merge Sphere
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize]
     branches:
       - main
@@ -11,13 +11,23 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+
     steps:
-      - name: Checkout PR head
+      # 1. Checkout du repo PRINCIPAL (main) — pour avoir validate.js, merge.js, package.json
+      - name: Checkout main repo
         uses: actions/checkout@v4
         with:
-          # Checkout le contenu du fork (PR head)
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # 2. Checkout du contenu de la PR (le fork) dans un sous-dossier
+      - name: Checkout PR content
+        uses: actions/checkout@v4
+        with:
           ref: ${{ github.event.pull_request.head.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
+          path: _pr_content
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -25,9 +35,6 @@ jobs:
         run: |
           git config user.name "YourMine Bot"
           git config user.email "bot@yourmine.xyz"
-          # Ajoute le repo principal comme remote pour lire main
-          git remote add upstream https://github.com/theodoreyong9/YourMinedApp.git || true
-          git fetch upstream main
 
       - uses: actions/setup-node@v4
         with:
@@ -40,15 +47,16 @@ jobs:
         run: node validate.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_ACTOR: ${{ github.actor }}
+          GH_ACTOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
           BASE_REPO: ${{ github.repository }}
+          PR_CONTENT_DIR: _pr_content
 
       - name: Merge PR + update files.json
         run: node merge.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_ACTOR: ${{ github.actor }}
+          GH_ACTOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REPO: ${{ github.repository }}
