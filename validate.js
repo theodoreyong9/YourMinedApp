@@ -9,15 +9,15 @@ function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
   try { return JSON.parse(raw); }
   catch(e) {
-    const cleaned = raw.replace(/,\s*([}\]])/g, '$1').trim();
-    try { return JSON.parse(cleaned); }
-    catch(e2) { console.warn('Warning: JSON parse failed:', e2.message); return []; }
+    try { return JSON.parse(raw.replace(/,\s*([}\]])/g, '$1').trim()); }
+    catch(e2) { console.warn('JSON parse failed:', e2.message); return []; }
   }
 }
 
 async function main() {
-  const ghActor    = process.env.GH_ACTOR;
-  const headBranch = process.env.HEAD_BRANCH; // ex: user/<wallet>
+  const ghActor      = process.env.GH_ACTOR;
+  const headBranch   = process.env.HEAD_BRANCH;
+  const prContentDir = process.env.PR_CONTENT_DIR || '_pr_content';
 
   if (!headBranch || !headBranch.startsWith('user/')) {
     console.log('Not a user branch, skipping.');
@@ -27,10 +27,10 @@ async function main() {
   const walletPubkey = headBranch.split('/')[1];
   console.log(`PR from @${ghActor} — Branch: ${headBranch} — Wallet: ${walletPubkey}`);
 
-  // Lit files.json depuis upstream/main (repo principal)
+  // Lit files.json depuis main (repo principal, déjà checkouted à la racine)
   let filesJsonMain = [];
   try {
-    const raw = execSync('git show upstream/main:files.json', { encoding: 'utf8' });
+    const raw = fs.readFileSync('files.json', 'utf8');
     filesJsonMain = safeParseJson(raw);
     console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
   } catch(e) {
@@ -38,10 +38,10 @@ async function main() {
     filesJsonMain = [];
   }
 
-  // ── Event logs sur le disque (PR head checkouted) ─────────────────────────
-  const eventsDir = 'events';
+  // ── Event logs depuis le contenu de la PR ────────────────────────────────
+  const eventsDir = path.join(prContentDir, 'events');
   if (!fs.existsSync(eventsDir)) {
-    console.error('No events/ directory in PR');
+    console.error('No events/ directory in PR content');
     process.exit(1);
   }
 
@@ -66,10 +66,12 @@ async function main() {
     }
   }
 
-  // Ne garde que les fichiers présents sur le disque
-  const presentFiles = Object.values(eventsByFile).filter(ev => fs.existsSync(ev.filename));
+  // Ne garde que les fichiers présents dans le contenu de la PR
+  const presentFiles = Object.values(eventsByFile).filter(ev =>
+    fs.existsSync(path.join(prContentDir, ev.filename))
+  );
   if (!presentFiles.length) {
-    console.error('No sphere files found on disk');
+    console.error('No sphere files found in PR content');
     process.exit(1);
   }
   console.log(`Files to validate: ${presentFiles.map(e => e.filename).join(', ')}`);
@@ -99,9 +101,9 @@ async function main() {
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
 
     if (existingEntry) {
-      // Fichier déjà dans main — ownership = compte GitHub (ghAuthor)
+      // Ownership = compte GitHub (ghAuthor)
       if (existingEntry.ghAuthor !== ghActor) {
-        console.error(`✗ REFUSED: ${filename} belongs to @${existingEntry.ghAuthor} — only the original author can update it`);
+        console.error(`✗ REFUSED: ${filename} belongs to @${existingEntry.ghAuthor}`);
         process.exit(1);
       }
       console.log(`→ Update authorized (@${ghActor})`);
@@ -111,7 +113,10 @@ async function main() {
 
     const isUpdate = !!(existingEntry && existingEntry.ghAuthor === ghActor);
 
-    const sourceCode = fs.readFileSync(filename, 'utf8').replace(/\r\n/g, '\n');
+    // Lit le fichier depuis le contenu de la PR
+    const sourceCode = fs.readFileSync(
+      path.join(prContentDir, filename), 'utf8'
+    ).replace(/\r\n/g, '\n');
 
     // Hash — strict pour nouvelle pub, ignoré pour update
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
