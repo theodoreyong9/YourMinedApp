@@ -1,0 +1,11 @@
+{
+  "action": "create",
+  "filename": "striga.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "939224c4ac8d8b488f603fc82a532a4dcdd7d255032927dbe41af1e5f245e1a6",
+  "signature": "zs+LszUFk0+Ud4imp/HVAhx4Iur8gvF51NijLO4lJoqda5O8C//71effVVyXdazeIJ1yWHMO8xm65FlQwtveDg==",
+  "nonce": "c81c6ff3-21bd-440a-8500-b850544cc9e1",
+  "timestamp": 1774960979,
+  "score": 0.384907018049509,
+  "laps": 1.0920048152009433e-7
+}
