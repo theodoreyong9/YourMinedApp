@@ -5,7 +5,7 @@
 'use strict';
 window.YM_S=window.YM_S||{};
 
-const SCORES_KEY='ym_wipeout_scores_v1';
+const SCORES_KEY='ym_wipeout_scores_v3';
 function loadScores(){try{return JSON.parse(localStorage.getItem(SCORES_KEY)||'[]');}catch(e){return[];}}
 function saveScores(d){localStorage.setItem(SCORES_KEY,JSON.stringify(d.slice(0,20)));}
 
