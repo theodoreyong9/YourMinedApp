@@ -1,5 +1,5 @@
 /* jshint esversion:11, browser:true */
-// automator.sphere.js — AI Automation Builder
+// automator.sphere.js — YM Automation Builder
 // Prompt → workflow Pipedream généré par Claude → exécution → outputs
 (function(){
 'use strict';
