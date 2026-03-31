@@ -8,6 +8,9 @@ window.YM_S=window.YM_S||{};
 const CFG_KEY  ='ym_automator_cfg_v1';
 const AUTO_KEY ='ym_automator_list_v1';
 
+// FIX: _ctx non déclaré → ReferenceError en strict mode → bloquait toute activation ultérieure
+let _ctx;
+
 function loadCfg(){try{return JSON.parse(localStorage.getItem(CFG_KEY)||'{}');}catch(e){return{};}}
 function saveCfg(d){localStorage.setItem(CFG_KEY,JSON.stringify(d));}
 function loadAutomations(){try{return JSON.parse(localStorage.getItem(AUTO_KEY)||'[]');}catch(e){return[];}}
@@ -79,7 +82,6 @@ async function generateWorkflow(prompt, anthropicKey){
     messages: [{ role: 'user', content: prompt }],
   });
   const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
-  // Extrait le JSON
   const match = text.match(/\{[\s\S]*\}/);
   if(!match) throw new Error('Claude did not return valid JSON');
   try{ return JSON.parse(match[0]); }
@@ -96,7 +98,6 @@ function renderPanel(container){
   const cfg = loadCfg();
   if(!cfg.workerUrl){renderSetup(container);return;}
 
-  // ── Header avec prompt bar ──────────────────────────────────────────────────
   const header = document.createElement('div');
   header.style.cssText='flex-shrink:0;padding:12px 14px;background:#0d0d1a;border-bottom:1px solid rgba(255,255,255,.06)';
 
@@ -105,7 +106,7 @@ function renderPanel(container){
 
   const ta = document.createElement('textarea');
   ta.style.cssText='flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;color:#fff;font-size:13px;resize:none;outline:none;line-height:1.5;min-height:44px;max-height:120px;transition:border-color .2s;font-family:inherit';
-  ta.placeholder='Describe your automation… (e.g. "When I receive an email with attachment, extract text and send summary to Slack")';
+  ta.placeholder='Describe your automation…';
   ta.addEventListener('focus',()=>ta.style.borderColor='rgba(99,102,241,.6)');
   ta.addEventListener('blur',()=>ta.style.borderColor='rgba(255,255,255,.1)');
   ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';});
@@ -114,14 +115,12 @@ function renderPanel(container){
   genBtn.style.cssText='background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;font-weight:700;font-size:13px;padding:10px 16px;border-radius:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:opacity .15s;align-self:flex-end';
   genBtn.innerHTML='⚡ Generate';
   genBtn.addEventListener('click',()=>handleGenerate(ta.value.trim(), container, ta, genBtn));
-
   ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();genBtn.click();}});
 
   promptRow.appendChild(ta);promptRow.appendChild(genBtn);
   header.appendChild(promptRow);
   container.appendChild(header);
 
-  // ── Tabs ───────────────────────────────────────────────────────────────────
   const tabs = document.createElement('div');
   tabs.style.cssText='flex-shrink:0;display:flex;border-bottom:1px solid rgba(255,255,255,.06)';
   [['automations','⚡ Automations'],['outputs','📊 Outputs']].forEach(([id,label])=>{
@@ -134,7 +133,6 @@ function renderPanel(container){
   });
   container.appendChild(tabs);
 
-  // ── Body ───────────────────────────────────────────────────────────────────
   const body = document.createElement('div');
   body.style.cssText='flex:1;overflow-y:auto;padding:14px';
   container.appendChild(body);
@@ -143,7 +141,6 @@ function renderPanel(container){
   else renderOutputsTab(body);
 }
 
-// ── SETUP ─────────────────────────────────────────────────────────────────────
 function renderSetup(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%;background:#0d0d1a;justify-content:center;align-items:center;padding:32px;font-family:-apple-system,sans-serif';
 
@@ -199,12 +196,10 @@ function renderSetup(container){
   container.appendChild(hint);
 }
 
-// ── GENERATE WORKFLOW ─────────────────────────────────────────────────────────
 async function handleGenerate(prompt, container, ta, genBtn){
   if(!prompt){ta.style.borderColor='rgba(239,68,68,.5)';setTimeout(()=>ta.style.borderColor='rgba(255,255,255,.1)',1000);return;}
   const cfg=loadCfg();
   if(!cfg.anthropicKey){
-    // Demande la clé Anthropic
     showKeyPrompt(container,'anthropicKey','Anthropic API Key','sk-ant-…','Your key is sent directly to Anthropic, never stored on our servers.',key=>{
       saveCfg({...loadCfg(),anthropicKey:key});
       handleGenerate(prompt,container,ta,genBtn);
@@ -214,53 +209,36 @@ async function handleGenerate(prompt, container, ta, genBtn){
 
   genBtn.textContent='⏳ Generating…';genBtn.disabled=true;ta.disabled=true;
 
-  // Notification de progression
   const prog=document.createElement('div');
   prog.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#6366f1;color:#fff;padding:10px 18px;border-radius:12px;font-size:13px;z-index:999;white-space:nowrap';
   prog.textContent='⚡ Claude is building your automation…';
   document.body.appendChild(prog);
 
   try{
-    // 1. Génère le workflow avec Claude
     const workflow = await generateWorkflow(prompt, cfg.anthropicKey);
-
-    // 2. Crée le workflow sur Pipedream
     prog.textContent='🚀 Deploying to Pipedream…';
     const result = await workerFetch('/workflow/create', workflow);
     const workflowId = result?.data?.id || result?.id;
     const workflowUrl = result?.data?.url || `https://pipedream.com/workflows/${workflowId}`;
 
-    // 3. Sauvegarde localement
     const automation = {
-      id: gid(),
-      workflowId,
-      workflowUrl,
-      name: workflow.name,
-      description: workflow.description,
-      prompt,
-      steps: workflow.steps,
-      requiredSecrets: workflow.requiredSecrets||[],
-      secretsConfigured: {},
-      outputs: [],
-      createdAt: Date.now(),
-      status: 'active',
+      id: gid(),workflowId,workflowUrl,
+      name: workflow.name,description: workflow.description,prompt,
+      steps: workflow.steps,requiredSecrets: workflow.requiredSecrets||[],
+      secretsConfigured: {},outputs: [],createdAt: Date.now(),status: 'active',
     };
-    const list=loadAutomations();
-    list.unshift(automation);
-    saveAutomations(list);
+    const list=loadAutomations();list.unshift(automation);saveAutomations(list);
 
     prog.remove();genBtn.textContent='⚡ Generate';genBtn.disabled=false;ta.disabled=false;ta.value='';
     ta.style.height='44px';
     window.YM_toast?.('Automation created! ✓','success');
     _tab='automations';renderPanel(container);
-
   }catch(e){
     prog.remove();genBtn.textContent='⚡ Generate';genBtn.disabled=false;ta.disabled=false;
     window.YM_toast?.(e.message,'error');
   }
 }
 
-// ── AUTOMATIONS TAB ───────────────────────────────────────────────────────────
 function renderAutomationsTab(container, panelRoot){
   container.innerHTML='';
   const automations=loadAutomations();
@@ -281,7 +259,6 @@ function renderAutomationsTab(container, panelRoot){
     card.addEventListener('mouseenter',()=>card.style.borderColor='rgba(99,102,241,.3)');
     card.addEventListener('mouseleave',()=>card.style.borderColor='rgba(255,255,255,.08)');
 
-    // Header
     card.innerHTML=`
       <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">
         <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">⚡</div>
@@ -289,12 +266,9 @@ function renderAutomationsTab(container, panelRoot){
           <div style="font-size:14px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(auto.name)}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:2px">${esc(auto.description||'')}</div>
         </div>
-        <div style="flex-shrink:0;display:flex;gap:6px">
-          <span style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(34,197,94,.15);color:#4ade80">${esc(auto.status||'active')}</span>
-        </div>
+        <span style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(34,197,94,.15);color:#4ade80;flex-shrink:0">${esc(auto.status||'active')}</span>
       </div>`;
 
-    // Steps
     if(auto.steps?.length){
       const stepsEl=document.createElement('div');
       stepsEl.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px';
@@ -307,7 +281,6 @@ function renderAutomationsTab(container, panelRoot){
       card.appendChild(stepsEl);
     }
 
-    // Required secrets
     if(auto.requiredSecrets?.length){
       const secretsEl=document.createElement('div');
       secretsEl.style.cssText='margin-bottom:10px;padding:10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.15);border-radius:10px';
@@ -326,15 +299,12 @@ function renderAutomationsTab(container, panelRoot){
 
       card.querySelectorAll('[data-secret]').forEach(btn=>{
         btn.addEventListener('click',()=>{
-          const secretName=btn.dataset.secret;
-          const autoId=btn.dataset.auto;
-          showKeyPrompt(panelRoot, secretName, secretName, 'API key…', `This key will be stored securely in your Worker KV and used by "${auto.name}"`,
+          const secretName=btn.dataset.secret,autoId=btn.dataset.auto;
+          showKeyPrompt(panelRoot,secretName,secretName,'API key…','',
           async key=>{
             try{
               await workerFetch('/secret/set',{key:secretName,value:key});
-              // Met à jour localement
-              const list=loadAutomations();
-              const a=list.find(x=>x.id===autoId);
+              const list=loadAutomations(),a=list.find(x=>x.id===autoId);
               if(a){a.secretsConfigured=a.secretsConfigured||{};a.secretsConfigured[secretName]=true;saveAutomations(list);}
               window.YM_toast?.(secretName+' saved ✓','success');
               renderPanel(panelRoot);
@@ -344,11 +314,9 @@ function renderAutomationsTab(container, panelRoot){
       });
     }
 
-    // Actions
     const actionsEl=document.createElement('div');
     actionsEl.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-top:6px';
 
-    // Trigger
     const triggerBtn=document.createElement('button');
     triggerBtn.style.cssText='background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;font-size:11px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer';
     triggerBtn.textContent='▶ Run';
@@ -356,8 +324,7 @@ function renderAutomationsTab(container, panelRoot){
       triggerBtn.textContent='Running…';triggerBtn.disabled=true;
       try{
         const r=await workerFetch('/workflow/trigger',{workflowId:auto.workflowId,payload:{source:'YourMine',automationId:auto.id}});
-        // Sauvegarde l'output
-        const list=loadAutomations();const a=list.find(x=>x.id===auto.id);
+        const list=loadAutomations(),a=list.find(x=>x.id===auto.id);
         if(a){a.outputs=a.outputs||[];a.outputs.unshift({ts:Date.now(),status:r.status,response:r.response});saveAutomations(list);}
         window.YM_toast?.('Workflow triggered ✓','success');
         triggerBtn.textContent='▶ Run';triggerBtn.disabled=false;
@@ -365,7 +332,6 @@ function renderAutomationsTab(container, panelRoot){
     });
     actionsEl.appendChild(triggerBtn);
 
-    // Refresh logs
     const logsBtn=document.createElement('button');
     logsBtn.style.cssText='background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.6);font-size:11px;padding:7px 12px;border-radius:8px;cursor:pointer';
     logsBtn.textContent='🔄 Logs';
@@ -373,16 +339,14 @@ function renderAutomationsTab(container, panelRoot){
       logsBtn.textContent='Loading…';logsBtn.disabled=true;
       try{
         const r=await workerFetch('/workflow/runs',{workflowId:auto.workflowId});
-        const runs=r?.data||[];
-        const list=loadAutomations();const a=list.find(x=>x.id===auto.id);
-        if(a){a.runs=runs;saveAutomations(list);}
+        const list=loadAutomations(),a=list.find(x=>x.id===auto.id);
+        if(a){a.runs=r?.data||[];saveAutomations(list);}
         renderPanel(panelRoot);
       }catch(e){window.YM_toast?.(e.message,'error');}
       logsBtn.textContent='🔄 Logs';logsBtn.disabled=false;
     });
     actionsEl.appendChild(logsBtn);
 
-    // Pipedream link
     if(auto.workflowUrl){
       const pdLink=document.createElement('a');
       pdLink.href=auto.workflowUrl;pdLink.target='_blank';
@@ -391,30 +355,24 @@ function renderAutomationsTab(container, panelRoot){
       actionsEl.appendChild(pdLink);
     }
 
-    // Re-prompt (modifier le workflow)
     const reproBtn=document.createElement('button');
     reproBtn.style.cssText='background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);color:#a78bfa;font-size:11px;padding:7px 12px;border-radius:8px;cursor:pointer';
     reproBtn.textContent='✏ Re-prompt';
     reproBtn.addEventListener('click',()=>showReprompt(auto, panelRoot));
     actionsEl.appendChild(reproBtn);
 
-    // Delete
     const delBtn=document.createElement('button');
     delBtn.style.cssText='background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:rgba(239,68,68,.7);font-size:11px;padding:7px 12px;border-radius:8px;cursor:pointer;margin-left:auto';
     delBtn.textContent='🗑';
     delBtn.addEventListener('click',async()=>{
       if(!confirm('Delete "'+auto.name+'"?'))return;
-      try{
-        await workerFetch('/workflow/delete',{workflowId:auto.workflowId});
-      }catch(e){}
+      try{await workerFetch('/workflow/delete',{workflowId:auto.workflowId});}catch(e){}
       saveAutomations(loadAutomations().filter(a=>a.id!==auto.id));
       renderPanel(panelRoot);
     });
     actionsEl.appendChild(delBtn);
-
     card.appendChild(actionsEl);
 
-    // Recent runs (si chargés)
     if(auto.runs?.length){
       const runsEl=document.createElement('div');
       runsEl.style.cssText='margin-top:10px;border-top:1px solid rgba(255,255,255,.05);padding-top:8px';
@@ -425,7 +383,7 @@ function renderAutomationsTab(container, panelRoot){
         runRow.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:4px';
         runRow.innerHTML=`
           <span style="width:6px;height:6px;border-radius:50%;background:${ok?'#4ade80':'#f87171'};flex-shrink:0"></span>
-          <span style="font-size:11px;color:rgba(255,255,255,.5);flex:1">${new Date(run.created_at||run.ts||0).toLocaleString([], {dateStyle:'short',timeStyle:'short'})}</span>
+          <span style="font-size:11px;color:rgba(255,255,255,.5);flex:1">${new Date(run.created_at||run.ts||0).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</span>
           <span style="font-size:10px;color:${ok?'#4ade80':'#f87171'}">${esc(run.status||'')}</span>`;
         runsEl.appendChild(runRow);
       });
@@ -435,7 +393,6 @@ function renderAutomationsTab(container, panelRoot){
     container.appendChild(card);
   });
 
-  // Bouton settings (clé Anthropic + worker)
   const settingsBtn=document.createElement('button');
   settingsBtn.style.cssText='width:100%;background:transparent;border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.3);font-size:12px;padding:10px;border-radius:12px;cursor:pointer;margin-top:4px';
   settingsBtn.textContent='⚙ Configuration';
@@ -443,7 +400,6 @@ function renderAutomationsTab(container, panelRoot){
   container.appendChild(settingsBtn);
 }
 
-// ── OUTPUTS TAB ───────────────────────────────────────────────────────────────
 function renderOutputsTab(container){
   container.innerHTML='';
   const automations=loadAutomations();
@@ -468,8 +424,6 @@ function renderOutputsTab(container){
     const ok=o.status===200||o.status==='completed';
     const card=document.createElement('div');
     card.style.cssText='background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px;margin-bottom:8px';
-
-    // Header
     const hdr=document.createElement('div');
     hdr.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer';
     hdr.innerHTML=`
@@ -477,17 +431,13 @@ function renderOutputsTab(container){
       <span style="font-size:13px;font-weight:600;color:#fff;flex:1">${esc(o.autoName)}</span>
       <span style="font-size:10px;color:rgba(255,255,255,.3)">${new Date(o.ts).toLocaleString([],{dateStyle:'short',timeStyle:'short'})}</span>
       <span style="font-size:12px;color:rgba(255,255,255,.3)">▾</span>`;
-
-    // Body (collapsible)
     const body=document.createElement('div');
     body.style.cssText='display:none';
     if(o.response){
-      // Format JSON si possible
       let formatted=o.response;
       try{formatted=JSON.stringify(JSON.parse(o.response),null,2);}catch(e){}
       body.innerHTML=`<pre style="background:rgba(0,0,0,.4);border-radius:8px;padding:10px;font-size:10px;color:#a5b4fc;overflow-x:auto;white-space:pre-wrap;word-break:break-all">${esc(formatted)}</pre>`;
     }
-
     hdr.addEventListener('click',()=>{
       const open=body.style.display!=='none';
       body.style.display=open?'none':'block';
@@ -498,7 +448,6 @@ function renderOutputsTab(container){
   });
 }
 
-// ── RE-PROMPT ─────────────────────────────────────────────────────────────────
 function showReprompt(auto, panelRoot){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center';
@@ -526,7 +475,7 @@ function showReprompt(auto, panelRoot){
       const fullPrompt=`Existing automation: "${auto.prompt}"\nModification requested: "${newPrompt}"\nGenerate the complete updated workflow.`;
       const workflow=await generateWorkflow(fullPrompt,cfg.anthropicKey);
       await workerFetch('/workflow/update',{workflowId:auto.workflowId,...workflow});
-      const list=loadAutomations();const a=list.find(x=>x.id===auto.id);
+      const list=loadAutomations(),a=list.find(x=>x.id===auto.id);
       if(a){a.name=workflow.name;a.description=workflow.description;a.steps=workflow.steps;a.requiredSecrets=workflow.requiredSecrets||[];a.prompt=fullPrompt;saveAutomations(list);}
       overlay.remove();window.YM_toast?.('Automation updated ✓','success');renderPanel(panelRoot);
     }catch(e){window.YM_toast?.(e.message,'error');updateBtn.textContent='⚡ Update';updateBtn.disabled=false;}
@@ -534,7 +483,6 @@ function showReprompt(auto, panelRoot){
   setTimeout(()=>ta.focus(),100);
 }
 
-// ── KEY PROMPT ────────────────────────────────────────────────────────────────
 function showKeyPrompt(panelRoot, keyId, label, placeholder, hint, onSave){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center';
@@ -560,7 +508,6 @@ function showKeyPrompt(panelRoot, keyId, label, placeholder, hint, onSave){
   setTimeout(()=>inp.focus(),100);
 }
 
-// ── SETTINGS ──────────────────────────────────────────────────────────────────
 function showSettings(panelRoot){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center';
@@ -608,7 +555,6 @@ function showSettings(panelRoot){
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
 }
 
-// ── SPHERE ─────────────────────────────────────────────────────────────────────
 window.YM_S['automator.sphere.js']={
   name:'Automator',icon:'⚡',category:'Tools',
   description:'AI automation builder — prompt → Pipedream workflow → outputs',
