@@ -56,13 +56,13 @@ async function main() {
 
   console.log(`Merging files from @${ghActor} to main`);
 
-  // 1. Configure git + on est déjà sur main
+  // ── Configure git
   run('git config user.name "YourMine Bot"');
   run('git config user.email "bot@yourmine.xyz"');
   run('git checkout main');
   run('git pull origin main');
 
-  // 2. Copie les fichiers validés depuis _pr_content/
+  // ── Copie fichiers validés
   for (const { filename } of files) {
     const src = `${PR_CONTENT_DIR}/${filename}`;
     if (!fs.existsSync(src)) {
@@ -73,20 +73,28 @@ async function main() {
     console.log(`✓ Copied ${filename}`);
   }
 
-  // 3. Copie les nouveaux event logs depuis _pr_content/events/
+  // ── Copie des events depuis la PR
   const prEventsDir = `${PR_CONTENT_DIR}/events`;
   if (fs.existsSync(prEventsDir)) {
     if (!fs.existsSync('events')) fs.mkdirSync('events');
-    const mainEvents = fs.readdirSync('events');
-    for (const evFile of fs.readdirSync(prEventsDir)) {
-      if (!mainEvents.includes(evFile)) {
-        fs.copyFileSync(`${prEventsDir}/${evFile}`, `events/${evFile}`);
+    const prEvents = fs.readdirSync(prEventsDir);
+    for (const evFile of prEvents) {
+      const src  = `${prEventsDir}/${evFile}`;
+      const dest = `events/${evFile}`;
+      let copy = true;
+      if (fs.existsSync(dest)) {
+        const srcContent  = fs.readFileSync(src, 'utf8');
+        const destContent = fs.readFileSync(dest, 'utf8');
+        if (srcContent === destContent) copy = false;
+      }
+      if (copy) {
+        fs.copyFileSync(src, dest);
         console.log(`✓ Copied event ${evFile}`);
       }
     }
   }
 
-  // 4. Update files.json
+  // ── Update files.json
   let filesJson = [];
   try {
     filesJson = safeParseJson(fs.readFileSync('files.json', 'utf8'));
@@ -114,13 +122,19 @@ async function main() {
   }
   fs.writeFileSync('files.json', JSON.stringify(filesJson, null, 2));
 
-  // 5. Commit + push — message = bot: merge @username
-  run('git add .');
-  run(`git commit -m "bot: merge @${ghActor}"`);
-  run(`git push https://x-access-token:${GITHUB_TOKEN}@github.com/${BASE_REPO}.git main`);
-  console.log('✓ Pushed to main');
+  // ── Commit + push si changement
+  try {
+    run('git add .');
+    const diff = execSync('git diff --cached --exit-code', { stdio: 'pipe' });
+    // s'il y a des changements, commit et push
+    run(`git commit -m "bot: merge @${ghActor}"`);
+    run(`git push https://x-access-token:${GITHUB_TOKEN}@github.com/${BASE_REPO}.git main`);
+    console.log('✓ Pushed to main');
+  } catch(e) {
+    console.log('No changes to commit — skipped push');
+  }
 
-  // 6. Commentaire + fermeture PR
+  // ── Commentaire + fermeture PR
   try {
     const fileList = files.map(f => `- \`${f.filename}\` (${f.isUpdate ? 'updated' : 'new'})`).join('\n');
     await ghAPI(`/repos/${BASE_REPO}/issues/${PR_NUMBER}/comments`, 'POST', {
