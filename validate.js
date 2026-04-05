@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
 const MAX_FILE_SIZE  = 100 * 1024;  // 100 Ko
-const MIN_TS_GAP_SEC = 300;         // 5 min entre soumissions du même wallet
+const MIN_TS_GAP_SEC = 300;         // 5 min entre soumissions du même wallet (nouveaux fichiers seulement)
 
 function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
@@ -21,14 +21,12 @@ async function main() {
   const prContentDir = process.env.PR_CONTENT_DIR || '_pr_content';
   console.log(`PR from @${ghActor}`);
 
-  // Lit files.json depuis main
   let filesJsonMain = [];
   try {
     filesJsonMain = safeParseJson(fs.readFileSync('files.json', 'utf8'));
     console.log(`files.json on main: ${filesJsonMain.length} entry(ies)`);
   } catch(e) { console.warn('files.json not found, using []'); }
 
-  // ── Event logs ────────────────────────────────────────────────────────────
   const eventsDir = path.join(prContentDir, 'events');
   if (!fs.existsSync(eventsDir)) { console.error('No events/ directory in PR'); process.exit(1); }
 
@@ -39,7 +37,6 @@ async function main() {
 
   if (!allEvents.length) { console.error('No event logs found'); process.exit(1); }
 
-  // Un seul event par filename — le plus récent
   const eventsByFile = {};
   for (const ev of allEvents) {
     if (!eventsByFile[ev.filename] || ev.timestamp > eventsByFile[ev.filename].timestamp)
@@ -54,37 +51,53 @@ async function main() {
   const walletPubkey = presentFiles[0].wallet;
   console.log(`Wallet: ${walletPubkey}`);
 
-  // Wallets mixtes interdits
   if (presentFiles.some(ev => ev.wallet !== walletPubkey)) {
     console.error('✗ Mixed wallets in PR'); process.exit(1);
   }
 
-  // ── PROTECTION : rate limit 300s ─────────────────────────────────────────
-  const mainEvDir = 'events';
-  let lastMainTs = 0;
-  if (fs.existsSync(mainEvDir)) {
-    for (const ef of fs.readdirSync(mainEvDir).filter(f => f.endsWith('.json'))) {
-      try {
-        const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir, ef), 'utf8'));
-        if (ev.wallet === walletPubkey && ev.timestamp > lastMainTs) lastMainTs = ev.timestamp;
-      } catch(e) {}
-    }
-  }
-  if (lastMainTs > 0) {
-    const minNewTs = Math.min(...presentFiles.map(ev => ev.timestamp));
-    const gap = minNewTs - lastMainTs;
-    if (gap < MIN_TS_GAP_SEC) {
-      console.error(`✗ Rate limit: ${MIN_TS_GAP_SEC}s required between submissions, only ${gap}s elapsed`);
-      process.exit(1);
-    }
-  }
-  console.log('✓ Rate limit OK');
+  // Classifie les fichiers : nouveaux vs upgrades
+  const newFiles = presentFiles.filter(ev => {
+    const existing = filesJsonMain.find(f => f.filename === ev.filename);
+    return !existing; // pas dans files.json = nouveau
+  });
+  const upgradeFiles = presentFiles.filter(ev => {
+    const existing = filesJsonMain.find(f => f.filename === ev.filename);
+    return existing && existing.ghAuthor === ghActor; // déjà dans files.json et même propriétaire = upgrade
+  });
 
-  // ── PROTECTION : anti-replay nonces ──────────────────────────────────────
+  console.log(`New files: ${newFiles.length}, Upgrades: ${upgradeFiles.length}`);
+
+  // ── PROTECTION rate limit — seulement pour les NOUVEAUX fichiers ────────────
+  if (newFiles.length > 0) {
+    const mainEvDir = 'events';
+    let lastMainTs = 0;
+    if (fs.existsSync(mainEvDir)) {
+      for (const ef of fs.readdirSync(mainEvDir).filter(f => f.endsWith('.json'))) {
+        try {
+          const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir, ef), 'utf8'));
+          if (ev.wallet === walletPubkey && ev.timestamp > lastMainTs) lastMainTs = ev.timestamp;
+        } catch(e) {}
+      }
+    }
+    if (lastMainTs > 0) {
+      const minNewTs = Math.min.apply(null, newFiles.map(ev => ev.timestamp));
+      const gap = minNewTs - lastMainTs;
+      if (gap < MIN_TS_GAP_SEC) {
+        console.error(`✗ Rate limit (new files only): ${MIN_TS_GAP_SEC}s required, only ${gap}s elapsed`);
+        process.exit(1);
+      }
+    }
+    console.log('✓ Rate limit OK (new files)');
+  } else {
+    console.log('✓ Rate limit skipped (upgrades only)');
+  }
+
+  // ── Anti-replay nonces ────────────────────────────────────────────────────
   const knownNonces = new Set();
-  if (fs.existsSync(mainEvDir)) {
-    for (const ef of fs.readdirSync(mainEvDir).filter(f => f.endsWith('.json'))) {
-      try { const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir, ef), 'utf8')); if (ev.nonce) knownNonces.add(ev.nonce); } catch(e) {}
+  const mainEvDir2 = 'events';
+  if (fs.existsSync(mainEvDir2)) {
+    for (const ef of fs.readdirSync(mainEvDir2).filter(f => f.endsWith('.json'))) {
+      try { const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir2, ef), 'utf8')); if (ev.nonce) knownNonces.add(ev.nonce); } catch(e) {}
     }
   }
   for (const event of presentFiles) {
@@ -95,21 +108,26 @@ async function main() {
   }
   console.log('✓ Anti-replay OK');
 
-  // ── Score on-chain ────────────────────────────────────────────────────────
-  // Ownership = ghAuthor. Le wallet peut changer d'une pub à l'autre (dernier wallet utilisé).
-  const walletPubs = filesJsonMain
-    .filter(f => f.ghAuthor === ghActor)
-    .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
-  const lastPub      = walletPubs[0] || null;
-  const lastPubScore = lastPub ? (lastPub.score || 0) : 0;
-  const lastPubLaps  = lastPub ? Math.max(1, lastPub.laps || 1) : 1;
+  // ── Score on-chain — seulement pour les NOUVEAUX fichiers ─────────────────
+  let scoreCheck = null;
+  if (newFiles.length > 0) {
+    const walletPubs = filesJsonMain
+      .filter(f => f.ghAuthor === ghActor)
+      .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
+    const lastPub      = walletPubs[0] || null;
+    const lastPubScore = lastPub ? (lastPub.score || 0) : 0;
+    const lastPubLaps  = lastPub ? Math.max(1, lastPub.laps || 1) : 1;
 
-  const scoreCheck = await checkScoreEligibility(walletPubkey, lastPubScore, lastPubLaps);
-  if (!scoreCheck.eligible) {
-    console.error(`✗ Score not eligible: ${scoreCheck.reason}`);
-    process.exit(1);
+    scoreCheck = await checkScoreEligibility(walletPubkey, lastPubScore, lastPubLaps);
+    if (!scoreCheck.eligible) {
+      console.error(`✗ Score not eligible for new files: ${scoreCheck.reason}`);
+      process.exit(1);
+    }
+    console.log(`✓ Score eligible (claimable=${scoreCheck.score.toFixed(4)} YRM)`);
+  } else {
+    console.log('✓ Score check skipped (upgrades only)');
+    scoreCheck = { score: 0, currentLaps: 1, eligible: true };
   }
-  console.log(`✓ Score eligible (claimable=${scoreCheck.score.toFixed(4)} YRM)`);
 
   // ── Validation par fichier ────────────────────────────────────────────────
   const results = [];
@@ -118,14 +136,14 @@ async function main() {
     const { filename } = event;
     console.log(`\n--- ${filename} ---`);
 
-    // .sphere.js uniquement
     if (!filename.endsWith('.sphere.js')) {
       console.error(`✗ Only .sphere.js files allowed: ${filename}`);
       process.exit(1);
     }
 
-    // Ownership — ghAuthor (pas le wallet)
     const existingEntry = filesJsonMain.find(f => f.filename === filename);
+    const isUpdate = !!(existingEntry && existingEntry.ghAuthor === ghActor);
+
     if (existingEntry) {
       if (existingEntry.ghAuthor !== ghActor) {
         console.error(`✗ REFUSED: ${filename} belongs to @${existingEntry.ghAuthor}`);
@@ -136,11 +154,9 @@ async function main() {
       console.log(`→ New file`);
     }
 
-    const isUpdate = !!(existingEntry && existingEntry.ghAuthor === ghActor);
-    const filePath  = path.join(prContentDir, filename);
+    const filePath = path.join(prContentDir, filename);
     const sourceCode = fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
 
-    // Taille max 100 Ko
     const sizeBytes = Buffer.byteLength(sourceCode, 'utf8');
     if (sizeBytes > MAX_FILE_SIZE) {
       console.error(`✗ File too large: ${(sizeBytes/1024).toFixed(1)} KB (max ${MAX_FILE_SIZE/1024} KB)`);
@@ -148,7 +164,6 @@ async function main() {
     }
     console.log(`✓ Size OK (${(sizeBytes/1024).toFixed(1)} KB)`);
 
-    // Hash
     const actualHash = crypto.createHash('sha256').update(sourceCode).digest('hex');
     if (!isUpdate && actualHash !== event.content_hash) {
       console.error(`✗ Hash mismatch: expected ${event.content_hash}, got ${actualHash}`);
@@ -156,7 +171,6 @@ async function main() {
     }
     console.log('✓ Hash OK');
 
-    // Signature — sur données originales de l'event
     const message = JSON.stringify({
       action: event.action, filename: event.filename,
       content_hash: event.content_hash, nonce: event.nonce,
@@ -169,7 +183,6 @@ async function main() {
     console.log('✓ Signature OK');
     console.log(`✓ ${filename} validated (${isUpdate ? 'update' : 'new'})`);
 
-    // Données PER-FILE depuis l'event (score/laps au moment de la soumission)
     results.push({
       filename, isUpdate,
       score:     event.score     || 0,
