@@ -463,14 +463,7 @@ function renderPanel(container){
 }
 
 // ── SPHERE ─────────────────────────────────────────────────────────────────
-window.YM_S['radio.sphere.js'] = {
-  name:'Radio',
-  icon:{src:'https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=128&h=128&fit=crop'},
-  category:'Media',
-  description:'Internet radio — background playback, draggable desktop widget',
-  emit:[],
-  receive:[]
-}
+window.YM_S['radio.sphere.js']={ name:'Radio',icon:'📻',category:'Media', description:'Internet radio — background playback, draggable desktop widget', emit:[],receive:[],}
 
   activate(ctx){
     _ctx=ctx;
