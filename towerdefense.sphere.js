@@ -615,7 +615,7 @@
             const effSpd=e.spd*e.slowFactor;
             e.progress+=effSpd*dt;
             const path=e.path;
-            while(e.pathIdx<path.length-2){
+            while(e.pathIdx<path.length-1){
               const a=path[e.pathIdx],b=path[e.pathIdx+1];
               const sLen=Math.hypot(b.x-a.x,b.y-a.y);
               if(e.progress<sLen) break;
