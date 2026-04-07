@@ -1,1405 +1,746 @@
 /* jshint esversion:11, browser:true */
-// wipeout.sphere.js — Anti-Gravity Racer v6 — FULL REWRITE
-// Massively improved: tube track with guard rails, detailed ship geometry,
-// cinematic camera, bloom-like glow layers, particle engine, real physics.
+// wipeout.sphere.js — Anti-Gravity Racer v7
+// Corrections majeures :
+// 1. Orientation vaisseau par Matrix4.lookAt → quaternion (plus de rotateX foireux)
+// 2. Géométrie vaisseau nez vers +Z, camera en -Z local → cohérent
+// 3. Décor : bâtiments proceduraux, pylônes, guard-rails, grille sol
+// 4. Piste avec texture correcte et orientation right calculée en XZ
 (function () {
   'use strict';
   window.YM_S = window.YM_S || {};
 
-  const SCORES_KEY = 'ym_wipeout_scores_v6';
+  const SCORES_KEY = 'ym_wipeout_scores_v7';
   function loadScores() { try { return JSON.parse(localStorage.getItem(SCORES_KEY)||'[]'); } catch(e){return[];} }
   function saveScores(d) { localStorage.setItem(SCORES_KEY, JSON.stringify(d.slice(0,20))); }
   function fmt(ms) {
     if(!ms||ms<=0) return '--:--.---';
-    const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, ms2=ms%1000;
-    return `${m}:${String(s).padStart(2,'0')}.${String(ms2).padStart(3,'0')}`;
+    const m=Math.floor(ms/60000), s=Math.floor(ms/1000)%60, r=ms%1000;
+    return `${m}:${String(s).padStart(2,'0')}.${String(r).padStart(3,'0')}`;
   }
 
   let _ctx=null, _running=false, _raf=null, _renderer=null;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // TRACK DEFINITIONS
-  // ═══════════════════════════════════════════════════════════════════════════
   const TRACKS = {
-    venom: {
-      name:'Venom Circuit', laps:3, difficulty:'Easy',
-      primaryCol:0x00f5ff, secondaryCol:0x0055ff,
-      ctrl:(W,H)=>{
-        const R=Math.min(W,H)*.40;
-        const pts=[];
-        for(let i=0;i<12;i++){
-          const t=i/12*Math.PI*2;
-          const wobble=0.22*Math.sin(t*2.3+1.1);
-          const r=R*(0.82+wobble);
-          pts.push(new THREE.Vector3(
-            Math.cos(t)*r,
-            Math.sin(t*2)*14,
-            Math.sin(t)*r
-          ));
-        }
-        return pts;
+    venom:{
+      name:'Venom Circuit', laps:3, difficulty:'Facile', col:0x00ccff, col2:0x0044ff,
+      pts:()=>{
+        const R=160, P=[];
+        [0,30,60,90,110,140,180,210,240,270,300,330].forEach(deg=>{
+          const a=deg*Math.PI/180, w=(deg%60===30)?0.76:1.0;
+          P.push(new THREE.Vector3(Math.cos(a)*R*w, Math.sin(a*2)*8, Math.sin(a)*R*w));
+        });
+        return P;
       },
-      width:28, guardHeight:3.5, bankAngle:0.18,
-      fogColor:0x000820, fogDensity:0.006,
-      groundCol:0x000c24,
+      width:26, fog:0x000a1a, fogD:0.005,
     },
-    rapier: {
-      name:'Rapier Cross', laps:3, difficulty:'Medium',
-      primaryCol:0xaa22ff, secondaryCol:0xff2288,
-      ctrl:(W,H)=>{
-        const R=Math.min(W,H)*.36;
-        const pts=[];
-        for(let i=0;i<16;i++){
-          const t=i/16*Math.PI*2;
-          const figure8X=Math.cos(t)*R;
-          const figure8Z=Math.sin(t*2)*(R*0.65);
-          const elev=Math.sin(t*3)*18;
-          pts.push(new THREE.Vector3(figure8X, elev, figure8Z));
-        }
-        return pts;
+    rapier:{
+      name:'Rapier Cross', laps:3, difficulty:'Moyen', col:0xaa00ff, col2:0xff0066,
+      pts:()=>{
+        const P=[];
+        for(let i=0;i<18;i++){const t=i/18*Math.PI*2;P.push(new THREE.Vector3(Math.cos(t)*180,Math.sin(t*3)*16,Math.sin(t*2)*100));}
+        return P;
       },
-      width:22, guardHeight:4, bankAngle:0.28,
-      fogColor:0x0a0018, fogDensity:0.007,
-      groundCol:0x0d0022,
+      width:20, fog:0x08001a, fogD:0.006,
     },
-    phantom: {
-      name:'Phantom Storm', laps:2, difficulty:'Hard',
-      primaryCol:0xff1155, secondaryCol:0xff8800,
-      ctrl:(W,H)=>{
-        const R=Math.min(W,H)*.42;
-        const pts=[];
-        for(let i=0;i<20;i++){
-          const t=i/20*Math.PI*2;
-          const r=R*(0.45+0.55*Math.pow(Math.abs(Math.sin(t*2.5)),0.7));
-          const elev=Math.sin(t*4)*24+Math.cos(t*2)*10;
-          pts.push(new THREE.Vector3(
-            Math.cos(t)*r*1.15,
-            elev,
-            Math.sin(t)*r*0.85
-          ));
-        }
-        return pts;
+    phantom:{
+      name:'Phantom Storm', laps:2, difficulty:'Difficile', col:0xff1144, col2:0xff8800,
+      pts:()=>{
+        const P=[];
+        for(let i=0;i<20;i++){const t=i/20*Math.PI*2,r=150+70*Math.sin(t*3+.5);P.push(new THREE.Vector3(Math.cos(t)*r,Math.sin(t*4)*22+Math.cos(t*2)*10,Math.sin(t)*r*.8));}
+        return P;
       },
-      width:18, guardHeight:4.5, bankAngle:0.35,
-      fogColor:0x1a0000, fogDensity:0.009,
-      groundCol:0x150008,
+      width:17, fog:0x150005, fogD:0.008,
     },
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SHIP SPECS
-  // ═══════════════════════════════════════════════════════════════════════════
   const SHIPS = {
-    feisar: {
-      name:'FEISAR', col:0x3b82f6, accel:24, maxSpd:280, turnRate:2.8,
-      drag:0.94, grip:0.82, mass:1.0, boostMult:1.8, shield:100,
-      desc:'Balanced · Forgiving · Recommended',
-      wingSpan:3.2, bodyLength:4.2, bodyWidth:1.0,
-    },
-    auricom: {
-      name:'AURICOM', col:0xef4444, accel:30, maxSpd:320, turnRate:2.2,
-      drag:0.92, grip:0.70, mass:1.3, boostMult:2.1, shield:80,
-      desc:'Fast · Heavy · Hard to turn',
-      wingSpan:3.8, bodyLength:4.6, bodyWidth:1.15,
-    },
-    piranha: {
-      name:'PIRANHA', col:0x00ff88, accel:18, maxSpd:360, turnRate:3.8,
-      drag:0.96, grip:0.90, mass:0.7, boostMult:2.5, shield:55,
-      desc:'Extreme speed · Fragile · Expert only',
-      wingSpan:2.8, bodyLength:5.0, bodyWidth:0.8,
-    },
+    feisar:{ name:'FEISAR', col:0x2277ff, accel:22, maxSpd:28, turnRate:2.6, drag:0.94, grip:0.80, shield:100, boostMult:1.8, desc:'Équilibré · Polyvalent · Recommandé' },
+    auricom:{ name:'AURICOM', col:0xdd2222, accel:28, maxSpd:32, turnRate:2.1, drag:0.92, grip:0.68, shield:80, boostMult:2.1, desc:'Rapide · Lourd · Difficile à virer' },
+    piranha:{ name:'PIRANHA', col:0x00ee66, accel:17, maxSpd:38, turnRate:3.6, drag:0.96, grip:0.88, shield:55, boostMult:2.6, desc:'Extrême · Fragile · Expert uniquement' },
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // PANEL
-  // ═══════════════════════════════════════════════════════════════════════════
   function renderPanel(container) {
     container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden;background:#000;font-family:monospace';
     container.innerHTML='';
-    const track=document.createElement('div');
-    track.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
+    const body=document.createElement('div');
+    body.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
     const tabs=document.createElement('div');
     tabs.style.cssText='display:flex;border-top:1px solid rgba(255,255,255,.08);flex-shrink:0;background:#060608';
-    [['race','🏁 Race'],['scores','🏆 Times'],['info','📊 Specs']].forEach(([id,label],idx)=>{
+    [['race','🏁 Course'],['scores','🏆 Temps'],['info','📊 Specs']].forEach(([id,lbl],i)=>{
       const t=document.createElement('div');
-      t.style.cssText=`flex:1;padding:9px 4px;text-align:center;cursor:pointer;font-size:12px;font-weight:600;color:${idx===0?'#00f5ff':'rgba(255,255,255,.35)'}`;
-      t.textContent=label;
-      t.addEventListener('click',()=>{
-        tabs.querySelectorAll('div').forEach((x,i)=>x.style.color=i===idx?'#00f5ff':'rgba(255,255,255,.35)');
-        track.innerHTML='';
-        if(id==='race') renderMenu(track);
-        else if(id==='scores') renderLeaderboard(track);
-        else renderSpecs(track);
-      });
+      t.style.cssText=`flex:1;padding:9px 4px;text-align:center;cursor:pointer;font-size:12px;font-weight:600;color:${i===0?'#00ccff':'rgba(255,255,255,.35)'}`;
+      t.textContent=lbl;
+      t.onclick=()=>{
+        tabs.querySelectorAll('div').forEach((x,j)=>x.style.color=j===i?'#00ccff':'rgba(255,255,255,.35)');
+        body.innerHTML='';
+        if(id==='race') renderMenu(body);
+        else if(id==='scores') renderLB(body);
+        else renderSpecs(body);
+      };
       tabs.appendChild(t);
     });
-    container.appendChild(track); container.appendChild(tabs);
-    renderMenu(track);
+    container.appendChild(body); container.appendChild(tabs);
+    renderMenu(body);
   }
 
-  function renderLeaderboard(container) {
-    container.style.cssText='flex:1;overflow-y:auto;padding:14px;background:#000';
-    const scores=loadScores().sort((a,b)=>(a.time||99999999)-(b.time||99999999));
-    let html=`<div style="font-size:16px;font-weight:700;color:#00f5ff;margin-bottom:12px">🏆 Time Attack</div>`;
-    if(!scores.length){html+='<div style="color:rgba(255,255,255,.3);text-align:center;margin-top:40px">No runs yet.</div>';}
-    else scores.forEach((s,i)=>{
-      const medal=['🥇','🥈','🥉'][i]||`#${i+1}`;
-      html+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:5px;background:rgba(255,255,255,.04)">
-        <span>${medal}</span>
-        <div style="flex:1"><div style="color:#fff;font-size:12px">${s.name||'Racer'}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.3)">${s.track||'Venom'} · ${s.ship||'FEISAR'} · ${s.laps} laps</div></div>
-        <div style="color:#00f5ff;font-size:14px;font-weight:700">${fmt(s.time)}</div></div>`;
+  function renderLB(c){
+    c.style.cssText='flex:1;overflow-y:auto;padding:14px;background:#000';
+    const sc=loadScores().sort((a,b)=>a.time-b.time);
+    let h=`<div style="font-size:15px;font-weight:700;color:#00ccff;margin-bottom:12px">🏆 Meilleurs temps</div>`;
+    if(!sc.length) h+='<div style="color:rgba(255,255,255,.3);text-align:center;margin-top:40px">Aucune course.</div>';
+    else sc.forEach((s,i)=>{
+      h+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:5px;background:rgba(255,255,255,.04)">
+        <span>${['🥇','🥈','🥉'][i]||'#'+(i+1)}</span><div style="flex:1"><div style="color:#fff;font-size:12px">${s.name||'Pilote'}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.3)">${s.track} · ${s.ship}</div></div>
+        <div style="color:#00ccff;font-size:14px;font-weight:700">${fmt(s.time)}</div></div>`;
     });
-    container.innerHTML=html;
+    c.innerHTML=h;
   }
 
-  function renderSpecs(container) {
-    container.style.cssText='flex:1;overflow-y:auto;padding:14px;background:#000';
-    let html=`<div style="font-size:16px;font-weight:700;color:#00f5ff;margin-bottom:12px">📊 Ship Specs</div>`;
-    Object.entries(SHIPS).forEach(([id,s])=>{
-      const barFn=(v,mx,lbl)=>{
-        const pct=Math.round(v/mx*100);
-        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
-          <span style="font-size:9px;color:rgba(255,255,255,.35);width:50px">${lbl}</span>
-          <div style="flex:1;height:3px;background:rgba(255,255,255,.1);border-radius:2px">
-            <div style="width:${pct}%;height:100%;background:#${s.col.toString(16).padStart(6,'0')};border-radius:2px"></div></div>
-          <span style="font-size:9px;color:rgba(255,255,255,.45);width:24px;text-align:right">${pct}</span></div>`;
-      };
-      html+=`<div style="padding:10px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,.04);border-left:3px solid #${s.col.toString(16).padStart(6,'0')}">
+  function renderSpecs(c){
+    c.style.cssText='flex:1;overflow-y:auto;padding:14px;background:#000';
+    let h=`<div style="font-size:15px;font-weight:700;color:#00ccff;margin-bottom:12px">📊 Vaisseaux</div>`;
+    Object.entries(SHIPS).forEach(([,s])=>{
+      const bar=(v,mx)=>`<div style="flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px"><div style="width:${Math.round(v/mx*100)}%;height:100%;background:#${s.col.toString(16).padStart(6,'0')};border-radius:2px"></div></div>`;
+      h+=`<div style="padding:10px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,.04);border-left:3px solid #${s.col.toString(16).padStart(6,'0')}">
         <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">${s.name}</div>
         <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:8px">${s.desc}</div>
-        ${barFn(s.accel,30,'ACCEL')}
-        ${barFn(s.maxSpd,360,'TOP SPD')}
-        ${barFn(s.grip*100,100,'GRIP')}
-        ${barFn(s.shield,100,'SHIELD')}</div>`;
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:9px;color:rgba(255,255,255,.35);width:48px">ACCEL</span>${bar(s.accel,28)}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:9px;color:rgba(255,255,255,.35);width:48px">VITESSE</span>${bar(s.maxSpd,38)}</div>
+        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;color:rgba(255,255,255,.35);width:48px">GRIP</span>${bar(s.grip*100,100)}</div></div>`;
     });
-    html+=`<div style="font-size:16px;font-weight:700;color:#00f5ff;margin:14px 0 10px">🏁 Tracks</div>`;
-    Object.entries(TRACKS).forEach(([id,t])=>{
-      html+=`<div style="padding:9px 12px;border-radius:8px;margin-bottom:6px;background:rgba(255,255,255,.04);border-left:3px solid #${t.primaryCol.toString(16).padStart(6,'0')}">
-        <div style="display:flex;justify-content:space-between">
-          <span style="color:#fff;font-size:12px">${t.name}</span>
-          <span style="font-size:10px;color:rgba(255,255,255,.4)">${t.difficulty} · ${t.laps} laps</span></div></div>`;
-    });
-    container.innerHTML=html;
+    c.innerHTML=h;
   }
 
-  function renderMenu(container) {
+  function renderMenu(container){
     container.style.cssText='flex:1;overflow:hidden;position:relative;background:#000';
     stopRace();
-
-    let selectedTrack='venom', selectedShip='feisar';
-
-    const menu=document.createElement('div');
-    menu.style.cssText='position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;background:linear-gradient(180deg,#000,#020218);padding:16px 12px';
-
-    function buildMenu(){
-      menu.innerHTML=`
-        <div style="font-size:40px;font-weight:900;background:linear-gradient(135deg,#00f5ff,#7B2FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-2px;margin-bottom:2px">WIPEOUT</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.25);letter-spacing:5px;margin-bottom:16px">ANTI-GRAVITY RACING</div>
-
-        <div style="font-size:10px;color:rgba(0,245,255,.6);letter-spacing:2px;margin-bottom:8px;align-self:flex-start">TRACK</div>
-        <div style="display:flex;gap:6px;width:100%;margin-bottom:16px">
-          ${Object.entries(TRACKS).map(([id,t])=>`
-            <div data-track="${id}" style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid ${id===selectedTrack?`#${t.primaryCol.toString(16).padStart(6,'0')}`:'rgba(255,255,255,.1)'};background:${id===selectedTrack?'rgba(0,245,255,.05)':'rgba(255,255,255,.02)'};cursor:pointer;text-align:center">
-              <div style="font-size:11px;font-weight:700;color:${id===selectedTrack?'#fff':'rgba(255,255,255,.4)'}">${t.name}</div>
-              <div style="font-size:8px;color:rgba(255,255,255,.3)">${t.difficulty}</div>
-            </div>`).join('')}
+    let selTrack='venom', selShip='feisar';
+    const div=document.createElement('div');
+    div.style.cssText='position:absolute;inset:0;overflow-y:auto;display:flex;flex-direction:column;align-items:center;background:linear-gradient(180deg,#000,#020218);padding:16px 12px';
+    function build(){
+      div.innerHTML=`
+        <div style="font-size:40px;font-weight:900;background:linear-gradient(135deg,#00ccff,#7700ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-2px;margin-bottom:1px">WIPEOUT</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.2);letter-spacing:5px;margin-bottom:16px">ANTI-GRAVITY RACING</div>
+        <div style="font-size:10px;color:rgba(0,200,255,.6);letter-spacing:2px;margin-bottom:7px;align-self:flex-start">PISTE</div>
+        <div style="display:flex;gap:6px;width:100%;margin-bottom:14px">
+          ${Object.entries(TRACKS).map(([id,t])=>`<div data-track="${id}" style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid ${id===selTrack?`#${t.col.toString(16).padStart(6,'0')}`:'rgba(255,255,255,.1)'};background:${id===selTrack?'rgba(0,200,255,.06)':'rgba(255,255,255,.02)'};cursor:pointer;text-align:center">
+            <div style="font-size:11px;font-weight:700;color:${id===selTrack?'#fff':'rgba(255,255,255,.4)'}">${t.name}</div>
+            <div style="font-size:8px;color:rgba(255,255,255,.3)">${t.difficulty}</div></div>`).join('')}
         </div>
-
-        <div style="font-size:10px;color:rgba(0,245,255,.6);letter-spacing:2px;margin-bottom:8px;align-self:flex-start">SHIP</div>
+        <div style="font-size:10px;color:rgba(0,200,255,.6);letter-spacing:2px;margin-bottom:7px;align-self:flex-start">VAISSEAU</div>
         <div style="display:flex;flex-direction:column;gap:5px;width:100%;margin-bottom:16px">
-          ${Object.entries(SHIPS).map(([id,s])=>`
-            <div data-ship="${id}" style="padding:8px 12px;border-radius:8px;border:1.5px solid ${id===selectedShip?`#${s.col.toString(16).padStart(6,'0')}`:'rgba(255,255,255,.08)'};background:${id===selectedShip?'rgba(255,255,255,.05)':'transparent'};cursor:pointer;display:flex;align-items:center;gap:10px">
-              <div style="width:18px;height:18px;border-radius:50%;background:#${s.col.toString(16).padStart(6,'0')}"></div>
-              <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${id===selectedShip?'#fff':'rgba(255,255,255,.4)'}">${s.name}</div>
-              <div style="font-size:9px;color:rgba(255,255,255,.3)">${s.desc}</div></div>
-            </div>`).join('')}
+          ${Object.entries(SHIPS).map(([id,s])=>`<div data-ship="${id}" style="padding:8px 12px;border-radius:8px;border:1.5px solid ${id===selShip?`#${s.col.toString(16).padStart(6,'0')}`:'rgba(255,255,255,.08)'};cursor:pointer;display:flex;align-items:center;gap:10px">
+            <div style="width:16px;height:16px;border-radius:50%;background:#${s.col.toString(16).padStart(6,'0')}"></div>
+            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${id===selShip?'#fff':'rgba(255,255,255,.4)'}">${s.name}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.3)">${s.desc}</div></div></div>`).join('')}
         </div>
-
-        <div style="width:100%;padding:10px;background:rgba(0,245,255,.06);border:1px solid rgba(0,245,255,.2);border-radius:10px;margin-bottom:14px;font-size:9px;color:rgba(255,255,255,.4);line-height:1.9;text-align:center">
-          ← → STEER &nbsp;·&nbsp; ↑ ACCÉLÉRER &nbsp;·&nbsp; ↓ FREINER &nbsp;·&nbsp; ESPACE BOOST<br>
-          Mobile : ← ↑ → à gauche &nbsp;·&nbsp; ⚡ BOOST à droite</div>
-
-        <button id="wo-start" style="width:100%;background:linear-gradient(135deg,#00f5ff,#007fff);border:none;color:#000;font-weight:800;font-size:15px;padding:14px;border-radius:12px;cursor:pointer;letter-spacing:2px;font-family:monospace">▶  DÉMARRER</button>`;
-
-      menu.querySelectorAll('[data-track]').forEach(el=>{
-        el.addEventListener('click',()=>{selectedTrack=el.dataset.track;buildMenu();});
-      });
-      menu.querySelectorAll('[data-ship]').forEach(el=>{
-        el.addEventListener('click',()=>{selectedShip=el.dataset.ship;buildMenu();});
-      });
-      menu.querySelector('#wo-start').addEventListener('click',()=>{
-        menu.remove();startRace(container,selectedTrack,selectedShip);
-      });
+        <div style="width:100%;padding:10px;background:rgba(0,200,255,.05);border:1px solid rgba(0,200,255,.2);border-radius:10px;margin-bottom:14px;font-size:9px;color:rgba(255,255,255,.4);line-height:1.9;text-align:center">
+          ← → VIRER &nbsp;·&nbsp; ↑ ACCÉLÉRER &nbsp;·&nbsp; ↓ FREINER &nbsp;·&nbsp; ESPACE BOOST<br>Mobile : ← ↑ → à gauche · ⚡ à droite</div>
+        <button id="wo-go" style="width:100%;background:linear-gradient(135deg,#00ccff,#0055ff);border:none;color:#000;font-weight:800;font-size:15px;padding:14px;border-radius:12px;cursor:pointer;letter-spacing:2px;font-family:monospace">▶  DÉMARRER</button>`;
+      div.querySelectorAll('[data-track]').forEach(el=>el.onclick=()=>{selTrack=el.dataset.track;build();});
+      div.querySelectorAll('[data-ship]').forEach(el=>el.onclick=()=>{selShip=el.dataset.ship;build();});
+      div.querySelector('#wo-go').onclick=()=>{div.remove();startRace(container,selTrack,selShip);};
     }
-    buildMenu();
-    container.appendChild(menu);
+    build();
+    container.appendChild(div);
   }
 
-  function stopRace() {
+  function stopRace(){
     _running=false;
     if(_raf){cancelAnimationFrame(_raf);_raf=null;}
-    if(_renderer){try{_renderer.dispose();}catch(e){}  _renderer=null;}
+    if(_renderer){try{_renderer.dispose();}catch(e){} _renderer=null;}
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // MAIN RACE — completely rewritten
-  // ═══════════════════════════════════════════════════════════════════════════
-  function startRace(container, trackId, shipId) {
+  function startRace(container,trackId,shipId){
     if(!window.THREE){
       const s=document.createElement('script');
       s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      s.onload=()=>startRace(container,trackId,shipId);
-      document.head.appendChild(s); return;
+      s.onload=()=>startRace(container,trackId,shipId); document.head.appendChild(s); return;
     }
-    stopRace();
-    _running=true;
+    stopRace(); _running=true;
 
     const THREE=window.THREE;
-    const trackDef=TRACKS[trackId];
-    const shipDef=SHIPS[shipId];
-    const TOTAL_LAPS=trackDef.laps;
-    const TRACK_W=trackDef.width;
+    const T=TRACKS[trackId], SD=SHIPS[shipId];
 
-    // Canvas setup
     const canvas=document.createElement('canvas');
     canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;display:block';
     container.appendChild(canvas);
     const W=canvas.offsetWidth||360, H=canvas.offsetHeight||520;
     canvas.width=W; canvas.height=H;
 
-    // ── HUD ──────────────────────────────────────────────────────────────────
+    const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+    _renderer=renderer;
+    renderer.setSize(W,H);
+    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure=1.15;
+
+    const scene=new THREE.Scene();
+    scene.fog=new THREE.FogExp2(T.fog,T.fogD);
+    scene.background=new THREE.Color(T.fog);
+    const camera=new THREE.PerspectiveCamera(70,W/H,0.2,1200);
+
+    // HUD
     const hud=document.createElement('div');
     hud.style.cssText='position:absolute;top:0;left:0;right:0;padding:8px 12px;pointer-events:none;z-index:10;font-family:monospace';
-    hud.innerHTML=`
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div style="font-size:7px;color:rgba(0,245,255,.45);letter-spacing:3px">TOUR</div>
-          <div id="wo-lap" style="font-size:24px;font-weight:700;color:#00f5ff;line-height:1;text-shadow:0 0 20px rgba(0,245,255,.5)">0/${TOTAL_LAPS}</div>
-        </div>
-        <div style="text-align:center">
-          <div style="font-size:7px;color:rgba(0,245,255,.45);letter-spacing:3px">TEMPS</div>
-          <div id="wo-time" style="font-size:24px;font-weight:700;color:#00f5ff;line-height:1;text-shadow:0 0 20px rgba(0,245,255,.5)">0:00.000</div>
-          <div id="wo-best" style="font-size:10px;color:rgba(0,245,255,.4)">Meilleur: --:--.---</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:7px;color:rgba(0,245,255,.45);letter-spacing:3px">TOUR</div>
-          <div id="wo-laptime" style="font-size:13px;color:rgba(0,245,255,.6);line-height:1.3">--:--.---</div>
-          <div id="wo-track" style="font-size:8px;color:rgba(255,255,255,.25)">${trackDef.name}</div>
-        </div>
-      </div>`;
+    hud.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div><div style="font-size:7px;color:rgba(0,200,255,.45);letter-spacing:3px">TOUR</div>
+        <div id="wo-lap" style="font-size:24px;font-weight:700;color:#00ccff;line-height:1">0/${T.laps}</div></div>
+      <div style="text-align:center"><div style="font-size:7px;color:rgba(0,200,255,.45);letter-spacing:3px">TEMPS</div>
+        <div id="wo-time" style="font-size:24px;font-weight:700;color:#00ccff;line-height:1">0:00.000</div>
+        <div id="wo-best" style="font-size:10px;color:rgba(0,200,255,.4)">Meilleur: --:--.---</div></div>
+      <div style="text-align:right"><div style="font-size:7px;color:rgba(0,200,255,.45);letter-spacing:3px">TOUR</div>
+        <div id="wo-laptime" style="font-size:13px;color:rgba(0,200,255,.6)">--:--.---</div>
+        <div style="font-size:8px;color:rgba(255,255,255,.2)">${T.name}</div></div></div>`;
     container.appendChild(hud);
 
-    // Speed / boost / shield bars
     const speedo=document.createElement('div');
-    speedo.style.cssText='position:absolute;bottom:100px;left:12px;right:12px;pointer-events:none;z-index:10;font-family:monospace';
+    speedo.style.cssText='position:absolute;bottom:92px;left:12px;right:12px;pointer-events:none;z-index:10;font-family:monospace';
     speedo.innerHTML=`
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-        <span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">KM/H</span>
-        <div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
-          <div id="wo-spd-bar" style="height:100%;background:linear-gradient(90deg,#00f5ff,#0af);border-radius:3px;width:0%;transition:width .04s"></div></div>
-        <span id="wo-spd-val" style="font-size:12px;color:#00f5ff;width:38px;text-align:right;font-weight:700">0</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-        <span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">BOOST</span>
-        <div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
-          <div id="wo-bst-bar" style="height:100%;background:linear-gradient(90deg,#7B2FFF,#c026d3);border-radius:3px;width:80%"></div></div>
-        <span id="wo-bst-val" style="font-size:12px;color:#a78bfa;width:38px;text-align:right">80</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">SHLD</span>
-        <div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden">
-          <div id="wo-shld-bar" style="height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:3px;width:100%;transition:width .15s"></div></div>
-        <span id="wo-shld-val" style="font-size:12px;color:#34d399;width:38px;text-align:right">100</span>
-      </div>`;
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">KM/H</span>
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="sb" style="height:100%;background:linear-gradient(90deg,#00ccff,#0af);border-radius:3px;width:0%"></div></div>
+        <span id="sv" style="font-size:12px;color:#00ccff;width:36px;text-align:right;font-weight:700">0</span></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">BOOST</span>
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="bb" style="height:100%;background:linear-gradient(90deg,#7700ff,#cc00ff);border-radius:3px;width:80%"></div></div>
+        <span id="bv" style="font-size:12px;color:#aa88ff;width:36px;text-align:right">80</span></div>
+      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">SHLD</span>
+        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="shb" style="height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:3px;width:100%"></div></div>
+        <span id="shv" style="font-size:12px;color:#34d399;width:36px;text-align:right">100</span></div>`;
     container.appendChild(speedo);
 
-    // Countdown / message overlay
-    const msgDiv=document.createElement('div');
-    msgDiv.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:25';
-    const msgTxt=document.createElement('div');
-    msgTxt.style.cssText='font-size:60px;font-weight:900;font-family:monospace;color:#00f5ff;text-shadow:0 0 40px rgba(0,245,255,.8);opacity:0;transition:opacity .15s;letter-spacing:-3px';
-    msgDiv.appendChild(msgTxt); container.appendChild(msgDiv);
+    const cntDiv=document.createElement('div');
+    cntDiv.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:25';
+    const cntTxt=document.createElement('div');
+    cntTxt.style.cssText='font-size:80px;font-weight:900;font-family:monospace;color:#00ccff;opacity:0;transition:opacity .1s';
+    cntDiv.appendChild(cntTxt); container.appendChild(cntDiv);
 
-    // Damage flash
     const dmgFlash=document.createElement('div');
-    dmgFlash.style.cssText='position:absolute;inset:0;background:rgba(255,0,0,0);pointer-events:none;z-index:20;transition:background .08s';
+    dmgFlash.style.cssText='position:absolute;inset:0;background:rgba(255,0,0,0);pointer-events:none;z-index:20;transition:background .1s';
     container.appendChild(dmgFlash);
 
-    // Boost flash
-    const boostFlash=document.createElement('div');
-    boostFlash.style.cssText='position:absolute;inset:0;background:rgba(120,50,255,0);pointer-events:none;z-index:20;transition:background .06s';
-    container.appendChild(boostFlash);
-
-    // ── CONTROLS ──────────────────────────────────────────────────────────────
     const ctrlDiv=document.createElement('div');
-    ctrlDiv.style.cssText='position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 10px;z-index:10;gap:6px';
-
-    const leftCluster=document.createElement('div');
-    leftCluster.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;width:140px';
-    leftCluster.innerHTML=`
-      <div></div>
-      <button id="wo-up" style="height:38px;background:rgba(0,245,255,.1);border:1px solid rgba(0,245,255,.3);color:#00f5ff;border-radius:8px;cursor:pointer;font-size:16px">↑</button>
-      <div></div>
-      <button id="wo-left" style="height:38px;background:rgba(0,245,255,.08);border:1px solid rgba(0,245,255,.2);color:#00f5ff;border-radius:8px;cursor:pointer;font-size:16px">←</button>
-      <button id="wo-down" style="height:38px;background:rgba(255,100,100,.08);border:1px solid rgba(255,100,100,.2);color:#ff6464;border-radius:8px;cursor:pointer;font-size:16px">↓</button>
-      <button id="wo-right" style="height:38px;background:rgba(0,245,255,.08);border:1px solid rgba(0,245,255,.2);color:#00f5ff;border-radius:8px;cursor:pointer;font-size:16px">→</button>`;
-    ctrlDiv.appendChild(leftCluster);
-
-    const boostBtn=document.createElement('button');
-    boostBtn.id='wo-boost';
-    boostBtn.style.cssText='width:82px;height:82px;background:rgba(123,47,255,.18);border:2px solid rgba(123,47,255,.55);color:#c4b5fd;font-size:26px;border-radius:50%;cursor:pointer;font-family:monospace;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px';
-    boostBtn.innerHTML='⚡<span style="font-size:9px;letter-spacing:1px">BOOST</span>';
-    ctrlDiv.appendChild(boostBtn);
+    ctrlDiv.style.cssText='position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 10px;z-index:10';
+    const L=document.createElement('div');
+    L.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;width:140px';
+    L.innerHTML=`<div></div><button id="wu" style="height:36px;background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.25);color:#00ccff;border-radius:8px;cursor:pointer;font-size:15px">↑</button><div></div>
+      <button id="wl" style="height:36px;background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.2);color:#00ccff;border-radius:8px;cursor:pointer;font-size:15px">←</button>
+      <button id="wd" style="height:36px;background:rgba(255,100,100,.08);border:1px solid rgba(255,100,100,.2);color:#ff6464;border-radius:8px;cursor:pointer;font-size:15px">↓</button>
+      <button id="wr" style="height:36px;background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.2);color:#00ccff;border-radius:8px;cursor:pointer;font-size:15px">→</button>`;
+    ctrlDiv.appendChild(L);
+    const bstBtn=document.createElement('button');
+    bstBtn.id='wbs';
+    bstBtn.style.cssText='width:80px;height:80px;background:rgba(100,0,255,.18);border:2px solid rgba(100,0,255,.5);color:#bb99ff;font-size:24px;border-radius:50%;cursor:pointer;font-family:monospace;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px';
+    bstBtn.innerHTML='⚡<span style="font-size:9px;letter-spacing:1px">BOOST</span>';
+    ctrlDiv.appendChild(bstBtn);
     container.appendChild(ctrlDiv);
 
-    // Finish overlay
     const finDiv=document.createElement('div');
     finDiv.style.cssText='position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.92);z-index:30';
     container.appendChild(finDiv);
 
-    // ── THREE.JS ─────────────────────────────────────────────────────────────
-    const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
-    _renderer=renderer;
-    renderer.setSize(W,H);
-    renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-    renderer.shadowMap.enabled=false;
-    renderer.toneMapping=THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure=1.2;
-
-    const scene=new THREE.Scene();
-    scene.fog=new THREE.FogExp2(trackDef.fogColor, trackDef.fogDensity);
-    scene.background=new THREE.Color(trackDef.fogColor);
-
-    const camera=new THREE.PerspectiveCamera(72,W/H,0.1,1400);
-
-    // ── SKYBOX / ENVIRONMENT ──────────────────────────────────────────────────
-    // Stars — multiple layers
-    for(let layer=0;layer<3;layer++){
-      const count=3000+layer*2000;
-      const sv=new Float32Array(count*3);
-      for(let i=0;i<count*3;i+=3){
-        const r=400+layer*200;
-        sv[i]=(Math.random()-.5)*r*2;
-        sv[i+1]=(Math.random()-.5)*r;
-        sv[i+2]=(Math.random()-.5)*r*2;
-      }
-      const sg=new THREE.BufferGeometry();
-      sg.setAttribute('position',new THREE.BufferAttribute(sv,3));
-      const sz=[1.2,0.7,0.4][layer];
-      scene.add(new THREE.Points(sg,new THREE.PointsMaterial({
-        color:[0xffffff,0xaad4ff,0xffeecc][layer],
-        size:sz,transparent:true,opacity:[0.9,0.6,0.4][layer]
-      })));
+    // ── SCÈNE ───────────────────────────────────────────
+    // Étoiles
+    {
+      const sv=new Float32Array(14000);
+      for(let i=0;i<14000;i+=3){const r=400+Math.random()*500,th=Math.random()*Math.PI*2,ph=Math.random()*Math.PI;sv[i]=Math.sin(ph)*Math.cos(th)*r;sv[i+1]=Math.cos(ph)*r*.5+80;sv[i+2]=Math.sin(ph)*Math.sin(th)*r;}
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(sv,3));
+      scene.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:.8,transparent:true,opacity:.85})));
     }
 
-    // Nebula planes (coloured fog panels far away)
-    const nebulaData=[
-      {col:0x001133,x:-300,y:50,z:-200,rx:0.2,ry:0.4},
-      {col:0x110022,x:200,y:-30,z:-350,rx:-0.1,ry:-0.3},
-      {col:0x220011,x:-100,y:80,z:300,rx:0.15,ry:0.6},
-    ];
-    nebulaData.forEach(nd=>{
-      const ng=new THREE.Mesh(
-        new THREE.PlaneGeometry(400,200),
-        new THREE.MeshBasicMaterial({color:nd.col,transparent:true,opacity:0.18,side:THREE.DoubleSide,depthWrite:false})
-      );
-      ng.position.set(nd.x,nd.y,nd.z);
-      ng.rotation.set(nd.rx,nd.ry,0);
-      scene.add(ng);
-    });
+    // Sol
+    const gndGeo=new THREE.PlaneGeometry(2000,2000,60,60);
+    const gndMat=new THREE.MeshLambertMaterial({color:T.fog===0x000a1a?0x001428:T.fog===0x08001a?0x0a0015:0x120008});
+    const gnd=new THREE.Mesh(gndGeo,gndMat);
+    gnd.rotation.x=-Math.PI/2; gnd.position.y=-8;
+    scene.add(gnd);
+    const grid=new THREE.GridHelper(800,40,T.col,T.col);
+    grid.material.transparent=true; grid.material.opacity=0.055; grid.position.y=-7.5;
+    scene.add(grid);
 
-    // ── TRACK GENERATION ──────────────────────────────────────────────────────
-    const rawCtrl=trackDef.ctrl(W,H);
-    const N_STEPS=600;
-    const trackCurve=new THREE.CatmullRomCurve3(rawCtrl,true,'catmullrom',0.5);
-    const frenetFrames=trackCurve.computeFrenetFrames(N_STEPS,true);
+    // ── PISTE ───────────────────────────────────────────
+    const curvePts=T.pts();
+    const curve=new THREE.CatmullRomCurve3(curvePts,true,'catmullrom',0.5);
+    const N=400;
+    const frames=curve.computeFrenetFrames(N,true);
+    const TW=T.width;
 
-    // Track surface with proper banking
-    const tPos=[], tNorm=[], tUV=[], tIdx=[];
-    for(let i=0;i<=N_STEPS;i++){
-      const pt=new THREE.Vector3(); trackCurve.getPointAt(i/N_STEPS,pt);
-      const ti=i%N_STEPS;
-      const tangent=frenetFrames.tangents[ti];
-      const normal=frenetFrames.normals[ti];
-      const binormal=frenetFrames.binormals[ti];
-
-      const bankAmt=trackDef.bankAngle;
-      const up=new THREE.Vector3(0,1,0).lerp(normal,bankAmt).normalize();
-      const right=new THREE.Vector3().crossVectors(tangent,up).normalize();
-
-      const hw=TRACK_W/2;
-      const L=pt.clone().addScaledVector(right,-hw);
-      const R=pt.clone().addScaledVector(right, hw);
-      tPos.push(L.x,L.y,L.z,R.x,R.y,R.z);
-      tNorm.push(up.x,up.y,up.z,up.x,up.y,up.z);
-      const u=i/N_STEPS;
-      tUV.push(u*50,0,u*50,1);
-      if(i<N_STEPS){const b=i*2;tIdx.push(b,b+1,b+2,b+1,b+3,b+2);}
+    // Calcul du vecteur droit en plan XZ (pas de banking)
+    function trackRight(fn){
+      const tang=frames.tangents[fn%N];
+      // right = cross(tang, worldUp), projeté en XZ
+      const r=new THREE.Vector3(-tang.z,0,tang.x).normalize();
+      if(r.lengthSq()<0.001) r.set(1,0,0);
+      return r;
     }
-    const last=N_STEPS*2;tIdx.push(last,last+1,0,last+1,1,0);
 
-    const tGeo=new THREE.BufferGeometry();
-    tGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(tPos),3));
-    tGeo.setAttribute('normal',new THREE.BufferAttribute(new Float32Array(tNorm),3));
-    tGeo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(tUV),2));
-    tGeo.setIndex(tIdx);
+    // Surface
+    const sPos=[], sUV=[], sIdx=[];
+    for(let i=0;i<=N;i++){
+      const pt=new THREE.Vector3(); curve.getPointAt(i/N,pt);
+      const r=trackRight(i);
+      sPos.push(pt.x-r.x*TW/2, pt.y, pt.z-r.z*TW/2, pt.x+r.x*TW/2, pt.y, pt.z+r.z*TW/2);
+      sUV.push(i/N*40,0, i/N*40,1);
+      if(i<N){const b=i*2;sIdx.push(b,b+1,b+2,b+1,b+3,b+2);}
+    }
+    const lv=N*2; sIdx.push(lv,lv+1,0,lv+1,1,0);
+    const sGeo=new THREE.BufferGeometry();
+    sGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(sPos),3));
+    sGeo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(sUV),2));
+    sGeo.setIndex(sIdx); sGeo.computeVertexNormals();
 
-    // Track texture — procedural with lane markers and glow strips
-    const TS=512;
-    const TD=new Uint8Array(TS*TS*4);
-    const pc=trackDef.primaryCol;
-    const pr=(pc>>16)&255,pg=(pc>>8)&255,pb=pc&255;
-    const sc_=trackDef.secondaryCol;
-    const sr=(sc_>>16)&255,sg_=(sc_>>8)&255,sb=sc_&255;
-
+    // Texture piste
+    const TS=512, TD=new Uint8Array(TS*TS*4);
+    const cr=(T.col>>16)&255,cg=(T.col>>8)&255,cb=T.col&255;
+    const cr2=(T.col2>>16)&255,cg2=(T.col2>>8)&255,cb2=T.col2&255;
     for(let y=0;y<TS;y++) for(let x=0;x<TS;x++){
-      const i4=(y*TS+x)*4;
-      const lane=x/TS;
-      const uv=y/TS;
-
-      // Center divider line
-      const isCtr=Math.abs(lane-.5)<.008;
-      // Edge glow strips
-      const isLeftGlow=lane<0.06;
-      const isRightGlow=lane>0.94;
-      // Lane dashes
-      const dashCycle=((uv*40)%1);
-      const isLaneMark=Math.abs(lane-.33)<.008&&dashCycle<0.5;
-      const isLaneMark2=Math.abs(lane-.67)<.008&&dashCycle<0.5;
-      // Subtle grid
-      const gridU=(y%32)/32, gridV=(x%32)/32;
-      const grid=Math.max(0,(1-Math.min(gridU,1-gridU,gridV,1-gridV)*10)*.015);
-
-      let r=8+grid*80, g=10+grid*80, b=16+grid*80;
-
-      if(isLeftGlow||isRightGlow){
-        const side=isLeftGlow?1-lane/0.06:(lane-0.94)/0.06;
-        r=Math.round(pr*side*.6); g=Math.round(pg*side*.6); b=Math.round(pb*side*.6);
-      }
-      if(isCtr){ r=Math.round(sr*.7); g=Math.round(sg_*.7); b=Math.round(sb*.7); }
-      if(isLaneMark||isLaneMark2){ r=Math.max(r,Math.round(pr*.25)); g=Math.max(g,Math.round(pg*.25)); b=Math.max(b,Math.round(pb*.25)); }
-
-      TD[i4]=r; TD[i4+1]=g; TD[i4+2]=b; TD[i4+3]=255;
+      const i4=(y*TS+x)*4, u=x/TS;
+      const eL=Math.max(0,1-u/0.05), eR=Math.max(0,1-(1-u)/0.05), edge=Math.max(eL,eR);
+      const ctr=Math.max(0,1-Math.abs(u-0.5)/0.012);
+      const lane=(Math.abs(u-.33)<.010||Math.abs(u-.67)<.010)&&((y/TS*50)%1)<.5;
+      let r=6,g=8,b=14;
+      if(edge>.01){r=Math.round(cr*edge*.55+r*(1-edge*.55));g=Math.round(cg*edge*.55+g*(1-edge*.55));b=Math.round(cb*edge*.55+b*(1-edge*.55));}
+      if(ctr>.1){r=Math.round(cr2*.5);g=Math.round(cg2*.5);b=Math.round(cb2*.5);}
+      if(lane){r=Math.max(r,Math.round(cr*.2));g=Math.max(g,Math.round(cg*.2));b=Math.max(b,Math.round(cb*.2));}
+      TD[i4]=r;TD[i4+1]=g;TD[i4+2]=b;TD[i4+3]=255;
     }
     const trackTex=new THREE.DataTexture(TD,TS,TS,THREE.RGBAFormat);
-    trackTex.wrapS=trackTex.wrapT=THREE.RepeatWrapping;
-    trackTex.needsUpdate=true;
+    trackTex.wrapS=trackTex.wrapT=THREE.RepeatWrapping; trackTex.needsUpdate=true;
+    scene.add(new THREE.Mesh(sGeo,new THREE.MeshStandardMaterial({map:trackTex,roughness:.15,metalness:.9,side:THREE.DoubleSide})));
 
-    const trackMesh=new THREE.Mesh(tGeo,new THREE.MeshStandardMaterial({
-      map:trackTex, roughness:0.18, metalness:0.85, side:THREE.DoubleSide,
-      envMapIntensity:1.2,
-    }));
-    scene.add(trackMesh);
-
-    // ── GUARD RAILS — both sides ──────────────────────────────────────────────
-    const GH=trackDef.guardHeight;
-    const guardColors=[[trackDef.primaryCol,0],[trackDef.secondaryCol,1]];
-    const railGroups=[];
-
-    guardColors.forEach(([col,sideIdx])=>{
-      const side=sideIdx===0?-1:1;
-      const railPts1=[],railPts2=[],railPts3=[];
-      for(let i=0;i<=N_STEPS;i++){
-        const pt=new THREE.Vector3(); trackCurve.getPointAt(i/N_STEPS,pt);
-        const ti=i%N_STEPS;
-        const tangent=frenetFrames.tangents[ti];
-        const normal=frenetFrames.normals[ti];
-        const bankAmt=trackDef.bankAngle;
-        const up=new THREE.Vector3(0,1,0).lerp(normal,bankAmt).normalize();
-        const right=new THREE.Vector3().crossVectors(tangent,up).normalize();
-        const hw=TRACK_W/2+0.3;
-        const base=pt.clone().addScaledVector(right,side*hw);
-        railPts1.push(base.clone().addScaledVector(up, 0.1));
-        railPts2.push(base.clone().addScaledVector(up, GH*0.5));
-        railPts3.push(base.clone().addScaledVector(up, GH));
+    // Guard rails
+    const buildRail=(side)=>{
+      const lo=[], hi=[];
+      for(let i=0;i<=N;i++){
+        const pt=new THREE.Vector3(); curve.getPointAt(i/N,pt);
+        const r=trackRight(i);
+        lo.push(pt.clone().add(new THREE.Vector3(r.x*side*(TW/2+.3), .3, r.z*side*(TW/2+.3))));
+        hi.push(pt.clone().add(new THREE.Vector3(r.x*side*(TW/2+.3), 3.2, r.z*side*(TW/2+.3))));
       }
-
-      // Rail tubes as thick lines
-      [[railPts1,1.5,0.9],[railPts2,0.8,0.5],[railPts3,2.5,1.0]].forEach(([pts,thick,opacity])=>{
-        const geo=new THREE.BufferGeometry().setFromPoints(pts);
-        const mat=new THREE.LineBasicMaterial({color:col,linewidth:thick,transparent:true,opacity});
-        scene.add(new THREE.Line(geo,mat));
-      });
-
-      // Vertical struts every ~N steps
-      const strutGrp=new THREE.Group();
-      for(let i=0;i<N_STEPS;i+=Math.floor(N_STEPS/40)){
-        const a=railPts1[i],b=railPts3[i];
-        if(!a||!b) continue;
-        const geo=new THREE.BufferGeometry().setFromPoints([a,b]);
-        const mat=new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.35});
-        strutGrp.add(new THREE.Line(geo,mat));
+      const col=side<0?T.col:T.col2;
+      scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(lo),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.9})));
+      scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(hi),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.7})));
+      for(let i=0;i<N;i+=10){
+        scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([lo[i],hi[i]]),
+          new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.35})));
       }
-      scene.add(strutGrp);
-      railGroups.push({col,railPts3});
-
-      // Glow top rail — slightly bigger, more transparent
-      const glowGeo=new THREE.BufferGeometry().setFromPoints(railPts3);
-      scene.add(new THREE.Line(glowGeo,new THREE.LineBasicMaterial({
-        color:col, transparent:true, opacity:0.2,
-      })));
-    });
-
-    // ── GROUND PLANE ─────────────────────────────────────────────────────────
-    const groundGeo=new THREE.PlaneGeometry(2000,2000,40,40);
-    const groundMat=new THREE.MeshStandardMaterial({
-      color:trackDef.groundCol, roughness:0.9, metalness:0.3,
-      wireframe:false,
-    });
-    const ground=new THREE.Mesh(groundGeo,groundMat);
-    ground.rotation.x=-Math.PI/2;
-    ground.position.y=-10;
-    scene.add(ground);
-
-    // Ground grid lines
-    const gridGeo=new THREE.PlaneGeometry(1200,1200,30,30);
-    const gridMat=new THREE.MeshBasicMaterial({color:trackDef.primaryCol,wireframe:true,transparent:true,opacity:0.04});
-    const gridMesh=new THREE.Mesh(gridGeo,gridMat);
-    gridMesh.rotation.x=-Math.PI/2;
-    gridMesh.position.y=-9.8;
-    scene.add(gridMesh);
-
-    // ── BOOST PADS ────────────────────────────────────────────────────────────
-    const N_PADS=8;
-    const padMeshes=[];
-    for(let i=0;i<N_PADS;i++){
-      const t=(i+0.5)/N_PADS;
-      const pt=new THREE.Vector3(); trackCurve.getPointAt(t,pt);
-      const ti=Math.floor(t*N_STEPS);
-      const tangent=frenetFrames.tangents[ti%N_STEPS];
-      const normal=frenetFrames.normals[ti%N_STEPS];
-      const up=new THREE.Vector3(0,1,0).lerp(normal,trackDef.bankAngle).normalize();
-      const right=new THREE.Vector3().crossVectors(tangent,up).normalize();
-
-      const padGrp=new THREE.Group();
-
-      // Main pad surface
-      const padGeo=new THREE.BoxGeometry(TRACK_W-8,0.15,4);
-      const padMat=new THREE.MeshStandardMaterial({
-        color:0x2200aa, emissive:0x1100aa, emissiveIntensity:0.5,
-        roughness:0.05, metalness:0.98, transparent:true, opacity:0.9,
-      });
-      padGrp.add(new THREE.Mesh(padGeo,padMat));
-
-      // Pad arrow markers
-      for(let a=0;a<3;a++){
-        const arrowGeo=new THREE.BufferGeometry();
-        const aw=2.5;
-        const verts=new Float32Array([
-          0,0.1,-aw*0.7, -aw*0.4,0.1,aw*0.3, aw*0.4,0.1,aw*0.3
-        ]);
-        arrowGeo.setAttribute('position',new THREE.BufferAttribute(verts,3));
-        const arrowMat=new THREE.MeshBasicMaterial({color:0x6600ff,side:THREE.DoubleSide});
-        const arrow=new THREE.Mesh(arrowGeo,arrowMat);
-        arrow.position.z=(a-1)*1.2;
-        padGrp.add(arrow);
-      }
-
-      padGrp.position.copy(pt).add(new THREE.Vector3(0,0.2,0));
-      // Orient along track
-      const lookAt=pt.clone().add(tangent);
-      padGrp.lookAt(lookAt);
-      padGrp.userData.t=t;
-      padGrp.userData.pt=pt.clone();
-      scene.add(padGrp);
-      padMeshes.push(padGrp);
-
-      // Pad point light
-      const pl=new THREE.PointLight(0x6600ff,4,15);
-      pl.position.copy(pt).add(new THREE.Vector3(0,1,0));
-      scene.add(pl);
-      padGrp.userData.light=pl;
-    }
-
-    // ── CHECKPOINT GATES ──────────────────────────────────────────────────────
-    const GATE_COUNT=4;
-    const gates=[];
-    for(let i=0;i<GATE_COUNT;i++){
-      const t=(i+.5)/GATE_COUNT;
-      const pt=new THREE.Vector3(); trackCurve.getPointAt(t,pt);
-      const ti=Math.floor(t*N_STEPS);
-      const tangent=frenetFrames.tangents[ti%N_STEPS];
-      const normal=frenetFrames.normals[ti%N_STEPS];
-      const up=new THREE.Vector3(0,1,0).lerp(normal,trackDef.bankAngle).normalize();
-      const right=new THREE.Vector3().crossVectors(tangent,up).normalize();
-
-      const gateGrp=new THREE.Group();
-      const hw=TRACK_W/2+2;
-      const gh=GH+2;
-
-      // Gate arch
-      [-1,1].forEach(s=>{
-        const post=new THREE.Mesh(
-          new THREE.CylinderGeometry(0.2,0.25,gh,8),
-          new THREE.MeshStandardMaterial({color:0x0a0018,metalness:0.95,roughness:0.05})
-        );
-        post.position.copy(pt).addScaledVector(right,s*hw);
-        post.position.y+=gh/2;
-        scene.add(post);
-
-        // Top ball
-        const ball=new THREE.Mesh(
-          new THREE.SphereGeometry(0.4,8,8),
-          new THREE.MeshBasicMaterial({color:trackDef.primaryCol})
-        );
-        ball.position.copy(post.position);
-        ball.position.y=post.position.y+gh/2+0.4;
-        scene.add(ball);
-
-        const pl=new THREE.PointLight(trackDef.primaryCol,6,20);
-        pl.position.copy(ball.position);
-        scene.add(pl);
-      });
-
-      // Horizontal bar
-      const bar=new THREE.Mesh(
-        new THREE.BoxGeometry(hw*2+0.5,0.2,0.4),
-        new THREE.MeshStandardMaterial({color:trackDef.primaryCol,emissive:new THREE.Color(trackDef.primaryCol).multiplyScalar(0.3),metalness:0.8})
-      );
-      bar.position.copy(pt);
-      bar.position.y+=gh+0.1;
-      scene.add(bar);
-
-      gates.push({t,pos:pt.clone()});
-    }
-
-    // ── SHIP ASSEMBLY — detailed geometry ─────────────────────────────────────
-    const shipGroup=new THREE.Group();
-    const sCol=new THREE.Color(shipDef.col);
-    const WS=shipDef.wingSpan, BL=shipDef.bodyLength, BW=shipDef.bodyWidth;
-
-    // Materials
-    const darkMat=new THREE.MeshStandardMaterial({color:0x000d20,metalness:0.98,roughness:0.04});
-    const shipMat=new THREE.MeshStandardMaterial({color:sCol,emissive:sCol.clone().multiplyScalar(0.08),metalness:0.95,roughness:0.06});
-    const accentMat=new THREE.MeshStandardMaterial({color:0xffffff,metalness:0.6,roughness:0.3});
-    const glassMat=new THREE.MeshStandardMaterial({color:0x44aaff,emissive:0x001133,transparent:true,opacity:0.55,roughness:0,metalness:0.1});
-    const engineGlowMat=new THREE.MeshBasicMaterial({color:0x00f5ff,transparent:true,opacity:0.9});
-    const engineGlowMatBoost=new THREE.MeshBasicMaterial({color:0xaa44ff,transparent:true,opacity:0.9});
-
-    // Main body — elongated shape using multiple pieces
-    // Fuselage bottom
-    const fuseGeo=new THREE.CylinderGeometry(BW*0.35,BW*0.2,BL,8,1);
-    fuseGeo.rotateX(Math.PI/2);
-    const fuse=new THREE.Mesh(fuseGeo,darkMat);
-    fuse.position.set(0,0,0);
-    shipGroup.add(fuse);
-
-    // Fuselage top fairing (flatter)
-    const fairingGeo=new THREE.CylinderGeometry(BW*0.5,BW*0.25,BL*0.7,8,1);
-    fairingGeo.rotateX(Math.PI/2);
-    const fairing=new THREE.Mesh(fairingGeo,darkMat);
-    fairing.position.set(0,BW*0.15,BL*0.05);
-    fairing.scale.y=0.4;
-    shipGroup.add(fairing);
-
-    // Hull plate top — flat colored panel
-    const hullGeo=new THREE.BoxGeometry(BW*1.4,BW*0.12,BL*0.85);
-    const hull=new THREE.Mesh(hullGeo,shipMat);
-    hull.position.set(0,BW*0.22,0);
-    shipGroup.add(hull);
-
-    // Hull side accent strips
-    [-1,1].forEach(s=>{
-      const stripGeo=new THREE.BoxGeometry(BW*0.08,BW*0.08,BL*0.7);
-      const strip=new THREE.Mesh(stripGeo,shipMat);
-      strip.position.set(s*BW*0.65,BW*0.15,0);
-      shipGroup.add(strip);
-    });
-
-    // Nose cone
-    const noseGeo=new THREE.ConeGeometry(BW*0.3,BL*0.38,8);
-    noseGeo.rotateX(-Math.PI/2);
-    const nose=new THREE.Mesh(noseGeo,darkMat);
-    nose.position.set(0,0,BL*0.69);
-    shipGroup.add(nose);
-
-    // Nose tip colored
-    const noseTipGeo=new THREE.ConeGeometry(BW*0.12,BL*0.1,8);
-    noseTipGeo.rotateX(-Math.PI/2);
-    const noseTip=new THREE.Mesh(noseTipGeo,shipMat);
-    noseTip.position.set(0,0,BL*0.88);
-    shipGroup.add(noseTip);
-
-    // Wings — swept delta shape
-    [-1,1].forEach(s=>{
-      // Main wing
-      const wv=new Float32Array([
-        0,    0,    BL*0.35,
-        s*WS, -BW*0.05, -BL*0.15,
-        s*WS*0.6, -BW*0.02, -BL*0.42,
-        0,    0,    -BL*0.42,
-        // duplicated for back face
-        0,    0,    BL*0.35,
-        s*WS*0.6, -BW*0.02, -BL*0.42,
-        s*WS, -BW*0.05, -BL*0.15,
-      ]);
-      const wGeo=new THREE.BufferGeometry();
-      wGeo.setAttribute('position',new THREE.BufferAttribute(wv,3));
-      wGeo.setIndex([0,1,2, 2,3,0, 4,6,5]);
-      wGeo.computeVertexNormals();
-      const wing=new THREE.Mesh(wGeo,darkMat);
-      shipGroup.add(wing);
-
-      // Wing top colored panel
-      const wpv=new Float32Array([
-        0,    BW*0.04, BL*0.28,
-        s*WS*0.88, BW*0.01, -BL*0.05,
-        s*WS*0.45, BW*0.02, -BL*0.32,
-        0,    BW*0.03, -BL*0.32,
-      ]);
-      const wpGeo=new THREE.BufferGeometry();
-      wpGeo.setAttribute('position',new THREE.BufferAttribute(wpv,3));
-      wpGeo.setIndex([0,1,2, 2,3,0]);
-      wpGeo.computeVertexNormals();
-      const wingPanel=new THREE.Mesh(wpGeo,shipMat);
-      shipGroup.add(wingPanel);
-
-      // Wing tip pod
-      const wtGeo=new THREE.CylinderGeometry(0.14,0.2,1.4,6);
-      wtGeo.rotateX(Math.PI/2);
-      const wt=new THREE.Mesh(wtGeo,shipMat);
-      wt.position.set(s*WS*0.92,-BW*0.05,-BL*0.1);
-      shipGroup.add(wt);
-
-      // Wingtip light
-      const wtLight=new THREE.PointLight(shipDef.col,3,8);
-      wtLight.position.set(s*WS*0.92,0,-BL*0.1);
-      shipGroup.add(wtLight);
-    });
-
-    // Cockpit bubble
-    const cockpitGeo=new THREE.SphereGeometry(BW*0.42,12,8);
-    cockpitGeo.scale(1.15,0.52,1.3);
-    const cockpit=new THREE.Mesh(cockpitGeo,glassMat);
-    cockpit.position.set(0,BW*0.38,BL*0.25);
-    shipGroup.add(cockpit);
-
-    // Cockpit frame ring
-    const cfGeo=new THREE.TorusGeometry(BW*0.44,0.04,6,20);
-    const cf=new THREE.Mesh(cfGeo,shipMat);
-    cf.position.copy(cockpit.position);
-    cf.rotation.x=Math.PI/2;
-    cf.scale.y=0.45;
-    shipGroup.add(cf);
-
-    // Engines x2
-    const engineGlows=[];
-    const engineLights=[];
-    [-BW*0.55,BW*0.55].forEach((ex,ei)=>{
-      // Engine nacelle
-      const nacGeo=new THREE.CylinderGeometry(BW*0.32,BW*0.28,BL*0.45,10);
-      nacGeo.rotateX(Math.PI/2);
-      const nac=new THREE.Mesh(nacGeo,darkMat);
-      nac.position.set(ex,-BW*0.1,-BL*0.5);
-      shipGroup.add(nac);
-
-      // Engine intake ring
-      const intakeGeo=new THREE.TorusGeometry(BW*0.3,0.06,8,16);
-      const intake=new THREE.Mesh(intakeGeo,shipMat);
-      intake.position.set(ex,-BW*0.1,-BL*0.28);
-      shipGroup.add(intake);
-
-      // Engine nozzle
-      const nozzleGeo=new THREE.CylinderGeometry(BW*0.22,BW*0.32,0.3,10);
-      nozzleGeo.rotateX(Math.PI/2);
-      const nozzle=new THREE.Mesh(nozzleGeo,darkMat);
-      nozzle.position.set(ex,-BW*0.1,-BL*0.72);
-      shipGroup.add(nozzle);
-
-      // Engine glow cone
-      const glowGeo=new THREE.CylinderGeometry(0.06,BW*0.2,BL*0.4,8);
-      glowGeo.rotateX(Math.PI/2);
-      const glow=new THREE.Mesh(glowGeo,engineGlowMat.clone());
-      glow.position.set(ex,-BW*0.1,-BL*0.92);
-      shipGroup.add(glow);
-      engineGlows.push(glow);
-
-      // Engine point light
-      const el=new THREE.PointLight(0x00f5ff,8,18);
-      el.position.set(ex,-BW*0.1,-BL*0.95);
-      shipGroup.add(el);
-      engineLights.push(el);
-    });
-
-    // Hover pods x4
-    const hoverPods=[];
-    [[-BW*0.6,-BL*0.38],[BW*0.6,-BL*0.38],[-BW*0.5,BL*0.2],[BW*0.5,BL*0.2]].forEach(([hx,hz])=>{
-      const podGeo=new THREE.SphereGeometry(0.12,6,6);
-      const pod=new THREE.Mesh(podGeo,new THREE.MeshBasicMaterial({color:0x00f5ff}));
-      pod.position.set(hx,-BW*0.22,hz);
-      shipGroup.add(pod);
-      hoverPods.push(pod);
-
-      // Pod glow
-      const podLight=new THREE.PointLight(0x00f5ff,2.5,5);
-      podLight.position.copy(pod.position);
-      shipGroup.add(podLight);
-    });
-
-    scene.add(shipGroup);
-
-    // ── PARTICLE SYSTEMS ──────────────────────────────────────────────────────
-    // Exhaust particles
-    const MAX_EX=200;
-    const exPositions=new Float32Array(MAX_EX*3);
-    const exColors=new Float32Array(MAX_EX*3);
-    const exGeo=new THREE.BufferGeometry();
-    exGeo.setAttribute('position',new THREE.BufferAttribute(exPositions,3));
-    exGeo.setAttribute('color',new THREE.BufferAttribute(exColors,3));
-    const exMat=new THREE.PointsMaterial({vertexColors:true,size:0.7,transparent:true,opacity:0.85,sizeAttenuation:true});
-    const exSystem=new THREE.Points(exGeo,exMat);
-    scene.add(exSystem);
-    const exParticles=[];
-
-    // Boost trail
-    const MAX_TR=120;
-    const trPositions=new Float32Array(MAX_TR*3);
-    const trGeo=new THREE.BufferGeometry();
-    trGeo.setAttribute('position',new THREE.BufferAttribute(trPositions,3));
-    const trMat=new THREE.PointsMaterial({color:0x8800ff,size:1.6,transparent:true,opacity:0.7,sizeAttenuation:true});
-    const trSystem=new THREE.Points(trGeo,trMat);
-    scene.add(trSystem);
-    const trParticles=[];
-
-    // Wall sparks
-    const MAX_SPK=80;
-    const spkPositions=new Float32Array(MAX_SPK*3);
-    const spkGeo=new THREE.BufferGeometry();
-    spkGeo.setAttribute('position',new THREE.BufferAttribute(spkPositions,3));
-    const spkMat=new THREE.PointsMaterial({color:0xff5500,size:0.9,transparent:true,opacity:0,sizeAttenuation:true});
-    const spkSystem=new THREE.Points(spkGeo,spkMat);
-    scene.add(spkSystem);
-    const spkParticles=[];
-
-    // ── LIGHTS ────────────────────────────────────────────────────────────────
-    const ambientLight=new THREE.AmbientLight(0x111830,2.8);
-    scene.add(ambientLight);
-
-    const dirLight=new THREE.DirectionalLight(0x4466ff,3.5);
-    dirLight.position.set(15,50,25);
-    scene.add(dirLight);
-
-    const rimLight=new THREE.DirectionalLight(0xff0044,1.8);
-    rimLight.position.set(-15,-8,-25);
-    scene.add(rimLight);
-
-    const fillLight=new THREE.DirectionalLight(0x00ffaa,0.8);
-    fillLight.position.set(5,-10,0);
-    scene.add(fillLight);
-
-    const shipGlowLight=new THREE.PointLight(shipDef.col,10,35);
-    scene.add(shipGlowLight);
-
-    const boostPointLight=new THREE.PointLight(0x8800ff,0,30);
-    scene.add(boostPointLight);
-
-    const underLight=new THREE.PointLight(0x00f5ff,4,10);
-    scene.add(underLight);
-
-    // ── PHYSICS STATE ─────────────────────────────────────────────────────────
-    const startPt=new THREE.Vector3(); trackCurve.getPointAt(0,startPt);
-    const startTan=frenetFrames.tangents[0].clone();
-
-    let shipPos=startPt.clone().add(new THREE.Vector3(0,1.4,0));
-    let shipVel=new THREE.Vector3();
-    let shipHeading=Math.atan2(startTan.x,startTan.z);
-    let shipSpeed=0;
-    let shipRoll=0, shipPitch=0;
-    let hoverPhase=0;
-    let boostCharge=0.8;
-    let shield=shipDef.shield;
-    let lapCount=0, lapStartTime=0, raceStart=0, raceStarted=false, finished=false;
-    let prevClosestT=0;
-    let checkpointsPassed=new Set();
-    let wallHitCooldown=0;
-    let camShake=0;
-    let boostJustFired=false;
-    const lapTimes=[];
-
-    // Camera
-    let camPos=new THREE.Vector3();
-    let camLookTarget=new THREE.Vector3();
-    let firstFrame=true;
-
-    // Saved best
-    const savedScores=loadScores().filter(s=>s.track===trackDef.name).sort((a,b)=>a.time-b.time);
-    if(savedScores.length) document.getElementById('wo-best').textContent='Meilleur: '+fmt(savedScores[0].time);
-
-    // ── INPUT ─────────────────────────────────────────────────────────────────
-    const keys={left:false,right:false,up:false,down:false,boost:false};
-    const onKey=e=>{
-      const d=e.type==='keydown';
-      if(['ArrowLeft','a','q'].includes(e.key)) keys.left=d;
-      if(['ArrowRight','d'].includes(e.key)) keys.right=d;
-      if(['ArrowUp','w','z'].includes(e.key)) keys.up=d;
-      if(['ArrowDown','s'].includes(e.key)) keys.down=d;
-      if(e.key===' '){keys.boost=d;if(d)e.preventDefault();}
     };
-    window.addEventListener('keydown',onKey);
-    window.addEventListener('keyup',onKey);
+    buildRail(-1); buildRail(1);
 
-    // Mobile
-    [['#wo-up','up'],['#wo-down','down'],['#wo-left','left'],['#wo-right','right'],['#wo-boost','boost']].forEach(([sel,k])=>{
-      const el=container.querySelector(sel);
-      if(!el) return;
+    // Bâtiments
+    const rng=new function(){let s=7777;this.n=()=>{s=(s*1664525+1013904223)&0xffffffff;return(s>>>0)/0xffffffff;};};
+    for(let i=0;i<55;i++){
+      const t=i/55;
+      const pt=new THREE.Vector3(); curve.getPointAt(t,pt);
+      const r=trackRight(Math.floor(t*N));
+      const side=rng.n()>.5?1:-1, dist=TW/2+14+rng.n()*28;
+      const bw=5+rng.n()*14, bh=10+rng.n()*45, bd=5+rng.n()*12;
+      const bx=pt.x+r.x*side*dist, bz=pt.z+r.z*side*dist;
+      const bGeo=new THREE.BoxGeometry(bw,bh,bd);
+      const bMat=new THREE.MeshLambertMaterial({color:rng.n()>.5?0x001122:rng.n()>.5?0x0a0018:0x110008});
+      const b=new THREE.Mesh(bGeo,bMat);
+      b.position.set(bx,bh/2-8,bz);
+      scene.add(b);
+      // Fenêtres lumineuses
+      const wc=rng.n()>.5?T.col:T.col2;
+      const wGeo=new THREE.BoxGeometry(bw*.85,bh*.8,bd*.85);
+      const wMesh=new THREE.Mesh(wGeo,new THREE.MeshBasicMaterial({color:wc,transparent:true,opacity:.04+rng.n()*.06}));
+      wMesh.position.copy(b.position); scene.add(wMesh);
+      if(rng.n()<.18){const pl=new THREE.PointLight(wc,2,22);pl.position.set(bx,pt.y+bh*.6,bz);scene.add(pl);}
+    }
+
+    // Pylônes sur la piste
+    for(let i=0;i<N;i+=22){
+      const pt=new THREE.Vector3(); curve.getPointAt(i/N,pt);
+      const r=trackRight(i);
+      [-1,1].forEach(s=>{
+        const px=pt.x+r.x*s*(TW/2+1.5), pz=pt.z+r.z*s*(TW/2+1.5);
+        const pg=new THREE.Mesh(new THREE.CylinderGeometry(.22,.3,6,8),new THREE.MeshStandardMaterial({color:0x060c1e,metalness:.95,roughness:.1}));
+        pg.position.set(px,pt.y+3,pz); scene.add(pg);
+        const sph=new THREE.Mesh(new THREE.SphereGeometry(.35,8,8),new THREE.MeshBasicMaterial({color:s<0?T.col:T.col2}));
+        sph.position.set(px,pt.y+6.4,pz); scene.add(sph);
+        const pl=new THREE.PointLight(s<0?T.col:T.col2,5,14);
+        pl.position.copy(sph.position); scene.add(pl);
+      });
+    }
+
+    // Boost pads
+    const pads=[];
+    for(let i=0;i<8;i++){
+      const t=(i+.5)/8;
+      const pt=new THREE.Vector3(); curve.getPointAt(t,pt);
+      const fn=Math.floor(t*N), tang=frames.tangents[fn%N];
+      const pad=new THREE.Mesh(new THREE.BoxGeometry(TW-6,.18,4),
+        new THREE.MeshStandardMaterial({color:0x3300aa,emissive:0x1100aa,emissiveIntensity:.5,roughness:.05,metalness:.98,transparent:true,opacity:.88}));
+      pad.position.copy(pt).add(new THREE.Vector3(0,.25,0));
+      pad.lookAt(pt.clone().add(tang)); scene.add(pad);
+      const pl=new THREE.PointLight(0x6600ff,4,12);
+      pl.position.copy(pad.position).add(new THREE.Vector3(0,1,0)); scene.add(pl);
+      pads.push({pad,pl,pt:pt.clone()});
+    }
+
+    // Checkpoints
+    const GATES=4, gatePos=[];
+    for(let i=0;i<GATES;i++){
+      const t=(i+.5)/GATES;
+      const pt=new THREE.Vector3(); curve.getPointAt(t,pt);
+      const r=trackRight(Math.floor(t*N));
+      const tang=frames.tangents[Math.floor(t*N)%N];
+      [-1,1].forEach(s=>{
+        const px=pt.x+r.x*s*(TW/2+1.5), pz=pt.z+r.z*s*(TW/2+1.5);
+        const post=new THREE.Mesh(new THREE.CylinderGeometry(.2,.25,7,8),new THREE.MeshStandardMaterial({color:0x0a001a,metalness:.9}));
+        post.position.set(px,pt.y+3.5,pz); scene.add(post);
+        const ball=new THREE.Mesh(new THREE.SphereGeometry(.4,8,8),new THREE.MeshBasicMaterial({color:T.col}));
+        ball.position.set(px,pt.y+7.4,pz); scene.add(ball);
+        const pl=new THREE.PointLight(T.col,6,18);pl.position.copy(ball.position);scene.add(pl);
+      });
+      const bar=new THREE.Mesh(new THREE.BoxGeometry(TW+3,.25,.4),new THREE.MeshBasicMaterial({color:T.col}));
+      bar.position.copy(pt).add(new THREE.Vector3(0,7.4,0));
+      bar.lookAt(pt.clone().add(tang)); scene.add(bar);
+      gatePos.push({t,pt:pt.clone()});
+    }
+
+    // Lumières
+    scene.add(new THREE.AmbientLight(0x111428,3.0));
+    const sun=new THREE.DirectionalLight(0x5566ff,3.0);
+    sun.position.set(20,60,30); scene.add(sun);
+    scene.add(new THREE.DirectionalLight(0xff0033,1.5)).position.set(-20,-10,-30);
+    const shipGL=new THREE.PointLight(SD.col,10,30); scene.add(shipGL);
+    const underGL=new THREE.PointLight(0x00ccff,4,10); scene.add(underGL);
+    const boostGL=new THREE.PointLight(0x8800ff,0,28); scene.add(boostGL);
+
+    // ── VAISSEAU ─────────────────────────────────────────
+    // Repère local du vaisseau :
+    //   +Z = AVANT (nez)
+    //   +Y = DESSUS
+    //   +X = DROITE
+    const ship=new THREE.Group();
+    const sCol=new THREE.Color(SD.col);
+    const darkM=new THREE.MeshStandardMaterial({color:0x000e22,metalness:.97,roughness:.04});
+    const accentM=new THREE.MeshStandardMaterial({color:sCol,emissive:sCol.clone().multiplyScalar(.15),metalness:.95,roughness:.05});
+    const glassM=new THREE.MeshStandardMaterial({color:0x66aaff,emissive:0x001144,transparent:true,opacity:.55,roughness:0,metalness:.1});
+
+    // Fuselage : cylindre le long de Z
+    const fuseG=new THREE.CylinderGeometry(.55,.30,5,10);
+    fuseG.rotateX(Math.PI/2); // CylinderGeometry est le long de Y par défaut, on tourne pour le mettre sur Z
+    ship.add(new THREE.Mesh(fuseG,darkM));
+
+    // Dessus plat coloré
+    const topM=new THREE.Mesh(new THREE.BoxGeometry(1.4,.15,4.2),accentM);
+    topM.position.set(0,.45,0); ship.add(topM);
+
+    // Nez vers +Z
+    const noseG=new THREE.ConeGeometry(.42,2,10); noseG.rotateX(Math.PI/2);
+    const nose=new THREE.Mesh(noseG,darkM); nose.position.set(0,0,3.5); ship.add(nose);
+    const ntG=new THREE.ConeGeometry(.18,.8,10); ntG.rotateX(Math.PI/2);
+    const nt=new THREE.Mesh(ntG,accentM); nt.position.set(0,0,4.4); ship.add(nt);
+
+    // Ailes delta gauche/droite
+    [-1,1].forEach(s=>{
+      const wv=new Float32Array([0,.05,2.5, s*3.8,-.05,-.5, s*2.8,-.02,-2.2, 0,.05,-2.2]);
+      const wg=new THREE.BufferGeometry(); wg.setAttribute('position',new THREE.BufferAttribute(wv,3));
+      wg.setIndex([0,1,2, 2,3,0, 0,2,1, 0,3,2]); wg.computeVertexNormals();
+      ship.add(new THREE.Mesh(wg,darkM));
+      const pv=new Float32Array([0,.08,2.0, s*3.2,-.03,-.2, s*2.2,-.01,-1.8, 0,.07,-1.8]);
+      const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pv,3));
+      pg.setIndex([0,1,2, 2,3,0]); pg.computeVertexNormals();
+      ship.add(new THREE.Mesh(pg,accentM));
+      const tG=new THREE.CylinderGeometry(.14,.18,1.4,7); tG.rotateX(Math.PI/2);
+      const tip=new THREE.Mesh(tG,accentM); tip.position.set(s*3.75,-.05,-.2); ship.add(tip);
+    });
+
+    // Cockpit
+    const ckG=new THREE.SphereGeometry(.45,10,8); ckG.scale(1.1,.52,1.4);
+    const ck=new THREE.Mesh(ckG,glassM); ck.position.set(0,.48,1.2); ship.add(ck);
+
+    // Moteurs (arrière = -Z)
+    const engineGlows=[], engineLts=[];
+    [-0.7,.7].forEach(ex=>{
+      const nacG=new THREE.CylinderGeometry(.35,.30,1.6,10); nacG.rotateX(Math.PI/2);
+      const nac=new THREE.Mesh(nacG,darkM); nac.position.set(ex,-.12,-2.4); ship.add(nac);
+      const nzG=new THREE.CylinderGeometry(.24,.35,.35,10); nzG.rotateX(Math.PI/2);
+      const nz=new THREE.Mesh(nzG,darkM); nz.position.set(ex,-.12,-3.15); ship.add(nz);
+      // Cône de flamme vers -Z
+      const glG=new THREE.ConeGeometry(.22,1.8,8); glG.rotateX(-Math.PI/2);
+      const glMat=new THREE.MeshBasicMaterial({color:0x00ccff,transparent:true,opacity:.9});
+      const gl=new THREE.Mesh(glG,glMat); gl.position.set(ex,-.12,-3.9); ship.add(gl);
+      engineGlows.push(gl);
+      const el=new THREE.PointLight(0x00ccff,8,16); el.position.set(ex,-.12,-4.0); ship.add(el); engineLts.push(el);
+    });
+
+    // Pods de sustentation
+    const hPods=[];
+    [[-0.7,-2.0],[0.7,-2.0],[-0.65,1.2],[0.65,1.2]].forEach(([hx,hz])=>{
+      const p=new THREE.Mesh(new THREE.SphereGeometry(.12,6,6),new THREE.MeshBasicMaterial({color:0x00ccff}));
+      p.position.set(hx,-.30,hz); ship.add(p); hPods.push(p);
+    });
+
+    scene.add(ship);
+
+    // Particules
+    const mkPS=(n,sz,col)=>{const pos=new Float32Array(n*3),geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));const mat=new THREE.PointsMaterial({color:col,size:sz,transparent:true,opacity:0,sizeAttenuation:true});const sys=new THREE.Points(geo,mat);scene.add(sys);return{pos,geo,mat,p:[]};};
+    const MAX_EX=200,MAX_TR=120,MAX_SPK=80;
+    const EX=mkPS(MAX_EX,.8,0x00ccff), TR=mkPS(MAX_TR,1.8,0x8800ff), SPK=mkPS(MAX_SPK,.9,0xff6600);
+
+    // ── PHYSIQUE ─────────────────────────────────────────
+    const startPt=new THREE.Vector3(); curve.getPointAt(0,startPt);
+    const startTan=frames.tangents[0].clone();
+    let pos=startPt.clone().add(new THREE.Vector3(0,1.3,0));
+    let vel=new THREE.Vector3();
+    // heading = angle en XZ : sin(h)→X, cos(h)→Z
+    let heading=Math.atan2(startTan.x,startTan.z);
+    let speed=0, roll=0, pitch=0, hoverPhase=0;
+    let boost=.8, shield=SD.shield;
+    let laps=0, lapStart=0, raceStart=0, started=false, done=false;
+    let wallCD=0, camShake=0;
+    let _lastT=0;
+    let cpPassed=new Set();
+    const lapTimes=[];
+    let camP=new THREE.Vector3(), camL=new THREE.Vector3(), camFirst=true;
+
+    const saved=loadScores().filter(s=>s.track===T.name).sort((a,b)=>a.time-b.time);
+    if(saved.length) document.getElementById('wo-best').textContent='Meilleur: '+fmt(saved[0].time);
+
+    const keys={l:false,r:false,u:false,d:false,b:false};
+    const onKey=e=>{
+      const dn=e.type==='keydown';
+      if(['ArrowLeft','a','q'].includes(e.key)) keys.l=dn;
+      if(['ArrowRight','d'].includes(e.key))    keys.r=dn;
+      if(['ArrowUp','w','z'].includes(e.key))   keys.u=dn;
+      if(['ArrowDown','s'].includes(e.key))     keys.d=dn;
+      if(e.key===' '){keys.b=dn;if(dn)e.preventDefault();}
+    };
+    window.addEventListener('keydown',onKey); window.addEventListener('keyup',onKey);
+    [['wu','u'],['wd','d'],['wl','l'],['wr','r'],['wbs','b']].forEach(([id,k])=>{
+      const el=container.querySelector('#'+id); if(!el) return;
       el.addEventListener('pointerdown',e=>{keys[k]=true;e.preventDefault();});
       el.addEventListener('pointerup',()=>keys[k]=false);
       el.addEventListener('pointercancel',()=>keys[k]=false);
       el.addEventListener('pointerleave',()=>keys[k]=false);
     });
 
-    const resObs=new ResizeObserver(()=>{
-      const W2=canvas.offsetWidth,H2=canvas.offsetHeight;
-      if(!W2||!H2) return;
-      renderer.setSize(W2,H2);camera.aspect=W2/H2;camera.updateProjectionMatrix();
-    });
-    resObs.observe(canvas);
+    const ro=new ResizeObserver(()=>{const w2=canvas.offsetWidth,h2=canvas.offsetHeight;if(!w2||!h2)return;renderer.setSize(w2,h2);camera.aspect=w2/h2;camera.updateProjectionMatrix();});
+    ro.observe(canvas);
 
-    // ── COUNTDOWN ─────────────────────────────────────────────────────────────
-    let countdownDone=false;
-    function showMsg(txt,duration=700,cb){
-      msgTxt.textContent=txt;
-      msgTxt.style.opacity='1';
-      setTimeout(()=>{msgTxt.style.opacity='0';setTimeout(()=>{if(cb)cb();},200);},duration);
-    }
-    setTimeout(()=>showMsg('3',800,()=>
-      showMsg('2',800,()=>
-        showMsg('1',800,()=>
-          showMsg('GO!',600,()=>{
-            countdownDone=true;
-            raceStart=Date.now();
-            lapStartTime=raceStart;
-            raceStarted=true;
-          })
-        )
-      )
-    ),400);
+    let cdDone=false;
+    const showCnt=(txt,dur,cb)=>{cntTxt.textContent=txt;cntTxt.style.opacity='1';setTimeout(()=>{cntTxt.style.opacity='0';setTimeout(()=>cb&&cb(),180);},dur);};
+    setTimeout(()=>showCnt('3',900,()=>showCnt('2',900,()=>showCnt('1',900,()=>showCnt('GO!',600,()=>{cdDone=true;raceStart=Date.now();lapStart=raceStart;started=true;})))),500);
 
-    // ── HELPERS ───────────────────────────────────────────────────────────────
-    const _tmpV3=new THREE.Vector3();
-    function closestTrackT(pos){
-      let best=prevClosestT, bestD=Infinity;
-      // Search around last known position
-      const searchW=0.15;
-      const steps=80;
-      for(let i=0;i<steps;i++){
-        const t=((prevClosestT-searchW+i*(searchW*2/steps))%1+1)%1;
-        trackCurve.getPointAt(t,_tmpV3);
-        const d=_tmpV3.distanceToSquared(pos);
-        if(d<bestD){bestD=d;best=t;}
-      }
-      // Refine
-      let lo=best-searchW/steps, hi=best+searchW/steps;
-      for(let iter=0;iter<6;iter++){
-        const mid=(lo+hi)/2;
-        const t0=((mid)%1+1)%1, t1=((mid+0.001)%1+1)%1;
-        trackCurve.getPointAt(t0,_tmpV3);const d0=_tmpV3.distanceTo(pos);
-        trackCurve.getPointAt(t1,_tmpV3);const d1=_tmpV3.distanceTo(pos);
-        if(d0<d1) hi=mid; else lo=mid;
-      }
-      return ((((lo+hi)/2)%1)+1)%1;
+    // Helper : trouver T le plus proche sur la courbe
+    const _tv=new THREE.Vector3();
+    function nearestT(p){
+      let best=_lastT,bestD=1e18;
+      const W2=.18,steps=60;
+      for(let i=0;i<steps;i++){const t=((_lastT-W2+i*(W2*2/steps))%1+1)%1;curve.getPointAt(t,_tv);const d=_tv.distanceToSquared(p);if(d<bestD){bestD=d;best=t;}}
+      _lastT=best; return best;
     }
 
-    function getTrackRight(t){
-      const ti=Math.floor(((t%1+1)%1)*N_STEPS)%N_STEPS;
-      const tangent=frenetFrames.tangents[ti];
-      const normal=frenetFrames.normals[ti];
-      const up=new THREE.Vector3(0,1,0).lerp(normal,trackDef.bankAngle).normalize();
-      return new THREE.Vector3().crossVectors(tangent,up).normalize();
-    }
-
-    // ── MAIN LOOP ─────────────────────────────────────────────────────────────
     let lastTs=0;
-
     function loop(ts){
-      if(!_running){
-        resObs.disconnect();
-        window.removeEventListener('keydown',onKey);
-        window.removeEventListener('keyup',onKey);
-        return;
-      }
+      if(!_running){ro.disconnect();window.removeEventListener('keydown',onKey);window.removeEventListener('keyup',onKey);return;}
       _raf=requestAnimationFrame(loop);
-      const dt=Math.min((ts-lastTs)/1000,0.05);
-      lastTs=ts;
+      const dt=Math.min((ts-lastTs)/1000,.05); lastTs=ts;
 
-      if(!finished){
-        // ── PHYSICS ──────────────────────────────────────────────────────
-        const boostActive=keys.boost&&boostCharge>0.03&&countdownDone;
-        const canDrive=countdownDone;
+      if(!done){
+        const boostOn=keys.b&&boost>.03&&cdDone;
+        boostOn?(boost=Math.max(0,boost-.0045)):(boost=Math.min(1,boost+.0028));
 
-        // Boost charge
-        if(boostActive){
-          boostCharge=Math.max(0,boostCharge-0.0045);
-          if(!boostJustFired){
-            boostJustFired=true;
-            boostFlash.style.background='rgba(120,50,255,0.3)';
-            setTimeout(()=>boostFlash.style.background='rgba(120,50,255,0)',150);
-          }
-        } else {
-          boostJustFired=false;
-          boostCharge=Math.min(1,boostCharge+0.0028);
-        }
+        if(cdDone){
+          const baseMax=SD.maxSpd;
+          const effMax=boostOn?baseMax*SD.boostMult:baseMax;
 
-        if(canDrive){
-          const baseMax=shipDef.maxSpd/10;
-          const effMax=boostActive?baseMax*shipDef.boostMult:baseMax;
-          const effAccel=shipDef.accel*(boostActive?1.7:1);
+          const turn=SD.turnRate*(1+Math.abs(speed)*.012)*(boostOn?.78:1);
+          if(keys.l) heading+=turn*dt;
+          if(keys.r) heading-=turn*dt;
 
-          // Steering
-          const turnSpeed=shipDef.turnRate*(1+Math.abs(shipSpeed)*0.008)*(boostActive?0.78:1);
-          if(keys.left) shipHeading+=turnSpeed*dt;
-          if(keys.right) shipHeading-=turnSpeed*dt;
+          if(keys.u)      speed=Math.min(speed+SD.accel*(boostOn?1.8:1)*dt,effMax);
+          else if(keys.d) speed=Math.max(speed-SD.accel*1.6*dt,-baseMax*.3);
+          else{speed*=Math.pow(SD.drag,dt*60);if(Math.abs(speed)<.01)speed=0;}
 
-          // Acceleration
-          if(keys.up){
-            shipSpeed=Math.min(shipSpeed+effAccel*dt, effMax);
-          } else if(keys.down){
-            shipSpeed=Math.max(shipSpeed-effAccel*1.5*dt, -effMax*0.3);
-          } else {
-            shipSpeed*=Math.pow(shipDef.drag,dt*60);
-            if(Math.abs(shipSpeed)<0.015) shipSpeed=0;
-          }
+          // Déplacement
+          const fwd=new THREE.Vector3(Math.sin(heading),0,Math.cos(heading));
+          vel.lerp(fwd.clone().multiplyScalar(speed),SD.grip*dt*10);
 
-          // Forward vector
-          const fwdDir=new THREE.Vector3(Math.sin(shipHeading),0,Math.cos(shipHeading));
-          const targetVel=fwdDir.clone().multiplyScalar(shipSpeed);
+          const ct=nearestT(pos);
+          const trackPt=new THREE.Vector3(); curve.getPointAt(ct,trackPt);
+          pos.y+=(trackPt.y+1.25+Math.sin(hoverPhase)*.12-pos.y)*Math.min(1,dt*10);
+          pos.x+=vel.x*dt; pos.z+=vel.z*dt;
 
-          // Grip blending
-          const gripF=shipDef.grip;
-          shipVel.lerp(targetVel,gripF*dt*9);
-
-          // Track hover height
-          const closestT=closestTrackT(shipPos);
-          prevClosestT=closestT;
-          const trackPt=new THREE.Vector3(); trackCurve.getPointAt(closestT,trackPt);
-          const ti2=Math.floor(closestT*N_STEPS)%N_STEPS;
-          const norm2=frenetFrames.normals[ti2];
-          const desiredY=trackPt.y+1.25+Math.sin(hoverPhase)*0.14;
-          shipPos.y+=(desiredY-shipPos.y)*Math.min(1,dt*9);
-
-          // XZ movement
-          shipPos.x+=shipVel.x*dt;
-          shipPos.z+=shipVel.z*dt;
-
-          // Wall collision
-          if(wallHitCooldown>0) wallHitCooldown-=dt;
-
-          const trackRight=getTrackRight(closestT);
-          const lateralOff=new THREE.Vector3().subVectors(shipPos,trackPt).dot(trackRight);
-          const hardWall=TRACK_W/2-0.5;
-
-          if(Math.abs(lateralOff)>hardWall){
-            if(wallHitCooldown<=0){
-              const impactSpd=Math.abs(shipVel.dot(trackRight))*1.5;
-              shield=Math.max(0,shield-impactSpd*2.5);
-              // Reflect velocity
-              const refl=shipVel.clone().reflect(trackRight.clone().multiplyScalar(Math.sign(lateralOff)));
-              shipVel.copy(refl.multiplyScalar(0.3));
-              shipSpeed*=0.38;
-              camShake=Math.min(3,impactSpd*0.9);
-              wallHitCooldown=0.35;
-              dmgFlash.style.background='rgba(255,0,0,0.45)';
-              setTimeout(()=>dmgFlash.style.background='rgba(255,0,0,0)',220);
-              // Sparks burst
-              for(let k=0;k<20;k++){
-                spkParticles.push({
-                  x:shipPos.x,y:shipPos.y,z:shipPos.z,
-                  vx:(Math.random()-.5)*55, vy:Math.random()*40+15, vz:(Math.random()-.5)*55,
-                  life:0.8, maxLife:0.8,
-                });
-              }
-              if(shield<=0&&!finished){triggerCrash();return;}
+          // Collision
+          if(wallCD>0) wallCD-=dt;
+          const r2=trackRight(Math.floor(ct*N));
+          const lat=new THREE.Vector3().subVectors(pos,trackPt).dot(r2);
+          const hw=TW/2-.6;
+          if(Math.abs(lat)>hw){
+            if(wallCD<=0){
+              const imp=Math.abs(vel.dot(r2));
+              shield=Math.max(0,shield-imp*2.8);
+              vel.reflect(r2.clone().multiplyScalar(Math.sign(lat))).multiplyScalar(.32);
+              speed*=.35; camShake=Math.min(3.5,imp*.9); wallCD=.38;
+              dmgFlash.style.background='rgba(255,0,0,.5)';
+              setTimeout(()=>dmgFlash.style.background='rgba(255,0,0,0)',230);
+              for(let k=0;k<18;k++) SPK.p.push({x:pos.x,y:pos.y,z:pos.z,vx:(Math.random()-.5)*60,vy:Math.random()*45+12,vz:(Math.random()-.5)*60,life:.8});
+              if(shield<=0&&!done){crash();return;}
             }
-            // Push ship back
-            const maxOff=(hardWall)*Math.sign(lateralOff);
-            shipPos.x=trackPt.x+trackRight.x*maxOff;
-            shipPos.z=trackPt.z+trackRight.z*maxOff;
+            pos.x=trackPt.x+r2.x*hw*Math.sign(lat);
+            pos.z=trackPt.z+r2.z*hw*Math.sign(lat);
           }
 
-          // Boost pad pickup
-          padMeshes.forEach(pad=>{
-            const d=Math.hypot(shipPos.x-pad.userData.pt.x,shipPos.z-pad.userData.pt.z);
-            if(d<TRACK_W*0.45){
-              boostCharge=Math.min(1,boostCharge+0.07);
-              camShake=0.5;
-            }
-          });
+          // Boost pads
+          pads.forEach(({pt:p2})=>{if(Math.hypot(pos.x-p2.x,pos.z-p2.z)<TW*.42){boost=Math.min(1,boost+.08);camShake=.5;}});
 
-          // Checkpoint tracking
-          gates.forEach((gate,gi)=>{
-            const d=Math.hypot(shipPos.x-gate.pos.x,shipPos.z-gate.pos.z);
-            if(d<TRACK_W*0.9&&!checkpointsPassed.has(gi)){
-              checkpointsPassed.add(gi);
-            }
-          });
+          // Checkpoints
+          gatePos.forEach(({pt:p2},gi)=>{if(Math.hypot(pos.x-p2.x,pos.z-p2.z)<TW&&!cpPassed.has(gi))cpPassed.add(gi);});
 
-          // Lap detection
-          const prevT=prevClosestT;
-          if(raceStarted&&prevT>0.88&&closestT<0.12&&checkpointsPassed.size>=GATE_COUNT){
-            checkpointsPassed.clear();
-            const lapTime=Date.now()-lapStartTime;
-            lapTimes.push(lapTime);
-            lapStartTime=Date.now();
-            lapCount++;
-            document.getElementById('wo-lap').textContent=`${lapCount}/${TOTAL_LAPS}`;
-            document.getElementById('wo-laptime').textContent=fmt(lapTime);
+          // Lap
+          if(started&&_lastT>.85&&ct<.15&&cpPassed.size>=GATES){
+            cpPassed.clear();
+            const lt=Date.now()-lapStart; lapTimes.push(lt); lapStart=Date.now(); laps++;
+            document.getElementById('wo-lap').textContent=`${laps}/${T.laps}`;
+            document.getElementById('wo-laptime').textContent=fmt(lt);
             camShake=1.5;
-            if(lapCount>=TOTAL_LAPS){finished=true;finishRace(Date.now()-raceStart);return;}
+            if(laps>=T.laps){done=true;finish(Date.now()-raceStart);return;}
           }
 
-          // ── HUD UPDATE ────────────────────────────────────────────────
-          if(raceStarted){
-            document.getElementById('wo-time').textContent=fmt(Date.now()-raceStart);
-          }
-          const spd3=shipVel.length()*36;
-          const spdPct=Math.round(Math.min(100,spd3/((shipDef.maxSpd*shipDef.boostMult)*36/10)*100));
-          document.getElementById('wo-spd-bar').style.width=spdPct+'%';
-          document.getElementById('wo-spd-val').textContent=Math.round(spd3);
-          const bPct=Math.round(boostCharge*100);
-          document.getElementById('wo-bst-bar').style.width=bPct+'%';
-          document.getElementById('wo-bst-val').textContent=bPct;
-          const sPct=Math.round(shield/shipDef.shield*100);
-          document.getElementById('wo-shld-bar').style.width=Math.max(0,sPct)+'%';
-          document.getElementById('wo-shld-val').textContent=Math.max(0,Math.round(shield));
-          const shldEl=document.getElementById('wo-shld-bar');
-          if(sPct<25) shldEl.style.background='linear-gradient(90deg,#ef4444,#f87171)';
-          else if(sPct<55) shldEl.style.background='linear-gradient(90deg,#fbbf24,#f59e0b)';
-          else shldEl.style.background='linear-gradient(90deg,#10b981,#34d399)';
+          // HUD
+          if(started) document.getElementById('wo-time').textContent=fmt(Date.now()-raceStart);
+          const spd3=vel.length()*36;
+          document.getElementById('sb').style.width=Math.round(Math.min(100,spd3/(SD.maxSpd*SD.boostMult*36)*100))+'%';
+          document.getElementById('sv').textContent=Math.round(spd3);
+          document.getElementById('bb').style.width=Math.round(boost*100)+'%';
+          document.getElementById('bv').textContent=Math.round(boost*100);
+          const shp=Math.round(shield/SD.shield*100);
+          document.getElementById('shb').style.width=Math.max(0,shp)+'%';
+          document.getElementById('shv').textContent=Math.max(0,Math.round(shield));
+          const shEl=document.getElementById('shb');
+          if(shp<25)shEl.style.background='linear-gradient(90deg,#ef4444,#f87171)';
+          else if(shp<55)shEl.style.background='linear-gradient(90deg,#fbbf24,#f59e0b)';
+          else shEl.style.background='linear-gradient(90deg,#10b981,#34d399)';
 
-          // ── SHIP VISUALS ──────────────────────────────────────────────
+          // ── VAISSEAU VISUEL ──────────────────────────
           hoverPhase+=dt*3.5;
-          shipGroup.position.copy(shipPos);
+          ship.position.copy(pos);
 
-          const lookFwd=new THREE.Vector3(
-            shipPos.x+Math.sin(shipHeading),
-            shipPos.y,
-            shipPos.z+Math.cos(shipHeading)
-          );
-          shipGroup.lookAt(lookFwd);
-          shipGroup.rotateX(-Math.PI/2);
+          // ORIENTATION CORRECTE :
+          // On veut que l'axe +Z du vaisseau (nez) pointe vers fwd (direction de déplacement)
+          // Matrix4.lookAt(from, to, up) fait que -Z de l'objet pointe vers (to-from)
+          // Donc on passe (0,0,0) et (-fwd) pour que -Z pointe vers -fwd → +Z vers fwd
+          const m4=new THREE.Matrix4();
+          m4.lookAt(new THREE.Vector3(0,0,0), fwd.clone().negate(), new THREE.Vector3(0,1,0));
+          ship.quaternion.setFromRotationMatrix(m4);
 
-          const turnInput=(keys.right?1:0)-(keys.left?1:0);
-          shipRoll+=((-turnInput*0.6)-shipRoll)*dt*7;
-          shipPitch+=((keys.up?0.07:keys.down?-0.05:0)-shipPitch)*dt*6;
-          shipGroup.rotateZ(shipRoll);
-          shipGroup.rotateX(shipPitch);
+          const spF=Math.min(1,Math.abs(speed)/baseMax);
+          const boostI=boostOn?Math.min(1,speed/baseMax):0;
 
-          // Engine glow intensity
-          const speedFactor=Math.min(1,Math.abs(shipSpeed)/(shipDef.maxSpd/10));
-          const boostIntensity=boostActive?Math.min(1,shipSpeed/(shipDef.maxSpd/10)):0;
+          // Roulis / tangage
+          const turnIn=(keys.r?1:0)-(keys.l?1:0);
+          roll+=((-turnIn*.55)-roll)*dt*7;
+          pitch+=((keys.u?.06:keys.d?-.04:0)-pitch)*dt*6;
+          ship.rotateZ(-roll);
+          ship.rotateX(-pitch);
 
+          // Flammes moteur
           engineGlows.forEach((g,i)=>{
-            const hue=boostActive?0.75:0.54;
-            g.material.color.setHSL(hue,1,0.3+boostIntensity*0.5);
-            const sc=0.35+speedFactor*2.2+Math.sin(ts*0.02+i)*0.18;
-            g.scale.set(sc,sc,0.5+speedFactor*2+boostIntensity*3);
-            g.material.opacity=0.45+speedFactor*0.55;
+            g.material.color.setHSL(boostOn?.78:.54,1,.3+boostI*.5);
+            const sc=.4+spF*2+Math.sin(ts*.022+i)*.18;
+            g.scale.set(sc,sc,.5+spF*1.8+boostI*2.5);
+            g.material.opacity=.5+spF*.5;
           });
+          engineLts.forEach(l=>{l.color.setHSL(boostOn?.78:.54,1,.5);l.intensity=5+spF*12+boostI*20;});
+          hPods.forEach((p2,i)=>{p2.material.color.setHSL(.54,1,.3+Math.sin(hoverPhase*2+i)*.25);});
+          shipGL.position.copy(pos); shipGL.intensity=6+spF*15;
+          boostGL.position.copy(pos); boostGL.intensity=boostOn?boost*25:0;
+          underGL.position.copy(pos).add(new THREE.Vector3(0,-1.5,0));
 
-          engineLights.forEach((l,i)=>{
-            l.color.setHSL(boostActive?0.75:0.54,1,0.5);
-            l.intensity=5+speedFactor*10+boostIntensity*20;
-          });
-
-          hoverPods.forEach((p,i)=>{
-            p.material.color.setHSL(0.54,1,0.3+Math.sin(hoverPhase*2+i)*0.25);
-          });
-
-          // Lights
-          shipGlowLight.position.copy(shipPos);
-          shipGlowLight.intensity=6+speedFactor*14;
-          boostPointLight.position.copy(shipPos);
-          boostPointLight.intensity=boostActive?boostCharge*28:0;
-          underLight.position.copy(shipPos).add(new THREE.Vector3(0,-1.2,0));
-
-          // ── EXHAUST PARTICLES ─────────────────────────────────────────
-          const exOrig1=shipGroup.localToWorld(new THREE.Vector3(-BW*0.55,-BW*0.1,-BL*1.05));
-          const exOrig2=shipGroup.localToWorld(new THREE.Vector3( BW*0.55,-BW*0.1,-BL*1.05));
-          const exBackDir=shipGroup.localToWorld(new THREE.Vector3(0,0,-5)).sub(shipGroup.localToWorld(new THREE.Vector3())).normalize();
-
-          if(exParticles.length<MAX_EX-4){
-            [exOrig1,exOrig2].forEach(orig=>{
-              const spd=50+speedFactor*120+boostIntensity*200;
-              exParticles.push({
-                x:orig.x+(Math.random()-.5)*0.3,
-                y:orig.y+(Math.random()-.5)*0.2,
-                z:orig.z,
-                vx:exBackDir.x*spd+(Math.random()-.5)*10,
-                vy:exBackDir.y*spd+(Math.random()-.1)*8,
-                vz:exBackDir.z*spd+(Math.random()-.5)*10,
-                life:0.3+speedFactor*0.35,
-                maxLife:0.65,
-                isBoost:boostActive,
-              });
-            });
-          }
-
-          if(boostActive&&trParticles.length<MAX_TR-4){
-            [exOrig1,exOrig2].forEach(orig=>{
-              trParticles.push({
-                x:orig.x+(Math.random()-.5)*0.8,
-                y:orig.y+(Math.random()-.5)*0.4,
-                z:orig.z,
-                vx:exBackDir.x*30+(Math.random()-.5)*25,
-                vy:exBackDir.y*30+(Math.random()-.5)*18,
-                vz:exBackDir.z*30+(Math.random()-.5)*25,
-                life:0.55,
-              });
-            });
-          }
-        } // end canDrive
-
-        // ── UPDATE PARTICLES ──────────────────────────────────────────────
-        for(let i=exParticles.length-1;i>=0;i--){
-          const p=exParticles[i];
-          p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt;
-          p.life-=dt;
-          if(p.life<=0){exParticles.splice(i,1);continue;}
-          const pi=Math.min(i,MAX_EX-1)*3;
-          exPositions[pi]=p.x; exPositions[pi+1]=p.y; exPositions[pi+2]=p.z;
-          const lf=p.life/p.maxLife;
-          if(p.isBoost){
-            exColors[pi]=0.55+lf*0.45; exColors[pi+1]=0.1*lf; exColors[pi+2]=1.0;
-          } else {
-            exColors[pi]=0+lf*0.1; exColors[pi+1]=0.8*lf+0.2; exColors[pi+2]=1.0;
-          }
+          // Particules exhaust
+          const e1=ship.localToWorld(new THREE.Vector3(-.7,-.12,-4.2));
+          const e2=ship.localToWorld(new THREE.Vector3(.7,-.12,-4.2));
+          const bkDir=ship.localToWorld(new THREE.Vector3(0,0,-1)).sub(ship.localToWorld(new THREE.Vector3())).normalize();
+          if(EX.p.length<MAX_EX-4)[e1,e2].forEach(o=>{const sp2=45+spF*110+boostI*180;EX.p.push({x:o.x+(Math.random()-.5)*.3,y:o.y+(Math.random()-.5)*.2,z:o.z,vx:bkDir.x*sp2+(Math.random()-.5)*9,vy:bkDir.y*sp2+(Math.random()-.2)*7,vz:bkDir.z*sp2+(Math.random()-.5)*9,life:.35+spF*.3,boost:boostOn});});
+          if(boostOn&&TR.p.length<MAX_TR-4)[e1,e2].forEach(o=>{TR.p.push({x:o.x+(Math.random()-.5)*1,y:o.y,z:o.z,vx:bkDir.x*28+(Math.random()-.5)*22,vy:bkDir.y*28+(Math.random()-.5)*16,vz:bkDir.z*28+(Math.random()-.5)*22,life:.6});});
         }
-        exGeo.attributes.position.needsUpdate=true;
-        exGeo.attributes.color.needsUpdate=true;
 
-        for(let i=trParticles.length-1;i>=0;i--){
-          const p=trParticles[i];
-          p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt;
-          p.life-=dt;
-          if(p.life<=0){trParticles.splice(i,1);continue;}
-          const pi=Math.min(i,MAX_TR-1)*3;
-          trPositions[pi]=p.x; trPositions[pi+1]=p.y; trPositions[pi+2]=p.z;
-        }
-        trGeo.attributes.position.needsUpdate=true;
-        trMat.opacity=boostActive?0.75:0.1;
-        trMat.size=1.0+(shipSpeed/(shipDef.maxSpd/10))*0.8;
-
-        for(let i=spkParticles.length-1;i>=0;i--){
-          const p=spkParticles[i];
-          p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt;
-          p.vy-=35*dt;
-          p.life-=dt;
-          if(p.life<=0){spkParticles.splice(i,1);continue;}
-          const pi=Math.min(i,MAX_SPK-1)*3;
-          spkPositions[pi]=p.x; spkPositions[pi+1]=p.y; spkPositions[pi+2]=p.z;
-        }
-        spkGeo.attributes.position.needsUpdate=true;
-        spkMat.opacity=spkParticles.length>0?0.9:0;
-
-        // Pad animation
-        padMeshes.forEach((p,i)=>{
-          const c=p.children[0];
-          if(c&&c.material) c.material.emissiveIntensity=0.4+Math.sin(ts*0.005+i*1.3)*0.6;
-          if(p.userData.light) p.userData.light.intensity=3+Math.sin(ts*0.007+i)*2;
+        // Update PS
+        [[EX,MAX_EX],[TR,MAX_TR]].forEach(([ps,MX])=>{
+          for(let i=ps.p.length-1;i>=0;i--){const p2=ps.p[i];p2.x+=p2.vx*dt;p2.y+=p2.vy*dt;p2.z+=p2.vz*dt;p2.life-=dt;if(p2.life<=0){ps.p.splice(i,1);continue;}const pi=Math.min(i,MX-1)*3;ps.pos[pi]=p2.x;ps.pos[pi+1]=p2.y;ps.pos[pi+2]=p2.z;}
+          ps.geo.attributes.position.needsUpdate=true; ps.mat.opacity=ps.p.length>0?.85:0;
         });
+        for(let i=SPK.p.length-1;i>=0;i--){const p2=SPK.p[i];p2.x+=p2.vx*dt;p2.y+=p2.vy*dt;p2.z+=p2.vz*dt;p2.vy-=40*dt;p2.life-=dt;if(p2.life<=0){SPK.p.splice(i,1);continue;}const pi=Math.min(i,MAX_SPK-1)*3;SPK.pos[pi]=p2.x;SPK.pos[pi+1]=p2.y;SPK.pos[pi+2]=p2.z;}
+        SPK.geo.attributes.position.needsUpdate=true; SPK.mat.opacity=SPK.p.length>0?.9:0;
+        TR.mat.opacity=keys.b?.78:.08;
 
-        // ── CAMERA ────────────────────────────────────────────────────────
-        const speedFactor2=Math.min(1,Math.abs(shipSpeed)/(shipDef.maxSpd/10));
-        const boostI2=boostActive?Math.min(1,shipSpeed/(shipDef.maxSpd/10)):0;
+        // Boost pads pulse
+        pads.forEach(({pad,pl},i)=>{pad.material.emissiveIntensity=.4+Math.sin(ts*.005+i*1.4)*.6;pl.intensity=3+Math.sin(ts*.007+i)*1.5;});
 
-        const camDist=10+speedFactor2*3;
-        const camHeight=3.8+speedFactor2*2.2;
-        const camOffset=new THREE.Vector3(0,camHeight,-camDist);
-        const camWorldPos=shipGroup.localToWorld(camOffset.clone());
-        const camLookAt=shipGroup.localToWorld(new THREE.Vector3(0,0.5,12+speedFactor2*6));
-
-        if(camShake>0){
-          camShake=Math.max(0,camShake-dt*6);
-          camWorldPos.x+=(Math.random()-.5)*camShake;
-          camWorldPos.y+=(Math.random()-.5)*camShake*0.4;
-          camWorldPos.z+=(Math.random()-.5)*camShake*0.4;
-        }
-
-        if(firstFrame){
-          camPos.copy(camWorldPos);
-          camLookTarget.copy(camLookAt);
-          firstFrame=false;
-        } else {
-          camPos.lerp(camWorldPos,0.10);
-          camLookTarget.lerp(camLookAt,0.13);
-        }
-
-        camera.position.copy(camPos);
-        camera.lookAt(camLookTarget);
-        camera.fov=70+speedFactor2*20+boostI2*10;
-        camera.updateProjectionMatrix();
-
-        scene.fog.density=trackDef.fogDensity+speedFactor2*0.004;
-      } // end !finished
+        // ── CAMÉRA ──────────────────────────────────────
+        const spF2=Math.min(1,Math.abs(speed)/SD.maxSpd);
+        const boostI2=keys.b?Math.min(1,speed/SD.maxSpd):0;
+        // Position caméra dans l'espace local du vaisseau : derrière (-Z local) et au-dessus
+        const camOff=ship.localToWorld(new THREE.Vector3(0,3.5+spF2*2,-(9+spF2*3)));
+        const camTgt=ship.localToWorld(new THREE.Vector3(0,.5,10+spF2*5));
+        if(camShake>0){camShake=Math.max(0,camShake-dt*6);camOff.x+=(Math.random()-.5)*camShake;camOff.y+=(Math.random()-.5)*camShake*.4;}
+        if(camFirst){camP.copy(camOff);camL.copy(camTgt);camFirst=false;}
+        else{camP.lerp(camOff,.10);camL.lerp(camTgt,.13);}
+        camera.position.copy(camP); camera.lookAt(camL);
+        camera.fov=70+spF2*18+boostI2*10; camera.updateProjectionMatrix();
+        scene.fog.density=T.fogD+spF2*.003;
+      }
 
       renderer.render(scene,camera);
     }
-
     requestAnimationFrame(t=>{lastTs=t;loop(t);});
 
-    // ── CRASH ─────────────────────────────────────────────────────────────────
-    function triggerCrash(){
-      finished=true;
-      camShake=4;
+    function crash(){
+      done=true; camShake=5;
       setTimeout(()=>{
         finDiv.style.display='flex';
-        finDiv.innerHTML=`
-          <div style="font-size:52px">💥</div>
-          <div style="font-size:28px;font-weight:900;font-family:monospace;color:#ef4444;letter-spacing:-1px">ÉLIMINÉ</div>
-          <div style="font-size:13px;color:rgba(255,255,255,.4);font-family:monospace">Bouclier détruit — brèche dans la coque</div>
+        finDiv.innerHTML=`<div style="font-size:52px">💥</div>
+          <div style="font-size:28px;font-weight:900;font-family:monospace;color:#ef4444">ÉLIMINÉ</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.4);font-family:monospace">Bouclier détruit</div>
           <div style="display:flex;gap:8px;margin-top:10px">
-            <button id="fin-retry" style="background:linear-gradient(135deg,#00f5ff,#007fff);border:none;color:#000;font-weight:800;padding:13px 24px;border-radius:10px;cursor:pointer;font-family:monospace">↺ RÉESSAYER</button>
-            <button id="fin-menu" style="background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);padding:13px 18px;border-radius:10px;cursor:pointer;font-family:monospace">⟵ MENU</button>
-          </div>`;
-        finDiv.querySelector('#fin-retry').onclick=()=>{finDiv.style.display='none';stopRace();startRace(container,trackId,shipId);};
-        finDiv.querySelector('#fin-menu').onclick=()=>{finDiv.style.display='none';stopRace();renderMenu(container);};
+            <button id="fin-r" style="background:linear-gradient(135deg,#00ccff,#0055ff);border:none;color:#000;font-weight:800;padding:13px 22px;border-radius:10px;cursor:pointer;font-family:monospace">↺ RÉESSAYER</button>
+            <button id="fin-m" style="background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);padding:13px 16px;border-radius:10px;cursor:pointer;font-family:monospace">⟵ MENU</button></div>`;
+        finDiv.querySelector('#fin-r').onclick=()=>{finDiv.style.display='none';stopRace();startRace(container,trackId,shipId);};
+        finDiv.querySelector('#fin-m').onclick=()=>{finDiv.style.display='none';stopRace();renderMenu(container);};
       },900);
     }
 
-    // ── FINISH ────────────────────────────────────────────────────────────────
-    function finishRace(totalTime){
-      const name=_ctx?.loadProfile?.()?.name||'Racer';
+    function finish(totalMs){
+      const name=_ctx?.loadProfile?.()?.name||'Pilote';
       const all=loadScores();
-      all.push({name,time:totalTime,track:trackDef.name,ship:shipDef.name,laps:TOTAL_LAPS,ts:Date.now()});
-      all.sort((a,b)=>(a.time||999999)-(b.time||999999));
-      saveScores(all);
-
-      const bestT=savedScores.length?savedScores[0].time:Infinity;
-      const isRecord=totalTime<bestT;
-      const bestLap=lapTimes.length?Math.min(...lapTimes):totalTime;
-
+      all.push({name,time:totalMs,track:T.name,ship:SD.name,laps:T.laps,ts:Date.now()});
+      all.sort((a,b)=>a.time-b.time); saveScores(all);
+      const isRec=!saved.length||totalMs<saved[0].time;
+      const bestLap=lapTimes.length?Math.min(...lapTimes):totalMs;
       finDiv.style.display='flex';
-      finDiv.innerHTML=`
-        <div style="font-size:52px">🏁</div>
-        <div style="font-size:38px;font-weight:900;font-family:monospace;background:linear-gradient(135deg,#00f5ff,#7B2FFF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-2px">${fmt(totalTime)}</div>
-        ${isRecord?'<div style="font-size:12px;color:#fbbf24;font-family:monospace;letter-spacing:3px">✦ NOUVEAU RECORD ✦</div>':''}
+      finDiv.innerHTML=`<div style="font-size:52px">🏁</div>
+        <div style="font-size:38px;font-weight:900;font-family:monospace;background:linear-gradient(135deg,#00ccff,#7700ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-2px">${fmt(totalMs)}</div>
+        ${isRec?'<div style="font-size:12px;color:#fbbf24;font-family:monospace;letter-spacing:3px">✦ NOUVEAU RECORD ✦</div>':''}
         <div style="font-size:11px;color:rgba(255,255,255,.4);font-family:monospace">Meilleur tour: ${fmt(bestLap)}</div>
         <div style="display:flex;gap:8px;margin-top:8px">
-          <button id="fin-retry" style="background:linear-gradient(135deg,#00f5ff,#007fff);border:none;color:#000;font-weight:800;padding:13px 24px;border-radius:10px;cursor:pointer;font-family:monospace">↺ REJOUER</button>
-          <button id="fin-menu" style="background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);padding:13px 16px;border-radius:10px;cursor:pointer;font-family:monospace">⟵ MENU</button>
-        </div>`;
-      finDiv.querySelector('#fin-retry').onclick=()=>{finDiv.style.display='none';stopRace();startRace(container,trackId,shipId);};
-      finDiv.querySelector('#fin-menu').onclick=()=>{finDiv.style.display='none';stopRace();renderMenu(container);};
+          <button id="fin-r" style="background:linear-gradient(135deg,#00ccff,#0055ff);border:none;color:#000;font-weight:800;padding:13px 22px;border-radius:10px;cursor:pointer;font-family:monospace">↺ REJOUER</button>
+          <button id="fin-m" style="background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);padding:13px 16px;border-radius:10px;cursor:pointer;font-family:monospace">⟵ MENU</button></div>`;
+      finDiv.querySelector('#fin-r').onclick=()=>{finDiv.style.display='none';stopRace();startRace(container,trackId,shipId);};
+      finDiv.querySelector('#fin-m').onclick=()=>{finDiv.style.display='none';stopRace();renderMenu(container);};
     }
   }
 
   window.YM_S['wipeout.sphere.js']={
     name:'WipeOut',icon:'🚀',category:'Games',
-    description:'WipeOut v6 — graphismes entièrement refaits, physique réelle, guard-rails, 3 pistes, 3 vaisseaux',
+    description:'WipeOut v7 — orientation vaisseau fixée (Matrix4.lookAt→quaternion), bâtiments, guard-rails, pylônes, piste texturée',
     emit:[],receive:[],
     activate(ctx){_ctx=ctx;},
     deactivate(){stopRace();},
     renderPanel,
     profileSection(container){
-      const scores=loadScores();if(!scores.length)return;
-      const best=scores[0];
+      const sc=loadScores();if(!sc.length)return;
+      const b=sc[0];
       const el=document.createElement('div');
-      el.style.cssText='display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#000,#030320);border:1px solid rgba(0,245,255,.2);border-radius:12px;padding:10px';
-      el.innerHTML=`<span style="font-size:22px">🚀</span><div style="flex:1"><div style="font-size:12px;font-weight:700;color:#00f5ff">WipeOut · ${best.track||''}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.35)">${best.ship||'FEISAR'}</div></div>
-        <div style="font-size:15px;font-weight:700;color:#00f5ff;font-family:monospace">${fmt(best.time)}</div>`;
+      el.style.cssText='display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#000,#030320);border:1px solid rgba(0,200,255,.2);border-radius:12px;padding:10px';
+      el.innerHTML=`<span style="font-size:22px">🚀</span><div style="flex:1"><div style="font-size:12px;font-weight:700;color:#00ccff">WipeOut · ${b.track||''}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.35)">${b.ship||'FEISAR'}</div></div>
+        <div style="font-size:15px;font-weight:700;color:#00ccff;font-family:monospace">${fmt(b.time)}</div>`;
       container.appendChild(el);
-    }
+    },
   };
 })();
