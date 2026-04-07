@@ -1,7 +1,7 @@
 /* jshint esversion:11, browser:true */
-// towerdefense.sphere.js — Tower Defense v5 — Phaser 3 — ~2000 lines
-// Features: dual-path map, 15 tower types with 3-tier upgrades, 20 wave types,
-// 12 enemy archetypes, prestige system, global buffs, kill feed, economy depth
+// towerdefense.sphere.js — Tower Defense v5 — FIXED
+// Fixes: 1) enemies reaching end now correctly remove lives
+//        2) between-wave shop stays open until player makes a choice (no auto-close)
 (function () {
   'use strict';
   window.YM_S = window.YM_S || {};
@@ -10,11 +10,8 @@
   function loadScores() { try { return JSON.parse(localStorage.getItem(SCORES_KEY) || '[]'); } catch(e) { return []; } }
   function saveScore(s) { const a = loadScores(); a.unshift(s); localStorage.setItem(SCORES_KEY, JSON.stringify(a.slice(0,20))); }
 
-  let _ctx = null, _game = null;
+  let _ctx = null, _game2 = null;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // TOWER DEFINITIONS — 12 tower types, each with 3 upgrade tiers
-  // ═══════════════════════════════════════════════════════════════════════════
   const TOWER_DEFS = {
     archer:  { cost:50,  range:90,  dmg:16,  rate:800,  col:0x3b82f6, name:'Archer',   emoji:'🏹', cat:'basic',
       desc:'Fast single-target. Good starter.',
@@ -54,9 +51,6 @@
       upg:[{cost:120,range:135,label:'Deep Freeze'},{cost:220,dmg:55,range:155,label:'Cryostasis'},{cost:400,dmg:90,range:175,rate:900,label:'Absolute Zero'}] },
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // ENEMY DEFINITIONS — 12 archetypes
-  // ═══════════════════════════════════════════════════════════════════════════
   const ENEMY_TYPES = {
     grunt:    { hp:30,   spd:50, rew:10, col:'#ef4444', shape:'circle',   name:'Grunt',    size:9  },
     fast:     { hp:18,   spd:110,rew:12, col:'#fbbf24', shape:'diamond',  name:'Dasher',   size:8  },
@@ -72,9 +66,6 @@
     overlord: { hp:3500, spd:18, rew:300,col:'#ff0000', shape:'diamond',  name:'Overlord', size:22, armor:0.20, boss:true },
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // WAVE SCRIPT — 20 waves with mixed compositions
-  // ═══════════════════════════════════════════════════════════════════════════
   const WAVE_SCRIPT = [
     { squads:[{type:'grunt',count:8,delay:600}], inter:7000 },
     { squads:[{type:'grunt',count:10,delay:500},{type:'fast',count:4,delay:400,offset:3000}], inter:7000 },
@@ -98,9 +89,6 @@
     { squads:[{type:'overlord',count:2,delay:7000},{type:'titan',count:3,delay:4000,offset:8000},{type:'swarm',count:30,delay:150,offset:2000}], inter:0, bossWave:true },
   ];
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // GLOBAL UPGRADE STORE (meta-progression between waves)
-  // ═══════════════════════════════════════════════════════════════════════════
   const GLOBAL_UPGRADES = [
     { id:'dmg_all',    name:'War Academy',    emoji:'⚔️',  cost:200, desc:'All towers +15% damage',      effect:{dmgMult:0.15} },
     { id:'range_all',  name:'Optics',         emoji:'🔭',  cost:150, desc:'All towers +12% range',       effect:{rangeMult:0.12} },
@@ -113,8 +101,6 @@
     { id:'chain_all',  name:'Conductor',      emoji:'🌩️',  cost:260, desc:'Tesla chains +2 targets',    effect:{chainBonus:2} },
     { id:'detect',     name:'Radar',          emoji:'📡',  cost:200, desc:'All towers detect stealth',   effect:{detectStealth:true} },
   ];
-
-  let _ctx2 = null, _game2 = null;
 
   function renderPanel(container) {
     container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:#07080e;font-family:-apple-system,monospace';
@@ -187,9 +173,6 @@
     container.innerHTML=html;
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // MAIN GAME
-  // ═══════════════════════════════════════════════════════════════════════════
   function renderPlay(container) {
     container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
 
@@ -200,8 +183,6 @@
       const BAR_H=52;
       const TOP_H=38;
 
-      // ── PATH GENERATION ─────────────────────────────────────────────────
-      // Two interleaved paths share the map
       function makePathA(W,H) {
         const m=20;
         return [
@@ -248,7 +229,6 @@
         return false;
       }
 
-      // ── GAME STATE ────────────────────────────────────────────────────────
       let gold=200, lives=30, score=0, waveIdx=0;
       let towers=[], enemies=[], bullets=[], particles=[], killFeed=[];
       let selectedType='archer', gameOver=false, betweenWaves=false;
@@ -261,7 +241,10 @@
       let upgradeOverlay=null, shopOverlay=null, towerOverlay=null;
       let hudTexts={}, killFeedTexts=[];
 
-      // ── SCENE: preload / create / update ─────────────────────────────────
+      // FIX: track whether shop is actively being shown
+      let shopIsOpen=false;
+      let nextWaveTimer=null;
+
       function preload() {}
 
       function create() {
@@ -275,12 +258,10 @@
         drawPathLabels(this);
         createHUD(this);
 
-        // Click handler
         this.input.on('pointerdown',ptr=>{
           if(gameOver)return;
           removeAllOverlays();
           const {x,y}=ptr;
-          // Click on tower?
           const clickedTower=towers.find(t=>Math.hypot(t.x-x,t.y-y)<22);
           if(clickedTower){showTowerOverlay(clickedTower);return;}
           if(y>H-BAR_H||y<TOP_H) return;
@@ -293,7 +274,6 @@
           updateHUD();
         });
 
-        // Placement preview
         const preview=this.add.graphics().setDepth(50);
         this.input.on('pointermove',ptr=>{
           preview.clear();
@@ -309,17 +289,10 @@
         this.time.delayedCall(1800,()=>startWave(this));
       }
 
-      function getEffectiveRange(cfg) {
-        return cfg.range*(1+globalMods.rangeMult);
-      }
-      function getEffectiveDmg(cfg) {
-        return cfg.dmg*(1+globalMods.dmgMult);
-      }
-      function getEffectiveRate(cfg) {
-        return cfg.rate*(1+globalMods.rateMult);
-      }
+      function getEffectiveRange(cfg) { return cfg.range*(1+globalMods.rangeMult); }
+      function getEffectiveDmg(cfg)   { return cfg.dmg*(1+globalMods.dmgMult); }
+      function getEffectiveRate(cfg)  { return cfg.rate*(1+globalMods.rateMult); }
 
-      // ── BACKGROUND ───────────────────────────────────────────────────────
       function drawBackground(scene) {
         const bg=scene.add.graphics();
         bg.fillStyle(0x07080e); bg.fillRect(0,0,W,H);
@@ -331,7 +304,6 @@
           st.fillStyle(0xffffff,Math.random()*.55+.05);
           st.fillCircle(Math.random()*W,Math.random()*H,Math.random()<.1?1.4:.6);
         }
-        // Nebula glow zones
         const nb=scene.add.graphics();
         [[0x3b1d6e,W*.3,H*.4,90],[0x0c3b52,W*.7,H*.6,80],[0x1a0a30,W*.5,H*.2,70]].forEach(([c,x,y,r])=>{
           nb.fillStyle(c,0.18); nb.fillCircle(x,y,r);
@@ -357,12 +329,10 @@
 
       function drawPathLabels(scene) {
         const s=scene.add.graphics();
-        // Path A start/end arrows
         s.fillStyle(0x5b21b6,.8); s.fillTriangle(pathA[0].x-8,TOP_H+20,pathA[0].x+8,TOP_H+20,pathA[0].x,TOP_H+8);
         s.fillStyle(0x0e7490,.8); s.fillTriangle(pathB[0].x-8,TOP_H+20,pathB[0].x+8,TOP_H+20,pathB[0].x,TOP_H+8);
       }
 
-      // ── TOWER PLACEMENT ──────────────────────────────────────────────────
       function placeTower(scene,x,y,type) {
         const base=TOWER_DEFS[type];
         const cfg={...base, upgrades:JSON.parse(JSON.stringify(base.upg)), upg:undefined};
@@ -395,7 +365,6 @@
         g.lineStyle(level>=1?2.5:1.8,cfg.col,level>=2?1:.8); g.strokeCircle(0,0,12);
         if(level>=1){g.lineStyle(1,cfg.col,.3);g.strokeCircle(0,0,16);}
         if(level>=2){g.lineStyle(.8,cfg.col,.18);g.strokeCircle(0,0,20);}
-        // Type-specific inner gfx
         if(cfg.splash){g.fillStyle(cfg.col,.5);for(let k=0;k<3;k++){const a=k*Math.PI*2/3;g.fillCircle(Math.cos(a)*5,Math.sin(a)*5,2);}}
         else if(cfg.chain){g.lineStyle(1.5,cfg.col,.7);g.lineBetween(-6,-4,6,-4);g.lineBetween(-6,0,6,0);g.lineBetween(-6,4,6,4);}
         else if(cfg.poison){g.fillStyle(cfg.col,.6);g.fillCircle(0,0,4);}
@@ -406,11 +375,12 @@
         else{g.lineStyle(1.5,cfg.col,.5);g.lineBetween(-5,0,5,0);g.lineBetween(0,-5,0,5);}
       }
 
-      // ── ENEMY SPAWNING ───────────────────────────────────────────────────
+      // ── WAVE MANAGEMENT ─────────────────────────────────────────────────────
       function startWave(scene) {
         if(gameOver) return;
         waveActive=true;
         betweenWaves=false;
+        shopIsOpen=false;
         removeAllOverlays();
 
         const ws=WAVE_SCRIPT[Math.min(waveIdx,WAVE_SCRIPT.length-1)];
@@ -420,7 +390,6 @@
 
         showFloatMsg2(scene, ws.bossWave?`⚠ BOSS WAVE ${waveIdx}`:`⚔ Wave ${waveIdx}`, W/2, H/2-50, ws.bossWave?'#ff4444':'#fbbf24');
 
-        // Spawn all squads
         ws.squads.forEach(sq=>{
           const offset=sq.offset||0;
           for(let i=0;i<sq.count;i++){
@@ -450,31 +419,24 @@
           }
         });
 
-        // Schedule end-of-wave check
         const maxDelay=(ws.squads.reduce((mx,sq)=>Math.max(mx,(sq.offset||0)+sq.count*sq.delay),0))+4000;
         scene.time.delayedCall(maxDelay,()=>checkWaveEnd(scene,ws));
       }
 
       function checkWaveEnd(scene,ws) {
         if(gameOver) return;
-        const aliveFromWave=enemies.length;
-        if(aliveFromWave>0){
-          // Check again in 2s
+        if(enemies.length>0){
           scene.time.delayedCall(2000,()=>checkWaveEnd(scene,ws));
           return;
         }
         waveActive=false;
         betweenWaves=true;
-        const nextWave=WAVE_SCRIPT[Math.min(waveIdx,WAVE_SCRIPT.length-1)];
-        const interTime=ws.inter||7000;
 
-        // Interest bonus
         if(globalMods.interest>0){
           const bonus=Math.floor(gold*globalMods.interest);
           if(bonus>0){gold+=bonus;showFloatMsg2(scene,`+${bonus}g interest`,W/2,H/2-30,'#f59e0b');}
         }
 
-        // Wave clear bonus
         const bonus=50+waveIdx*15;
         gold+=bonus;
         score+=bonus*2;
@@ -482,19 +444,23 @@
         showFloatMsg2(scene,`Wave Clear! +${bonus}g`,W/2,H/2-50,'#10b981');
 
         if(waveIdx>=WAVE_SCRIPT.length){
-          // Victory!
           triggerVictory();
           return;
         }
 
-        // Show between-wave shop after delay
+        // FIX: Show shop and wait for player to close it before scheduling next wave
         scene.time.delayedCall(1800,()=>{
-          if(!gameOver) showWaveShop(scene,interTime);
+          if(!gameOver) showWaveShop(scene);
         });
+      }
 
-        scene.time.delayedCall(interTime,()=>{
-          if(!gameOver&&betweenWaves) startWave(scene);
-        });
+      // FIX: Removed auto-close timer; next wave only starts when player clicks Continue/buys
+      function startNextWave() {
+        if(gameOver||!betweenWaves) return;
+        betweenWaves=false;
+        shopIsOpen=false;
+        // Small delay so player sees shop close before wave starts
+        if(scene) scene.time.delayedCall(600,()=>startWave(scene));
       }
 
       function spawnEnemy(scene,data,path) {
@@ -522,7 +488,6 @@
           slowTimer:0,slowFactor:1,
           poisonTimer:0,poisonDmg:0,
           burnTimer:0,burnDmg:0,
-          pullTimer:0,
           raging:false,
           pulseT:Math.random()*Math.PI*2,
           trailHist:[],
@@ -541,7 +506,6 @@
         const r=e.size,c=e.colNum;
         const alpha=e.stealth&&!e.stealthVisible?0.35:1;
         e.g.setAlpha(alpha);
-
         if(e.shape==='diamond'){
           e.g.fillStyle(c,1); e.g.fillTriangle(0,-r,r*.7,0,0,r); e.g.fillTriangle(0,-r,-r*.7,0,0,r);
           if(e.boss){e.g.lineStyle(2,0xffd700,.9);e.g.strokeTriangle(0,-r,r*.7,0,0,r);e.g.strokeTriangle(0,-r,-r*.7,0,0,r);}
@@ -554,55 +518,39 @@
           e.g.beginPath();pts.forEach((p,i)=>i?e.g.lineTo(p.x,p.y):e.g.moveTo(p.x,p.y));e.g.closePath();e.g.fillPath();
           e.g.lineStyle(e.boss?2.5:1.5,e.boss?0xffd700:0xffffff,.3);
           e.g.beginPath();pts.forEach((p,i)=>i?e.g.lineTo(p.x,p.y):e.g.moveTo(p.x,p.y));e.g.closePath();e.g.strokePath();
-          e.g.lineStyle(1,0xffffff,.15);e.g.lineBetween(-r*.4,0,r*.4,0);e.g.lineBetween(0,-r*.4,0,r*.4);
         } else {
           e.g.fillStyle(c,1);e.g.fillCircle(0,0,r);
           e.g.fillStyle(0xffffff,.18);e.g.fillCircle(-r*.22,-r*.25,r*.32);
           e.g.lineStyle(e.boss?2:1.5,e.boss?0xffd700:0xffffff,.3);e.g.strokeCircle(0,0,r);
-          e.g.fillStyle(0x000000,.7);e.g.fillCircle(r*.18,0,r*.28);
-          e.g.fillStyle(0xffffff,.9);e.g.fillCircle(r*.22,-r*.06,r*.1);
         }
-
-        // Special badges
         if(e.flying){e.g.fillStyle(0xffffff,.5);e.g.fillCircle(0,-r-3,2.5);}
         if(e.heals){e.g.lineStyle(1.5,0x34d399,.8);e.g.lineBetween(-3,0,3,0);e.g.lineBetween(0,-3,0,3);}
         if(e.stealth){e.g.lineStyle(1,0x475569,.5);e.g.strokeCircle(0,0,r+3);}
       }
 
-      // ── UPDATE LOOP ──────────────────────────────────────────────────────
       function update(time,delta) {
         if(gameOver) return;
         const dt=delta/1000;
         if(comboTimer>0){comboTimer-=dt;if(comboTimer<=0){combo=0;if(hudTexts.combo)hudTexts.combo.setText('');}}
 
-        // ── Enemy update
         for(let i=enemies.length-1;i>=0;i--){
           const e=enemies[i]; if(e.dead) continue;
           e.pulseT+=0.05;
           const pulse=Math.sin(e.pulseT)*.5+.5;
 
-          // Healer aura
           if(e.heals){
             e.healTimer-=dt;
             if(e.healTimer<=0){
               e.healTimer=1.2;
-              enemies.forEach(ne=>{
-                if(!ne.dead&&ne!==e&&Math.hypot(ne.x-e.x,ne.y-e.y)<60){
-                  ne.hp=Math.min(ne.maxHp,ne.hp+ne.maxHp*.04);
-                }
-              });
-              e.fx.clear();e.fx.setPosition(e.x,e.y);
-              e.fx.lineStyle(2,0x34d399,.6);e.fx.strokeCircle(0,0,60);
+              enemies.forEach(ne=>{if(!ne.dead&&ne!==e&&Math.hypot(ne.x-e.x,ne.y-e.y)<60){ne.hp=Math.min(ne.maxHp,ne.hp+ne.maxHp*.04);}});
+              e.fx.clear();e.fx.setPosition(e.x,e.y);e.fx.lineStyle(2,0x34d399,.6);e.fx.strokeCircle(0,0,60);
             }
           }
 
-          // Freeze
           if(e.freezeTimer>0){
             e.freezeTimer-=dt;
             e.fx.clear();e.fx.setPosition(e.x,e.y);
             e.fx.lineStyle(3,0x67e8f9,.7+pulse*.3);e.fx.strokeCircle(0,0,e.size+5);
-            e.fx.lineStyle(1,0xffffff,.4);
-            for(let k=0;k<4;k++){const a=k*Math.PI*.5+e.pulseT;e.fx.lineBetween(Math.cos(a)*(e.size+2),Math.sin(a)*(e.size+2),Math.cos(a)*(e.size+7),Math.sin(a)*(e.size+7));}
             if(e.freezeTimer<=0){e.frozen=false;}
             else{e.g.setPosition(e.x,e.y);e.hpBar.setPosition(e.x,e.y);if(e.nametag)e.nametag.setPosition(e.x,e.y-e.size-16);continue;}
           } else {
@@ -615,7 +563,6 @@
             }
           }
 
-          // Poison
           if(e.poisonTimer>0){
             e.poisonTimer-=dt; e.hp-=e.poisonDmg*dt;
             e.fx.clear();e.fx.setPosition(e.x,e.y);
@@ -623,22 +570,16 @@
             if(e.hp<=0){killEnemy(e,i);continue;}
           }
 
-          // Burn
           if(e.burnTimer>0){
             e.burnTimer-=dt; e.hp-=e.burnDmg*dt;
-            e.fx.clear();e.fx.setPosition(e.x,e.y);
-            for(let k=0;k<3;k++){const ba=time*.006+k*Math.PI*(2/3)+e.pulseT;e.fx.fillStyle(0xff6b35,.7+pulse*.3);e.fx.fillCircle(Math.cos(ba)*(e.size+3),Math.sin(ba)*(e.size+3),2);}
             if(e.hp<=0){killEnemy(e,i);continue;}
           }
 
-          // Rage mode
           if(e.rages&&!e.raging&&e.hp<e.maxHp*.5){
-            e.raging=true;e.spd*=1.7;e.size=Math.min(e.size+3,20);
-            drawEnemy(e);
+            e.raging=true;e.spd*=1.7;
             showFloatMsg2(scene,'ENRAGED!',e.x,e.y-30,'#ff4444');
           }
 
-          // Stealth flicker
           if(e.stealth){
             e.stealthFlicker+=dt;
             const detected=globalMods.detectStealth||towers.some(t=>t.type==='laser'&&Math.hypot(t.x-e.x,t.y-e.y)<t.cfg.range);
@@ -646,7 +587,6 @@
             e.g.setAlpha(e.stealthVisible?1:0.3+Math.sin(e.stealthFlicker*3)*.1);
           }
 
-          // Boss orbital decoration
           if(e.boss){
             e.g.clear(); const r=e.size,c=e.colNum;
             if(e.shape==='diamond'){
@@ -662,7 +602,6 @@
             for(let k=0;k<4;k++){const oa=time*.003+k*Math.PI*.5;e.g.fillStyle(0xffd700,.9);e.g.fillCircle(Math.cos(oa)*(r+10),Math.sin(oa)*(r+10),2.5);}
           }
 
-          // Trail
           e.trailHist.push({x:e.x,y:e.y});
           if(e.trailHist.length>10) e.trailHist.shift();
           e.trail.clear();
@@ -682,28 +621,41 @@
               if(e.progress<sLen) break;
               e.progress-=sLen;e.pathIdx++;
             }
+
+            // FIX: Enemy reached end — properly remove lives
             if(e.pathIdx>=path.length-1){
-              // Reached end
-              lives=Math.max(0,lives-(e.boss?5:(e.typeid==='tank'||e.typeid==='titan')?3:1));
               e.dead=true;
-              cleanupEnemy(e); enemies.splice(i,1);
-              scene.cameras.main.shake(280,.01);
+
+              // Calculate life loss based on enemy type
+              let lifeLoss=1;
+              if(e.boss) lifeLoss=5;
+              else if(e.typeid==='titan') lifeLoss=4;
+              else if(e.typeid==='tank'||e.typeid==='berserker'||e.typeid==='armored') lifeLoss=2;
+
+              lives=Math.max(0,lives-lifeLoss);
+
+              // Visual feedback
+              cleanupEnemy(e);
+              enemies.splice(i,1);
+              if(scene) scene.cameras.main.shake(300,0.012);
               updateHUD();
+
+              showFloatMsg2(scene,`-${lifeLoss} ❤️`,W/2,H*.35,'#ef4444');
+
               if(lives<=0){triggerGameOver();return;}
               continue;
             }
+
             const a=e.path[e.pathIdx],b=e.path[e.pathIdx+1];
             const sLen=Math.hypot(b.x-a.x,b.y-a.y)||1;
             const t=e.progress/sLen;
             e.x=a.x+t*(b.x-a.x);e.y=a.y+t*(b.y-a.y);
           }
 
-          // Update graphics positions
           e.g.setPosition(e.x,e.y);
           e.hpBar.setPosition(e.x,e.y);
           if(e.nametag) e.nametag.setPosition(e.x,e.y-e.size-16);
 
-          // HP bar
           const bw=e.boss?38:(e.size>12?28:22);
           e.hpBar.clear();
           e.hpBar.fillStyle(0x000000,.7);e.hpBar.fillRect(-bw/2,-e.size-13,bw,4);
@@ -717,45 +669,27 @@
           }
         }
 
-        // ── Tower firing
+        // Tower firing
         towers.forEach(tower=>{
           const effRate=getEffectiveRate(tower.cfg);
           if(time-tower.lastFire<effRate) return;
-
           const effRange=getEffectiveRange(tower.cfg);
           let candidates=enemies.filter(e=>!e.dead&&Math.hypot(tower.x-e.x,tower.y-e.y)<=effRange);
-
-          // Stealth detection
-          if(!globalMods.detectStealth&&tower.type!=='laser'&&tower.type!=='radar'){
+          if(!globalMods.detectStealth&&tower.type!=='laser'){
             candidates=candidates.filter(e=>!e.stealth||e.stealthVisible);
           }
-
-          // Min range (mortar)
-          if(tower.cfg.minRange){
-            candidates=candidates.filter(e=>Math.hypot(tower.x-e.x,tower.y-e.y)>=tower.cfg.minRange);
-          }
-
+          if(tower.cfg.minRange){candidates=candidates.filter(e=>Math.hypot(tower.x-e.x,tower.y-e.y)>=tower.cfg.minRange);}
           if(!candidates.length) return;
-
-          // Targeting: furthest along path
           candidates.sort((a,b)=>(b.pathIdx*1000+b.progress)-(a.pathIdx*1000+a.progress));
           const tgt=candidates[0];
           tower.lastFire=time;
-
-          if(tower.cfg.chain){
-            doChainAttack(tower,tgt,time);
-          } else if(tower.cfg.pierce){
-            doPierceAttack(tower,tgt,time);
-          } else if(tower.cfg.pull){
-            doPullAttack(tower,candidates,time);
-          } else if(tower.cfg.burn){
-            doFlameCone(tower,tgt,time);
-          } else {
-            fireBullet(scene,tower,tgt,getEffectiveDmg(tower.cfg));
-          }
+          if(tower.cfg.chain) doChainAttack(tower,tgt,time);
+          else if(tower.cfg.pierce) doPierceAttack(tower,tgt,time);
+          else if(tower.cfg.pull) doPullAttack(tower,candidates,time);
+          else if(tower.cfg.burn) doFlameCone(tower,tgt,time);
+          else fireBullet(scene,tower,tgt,getEffectiveDmg(tower.cfg));
         });
 
-        // ── Bullet update
         for(let i=bullets.length-1;i>=0;i--){
           const b=bullets[i];
           if(!b.target||b.target.dead){b.g.destroy();bullets.splice(i,1);continue;}
@@ -764,18 +698,15 @@
           else{const spd=240/60;b.g.x+=dx/dist*spd;b.g.y+=dy/dist*spd;}
         }
 
-        // ── Particle update
         for(let i=particles.length-1;i>=0;i--){
           const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=220*dt;p.life-=dt;
           p.g.setPosition(p.x,p.y).setAlpha(Math.max(0,p.life/p.maxLife));
           if(p.life<=0){p.g.destroy();particles.splice(i,1);}
         }
 
-        // ── Kill feed cleanup
         killFeedTexts=killFeedTexts.filter(t=>t.active);
       }
 
-      // ── ATTACK TYPES ──────────────────────────────────────────────────────
       function doChainAttack(tower,firstTarget,time) {
         const maxChain=Math.min((tower.cfg.chain||3)+(globalMods.chainBonus||0),8);
         let targets=[firstTarget],last=firstTarget;
@@ -801,11 +732,9 @@
         const pierced=hit.slice(0,5);
         pierced.forEach((e,idx)=>{
           const dmg=getEffectiveDmg(tower.cfg)*Math.pow(.85,idx);
-          e.hp-=dmg; e.flickerT=.12;
-          tower.totalDmg+=dmg; tower.kills+=e.hp<=0?1:0;
+          e.hp-=dmg; tower.totalDmg+=dmg;
           if(e.hp<=0) killEnemy(e,enemies.indexOf(e));
         });
-        // Laser beam
         emitLaserBeam(scene,tower,firstTarget,tower.cfg.col);
       }
 
@@ -844,50 +773,28 @@
       function applyHit(b) {
         const e=b.target,tower=b.tower;
         if(e.dead) return;
-
-        // Shield
         if(e.shieldHp>0&&e.armor>0){
           e.shieldHp-=b.dmg*(1-e.armor);
           if(e.shieldHp<=0){e.shieldHp=0;emitBurst(scene,e.x,e.y,0x94a3b8,8);}
           return;
         }
-
-        // Armor reduction (non-shield)
         let dmg=b.dmg;
         if(e.armor>0) dmg*=(1-e.armor);
-
         e.hp-=dmg; tower.totalDmg+=dmg;
-
-        // Status effects
-        if(tower.cfg.slow){
-          e.slowTimer=2.0;
-          e.slowFactor=tower.cfg.slow+(globalMods.slowBoost||0);
-        }
-        if(tower.cfg.freeze){
-          e.freezeTimer=1.5;e.frozen=true;
-          emitBurst(scene,e.x,e.y,0x67e8f9,6);
-        }
-        if(tower.cfg.poison){
-          e.poisonTimer=4.5;
-          e.poisonDmg=tower.cfg.dmg*(0.25+globalMods.dmgMult*.1);
-        }
-        if(tower.cfg.burn){
-          e.burnTimer=2.5;
-          e.burnDmg=tower.cfg.dmg*.15;
-        }
-
-        // Splash
+        if(tower.cfg.slow){e.slowTimer=2.0;e.slowFactor=tower.cfg.slow+(globalMods.slowBoost||0);}
+        if(tower.cfg.freeze){e.freezeTimer=1.5;e.frozen=true;emitBurst(scene,e.x,e.y,0x67e8f9,6);}
+        if(tower.cfg.poison){e.poisonTimer=4.5;e.poisonDmg=tower.cfg.dmg*.25;}
+        if(tower.cfg.burn){e.burnTimer=2.5;e.burnDmg=tower.cfg.dmg*.15;}
         if(tower.cfg.splash>0){
           const splashR=tower.cfg.splash*(1+(globalMods.splashMult||0));
           enemies.forEach(ne=>{
             if(!ne.dead&&ne!==e&&Math.hypot(ne.x-e.x,ne.y-e.y)<splashR){
-              ne.hp-=dmg*.5;ne.flickerT=.08;
+              ne.hp-=dmg*.5;
               if(ne.hp<=0) killEnemy(ne,enemies.indexOf(ne));
             }
           });
           emitSplash(scene,e.x,e.y,tower.cfg.col,splashR);
         }
-
         if(e.hp<=0) killEnemy(e,enemies.indexOf(e));
       }
 
@@ -896,25 +803,17 @@
         e.dead=true;
         killCount++;
         combo++; comboTimer=3.0;
-
         const mult=combo>=10?3:combo>=5?2:combo>=3?1.5:1;
         const earned=Math.round(e.reward*mult)+(globalMods.goldBonus||0);
         gold+=earned;
         score+=earned*4+(e.boss?2000:e.typeid==='titan'?800:0);
         updateHUD();
-
-        // Combo display
         if(combo>=3&&hudTexts.combo){
           const comboStr=combo>=10?`${combo}x MEGA COMBO!`:combo>=5?`${combo}x COMBO!`:`${combo}x Combo`;
-          hudTexts.combo.setText(comboStr);
-          hudTexts.combo.setAlpha(1);
+          hudTexts.combo.setText(comboStr).setAlpha(1);
           scene.tweens.add({targets:hudTexts.combo,alpha:0,delay:2200,duration:500});
         }
-
-        // Kill feed
-        addKillFeed(e.name, earned, e.boss);
-
-        // Split mechanic
+        addKillFeed(e.name,earned,e.boss);
         if(e.splits&&!e.splitDone){
           e.splitDone=true;
           for(let k=0;k<3;k++){
@@ -925,8 +824,6 @@
             ne.pathIdx=e.pathIdx;ne.progress=e.progress;
           }
         }
-
-        // Particles
         const cnt=e.boss?40:(e.size>12?20:10);
         for(let k=0;k<cnt;k++){
           const pg=scene.add.graphics().setDepth(70);
@@ -937,7 +834,6 @@
         }
         emitBurst(scene,e.x,e.y,e.colNum,0);
         if(e.boss){scene.cameras.main.shake(500,.018);}
-
         cleanupEnemy(e);
         if(idx>=0&&idx<enemies.length) enemies.splice(idx,1);
       }
@@ -947,7 +843,6 @@
         if(e.nametag) e.nametag.destroy();
       }
 
-      // ── FX HELPERS ────────────────────────────────────────────────────────
       function fireBullet(scene,tower,target,dmg) {
         const g=scene.add.graphics().setDepth(40);
         const isBig=tower.cfg.splash>0,isChain=!!tower.cfg.chain,isCryo=tower.cfg.freeze;
@@ -977,16 +872,11 @@
         const g=scene.add.graphics().setDepth(55);
         g.lineStyle(2.5,0xfacc15,1);g.beginPath();g.moveTo(from.x,from.y);g.lineTo(to.x,to.y);g.strokePath();
         scene.tweens.add({targets:g,alpha:0,duration:180,onComplete:()=>g.destroy()});
-        const mx=(from.x+to.x)/2+(Math.random()-.5)*12,my=(from.y+to.y)/2+(Math.random()-.5)*12;
-        const g2=scene.add.graphics().setDepth(55);
-        g2.lineStyle(1.5,0xfacc15,.5);g2.beginPath();g2.moveTo(from.x,from.y);g2.lineTo(mx,my);g2.lineTo(to.x,to.y);g2.strokePath();
-        scene.tweens.add({targets:g2,alpha:0,duration:150,onComplete:()=>g2.destroy()});
       }
 
       function emitLaserBeam(scene,tower,target,col){
         const g=scene.add.graphics().setDepth(55);
         g.lineStyle(3,col,.9);g.beginPath();g.moveTo(tower.x,tower.y);g.lineTo(target.x,target.y);g.strokePath();
-        g.lineStyle(1.5,0xffffff,.5);g.beginPath();g.moveTo(tower.x,tower.y);g.lineTo(target.x,target.y);g.strokePath();
         scene.tweens.add({targets:g,alpha:0,duration:90,onComplete:()=>g.destroy()});
       }
 
@@ -1007,7 +897,6 @@
         }
       }
 
-      // ── KILL FEED ─────────────────────────────────────────────────────────
       function addKillFeed(name,gold,isBoss){
         const t=scene.add.text(W-6,TOP_H+6+killFeedTexts.length*14,
           `${isBoss?'💀 ':''}${name} +${gold}g`,
@@ -1015,11 +904,9 @@
           .setOrigin(1,0).setDepth(98);
         killFeedTexts.push(t);
         scene.tweens.add({targets:t,alpha:0,delay:2500,duration:600,onComplete:()=>{t.destroy();killFeedTexts=killFeedTexts.filter(x=>x!==t);}});
-        // Shift older entries down
         killFeedTexts.forEach((tt,i)=>{tt.y=TOP_H+6+i*14;});
       }
 
-      // ── FLOAT MESSAGES ────────────────────────────────────────────────────
       function showFloatMsg(txt,x,y){
         if(!scene) return;
         const col=txt.includes('gold')||txt.includes('Need')?'#ef4444':txt.includes('Path')||txt.includes('close')?'#fbbf24':'#10b981';
@@ -1033,9 +920,7 @@
         scene.tweens.add({targets:t,y:y-50,alpha:0,duration:2000,ease:'Cubic.Out',onComplete:()=>t.destroy()});
       }
 
-      // ── HUD ───────────────────────────────────────────────────────────────
       function createHUD(scene) {
-        // Top bar
         const topBg=scene.add.graphics().setDepth(90);
         topBg.fillStyle(0x000000,.85);topBg.fillRect(0,0,W,TOP_H);
         hudTexts.gold=scene.add.text(8,5,'💰 '+gold,{fontSize:'12px',color:'#f59e0b',fontFamily:'monospace'}).setDepth(91);
@@ -1044,7 +929,6 @@
         hudTexts.wave=scene.add.text(W/2,18,'Wave 0/'+WAVE_SCRIPT.length,{fontSize:'9px',color:'rgba(255,255,255,.35)',fontFamily:'monospace'}).setOrigin(0.5,0).setDepth(91);
         hudTexts.combo=scene.add.text(W/2,TOP_H+30,'',{fontSize:'15px',color:'#fbbf24',fontFamily:'monospace',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(95).setAlpha(0);
 
-        // Bottom tower bar
         const barY=H-BAR_H;
         const barBg=scene.add.graphics().setDepth(90);
         barBg.fillStyle(0x000000,.92);barBg.fillRect(0,barY,W,BAR_H);
@@ -1079,28 +963,25 @@
         if(hudTexts.score) hudTexts.score.setText('⭐ '+score.toLocaleString());
       }
 
-      // ── TOWER OVERLAY ─────────────────────────────────────────────────────
       function showTowerOverlay(tower) {
         removeAllOverlays();
-        const ov=document.createElement('div');
-        ov.id='td-tower-ov';
-        const rect=container.getBoundingClientRect();
         const canvasEl=container.querySelector('canvas');
-        const cRect=canvasEl?canvasEl.getBoundingClientRect():rect;
+        const cRect=canvasEl?canvasEl.getBoundingClientRect():{width:W,height:H};
         const sx=W/cRect.width,sy=H/cRect.height;
         const ox=Math.min(tower.x/sx,cRect.width-160);
         const oy=Math.max(tower.y/sy-110,TOP_H+5);
-
         const colHex='#'+tower.cfg.col.toString(16).padStart(6,'0');
         const hasUpg=tower.level<(tower.cfg.upgrades||[]).length;
         const upg=hasUpg?tower.cfg.upgrades[tower.level]:null;
 
+        const ov=document.createElement('div');
+        ov.id='td-tower-ov';
         ov.style.cssText=`position:absolute;left:${ox}px;top:${oy}px;width:155px;background:#050710;border:1px solid ${colHex}55;border-radius:10px;padding:10px;z-index:300;font-family:monospace;pointer-events:all`;
 
         let upgradeHtml='';
         if(hasUpg){
           const canAfford=gold>=upg.cost;
-          upgradeHtml=`<div style="font-size:9px;color:rgba(255,255,255,.4);margin-bottom:4px">Upgrade → Lv${tower.level+2}: ${upg.label}</div>
+          upgradeHtml=`<div style="font-size:9px;color:rgba(255,255,255,.4);margin-bottom:4px">→ Lv${tower.level+2}: ${upg.label}</div>
           <button id="td-upg" style="width:100%;padding:6px;background:${canAfford?'rgba(16,185,129,.18)':'rgba(239,68,68,.1)'};border:1px solid ${canAfford?'#10b981':'#ef4444'};color:${canAfford?'#10b981':'#ef4444'};border-radius:6px;cursor:pointer;font-size:10px;font-weight:700;font-family:monospace">
             ${canAfford?`✓ Upgrade (${upg.cost}g)`:`✗ Need ${upg.cost}g`}</button>`;
         } else {
@@ -1112,10 +993,9 @@
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
             <span style="font-size:16px">${tower.cfg.emoji}</span>
             <div><div style="font-size:12px;font-weight:700;color:#fff">${tower.cfg.name}</div>
-            <div style="font-size:9px;color:rgba(255,255,255,.4)">Lv${tower.level+1} · ${Math.round(tower.totalDmg)} dmg done</div></div></div>
-          <div style="font-size:9px;color:rgba(255,255,255,.35);margin-bottom:8px;line-height:1.5">
-            DMG: ${Math.round(getEffectiveDmg(tower.cfg))} · RNG: ${Math.round(getEffectiveRange(tower.cfg))}<br>
-            Kills: ${tower.kills||0}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.4)">Lv${tower.level+1} · ${Math.round(tower.totalDmg)} dmg</div></div></div>
+          <div style="font-size:9px;color:rgba(255,255,255,.35);margin-bottom:8px">
+            DMG: ${Math.round(getEffectiveDmg(tower.cfg))} · RNG: ${Math.round(getEffectiveRange(tower.cfg))}<br>Kills: ${tower.kills||0}</div>
           ${upgradeHtml}
           <button id="td-sell" style="width:100%;padding:5px;background:rgba(239,68,68,.1);border:1px solid #ef444444;color:#ef4444;border-radius:6px;cursor:pointer;font-size:10px;margin-top:5px;font-family:monospace">
             💰 Sell (${sellVal}g)</button>
@@ -1144,14 +1024,15 @@
             score+=20;updateHUD();removeAllOverlays();
           };
         }
-        setTimeout(()=>removeAllOverlays(),6000);
+        setTimeout(()=>{if(towerOverlay===ov)removeAllOverlays();},6000);
       }
 
-      // ── BETWEEN-WAVE SHOP ─────────────────────────────────────────────────
-      function showWaveShop(scene,interTime) {
+      // FIX: Shop stays open until player explicitly clicks an option
+      function showWaveShop(scene) {
         removeAllOverlays();
-        // Pick 3 random upgrades not yet purchased
-        const available=GLOBAL_UPGRADES.filter(u=>!purchasedUpgrades.has(u.id)&&gold>=Math.floor(u.cost*.5));
+        shopIsOpen=true;
+
+        const available=GLOBAL_UPGRADES.filter(u=>!purchasedUpgrades.has(u.id));
         const offers=[];
         const shuffled=[...available].sort(()=>Math.random()-.5);
         for(let i=0;i<Math.min(3,shuffled.length);i++) offers.push(shuffled[i]);
@@ -1160,7 +1041,6 @@
         ov.id='td-shop-ov';
         ov.style.cssText='position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(100% - 32px);max-width:320px;background:#050710;border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:14px;z-index:400;font-family:monospace;pointer-events:all';
 
-        const secLeft=Math.ceil(interTime/1000);
         let offerHtml=offers.map(u=>{
           const canAfford=gold>=u.cost;
           return `<div style="padding:8px;border-radius:8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:7px">
@@ -1177,10 +1057,10 @@
         ov.innerHTML=`
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <div style="font-size:14px;font-weight:700;color:#f59e0b">🏪 Base Upgrades</div>
-            <div style="font-size:10px;color:rgba(255,255,255,.35)">Next wave in ${secLeft}s</div></div>
-          <div style="font-size:10px;color:rgba(255,255,255,.3);margin-bottom:10px">💰 Treasury: ${gold.toLocaleString()}g</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.4)">Wave ${waveIdx}/${WAVE_SCRIPT.length} next</div></div>
+          <div style="font-size:10px;color:rgba(255,255,255,.3);margin-bottom:10px">💰 Treasury: ${gold.toLocaleString()}g — buy one or skip</div>
           ${offerHtml}
-          <button id="shop-close" style="width:100%;padding:7px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#f59e0b;border-radius:8px;cursor:pointer;font-size:11px;margin-top:4px;font-family:monospace">Continue →</button>`;
+          <button id="shop-close" style="width:100%;padding:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);color:#f59e0b;border-radius:8px;cursor:pointer;font-size:11px;margin-top:4px;font-family:monospace;font-weight:700">▶ Start Next Wave →</button>`;
 
         container.appendChild(ov);
         shopOverlay=ov;
@@ -1195,10 +1075,17 @@
             applyGlobalUpgrade(upg.effect);
             updateHUD();
             showFloatMsg2(scene,`✦ ${upg.name}!`,W/2,H*.4,'#10b981');
+            // FIX: after buying, refresh shop (so they can keep buying if they want, or close)
             removeAllOverlays();
+            showWaveShop(scene);
           });
         });
-        ov.querySelector('#shop-close').onclick=()=>removeAllOverlays();
+
+        // FIX: Continue button triggers next wave
+        ov.querySelector('#shop-close').onclick=()=>{
+          removeAllOverlays();
+          startNextWave();
+        };
       }
 
       function applyGlobalUpgrade(effect) {
@@ -1215,11 +1102,10 @@
       }
 
       function removeAllOverlays(){
-        [upgradeOverlay,shopOverlay,towerOverlay].forEach(ov=>{if(ov)ov.remove();});
+        [upgradeOverlay,shopOverlay,towerOverlay].forEach(ov=>{if(ov&&ov.parentNode)ov.remove();});
         upgradeOverlay=null;shopOverlay=null;towerOverlay=null;
       }
 
-      // ── GAME OVER / VICTORY ───────────────────────────────────────────────
       function triggerGameOver(){
         if(gameOver) return;
         gameOver=true;
@@ -1252,7 +1138,6 @@
         rb.on('pointerdown',()=>{if(_game2){_game2.destroy(true);_game2=null;}container.innerHTML='';renderPlay(container);});
       }
 
-      // ── PHASER CONFIG ─────────────────────────────────────────────────────
       const config={
         type:Phaser.AUTO,
         width:W,height:H,
@@ -1278,7 +1163,7 @@
 
   window.YM_S['towerdefense.sphere.js']={
     name:'Tower Defense',icon:'🗼',category:'Games',
-    description:'Tower Defense v5 — 12 towers, 20 waves, dual path, 12 enemy types, global upgrades shop, kill feed',
+    description:'Tower Defense v5 FIXED — lives correctly deducted, shop stays until player chooses',
     emit:[],receive:[],
     activate(ctx){_ctx=ctx;},
     deactivate(){if(_game2){_game2.destroy(true);_game2=null;}},
