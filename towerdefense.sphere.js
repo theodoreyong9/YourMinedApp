@@ -113,80 +113,83 @@
   function renderPanel(container) {
     container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:#07080e;font-family:-apple-system,monospace';
     container.innerHTML = '';
-    const track = document.createElement('div');
-    track.style.cssText = 'flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
+
+    // Zone principale : le canvas Phaser vit ici et ne sera JAMAIS détruit lors d'un changement d'onglet
+    const gameZone = document.createElement('div');
+    gameZone.style.cssText = 'flex:1;overflow:hidden;min-height:0;position:relative';
+
+    // Zone overlay pour Scores / Guide (par-dessus le canvas)
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:absolute;inset:0;z-index:200;display:none;flex-direction:column;background:#07080e;overflow-y:auto;padding:16px';
+
+    gameZone.appendChild(overlay);
+    container.appendChild(gameZone);
+
     const tabBar = document.createElement('div');
     tabBar.style.cssText = 'display:flex;border-top:1px solid rgba(255,255,255,.07);flex-shrink:0;background:#040508';
 
-    // FIX: bouton Play ne redémarre plus le jeu si une partie est en cours
-    let currentTab = 'play';
+    const goToPlay = () => {
+      overlay.style.display = 'none';
+      tabBar.querySelectorAll('div').forEach((x,i)=>x.style.color=i===0?'#f59e0b':'rgba(255,255,255,.35)');
+    };
+
+    const setTab = (id, idx) => {
+      tabBar.querySelectorAll('div').forEach((x,i)=>x.style.color=i===idx?'#f59e0b':'rgba(255,255,255,.35)');
+      if(id === 'play'){
+        overlay.style.display = 'none';
+      } else if(id === 'scores'){
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        renderScoresInto(overlay, ()=>{
+          if(_game2){_game2.destroy(true);_game2=null;}
+          goToPlay();
+          renderPlay(gameZone);
+        });
+      } else {
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        renderGuideInto(overlay);
+      }
+    };
 
     [['play','🗼 Play'],['scores','🏆 Scores'],['guide','📖 Guide']].forEach(([id,label],idx)=>{
       const t=document.createElement('div');
       t.style.cssText=`flex:1;padding:9px 4px;text-align:center;cursor:pointer;font-size:12px;font-weight:600;color:${idx===0?'#f59e0b':'rgba(255,255,255,.35)'}`;
       t.textContent=label;
-      t.addEventListener('click',()=>{
-        if(currentTab === id) return; // déjà sur cet onglet, ne rien faire
-        currentTab = id;
-        tabBar.querySelectorAll('div').forEach((x,i)=>x.style.color=i===idx?'#f59e0b':'rgba(255,255,255,.35)');
-        track.innerHTML='';
-        if(id==='play'){
-          // Si une partie est en cours, on la montre; sinon on initialise
-          if(_game2 && _game2._active){
-            renderPlayOverlay(track);
-          } else {
-            renderPlay(track);
-          }
-        } else if(id==='scores'){
-          renderScores(track);
-        } else {
-          renderGuide(track);
-        }
-      });
+      t.addEventListener('click',()=>setTab(id,idx));
       tabBar.appendChild(t);
     });
-    container.appendChild(track);
     container.appendChild(tabBar);
-    renderPlay(track);
+
+    // Lancer le jeu dans gameZone (une seule fois)
+    renderPlay(gameZone);
   }
 
-  // Vue "partie en cours" quand on clique sur Play pendant une partie
-  function renderPlayOverlay(container){
-    container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px';
-    container.innerHTML=`
-      <div style="font-size:36px">🗼</div>
-      <div style="font-size:14px;font-weight:700;color:#f59e0b;font-family:monospace">PARTIE EN COURS</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.4);text-align:center;padding:0 20px">Votre partie tourne en arrière-plan.<br>Naviguez entre les onglets librement.</div>
-      <button id="td-resume" style="background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#000;font-weight:800;padding:12px 28px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:13px">▶ Reprendre</button>
-      <button id="td-newgame" style="background:transparent;border:1px solid rgba(239,68,68,.4);color:#ef4444;padding:10px 20px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:12px">↺ Nouvelle partie</button>`;
-    container.querySelector('#td-resume').onclick=()=>renderPlay(container);
-    container.querySelector('#td-newgame').onclick=()=>{
-      if(_game2){_game2.destroy(true);_game2=null;}
-      renderPlay(container);
-    };
-  }
-
-  function renderScores(container) {
-    container.style.cssText='flex:1;overflow-y:auto;padding:16px;background:#07080e';
+  function renderScoresInto(container, onRestart) {
     const scores=loadScores();
-    let html=`<div style="font-size:17px;font-weight:700;color:#f59e0b;margin-bottom:14px">🏆 Hall of Fame</div>`;
-    if(!scores.length){html+='<div style="color:rgba(255,255,255,.3);text-align:center;margin-top:40px">Aucune partie jouée.</div>';}
+    let html=`<div style="font-size:17px;font-weight:700;color:#f59e0b;margin-bottom:10px">🏆 Hall of Fame</div>`;
+    // Bouton restart
+    html+=`<button id="td-restart-btn" style="width:100%;padding:9px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#f59e0b;border-radius:8px;cursor:pointer;font-family:monospace;font-size:12px;font-weight:700;margin-bottom:14px">↺ Nouvelle partie</button>`;
+    if(!scores.length){html+='<div style="color:rgba(255,255,255,.3);text-align:center;margin-top:30px">Aucune partie jouée.</div>';}
     else scores.forEach((s,i)=>{
       const medal=['🥇','🥈','🥉'][i]||`#${i+1}`;
       html+=`<div style="display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;margin-bottom:5px;background:rgba(255,255,255,.04)">
         <span>${medal}</span>
         <div style="flex:1">
           <div style="color:#fff;font-size:12px">${s.name||'Commandant'}</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.3)">Vague ${s.wave} · ${s.kills||0} kills · ${s.towers||0} tours</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.3)">Vague ${s.wave} · ${s.kills||0} kills${s.victory?' · ✦':''}</div>
         </div>
         <div style="color:#f59e0b;font-size:14px;font-weight:700">${s.score.toLocaleString()}</div>
       </div>`;
     });
     container.innerHTML=html;
+    const btn=container.querySelector('#td-restart-btn');
+    if(btn && onRestart) btn.onclick=onRestart;
   }
 
-  function renderGuide(container) {
-    container.style.cssText='flex:1;overflow-y:auto;padding:14px;background:#07080e';
+  function renderScores(container) { renderScoresInto(container, null); }
+
+  function renderGuideInto(container) {
     let html=`<div style="font-size:17px;font-weight:700;color:#f59e0b;margin-bottom:12px">📖 Guide des tours</div>`;
     Object.entries(TOWER_DEFS).forEach(([id,t])=>{
       html+=`<div style="padding:8px 10px;border-radius:8px;margin-bottom:6px;background:rgba(255,255,255,.04);border-left:3px solid #${t.col.toString(16).padStart(6,'0')}">
@@ -204,9 +207,9 @@
       if(e.armor) tags.push(`🛡️ ${Math.round(e.armor*100)}% armure`);
       if(e.flying) tags.push('✈️ volant');
       if(e.stealth) tags.push('👻 furtif');
-      if(e.heals) tags.push('💚 soigne les alliés');
-      if(e.splits) tags.push('🔀 se divise à la mort');
-      if(e.rages) tags.push('😡 rage sous 50% PV');
+      if(e.heals) tags.push('💚 soigne');
+      if(e.splits) tags.push('🔀 se divise');
+      if(e.rages) tags.push('😡 rage <50% PV');
       if(e.boss) tags.push('👑 BOSS');
       html+=`<div style="padding:7px 10px;border-radius:8px;margin-bottom:5px;background:rgba(255,255,255,.04);border-left:3px solid ${e.col}">
         <div style="display:flex;justify-content:space-between">
@@ -218,6 +221,8 @@
     });
     container.innerHTML=html;
   }
+
+  function renderGuide(container) { renderGuideInto(container); }
 
   // ── JEU PRINCIPAL ──────────────────────────────────────────────────────────
   function renderPlay(container) {
@@ -1156,13 +1161,17 @@
         if(_game2) _game2._active=false;
         const name=_ctx?.loadProfile?.()?.name||'Commandant';
         saveScore({name,score,wave:waveIdx,kills:killCount,towers:towers.length,ts:Date.now()});
-        const ov=scene.add.graphics().setDepth(300);
-        ov.fillStyle(0x000000,.92);ov.fillRect(0,0,W,H);
-        scene.add.text(W/2,H/2-80,'GAME OVER',{fontSize:'28px',color:'#ef4444',fontFamily:'monospace',fontStyle:'bold',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setDepth(301);
-        scene.add.text(W/2,H/2-44,score.toLocaleString()+' pts',{fontSize:'22px',color:'#f59e0b',fontFamily:'monospace'}).setOrigin(0.5).setDepth(301);
-        scene.add.text(W/2,H/2-16,`${killCount} kills · Vague ${waveIdx}/${WAVE_SCRIPT.length}`,{fontSize:'11px',color:'rgba(255,255,255,.45)',fontFamily:'monospace'}).setOrigin(0.5).setDepth(301);
-        const rb=scene.add.text(W/2,H/2+30,'▶  REJOUER',{fontSize:'13px',color:'#fff',fontFamily:'monospace',backgroundColor:'#1d4ed8',padding:{x:20,y:10}}).setOrigin(0.5).setInteractive().setDepth(302);
-        rb.on('pointerdown',()=>{if(_game2){_game2.destroy(true);_game2=null;}container.innerHTML='';renderPlay(container);});
+        // Overlay HTML centré sur le container (pas via Phaser pour éviter les pb de scale)
+        const ov=document.createElement('div');
+        ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.92);z-index:500;font-family:monospace';
+        ov.innerHTML=`
+          <div style="font-size:40px">💀</div>
+          <div style="font-size:26px;font-weight:900;color:#ef4444">GAME OVER</div>
+          <div style="font-size:20px;color:#f59e0b;font-weight:700">${score.toLocaleString()} pts</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4)">${killCount} kills · Vague ${waveIdx}/${WAVE_SCRIPT.length}</div>
+          <button id="go-replay" style="margin-top:8px;background:linear-gradient(135deg,#3b82f6,#1d4ed8);border:none;color:#fff;font-weight:800;padding:13px 28px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:14px">↺ REJOUER</button>`;
+        container.appendChild(ov);
+        ov.querySelector('#go-replay').onclick=()=>{ov.remove();if(_game2){_game2.destroy(true);_game2=null;}renderPlay(container);};
       }
 
       function triggerVictory(){
@@ -1172,13 +1181,16 @@
         if(_game2) _game2._active=false;
         const name=_ctx?.loadProfile?.()?.name||'Commandant';
         saveScore({name,score,wave:WAVE_SCRIPT.length,kills:killCount,towers:towers.length,ts:Date.now(),victory:true});
-        const ov=scene.add.graphics().setDepth(300);
-        ov.fillStyle(0x000000,.92);ov.fillRect(0,0,W,H);
-        scene.add.text(W/2,H/2-80,'VICTOIRE!',{fontSize:'32px',color:'#ffd700',fontFamily:'monospace',fontStyle:'bold',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setDepth(301);
-        scene.add.text(W/2,H/2-42,score.toLocaleString()+' pts',{fontSize:'24px',color:'#f59e0b',fontFamily:'monospace'}).setOrigin(0.5).setDepth(301);
-        scene.add.text(W/2,H/2-14,`${killCount} kills · 20 vagues terminées!`,{fontSize:'11px',color:'rgba(255,255,255,.5)',fontFamily:'monospace'}).setOrigin(0.5).setDepth(301);
-        const rb=scene.add.text(W/2,H/2+30,'▶  REJOUER',{fontSize:'13px',color:'#000',fontFamily:'monospace',backgroundColor:'#ffd700',padding:{x:20,y:10}}).setOrigin(0.5).setInteractive().setDepth(302);
-        rb.on('pointerdown',()=>{if(_game2){_game2.destroy(true);_game2=null;}container.innerHTML='';renderPlay(container);});
+        const ov=document.createElement('div');
+        ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(0,0,0,.92);z-index:500;font-family:monospace';
+        ov.innerHTML=`
+          <div style="font-size:40px">🏆</div>
+          <div style="font-size:28px;font-weight:900;color:#ffd700">VICTOIRE !</div>
+          <div style="font-size:20px;color:#f59e0b;font-weight:700">${score.toLocaleString()} pts</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4)">${killCount} kills · 20 vagues terminées !</div>
+          <button id="vic-replay" style="margin-top:8px;background:linear-gradient(135deg,#fbbf24,#d97706);border:none;color:#000;font-weight:800;padding:13px 28px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:14px">↺ REJOUER</button>`;
+        container.appendChild(ov);
+        ov.querySelector('#vic-replay').onclick=()=>{ov.remove();if(_game2){_game2.destroy(true);_game2=null;}renderPlay(container);};
       }
 
       const config={
@@ -1187,7 +1199,7 @@
         parent:container,
         backgroundColor:'#07080e',
         scene:{preload,create,update},
-        scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH}
+        scale:{mode:Phaser.Scale.NONE,autoCenter:Phaser.Scale.NO_CENTER}
       };
       _game2=new Phaser.Game(config);
       _game2._active=true; // FIX: flag pour détecter partie en cours
