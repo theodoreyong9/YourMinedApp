@@ -91,7 +91,7 @@
     body.style.cssText='flex:1;overflow:hidden;min-height:0;display:flex;flex-direction:column';
     const tabs=document.createElement('div');
     tabs.style.cssText='display:flex;border-top:1px solid rgba(255,255,255,.08);flex-shrink:0;background:#060608';
-    [['race','🏁 Course'],['scores','🏆 Temps'],['info','📊 Specs']].forEach(([id,lbl],i)=>{
+    [['race','🏁 Course'],['scores','🏆 Temps']].forEach(([id,lbl],i)=>{
       const t=document.createElement('div');
       t.style.cssText=`flex:1;padding:9px 4px;text-align:center;cursor:pointer;font-size:12px;font-weight:600;color:${i===0?'#00ccff':'rgba(255,255,255,.35)'}`;
       t.textContent=lbl;
@@ -99,8 +99,7 @@
         tabs.querySelectorAll('div').forEach((x,j)=>x.style.color=j===i?'#00ccff':'rgba(255,255,255,.35)');
         body.innerHTML='';
         if(id==='race') renderMenu(body);
-        else if(id==='scores') renderLB(body);
-        else renderSpecs(body);
+        else renderLB(body);
       };
       tabs.appendChild(t);
     });
@@ -118,21 +117,6 @@
         <span>${['🥇','🥈','🥉'][i]||'#'+(i+1)}</span><div style="flex:1"><div style="color:#fff;font-size:12px">${s.name||'Pilote'}</div>
         <div style="font-size:10px;color:rgba(255,255,255,.3)">${s.track} · ${s.ship}</div></div>
         <div style="color:#00ccff;font-size:14px;font-weight:700">${fmt(s.time)}</div></div>`;
-    });
-    c.innerHTML=h;
-  }
-
-  function renderSpecs(c){
-    c.style.cssText='flex:1;overflow-y:auto;padding:14px;background:#000';
-    let h=`<div style="font-size:15px;font-weight:700;color:#00ccff;margin-bottom:12px">📊 Vaisseaux</div>`;
-    Object.entries(SHIPS).forEach(([,s])=>{
-      const bar=(v,mx)=>`<div style="flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:2px"><div style="width:${Math.round(v/mx*100)}%;height:100%;background:#${s.col.toString(16).padStart(6,'0')};border-radius:2px"></div></div>`;
-      h+=`<div style="padding:10px;border-radius:8px;margin-bottom:8px;background:rgba(255,255,255,.04);border-left:3px solid #${s.col.toString(16).padStart(6,'0')}">
-        <div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px">${s.name}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:8px">${s.desc}</div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:9px;color:rgba(255,255,255,.35);width:48px">ACCEL</span>${bar(s.accel,28)}</div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:9px;color:rgba(255,255,255,.35);width:48px">VITESSE</span>${bar(s.maxSpd,38)}</div>
-        <div style="display:flex;align-items:center;gap:6px"><span style="font-size:9px;color:rgba(255,255,255,.35);width:48px">GRIP</span>${bar(s.grip*100,100)}</div></div>`;
     });
     c.innerHTML=h;
   }
@@ -156,10 +140,23 @@
         </div>
         <div style="font-size:10px;color:rgba(0,200,255,.6);letter-spacing:2px;margin-bottom:7px;align-self:flex-start">VAISSEAU</div>
         <div style="display:flex;flex-direction:column;gap:5px;width:100%;margin-bottom:16px">
-          ${Object.entries(SHIPS).map(([id,s])=>`<div data-ship="${id}" style="padding:8px 12px;border-radius:8px;border:1.5px solid ${id===selShip?`#${s.col.toString(16).padStart(6,'0')}`:'rgba(255,255,255,.08)'};cursor:pointer;display:flex;align-items:center;gap:10px">
-            <div style="width:16px;height:16px;border-radius:50%;background:#${s.col.toString(16).padStart(6,'0')}"></div>
-            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${id===selShip?'#fff':'rgba(255,255,255,.4)'}">${s.name}</div>
-            <div style="font-size:9px;color:rgba(255,255,255,.3)">${s.desc}</div></div></div>`).join('')}
+          ${Object.entries(SHIPS).map(([id,s])=>{
+            const bar=(v,mx,col)=>`<div style="flex:1;height:3px;background:rgba(255,255,255,.08);border-radius:2px"><div style="width:${Math.round(v/mx*100)}%;height:100%;background:#${col.toString(16).padStart(6,'0')};border-radius:2px"></div></div>`;
+            const sel=id===selShip;
+            return `<div data-ship="${id}" style="padding:9px 12px;border-radius:8px;border:1.5px solid ${sel?`#${s.col.toString(16).padStart(6,'0')}`:'rgba(255,255,255,.08)'};cursor:pointer;background:${sel?'rgba(255,255,255,.04)':'transparent'}">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:${sel?'8':'0'}px">
+                <div style="width:14px;height:14px;border-radius:50%;background:#${s.col.toString(16).padStart(6,'0')};flex-shrink:0"></div>
+                <div style="flex:1"><div style="font-size:12px;font-weight:700;color:${sel?'#fff':'rgba(255,255,255,.4)'}">${s.name}</div>
+                <div style="font-size:9px;color:rgba(255,255,255,.28)">${s.desc}</div></div>
+              </div>
+              ${sel?`<div style="display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:center;gap:6px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:44px">ACCEL</span>${bar(s.accel,28,s.col)}</div>
+                <div style="display:flex;align-items:center;gap:6px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:44px">VITESSE</span>${bar(s.maxSpd,38,s.col)}</div>
+                <div style="display:flex;align-items:center;gap:6px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:44px">GRIP</span>${bar(s.grip*100,100,s.col)}</div>
+                <div style="display:flex;align-items:center;gap:6px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:44px">BOUCLIER</span>${bar(s.shield,100,s.col)}</div>
+              </div>`:''}
+            </div>`;
+          }).join('')}
         </div>
         <div style="width:100%;padding:10px;background:rgba(0,200,255,.05);border:1px solid rgba(0,200,255,.2);border-radius:10px;margin-bottom:14px;font-size:9px;color:rgba(255,255,255,.4);line-height:1.9;text-align:center">
           ← → VIRER &nbsp;·&nbsp; ↑ ACCÉLÉRER &nbsp;·&nbsp; ↓ FREINER &nbsp;·&nbsp; ESPACE BOOST<br>Mobile : ← ↑ → à gauche · ⚡ BOOST à droite</div>
@@ -270,11 +267,13 @@
     const THREE=window.THREE;
     const T=TRACKS[trackId], SD=SHIPS[shipId];
 
-    // Canvas
+    // Canvas — inséré AVANT de lire les dimensions pour forcer le layout
     const canvas=document.createElement('canvas');
     canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;display:block';
     container.appendChild(canvas);
-    const W=canvas.offsetWidth||360, H=canvas.offsetHeight||520;
+    // Forcer un reflow pour que offsetWidth soit correct
+    void container.offsetWidth;
+    const W=container.offsetWidth||360, H=container.offsetHeight||520;
     canvas.width=W; canvas.height=H;
 
     // Renderer
