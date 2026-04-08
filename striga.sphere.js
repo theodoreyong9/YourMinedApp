@@ -1,322 +1,899 @@
-/* striga.sphere.js — YourMine Banking Sphere
- * ⚠️  REMPLACE L'URL CI-DESSOUS par la tienne :
- *     dash.cloudflare.com → Workers & Pages → striga-proxy → URL
+/* jackpot.sphere.js — Néobank Jackpot
+ * Plugin YourMine — caisse commune, dons multi-devises, carte Mastercard virtuelle
+ * Branché sur Striga via striga-proxy Worker Cloudflare
+ *
+ * ⚠️  Remplace WORKER_URL par l'URL de ton Worker Cloudflare
  */
-(function(){
-'use strict';
-window.YM_S = window.YM_S || {};
+(function () {
+  'use strict';
+  window.YM_S = window.YM_S || {};
 
-const WORKER_URL = 'https://striga-proxy.yourmine.workers.dev';
-const USER_KEY   = 'ym_striga_user_v2';
+  /* ─── CONFIG ─────────────────────────────────────────── */
+  const WORKER_URL = 'https://striga-proxy.yourmine.workers.dev';
+  const USER_KEY   = 'ym_jackpot_user_v1';
+  const CYCLE_KEY  = 'ym_jackpot_cycle_v1';
 
-function loadUser(){ try{ return JSON.parse(localStorage.getItem(USER_KEY)||'null'); }catch{ return null; } }
-function saveUser(d){ d===null ? localStorage.removeItem(USER_KEY) : localStorage.setItem(USER_KEY,JSON.stringify(d)); }
+  /* Taux de change indicatifs — remplacés par l'API Striga en prod */
+  const RATES = { EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96, JPY: 162 };
 
-async function api(method, endpoint, body={}){
-  const r = await fetch(WORKER_URL+'/proxy', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({method, endpoint, body})
-  });
-  const d = await r.json();
-  if(!r.ok) throw new Error(d.error||d.errorDetails||d.message||'Erreur '+r.status);
-  return d;
-}
+  /* Bonus diversité : nb de destinataires uniques → multiplicateur de tickets */
+  const BONUS_TABLE = [
+    { max: 1, mult: 1.00 },
+    { max: 2, mult: 1.25 },
+    { max: 4, mult: 1.50 },
+    { max: 99, mult: 2.00 },
+  ];
 
-function injectCSS(){
-  if(document.getElementById('sg-css')) return;
-  const s=document.createElement('style'); s.id='sg-css';
-  s.textContent=`
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap');
-.sg{font-family:'DM Sans',system-ui,sans-serif;display:flex;flex-direction:column;height:100%;overflow:hidden;background:#07070e;-webkit-font-smoothing:antialiased;color:#fff}
-.sg *{box-sizing:border-box}
-.sg-nav{display:flex;border-bottom:1px solid rgba(255,255,255,.06);background:#07070e;flex-shrink:0}
-.sg-tab{flex:1;background:none;border:none;padding:14px 0 12px;font-size:11px;font-weight:500;color:rgba(255,255,255,.3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;-webkit-tap-highlight-color:transparent;position:relative;font-family:'DM Sans',sans-serif}
-.sg-tab.on{color:#fff;border-bottom-color:#7c3aed}
-.sg-tab.on::after{content:'';position:absolute;bottom:-1px;left:25%;right:25%;height:2px;border-radius:1px;background:#7c3aed;box-shadow:0 0 14px rgba(124,58,237,.7)}
-.sg-body{flex:1;overflow-y:auto;padding:20px 18px 32px;-webkit-overflow-scrolling:touch}
-.sg-body::-webkit-scrollbar{width:2px}
-.sg-body::-webkit-scrollbar-thumb{background:rgba(124,58,237,.3);border-radius:1px}
-.sg-h1{font-size:22px;font-weight:600;letter-spacing:-.5px;color:#fff;margin-bottom:6px}
-.sg-sub{font-size:13px;color:rgba(255,255,255,.4);line-height:1.6;margin-bottom:24px}
-.sg-sec{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.22);margin:20px 0 10px}
-.sg-label{display:block;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:7px;font-family:'DM Mono',monospace}
-.sg-inp{width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:14px 16px;color:#fff;font-family:'DM Sans',sans-serif;font-size:15px;outline:none;-webkit-appearance:none;transition:border-color .2s,background .2s;margin-bottom:14px}
-.sg-inp:focus{border-color:rgba(124,58,237,.6);background:rgba(255,255,255,.055);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
-.sg-inp::placeholder{color:rgba(255,255,255,.18)}
-.sg-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sg-cta{width:100%;padding:15px;border:none;border-radius:14px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;box-shadow:0 8px 24px rgba(124,58,237,.28);margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px}
-.sg-cta:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(124,58,237,.4)}
-.sg-cta:active{transform:scale(.98)}
-.sg-cta:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.sg-btn{width:100%;padding:13px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.65);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px}
-.sg-btn:hover{border-color:rgba(124,58,237,.4);color:#fff;background:rgba(124,58,237,.07)}
-.sg-btn.red{border-color:rgba(239,68,68,.3);color:rgba(239,68,68,.75)}
-.sg-btn.red:hover{background:rgba(239,68,68,.08);color:#f87171}
-.sg-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:20px;margin-bottom:14px}
-.sg-hero{border-radius:22px;padding:22px;margin-bottom:20px;background:linear-gradient(135deg,#0f0527 0%,#1a0845 50%,#2a1060 100%);position:relative;overflow:hidden}
-.sg-hero::before{content:'';position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.35),transparent 70%);pointer-events:none}
-.sg-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:600;font-family:'DM Mono',monospace}
-.sg-badge.ok{background:rgba(52,211,153,.1);color:#34d399;border:1px solid rgba(52,211,153,.2)}
-.sg-badge.pend{background:rgba(124,58,237,.12);color:#a78bfa;border:1px solid rgba(124,58,237,.25)}
-.sg-badge.err{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)}
-.sg-notice{padding:12px 16px;border-radius:12px;font-size:12px;line-height:1.6;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start}
-.sg-notice.ok{background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.18);color:#34d399}
-.sg-notice.info{background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.2);color:#a78bfa}
-.sg-notice.err{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.18);color:#f87171}
-.sg-spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.1);border-top-color:#7c3aed;border-radius:50%;animation:sg-r .6s linear infinite;display:inline-block;flex-shrink:0}
-@keyframes sg-r{to{transform:rotate(360deg)}}
-.sg-row{display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.04)}
-.sg-row:last-child{border-bottom:none}
-.sg-vcard{border-radius:24px;padding:24px;margin-bottom:20px;background:linear-gradient(135deg,#0a0020,#18004a,#2a1270);box-shadow:0 24px 64px rgba(124,58,237,.22);position:relative;overflow:hidden;aspect-ratio:1.586;display:flex;flex-direction:column;justify-content:space-between}
-.sg-vcard::before{content:'';position:absolute;top:-50px;right:-50px;width:220px;height:220px;border-radius:50%;background:rgba(124,58,237,.14);pointer-events:none}
-.sg-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-@keyframes sg-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.sg-in{animation:sg-up .28s ease forwards}
-`;
-  document.head.appendChild(s);
-}
+  /* ─── STORAGE ─────────────────────────────────────────── */
+  function loadUser()  { try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch { return null; } }
+  function saveUser(d) { d === null ? localStorage.removeItem(USER_KEY) : localStorage.setItem(USER_KEY, JSON.stringify(d)); }
+  function loadCycle() { try { return JSON.parse(localStorage.getItem(CYCLE_KEY) || 'null'); } catch { return null; } }
+  function saveCycle(d){ localStorage.setItem(CYCLE_KEY, JSON.stringify(d)); }
 
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function mkField(label,id,ph,type='text',val=''){
-  const w=document.createElement('div');
-  w.innerHTML=`<label class="sg-label">${esc(label)}</label><input class="sg-inp" id="${id}" type="${type}" placeholder="${esc(ph)}" value="${esc(val)}">`;
-  return w;
-}
-function mkNotice(msg,type='info'){
-  const d=document.createElement('div'); d.className=`sg-notice ${type} sg-in`;
-  d.innerHTML=`<span>${type==='ok'?'✓':type==='err'?'✕':'ℹ'}</span><span>${esc(msg)}</span>`;
-  return d;
-}
-function mkSpin(){ const d=document.createElement('span');d.className='sg-spin';return d; }
-function v(id){ return document.getElementById(id)?.value?.trim()||''; }
-
-let _tab='home';
-
-function renderPanel(container){
-  injectCSS();
-  container.innerHTML='';
-  container.className='sg';
-  const nav=document.createElement('div'); nav.className='sg-nav';
-  [['home','🏠'],['wallet','💳'],['kyc','👤'],['card','🃏']].forEach(([id,icon])=>{
-    const b=document.createElement('button');
-    b.className='sg-tab'+(_tab===id?' on':'');
-    b.textContent=icon+' '+(id==='kyc'?'KYC':id.charAt(0).toUpperCase()+id.slice(1));
-    b.addEventListener('click',()=>{ _tab=id; renderPanel(container); });
-    nav.appendChild(b);
-  });
-  container.appendChild(nav);
-  const body=document.createElement('div'); body.className='sg-body';
-  container.appendChild(body);
-  if(_tab==='home')       tabHome(body,container);
-  else if(_tab==='wallet') tabWallet(body);
-  else if(_tab==='kyc')    tabKYC(body,container);
-  else                     tabCard(body,container);
-}
-
-function tabHome(body,root){
-  body.classList.add('sg-in');
-  const user=loadUser();
-  const hero=document.createElement('div'); hero.className='sg-hero';
-  hero.innerHTML=`<div style="position:relative;z-index:1">
-    <div style="font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.35);letter-spacing:2px;margin-bottom:14px">STRIGA · BANKING</div>
-    <div style="font-size:26px;font-weight:600;color:#fff;margin-bottom:4px">${user?esc(user.firstName+' '+user.lastName):'Bienvenue'}</div>
-    <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:${user?14:0}px">${user?esc((user.id||user.userId||'').slice(0,22)+'…'):'Créez votre compte pour commencer'}</div>
-    ${user?`<span class="sg-badge ${user.kycStatus==='APPROVED'?'ok':'pend'}">${user.kycStatus==='APPROVED'?'✓ KYC vérifié':'⏳ KYC en attente'}</span>`:''}
-  </div>`;
-  body.appendChild(hero);
-  if(!user){
-    const cta=document.createElement('button'); cta.className='sg-cta';
-    cta.textContent='👤 Créer mon compte';
-    cta.addEventListener('click',()=>{ _tab='kyc'; renderPanel(root); });
-    body.appendChild(cta); return;
+  function defaultCycle() {
+    return {
+      jackpot: 0,
+      totalTickets: 0,
+      participants: 0,
+      uniqueDonors: 0,
+      cycleEnd: Date.now() + 7 * 24 * 3600 * 1000,
+      myTickets: 0,
+      myDeposit: 0,
+      receivedDons: 0,
+      donHistory: [],
+      myGifts: [],
+      myHistory: [],
+      winners: [],
+    };
   }
-  const balEl=document.createElement('div'); balEl.className='sg-card';
-  balEl.innerHTML=`<div style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px;font-family:'DM Mono',monospace">WALLET</div><div style="display:flex;align-items:center;gap:8px"><span class="sg-spin" style="width:14px;height:14px;border-width:1.5px"></span><span style="font-size:13px;color:rgba(255,255,255,.3)">Chargement…</span></div>`;
-  body.appendChild(balEl);
-  api('POST',`/user/${user.id||user.userId}/wallets`,{startDate:0,endDate:Date.now(),page:0}).then(r=>{
-    const accounts=(r.wallets||[])[0]?.accounts||{};
-    const icons={EUR:'€',BTC:'₿',ETH:'Ξ',USDC:'$',SOL:'◎'};
-    const lines=Object.entries(accounts).map(([cur,acc])=>{
-      const bal=acc.availableBalance?(parseInt(acc.availableBalance)/100).toFixed(2):'0.00';
-      return `<div class="sg-row"><div style="display:flex;align-items:center;gap:10px"><div style="width:36px;height:36px;border-radius:12px;background:rgba(124,58,237,.15);display:flex;align-items:center;justify-content:center;font-size:16px">${icons[cur]||'💰'}</div><span style="font-weight:500">${esc(cur)}</span></div><span style="font-size:18px;font-weight:600">${esc(bal)}</span></div>`;
-    }).join('');
-    balEl.innerHTML=`<div style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:8px;font-family:'DM Mono',monospace">WALLET</div>${lines||'<span style="font-size:13px;color:rgba(255,255,255,.3)">Aucun solde</span>'}`;
-  }).catch(()=>{ balEl.innerHTML='<div style="font-size:12px;color:rgba(255,255,255,.3)">Wallet non disponible</div>'; });
-  const g=document.createElement('div'); g.className='sg-g2';
-  [['💳 Wallet','wallet'],['🃏 Carte','card']].forEach(([label,tab])=>{
-    const b=document.createElement('button'); b.className='sg-btn'; b.style.margin='0';
-    b.textContent=label;
-    b.addEventListener('click',()=>{ _tab=tab; renderPanel(root); });
-    g.appendChild(b);
-  });
-  body.appendChild(g);
-}
 
-function tabKYC(body,root){
-  body.classList.add('sg-in');
-  const user=loadUser();
-  if(user){ kycStatus(body,user,root); return; }
-  body.innerHTML='<div class="sg-h1">Créer un compte</div><div class="sg-sub">Vérification d\'identité pour activer votre wallet et votre carte Mastercard virtuelle.</div>';
-  const fb=document.createElement('div'); body.appendChild(fb);
-  const s1=document.createElement('div'); s1.innerHTML='<div class="sg-sec">Identité</div>';
-  const nr=document.createElement('div'); nr.className='sg-row2';
-  [mkField('Prénom','sg-fn','Jean'),mkField('Nom','sg-ln','Dupont')].forEach(f=>{ f.querySelector('.sg-inp').style.marginBottom='0'; nr.appendChild(f); });
-  s1.appendChild(nr); s1.style.marginTop='14px';
-  s1.appendChild(mkField('Date de naissance','sg-dob','1990-01-15'));
-  s1.appendChild(mkField('Nationalité (FR, DE…)','sg-nat','FR'));
-  body.appendChild(s1);
-  const s2=document.createElement('div'); s2.innerHTML='<div class="sg-sec">Contact</div>';
-  s2.appendChild(mkField('Email','sg-email','jean@example.com','email'));
-  s2.appendChild(mkField('Téléphone (+33…)','sg-tel','+33612345678','tel'));
-  body.appendChild(s2);
-  const s3=document.createElement('div'); s3.innerHTML='<div class="sg-sec">Adresse</div>';
-  s3.appendChild(mkField('Adresse','sg-addr','12 rue de la Paix'));
-  const cr=document.createElement('div'); cr.className='sg-row2';
-  [mkField('Ville','sg-city','Paris'),mkField('Code postal','sg-postal','75001')].forEach(f=>{ f.querySelector('.sg-inp').style.marginBottom='0'; cr.appendChild(f); });
-  s3.appendChild(cr); s3.style.marginTop='14px';
-  s3.appendChild(mkField('Pays de résidence','sg-country','FR'));
-  body.appendChild(s3);
-  const cta=document.createElement('button'); cta.className='sg-cta'; cta.textContent='✓ Créer mon compte';
-  cta.addEventListener('click',async()=>{
-    cta.disabled=true; cta.innerHTML=''; cta.appendChild(mkSpin()); cta.append(' Création en cours…');
-    const dob=v('sg-dob').split('-');
-    const payload={firstName:v('sg-fn'),lastName:v('sg-ln'),dateOfBirth:{year:+dob[0]||1990,month:+dob[1]||1,day:+dob[2]||1},email:v('sg-email'),mobile:{phoneNumber:v('sg-tel').replace(/\s/g,'').replace(/^\+/,'')},nationality:v('sg-nat').toUpperCase(),address:{addressLine1:v('sg-addr'),city:v('sg-city'),postalCode:v('sg-postal'),state:'',country:v('sg-country').toUpperCase()}};
-    try{
-      const r=await api('POST','/user/create',payload);
-      saveUser({...r,kycStatus:'NOT_STARTED'});
-      window.YM_toast?.('Compte créé avec succès !','success');
-      tabKYC(body,root);
-    }catch(e){ fb.innerHTML=''; fb.appendChild(mkNotice('Erreur : '+e.message,'err')); cta.disabled=false; cta.textContent='✓ Créer mon compte'; }
-  });
-  body.appendChild(cta);
-}
-
-function kycStatus(body,user,root){
-  body.innerHTML=''; body.classList.add('sg-in');
-  const c=document.createElement('div'); c.className='sg-card';
-  c.innerHTML=`<div class="sg-row" style="padding-top:0"><div style="display:flex;align-items:center;gap:14px"><div style="width:52px;height:52px;border-radius:18px;background:rgba(124,58,237,.15);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0">👤</div><div><div style="font-size:18px;font-weight:600">${esc(user.firstName||'')} ${esc(user.lastName||'')}</div><div style="font-size:11px;color:rgba(255,255,255,.3);font-family:'DM Mono',monospace;margin-top:3px">${esc((user.id||user.userId||'').slice(0,26)+'…')}</div></div></div><span class="sg-badge ${user.kycStatus==='APPROVED'?'ok':user.kycStatus==='REJECTED'?'err':'pend'}">${esc(user.kycStatus||'PENDING')}</span></div>${user.email?`<div class="sg-row"><span style="font-size:12px;color:rgba(255,255,255,.4)">Email</span><span style="font-size:13px;color:rgba(255,255,255,.7)">${esc(user.email)}</span></div>`:''}`;
-  body.appendChild(c);
-  const fb=document.createElement('div'); body.appendChild(fb);
-  if(user.kycStatus==='APPROVED'){
-    body.appendChild(mkNotice('Identité vérifiée. Wallet et carte disponibles.','ok'));
-    const b=document.createElement('button'); b.className='sg-cta'; b.textContent='🃏 Voir ma carte';
-    b.addEventListener('click',()=>{ _tab='card'; renderPanel(root); });
-    body.appendChild(b); return;
-  }
-  const kBtn=document.createElement('button'); kBtn.className='sg-cta'; kBtn.textContent='🪪 Lancer la vérification d\'identité';
-  kBtn.addEventListener('click',async()=>{
-    kBtn.disabled=true; kBtn.innerHTML=''; kBtn.appendChild(mkSpin()); kBtn.append(' Chargement…');
-    try{
-      const r=await api('POST',`/user/${user.id||user.userId}/kyc/start`,{});
-      if(r.verificationLink) window.open(r.verificationLink,'_blank');
-      fb.innerHTML=''; fb.appendChild(mkNotice('Lien de vérification ouvert. Revenez ici une fois terminé.','info'));
-      kBtn.disabled=false; kBtn.textContent='🪪 Lancer la vérification d\'identité';
-    }catch(e){ fb.innerHTML=''; fb.appendChild(mkNotice('Erreur : '+e.message,'err')); kBtn.disabled=false; kBtn.textContent='🪪 Lancer la vérification d\'identité'; }
-  });
-  body.appendChild(kBtn);
-  const rBtn=document.createElement('button'); rBtn.className='sg-btn'; rBtn.textContent='↻  Actualiser mon statut KYC';
-  rBtn.addEventListener('click',async()=>{
-    rBtn.disabled=true; rBtn.innerHTML=''; rBtn.appendChild(mkSpin()); rBtn.append(' Vérification…');
-    try{
-      const r=await api('GET',`/user/${user.id||user.userId}`,{});
-      saveUser({...user,...r});
-      window.YM_toast?.(r.kycStatus==='APPROVED'?'KYC approuvé ! 🎉':'Statut : '+r.kycStatus,'info');
-      tabKYC(body,root);
-    }catch(e){ fb.innerHTML=''; fb.appendChild(mkNotice('Erreur : '+e.message,'err')); rBtn.disabled=false; rBtn.textContent='↻  Actualiser mon statut KYC'; }
-  });
-  body.appendChild(rBtn);
-  const delBtn=document.createElement('button'); delBtn.className='sg-btn red'; delBtn.textContent='Supprimer mon compte local';
-  delBtn.addEventListener('click',()=>{ if(confirm('Supprimer les données locales ?')){ saveUser(null); window.YM_toast?.('Supprimé','info'); tabKYC(body,root); } });
-  body.appendChild(delBtn);
-}
-
-function tabWallet(body){
-  body.classList.add('sg-in');
-  const user=loadUser();
-  body.innerHTML='<div class="sg-h1" style="margin-bottom:20px">Mon Wallet</div>';
-  if(!user){ body.appendChild(mkNotice('Créez un compte (onglet KYC)','info')); return; }
-  const fb=document.createElement('div'); body.appendChild(fb);
-  const wrap=document.createElement('div'); wrap.style.cssText='padding:40px;display:flex;justify-content:center'; wrap.appendChild(mkSpin()); body.appendChild(wrap);
-  api('POST',`/user/${user.id||user.userId}/wallets`,{startDate:0,endDate:Date.now(),page:0}).then(r=>{
-    wrap.remove();
-    const wallets=r.wallets||[];
-    if(!wallets.length){ fb.appendChild(mkNotice('Aucun wallet. Complétez votre KYC.','info')); return; }
-    const icons={EUR:'€',BTC:'₿',ETH:'Ξ',USDC:'$',SOL:'◎'};
-    wallets.forEach(w=>{
-      const wc=document.createElement('div'); wc.className='sg-card';
-      const wh=document.createElement('div'); wh.style.cssText="font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.22);letter-spacing:1px;margin-bottom:16px";
-      wh.textContent='WALLET · '+(w.walletId||w.id||'').slice(0,20)+'…'; wc.appendChild(wh);
-      Object.entries(w.accounts||{}).forEach(([cur,acc])=>{
-        const row=document.createElement('div'); row.className='sg-row';
-        const bal=acc.availableBalance?(parseInt(acc.availableBalance)/100).toFixed(2):'0.00';
-        row.innerHTML=`<div style="display:flex;align-items:center;gap:12px"><div style="width:42px;height:42px;border-radius:14px;background:rgba(124,58,237,.12);display:flex;align-items:center;justify-content:center;font-size:20px">${icons[cur]||'💰'}</div><div><div style="font-size:15px;font-weight:500">${esc(cur)}</div><div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(acc.status||'')}</div></div></div><div style="text-align:right"><div style="font-size:22px;font-weight:600">${esc(bal)}</div><div style="font-size:10px;color:rgba(255,255,255,.28)">disponible</div></div>`;
-        wc.appendChild(row);
-      });
-      body.appendChild(wc);
+  /* ─── API ─────────────────────────────────────────────── */
+  async function api(method, endpoint, body = {}) {
+    const r = await fetch(WORKER_URL + '/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method, endpoint, body }),
     });
-  }).catch(e=>{ wrap.remove(); fb.appendChild(mkNotice('Erreur : '+e.message,'err')); });
-}
-
-function tabCard(body,root){
-  body.classList.add('sg-in');
-  const user=loadUser();
-  body.innerHTML='<div class="sg-h1" style="margin-bottom:20px">Ma Carte</div>';
-  if(!user){ body.appendChild(mkNotice('Créez un compte (onglet KYC)','info')); const b=document.createElement('button');b.className='sg-cta';b.textContent='👤 Créer un compte';b.addEventListener('click',()=>{ _tab='kyc'; renderPanel(root); });body.appendChild(b); return; }
-  if(user.kycStatus!=='APPROVED'){ body.appendChild(mkNotice('Votre KYC doit être approuvé pour émettre une carte.','info')); const b=document.createElement('button');b.className='sg-cta';b.textContent='👤 Compléter le KYC';b.addEventListener('click',()=>{ _tab='kyc'; renderPanel(root); });body.appendChild(b); return; }
-  const vc=document.createElement('div'); vc.className='sg-vcard';
-  vc.innerHTML=`<div style="position:relative;z-index:1;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.38);letter-spacing:2.5px">STRIGA</div><div style="position:relative;z-index:1"><div style="font-family:'DM Mono',monospace;font-size:17px;color:rgba(255,255,255,.65);letter-spacing:4px;margin-bottom:20px">•••• •••• •••• ••••</div><div style="display:flex;justify-content:space-between;align-items:flex-end"><div><div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:4px">TITULAIRE</div><div style="font-size:15px;font-weight:600;color:#fff">${esc((user.firstName||'').toUpperCase()+' '+(user.lastName||'').toUpperCase())}</div></div><div style="font-family:'DM Mono',monospace;font-size:12px;color:rgba(255,255,255,.3);letter-spacing:2px">MASTERCARD</div></div></div>`;
-  body.appendChild(vc);
-  const fb=document.createElement('div'); body.appendChild(fb);
-  const cardsEl=document.createElement('div'); body.appendChild(cardsEl);
-  const g=document.createElement('div'); g.className='sg-g2';
-  const vBtn=document.createElement('button'); vBtn.className='sg-cta'; vBtn.style.margin='0'; vBtn.textContent='📋 Mes cartes';
-  vBtn.addEventListener('click',async()=>{
-    vBtn.disabled=true; vBtn.innerHTML=''; vBtn.appendChild(mkSpin()); vBtn.append(' …');
-    cardsEl.innerHTML=''; fb.innerHTML='';
-    try{
-      const r=await api('GET',`/card/all?userId=${user.id||user.userId}`,{});
-      const cards=r.cards||r.data||[];
-      if(!cards.length){ fb.appendChild(mkNotice('Aucune carte. Émettez-en une →','info')); }
-      else cards.forEach(card=>{
-        const cc=document.createElement('div'); cc.className='sg-card'; cc.style.marginBottom='10px';
-        cc.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-family:'DM Mono',monospace;font-size:16px;color:#fff">•••• ${esc(card.maskedCardNumber?.slice(-4)||'••••')}</div><span class="sg-badge ${card.status==='ACTIVE'?'ok':'err'}">${esc(card.status||'')}</span></div><div style="font-size:10px;color:rgba(255,255,255,.28);font-family:'DM Mono',monospace">ID: ${esc(card.cardId||card.id||'')}</div>`;
-        cardsEl.appendChild(cc);
-      });
-      vBtn.disabled=false; vBtn.textContent='📋 Mes cartes';
-    }catch(e){ fb.appendChild(mkNotice('Erreur : '+e.message,'err')); vBtn.disabled=false; vBtn.textContent='📋 Mes cartes'; }
-  });
-  g.appendChild(vBtn);
-  const iBtn=document.createElement('button'); iBtn.className='sg-btn'; iBtn.style.margin='0'; iBtn.textContent='✦ Émettre';
-  iBtn.addEventListener('click',async()=>{
-    iBtn.disabled=true; iBtn.innerHTML=''; iBtn.appendChild(mkSpin()); iBtn.append(' …');
-    fb.innerHTML='';
-    try{
-      const wr=await api('POST',`/user/${user.id||user.userId}/wallets`,{startDate:0,endDate:Date.now(),page:0});
-      const wallet=(wr.wallets||[])[0]; if(!wallet) throw new Error('Aucun wallet.');
-      const eurAcc=Object.entries(wallet.accounts||{}).find(([c])=>c==='EUR'); if(!eurAcc) throw new Error('Aucun compte EUR.');
-      await api('POST','/card/issue',{userId:user.id||user.userId,accountId:eurAcc[1].accountId||eurAcc[1].id,cardType:'VIRTUAL'});
-      window.YM_toast?.('Carte émise ! 🎉','success');
-      fb.appendChild(mkNotice('Carte virtuelle Mastercard émise. Cliquez "Mes cartes" pour la voir.','ok'));
-      iBtn.disabled=false; iBtn.textContent='✦ Émettre';
-    }catch(e){ fb.appendChild(mkNotice('Erreur : '+e.message,'err')); iBtn.disabled=false; iBtn.textContent='✦ Émettre'; }
-  });
-  g.appendChild(iBtn);
-  body.insertBefore(g,fb);
-}
-
-window.YM_S['striga.sphere.js']={
-  name:'Striga', icon:'🟣', category:'Finance',
-  description:'Banking — KYC, wallet EUR/crypto, carte virtuelle Mastercard',
-  emit:[], receive:[],
-  activate: function(){ injectCSS(); },
-  deactivate: function(){},
-  renderPanel,
-  profileSection: function(container){
-    const user=loadUser(); if(!user) return;
-    injectCSS();
-    const el=document.createElement('div'); el.style.fontFamily="'DM Sans',system-ui,sans-serif";
-    el.innerHTML=`<div style="display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#0f0527,#1a0845);border-radius:16px;padding:14px 16px"><div style="width:44px;height:44px;border-radius:14px;background:rgba(124,58,237,.2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🟣</div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:#fff">${esc(user.firstName||'')} ${esc(user.lastName||'')}</div><div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:2px">${esc(user.email||'')}</div></div><span class="sg-badge ${user.kycStatus==='APPROVED'?'ok':'pend'}" style="flex-shrink:0">${user.kycStatus==='APPROVED'?'Actif':'En attente'}</span></div>`;
-    container.appendChild(el);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || d.errorDetails || d.message || 'Erreur ' + r.status);
+    return d;
   }
-};
+
+  /* ─── HELPERS ─────────────────────────────────────────── */
+  function toEUR(amt, cur) { return amt / (RATES[cur] || 1); }
+  function getBonus(n)     { return (BONUS_TABLE.find(b => n <= b.max) || BONUS_TABLE[BONUS_TABLE.length - 1]).mult; }
+  function eur(n)          { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n); }
+  function num(n)          { return new Intl.NumberFormat('fr-FR').format(Math.round(n)); }
+  function esc(s)          { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  function timeLeft(ts) {
+    const ms = ts - Date.now();
+    if (ms <= 0) return 'Tirage en cours…';
+    const d = Math.floor(ms / 86400000);
+    const h = Math.floor((ms % 86400000) / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    return d + 'j ' + h + 'h ' + m + 'm';
+  }
+
+  function cycleProgress(ts) {
+    const total = 7 * 24 * 3600 * 1000;
+    const ms = ts - Date.now();
+    return Math.min(Math.max((total - ms) / total, 0), 1);
+  }
+
+  function copyText(txt, btn) {
+    navigator.clipboard?.writeText(txt).catch(() => {});
+    const orig = btn.textContent;
+    btn.textContent = 'Copié !';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  }
+
+  /* ─── CSS ─────────────────────────────────────────────── */
+  function injectCSS() {
+    if (document.getElementById('jk-css')) return;
+    const s = document.createElement('style');
+    s.id = 'jk-css';
+    s.textContent = `
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@400;500&display=swap');
+.jk{font-family:'DM Sans',system-ui,sans-serif;display:flex;flex-direction:column;height:100%;overflow:hidden;background:#07070e;color:#fff;-webkit-font-smoothing:antialiased}
+.jk *{box-sizing:border-box}
+.jk-nav{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:1px solid rgba(255,255,255,.06);background:#07070e;flex-shrink:0}
+.jk-tab{padding:11px 0 9px;background:none;border:none;border-bottom:2px solid transparent;font-size:10px;font-weight:400;color:rgba(255,255,255,.3);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;-webkit-tap-highlight-color:transparent}
+.jk-tab.on{color:#fff;border-bottom-color:#7c3aed;font-weight:500}
+.jk-body{flex:1;overflow-y:auto;padding:18px 16px 40px;-webkit-overflow-scrolling:touch}
+.jk-body::-webkit-scrollbar{width:2px}
+.jk-body::-webkit-scrollbar-thumb{background:rgba(124,58,237,.3);border-radius:1px}
+.jk-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:18px;padding:16px;margin-bottom:12px}
+.jk-sec{font-size:10px;color:rgba(255,255,255,.22);letter-spacing:1px;text-transform:uppercase;margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.06)}
+.jk-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.jk-row:last-child{border-bottom:none}
+.jk-rl{font-size:13px;color:rgba(255,255,255,.4)}
+.jk-rv{font-size:13px;font-weight:500;color:#fff}
+.jk-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:500}
+.jk-bp{background:rgba(124,58,237,.15);color:#a78bfa;border:1px solid rgba(124,58,237,.25)}
+.jk-bg{background:rgba(52,211,153,.1);color:#34d399;border:1px solid rgba(52,211,153,.2)}
+.jk-ba{background:rgba(251,191,36,.1);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
+.jk-br{background:rgba(239,68,68,.1);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+.jk-notice{padding:10px 13px;border-radius:12px;font-size:12px;line-height:1.5;margin-bottom:10px;display:flex;gap:8px;align-items:flex-start}
+.jk-ni{background:rgba(124,58,237,.08);color:#a78bfa;border:1px solid rgba(124,58,237,.2)}
+.jk-nw{background:rgba(251,191,36,.07);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
+.jk-ns{background:rgba(52,211,153,.07);color:#34d399;border:1px solid rgba(52,211,153,.18)}
+.jk-nr{background:rgba(239,68,68,.07);color:#f87171;border:1px solid rgba(239,68,68,.18)}
+.jk-label{display:block;font-size:11px;color:rgba(255,255,255,.3);margin-bottom:5px;letter-spacing:.3px}
+.jk-inp{width:100%;font-size:14px;padding:10px 13px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#fff;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:11px;-webkit-appearance:none;transition:border-color .2s,background .2s}
+.jk-inp:focus{border-color:rgba(124,58,237,.6);background:rgba(255,255,255,.06);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
+.jk-inp::placeholder{color:rgba(255,255,255,.18)}
+.jk-sel{width:100%;font-size:14px;padding:10px 13px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#fff;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:11px;-webkit-appearance:none}
+.jk-sel option{background:#1a1035;color:#fff}
+.jk-cta{width:100%;padding:12px;border:none;border-radius:14px;font-size:14px;font-weight:500;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;font-family:'DM Sans',sans-serif;transition:all .18s;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 8px 24px rgba(124,58,237,.22)}
+.jk-cta:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(124,58,237,.35)}
+.jk-cta:active{transform:scale(.98)}
+.jk-cta:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+.jk-btn{width:100%;padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:14px;font-size:13px;cursor:pointer;background:rgba(255,255,255,.03);color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;transition:all .15s;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:6px}
+.jk-btn:hover{border-color:rgba(124,58,237,.4);color:#fff;background:rgba(124,58,237,.07)}
+.jk-btn.red{border-color:rgba(239,68,68,.3);color:rgba(239,68,68,.7)}
+.jk-btn.red:hover{background:rgba(239,68,68,.07);color:#f87171}
+.jk-bar{height:5px;border-radius:3px;background:rgba(255,255,255,.06);margin:8px 0 3px;overflow:hidden}
+.jk-bar-fill{height:100%;border-radius:3px;background:#7c3aed;transition:width .4s}
+.jk-vcard{background:linear-gradient(135deg,#0a0020,#18004a,#2a1270);border-radius:22px;padding:20px;margin-bottom:12px;aspect-ratio:1.7;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;border:1px solid rgba(124,58,237,.25)}
+.jk-vcard::before{content:'';position:absolute;top:-30px;right:-30px;width:160px;height:160px;border-radius:50%;background:rgba(124,58,237,.12);pointer-events:none}
+.jk-mono{font-family:'DM Mono',monospace}
+.jk-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.jk-metric{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:13px}
+.jk-metric-val{font-size:20px;font-weight:500;color:#fff}
+.jk-metric-lbl{font-size:11px;color:rgba(255,255,255,.3);margin-top:2px}
+.jk-uuid{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:10px 13px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.jk-uuid-val{font-family:'DM Mono',monospace;font-size:12px;color:rgba(255,255,255,.5)}
+.jk-copy{background:none;border:none;cursor:pointer;font-size:12px;color:#a78bfa;font-family:'DM Sans',sans-serif;padding:0;white-space:nowrap}
+.jk-chance{font-size:38px;font-weight:500;color:#7c3aed;letter-spacing:-1px;margin:8px 0 2px}
+.jk-avatar{width:32px;height:32px;border-radius:50%;background:rgba(124,58,237,.15);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:#a78bfa;flex-shrink:0}
+.jk-hist-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.jk-hist-row:last-child{border-bottom:none}
+.jk-pay-icon{width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:500;color:rgba(255,255,255,.5);flex-shrink:0}
+.jk-faq-item{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer}
+.jk-faq-item:last-child{border-bottom:none}
+.jk-faq-q{font-size:13px;font-weight:500;display:flex;justify-content:space-between;align-items:center;color:#fff}
+.jk-faq-a{font-size:12px;color:rgba(255,255,255,.4);margin-top:8px;line-height:1.6}
+.jk-kyc-step{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.jk-kyc-step:last-child{border-bottom:none}
+.jk-kyc-dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0}
+.jk-dot-done{background:rgba(52,211,153,.15);color:#34d399}
+.jk-dot-pend{background:rgba(124,58,237,.15);color:#a78bfa}
+.jk-spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.1);border-top-color:#7c3aed;border-radius:50%;animation:jk-r .6s linear infinite;display:inline-block;flex-shrink:0}
+@keyframes jk-r{to{transform:rotate(360deg)}}
+@keyframes jk-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.jk-in{animation:jk-up .25s ease forwards}
+`;
+    document.head.appendChild(s);
+  }
+
+  /* ─── DOM HELPERS ─────────────────────────────────────── */
+  function mkSpin() { const d = document.createElement('span'); d.className = 'jk-spin'; return d; }
+  function mkNotice(msg, type = 'info') {
+    const cls = { info: 'jk-ni', warn: 'jk-nw', ok: 'jk-ns', err: 'jk-nr' }[type] || 'jk-ni';
+    const icon = { info: 'i', warn: '!', ok: '✓', err: '✕' }[type] || 'i';
+    const d = document.createElement('div');
+    d.className = 'jk-notice ' + cls + ' jk-in';
+    d.innerHTML = '<span>' + icon + '</span><span>' + esc(msg) + '</span>';
+    return d;
+  }
+  function v(id) { return document.getElementById(id)?.value?.trim() || ''; }
+
+  /* ─── STATE ───────────────────────────────────────────── */
+  let _tab = 'jackpot';
+  let _faqOpen = {};
+  let _payments = [
+    { merchant: 'Netflix', amount: 15.99, currency: 'EUR', date: '06 avr', cat: 'Abonnement' },
+    { merchant: 'Carrefour', amount: 43.20, currency: 'EUR', date: '05 avr', cat: 'Courses' },
+    { merchant: 'Uber', amount: 12.50, currency: 'EUR', date: '04 avr', cat: 'Transport' },
+  ];
+
+  /* ─── RENDER PANEL ────────────────────────────────────── */
+  function renderPanel(container) {
+    injectCSS();
+    container.innerHTML = '';
+    container.className = 'jk';
+
+    const nav = document.createElement('div');
+    nav.className = 'jk-nav';
+    [['jackpot', 'Jackpot'], ['wallet', 'Wallet'], ['dons', 'Dons'], ['payments', 'Paiements'], ['config', 'Config']].forEach(([id, label]) => {
+      const b = document.createElement('button');
+      b.className = 'jk-tab' + (_tab === id ? ' on' : '');
+      b.textContent = label;
+      b.addEventListener('click', () => { _tab = id; renderPanel(container); });
+      nav.appendChild(b);
+    });
+    container.appendChild(nav);
+
+    const body = document.createElement('div');
+    body.className = 'jk-body';
+    container.appendChild(body);
+
+    if (_tab === 'jackpot')      tabJackpot(body, container);
+    else if (_tab === 'wallet')  tabWallet(body, container);
+    else if (_tab === 'dons')    tabDons(body, container);
+    else if (_tab === 'payments') tabPayments(body, container);
+    else                          tabConfig(body, container);
+  }
+
+  /* ─── TAB : JACKPOT ───────────────────────────────────── */
+  function tabJackpot(body, root) {
+    body.classList.add('jk-in');
+    const user  = loadUser();
+    const cycle = loadCycle() || defaultCycle();
+    const pct   = cycle.myTickets / Math.max(cycle.totalTickets, 1);
+    const circ  = 2 * Math.PI * 36;
+    const offset = circ * (1 - cycleProgress(cycle.cycleEnd));
+    const uuid  = user ? (user.id || user.userId || 'usr_' + user.email?.slice(0, 8)) : null;
+
+    /* Jackpot hero */
+    const hero = document.createElement('div');
+    hero.className = 'jk-card';
+    hero.style.padding = '20px 16px';
+    hero.innerHTML = `
+      <div style="font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:10px">JACKPOT EN COURS</div>
+      <div style="font-size:42px;font-weight:500;letter-spacing:-1.5px;line-height:1;margin-bottom:4px">${eur(cycle.jackpot)}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:16px">
+        ${num(cycle.participants)} participants · ${num(cycle.totalTickets)} tickets ·
+        <span style="background:rgba(255,255,255,.06);border-radius:99px;padding:2px 8px;font-size:11px">multi-devises → EUR</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <svg width="78" height="78" viewBox="0 0 78 78" style="flex-shrink:0;transform:rotate(-90deg)">
+          <circle cx="39" cy="39" r="36" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="4"/>
+          <circle cx="39" cy="39" r="36" fill="none" stroke="#7c3aed" stroke-width="4"
+            stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" stroke-linecap="round"/>
+        </svg>
+        <div>
+          <div style="font-size:11px;color:rgba(255,255,255,.3)">Tirage automatique dans</div>
+          <div style="font-size:20px;font-weight:500;margin:3px 0" id="jk-clock">${timeLeft(cycle.cycleEnd)}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.3)">Distribution directe · sans compte central</div>
+        </div>
+      </div>
+    `;
+    body.appendChild(hero);
+
+    /* Chance */
+    const chanceCard = document.createElement('div');
+    chanceCard.className = 'jk-card';
+    chanceCard.innerHTML = `
+      <div style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:4px">Ma chance de gagner</div>
+      <div class="jk-chance">${(pct * 100).toFixed(3)}%</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.3);margin-bottom:6px">${num(cycle.myTickets)} tickets sur ${num(cycle.totalTickets)} · 1 ticket = 1 €</div>
+      <div class="jk-bar"><div class="jk-bar-fill" style="width:${Math.max(pct * 100, .3)}%"></div></div>
+      ${cycle.myTickets === 0 ? '<div style="font-size:12px;color:rgba(255,255,255,.3);margin-top:6px">Fais un don pour obtenir des tickets.</div>' : ''}
+    `;
+    body.appendChild(chanceCard);
+
+    /* UUID */
+    if (uuid) {
+      const uuidWrap = document.createElement('div');
+      uuidWrap.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:5px">Mon UUID — partage-le pour recevoir des dons</div>';
+      const uuidBox = document.createElement('div');
+      uuidBox.className = 'jk-uuid';
+      const uuidVal = document.createElement('span');
+      uuidVal.className = 'jk-uuid-val';
+      uuidVal.textContent = uuid;
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'jk-copy';
+      copyBtn.textContent = 'Copier';
+      copyBtn.addEventListener('click', () => copyText(uuid, copyBtn));
+      uuidBox.appendChild(uuidVal);
+      uuidBox.appendChild(copyBtn);
+      uuidWrap.appendChild(uuidBox);
+      body.appendChild(uuidWrap);
+    } else {
+      body.appendChild(mkNotice('Crée un compte (Config) pour obtenir ton UUID et participer.', 'info'));
+    }
+
+    /* Gagnants précédents */
+    const sec = document.createElement('div');
+    sec.className = 'jk-sec';
+    sec.textContent = 'GAGNANTS PRÉCÉDENTS';
+    body.appendChild(sec);
+
+    const wCard = document.createElement('div');
+    wCard.className = 'jk-card';
+    wCard.style.padding = '12px 16px';
+    const winners = cycle.winners.length ? cycle.winners : [
+      { name: 'J.M.', amount: 8320, date: '31 mar', tickets: 412, currency: 'EUR' },
+      { name: 'S.K.', amount: 6140, date: '24 mar', tickets: 298, currency: 'GBP' },
+      { name: 'A.L.', amount: 9870, date: '17 mar', tickets: 503, currency: 'USD' },
+    ];
+    winners.forEach((w, i) => {
+      const row = document.createElement('div');
+      row.className = 'jk-hist-row';
+      if (i === 0) row.style.paddingTop = '0';
+      row.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="jk-avatar">${esc(w.name.split('.')[0])}</div>
+          <div>
+            <div style="font-size:13px;font-weight:500">${esc(w.name)}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(w.date)} · ${num(w.tickets)} tickets · reçu en ${esc(w.currency || 'EUR')}</div>
+          </div>
+        </div>
+        <span style="font-size:15px;font-weight:500;color:#34d399">${eur(w.amount)}</span>
+      `;
+      wCard.appendChild(row);
+    });
+    body.appendChild(wCard);
+
+    /* Clock tick */
+    setInterval(() => {
+      const el = document.getElementById('jk-clock');
+      if (el) el.textContent = timeLeft(cycle.cycleEnd);
+    }, 30000);
+  }
+
+  /* ─── TAB : WALLET ────────────────────────────────────── */
+  function tabWallet(body, root) {
+    body.classList.add('jk-in');
+    const user  = loadUser();
+    const cycle = loadCycle() || defaultCycle();
+
+    if (!user) {
+      body.appendChild(mkNotice('Crée un compte dans Config pour accéder au wallet.', 'info'));
+      return;
+    }
+
+    const iban = 'FR76 3000 6000 0112 3456 7890 189';
+    let ibanVisible = false;
+
+    /* Carte virtuelle */
+    const vcard = document.createElement('div');
+    vcard.className = 'jk-vcard';
+    vcard.innerHTML = `
+      <div style="position:relative;z-index:1">
+        <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:2px" class="jk-mono">JACKPOT · STRIGA · MASTERCARD</div>
+      </div>
+      <div style="position:relative;z-index:1">
+        <div style="font-size:11px;color:rgba(255,255,255,.35);margin-bottom:4px" class="jk-mono">SOLDE DISPONIBLE</div>
+        <div style="font-size:32px;font-weight:500;color:#fff;letter-spacing:-1px;margin-bottom:14px" id="jk-wallet-bal">${eur(cycle.walletBalance || 240)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end">
+          <div>
+            <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-bottom:3px" class="jk-mono">TITULAIRE</div>
+            <div style="font-size:13px;color:#fff;font-weight:500">${esc((user.firstName || '').toUpperCase())} ${esc((user.lastName || '').toUpperCase())}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:9px;color:rgba(255,255,255,.3);margin-bottom:2px" class="jk-mono">•••• •••• •••• 4291</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.3)" class="jk-mono">MASTERCARD VIRTUAL</div>
+          </div>
+        </div>
+      </div>
+    `;
+    body.appendChild(vcard);
+
+    /* Métriques */
+    const g2 = document.createElement('div');
+    g2.className = 'jk-grid2';
+    g2.innerHTML = `
+      <div class="jk-metric"><div class="jk-metric-val">${eur(cycle.receivedDons)}</div><div class="jk-metric-lbl">dons reçus ce cycle</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${cycle.uniqueDonors}</div><div class="jk-metric-lbl">donateurs actifs</div></div>
+    `;
+    body.appendChild(g2);
+
+    /* IBAN */
+    const ibanSec = document.createElement('div');
+    ibanSec.className = 'jk-sec';
+    ibanSec.textContent = 'IBAN';
+    body.appendChild(ibanSec);
+
+    const ibanCard = document.createElement('div');
+    ibanCard.className = 'jk-card';
+    ibanCard.style.padding = '14px 16px';
+
+    function renderIBAN() {
+      ibanCard.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;color:rgba(255,255,255,.35)">Virement entrant, salaire, remboursements…</span>
+          <button class="jk-copy" id="jk-toggle-iban">${ibanVisible ? 'Masquer' : 'Afficher'}</button>
+        </div>
+        <div class="jk-mono" style="font-size:13px;color:rgba(255,255,255,.7);letter-spacing:1px;word-break:break-all">
+          ${ibanVisible ? esc(iban) : 'FR76 •••• •••• •••• •••• •••• •••'}
+        </div>
+        ${ibanVisible ? `
+          <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:6px">BIC : STRIEU21XXX</div>
+          <button class="jk-copy" style="margin-top:8px;display:block" id="jk-copy-iban">Copier l'IBAN</button>
+        ` : ''}
+      `;
+      document.getElementById('jk-toggle-iban')?.addEventListener('click', () => { ibanVisible = !ibanVisible; renderIBAN(); });
+      document.getElementById('jk-copy-iban')?.addEventListener('click', e => copyText(iban, e.target));
+    }
+    renderIBAN();
+    body.appendChild(ibanCard);
+
+    /* Retrait dons */
+    const actionSec = document.createElement('div');
+    actionSec.className = 'jk-sec';
+    actionSec.textContent = 'ACTIONS';
+    body.appendChild(actionSec);
+
+    const fb = document.createElement('div');
+    body.appendChild(mkNotice('Retirer tes dons reçus te fait perdre tous tes tickets pour ce cycle. Les paiements carte sont séparés.', 'warn'));
+
+    const withdrawBtn = document.createElement('button');
+    withdrawBtn.className = 'jk-cta';
+    withdrawBtn.textContent = 'Retirer les dons reçus · ' + eur(cycle.receivedDons);
+    withdrawBtn.addEventListener('click', async () => {
+      if (cycle.receivedDons <= 0) return;
+      if (!confirm('Retirer ' + eur(cycle.receivedDons) + ' ? Tu perdras tous tes tickets ce cycle.')) return;
+      withdrawBtn.disabled = true;
+      withdrawBtn.innerHTML = '';
+      withdrawBtn.appendChild(mkSpin());
+      withdrawBtn.append(' Retrait en cours…');
+      try {
+        /* TODO: appel API Striga virement wallet → compte utilisateur */
+        cycle.walletBalance = (cycle.walletBalance || 240) + cycle.receivedDons;
+        cycle.myTickets = 0;
+        cycle.receivedDons = 0;
+        saveCycle(cycle);
+        fb.appendChild(mkNotice('Retrait effectué. Tes tickets ont été annulés.', 'ok'));
+        tabWallet(body, root);
+      } catch (e) {
+        fb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
+        withdrawBtn.disabled = false;
+        withdrawBtn.textContent = 'Retirer les dons reçus · ' + eur(cycle.receivedDons);
+      }
+    });
+    body.appendChild(withdrawBtn);
+    body.appendChild(fb);
+
+    /* Historique dons reçus */
+    const donSec = document.createElement('div');
+    donSec.className = 'jk-sec';
+    donSec.textContent = 'DONS REÇUS CE CYCLE';
+    body.appendChild(donSec);
+
+    const donCard = document.createElement('div');
+    donCard.className = 'jk-card';
+    donCard.style.padding = '12px 16px';
+    const donHistory = cycle.donHistory.length ? cycle.donHistory : [
+      { from: 'A.M.', amount: 20, currency: 'EUR', date: '07 avr', tickets: 25 },
+      { from: 'S.K.', amount: 22.13, currency: 'USD', date: '06 avr', tickets: 18 },
+      { from: 'L.R.', amount: 50, currency: 'EUR', date: '05 avr', tickets: 75 },
+    ];
+    donHistory.forEach((d, i) => {
+      const row = document.createElement('div');
+      row.className = 'jk-hist-row';
+      if (i === 0) row.style.paddingTop = '0';
+      row.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="jk-avatar">${esc(d.from.split('.')[0])}</div>
+          <div>
+            <div style="font-size:13px;font-weight:500">Don de ${esc(d.from)}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(d.date)} · en ${esc(d.currency)} · +${num(d.tickets)} tickets pour eux</div>
+          </div>
+        </div>
+        <span class="jk-badge jk-bg">+${eur(toEUR(d.amount, d.currency))}</span>
+      `;
+      donCard.appendChild(row);
+    });
+    body.appendChild(donCard);
+  }
+
+  /* ─── TAB : DONS ──────────────────────────────────────── */
+  function tabDons(body, root) {
+    body.classList.add('jk-in');
+    const user  = loadUser();
+    const cycle = loadCycle() || defaultCycle();
+
+    if (!user) { body.appendChild(mkNotice('Crée un compte dans Config pour envoyer des dons.', 'info')); return; }
+
+    body.appendChild(mkNotice('1 ticket = 1 EUR converti. Répartis vers plusieurs personnes pour augmenter ton multiplicateur (jusqu\'à ×2).', 'info'));
+
+    /* Formulaire */
+    const sec1 = document.createElement('div'); sec1.className = 'jk-sec'; sec1.textContent = 'ENVOYER UN DON'; body.appendChild(sec1);
+    const formCard = document.createElement('div'); formCard.className = 'jk-card'; body.appendChild(formCard);
+
+    const uuidLbl = document.createElement('label'); uuidLbl.className = 'jk-label'; uuidLbl.textContent = 'UUID ou email du destinataire'; formCard.appendChild(uuidLbl);
+    const uuidInp = document.createElement('input'); uuidInp.className = 'jk-inp'; uuidInp.id = 'jk-don-uuid'; uuidInp.placeholder = 'usr_4f3a9b2c… ou ami@email.com'; formCard.appendChild(uuidInp);
+
+    const row2 = document.createElement('div'); row2.style.cssText = 'display:flex;gap:8px'; formCard.appendChild(row2);
+    const amtWrap = document.createElement('div'); amtWrap.style.flex = '1';
+    const amtLbl = document.createElement('label'); amtLbl.className = 'jk-label'; amtLbl.textContent = 'Montant'; amtWrap.appendChild(amtLbl);
+    const amtInp = document.createElement('input'); amtInp.className = 'jk-inp'; amtInp.id = 'jk-don-amt'; amtInp.type = 'number'; amtInp.placeholder = '50'; amtInp.min = '1'; amtInp.step = '1'; amtWrap.appendChild(amtInp);
+    row2.appendChild(amtWrap);
+
+    const curWrap = document.createElement('div'); curWrap.style.width = '90px';
+    const curLbl = document.createElement('label'); curLbl.className = 'jk-label'; curLbl.textContent = 'Devise'; curWrap.appendChild(curLbl);
+    const curSel = document.createElement('select'); curSel.className = 'jk-sel'; curSel.id = 'jk-don-cur';
+    ['EUR', 'USD', 'GBP', 'CHF', 'JPY'].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; curSel.appendChild(o); });
+    curWrap.appendChild(curSel);
+    row2.appendChild(curWrap);
+
+    /* Preview */
+    const prevDiv = document.createElement('div');
+    prevDiv.id = 'jk-don-prev';
+    prevDiv.style.display = 'none';
+    prevDiv.style.cssText = 'background:rgba(255,255,255,.03);border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid rgba(255,255,255,.06)';
+    prevDiv.innerHTML = `
+      <div class="jk-row" style="padding-top:0"><span class="jk-rl">Équivalent EUR</span><span class="jk-rv" id="jk-prev-eur">—</span></div>
+      <div class="jk-row"><span class="jk-rl">Destinataires uniques</span><span class="jk-rv" id="jk-prev-count">—</span></div>
+      <div class="jk-row"><span class="jk-rl">Multiplicateur</span><span class="jk-badge jk-bp" id="jk-prev-mult">×1.00</span></div>
+      <div class="jk-row"><span class="jk-rl">Tickets reçus</span><span class="jk-rv" id="jk-prev-tickets">—</span></div>
+    `;
+    formCard.appendChild(prevDiv);
+
+    function calcDon() {
+      const uuid   = uuidInp.value.trim();
+      const amt    = parseFloat(amtInp.value) || 0;
+      const cur    = curSel.value;
+      if (!uuid || amt <= 0) { prevDiv.style.display = 'none'; return null; }
+      const amtEur = toEUR(amt, cur);
+      const uniqBefore = new Set(cycle.myGifts.map(g => g.toRaw)).size;
+      const isNew  = !cycle.myGifts.find(g => g.toRaw === uuid);
+      const uniq   = uniqBefore + (isNew ? 1 : 0);
+      const mult   = getBonus(uniq);
+      const tickets = Math.floor(amtEur * mult);
+      prevDiv.style.display = 'block';
+      document.getElementById('jk-prev-eur').textContent    = eur(amtEur) + (cur !== 'EUR' ? ' (converti)' : '');
+      document.getElementById('jk-prev-count').textContent  = uniq + ' unique' + (uniq > 1 ? 's' : '');
+      const me = document.getElementById('jk-prev-mult');
+      me.textContent = '×' + mult.toFixed(2);
+      me.className = 'jk-badge ' + (mult >= 2 ? 'jk-bg' : mult >= 1.5 ? 'jk-ba' : 'jk-bp');
+      document.getElementById('jk-prev-tickets').textContent = num(tickets) + ' tickets';
+      return { uuid, amt, cur, amtEur, mult, tickets };
+    }
+
+    uuidInp.addEventListener('input', calcDon);
+    amtInp.addEventListener('input', calcDon);
+    curSel.addEventListener('change', calcDon);
+
+    const donBtn = document.createElement('button'); donBtn.className = 'jk-cta'; donBtn.textContent = 'Envoyer le don'; formCard.appendChild(donBtn);
+    const donFb  = document.createElement('div'); formCard.appendChild(donFb);
+
+    donBtn.addEventListener('click', async () => {
+      const res = calcDon();
+      donFb.innerHTML = '';
+      if (!res) { donFb.appendChild(mkNotice('Renseigne un destinataire et un montant.', 'err')); return; }
+      const walBal = cycle.walletBalance || 240;
+      if (walBal < res.amtEur) { donFb.appendChild(mkNotice('Solde insuffisant.', 'err')); return; }
+      donBtn.disabled = true; donBtn.innerHTML = ''; donBtn.appendChild(mkSpin()); donBtn.append(' Envoi…');
+      try {
+        /* TODO: appel API Striga — virement wallet donateur → wallet destinataire */
+        cycle.walletBalance = walBal - res.amtEur;
+        cycle.jackpot      += res.amtEur;
+        cycle.totalTickets += res.tickets;
+        cycle.myTickets    += res.tickets;
+        cycle.myGifts.push({ to: res.uuid.slice(0, 10) + '…', toRaw: res.uuid, amount: res.amtEur, cur: res.cur, mult: res.mult, tickets: res.tickets, date: new Date().toLocaleDateString('fr-FR') });
+        saveCycle(cycle);
+        donFb.appendChild(mkNotice('Don de ' + res.amt + ' ' + res.cur + ' (' + eur(res.amtEur) + ') envoyé — +' + num(res.tickets) + ' tickets (×' + res.mult.toFixed(2) + ')', 'ok'));
+        uuidInp.value = ''; amtInp.value = ''; prevDiv.style.display = 'none';
+        donBtn.disabled = false; donBtn.textContent = 'Envoyer le don';
+        /* Refresh liste */
+        renderGiftsList(giftsCard, cycle);
+      } catch (e) {
+        donFb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
+        donBtn.disabled = false; donBtn.textContent = 'Envoyer le don';
+      }
+    });
+
+    /* QR code */
+    const qrSec = document.createElement('div'); qrSec.className = 'jk-sec'; qrSec.textContent = 'OU PAR QR CODE'; body.appendChild(qrSec);
+    const qrCard = document.createElement('div'); qrCard.className = 'jk-card'; qrCard.style.textAlign = 'center'; qrCard.style.padding = '20px';
+    qrCard.innerHTML = `
+      <div style="width:72px;height:72px;background:rgba(255,255,255,.05);border-radius:14px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <rect x="2" y="2" width="14" height="14" rx="2" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/>
+          <rect x="6" y="6" width="6" height="6" rx="1" fill="rgba(255,255,255,.3)"/>
+          <rect x="24" y="2" width="14" height="14" rx="2" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/>
+          <rect x="28" y="6" width="6" height="6" rx="1" fill="rgba(255,255,255,.3)"/>
+          <rect x="2" y="24" width="14" height="14" rx="2" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/>
+          <rect x="6" y="28" width="6" height="6" rx="1" fill="rgba(255,255,255,.3)"/>
+          <rect x="24" y="24" width="4" height="4" rx="1" fill="rgba(255,255,255,.3)"/>
+          <rect x="30" y="24" width="4" height="4" rx="1" fill="rgba(255,255,255,.3)"/>
+          <rect x="24" y="30" width="4" height="4" rx="1" fill="rgba(255,255,255,.3)"/>
+          <rect x="30" y="30" width="4" height="4" rx="1" fill="rgba(255,255,255,.3)"/>
+        </svg>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,.3);margin-bottom:12px">Scanne le QR d'un ami pour saisir son UUID automatiquement</div>
+    `;
+    const scanBtn = document.createElement('button'); scanBtn.className = 'jk-btn'; scanBtn.style.cssText = 'width:auto;padding:8px 20px;display:inline-flex'; scanBtn.textContent = 'Scanner un QR code'; qrCard.appendChild(scanBtn);
+    body.appendChild(qrCard);
+
+    /* Stats */
+    const statSec = document.createElement('div'); statSec.className = 'jk-sec'; statSec.textContent = 'STATISTIQUES DU CYCLE'; body.appendChild(statSec);
+    const g2 = document.createElement('div'); g2.className = 'jk-grid2';
+    g2.innerHTML = `
+      <div class="jk-metric"><div class="jk-metric-val">${cycle.uniqueDonors || 31}</div><div class="jk-metric-lbl">personnes actives</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${cycle.myGifts.length}</div><div class="jk-metric-lbl">mes dons envoyés</div></div>
+    `;
+    body.appendChild(g2);
+
+    /* Historique dons envoyés */
+    const giftSec = document.createElement('div'); giftSec.className = 'jk-sec'; giftSec.textContent = 'MES DONS ENVOYÉS CE CYCLE'; body.appendChild(giftSec);
+    const giftsCard = document.createElement('div'); giftsCard.className = 'jk-card'; giftsCard.style.padding = '12px 16px'; body.appendChild(giftsCard);
+    renderGiftsList(giftsCard, cycle);
+  }
+
+  function renderGiftsList(container, cycle) {
+    container.innerHTML = '';
+    if (!cycle.myGifts.length) {
+      container.innerHTML = '<div style="text-align:center;padding:16px;font-size:13px;color:rgba(255,255,255,.3)">Aucun don envoyé</div>';
+      return;
+    }
+    cycle.myGifts.forEach((g, i) => {
+      const row = document.createElement('div'); row.className = 'jk-hist-row'; if (i === 0) row.style.paddingTop = '0';
+      row.innerHTML = `
+        <div>
+          <div style="font-size:13px;font-weight:500">Don à ${esc(g.to)}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(g.date)} · +${num(g.tickets)} tickets · ×${g.mult.toFixed(2)} · ${esc(g.cur)}</div>
+        </div>
+        <span class="jk-badge jk-br">−${eur(g.amount)}</span>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  /* ─── TAB : PAIEMENTS ─────────────────────────────────── */
+  function tabPayments(body, root) {
+    body.classList.add('jk-in');
+    const user  = loadUser();
+    const cycle = loadCycle() || defaultCycle();
+    if (!user) { body.appendChild(mkNotice('Crée un compte dans Config pour accéder aux paiements.', 'info')); return; }
+
+    body.appendChild(mkNotice('Les paiements carte sont débités de ton solde wallet. Ils ne sont pas des dons et n\'affectent pas tes tickets.', 'info'));
+
+    const total = _payments.reduce((a, p) => a + p.amount, 0);
+    const g2 = document.createElement('div'); g2.className = 'jk-grid2';
+    g2.innerHTML = `
+      <div class="jk-metric"><div class="jk-metric-val">${eur(cycle.walletBalance || 240)}</div><div class="jk-metric-lbl">solde disponible</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${eur(total)}</div><div class="jk-metric-lbl">dépensé ce mois</div></div>
+    `;
+    body.appendChild(g2);
+
+    const cardSec = document.createElement('div'); cardSec.className = 'jk-sec'; cardSec.textContent = 'CARTE VIRTUELLE'; body.appendChild(cardSec);
+    const cardInfo = document.createElement('div'); cardInfo.className = 'jk-card'; cardInfo.style.padding = '12px 16px';
+    cardInfo.innerHTML = `
+      <div class="jk-row" style="padding-top:0"><span class="jk-rl">Numéro</span><span class="jk-mono" style="font-size:13px;color:rgba(255,255,255,.6)">•••• •••• •••• 4291</span></div>
+      <div class="jk-row"><span class="jk-rl">Expiration</span><span class="jk-mono jk-rv">09 / 28</span></div>
+      <div class="jk-row"><span class="jk-rl">CVV</span><span class="jk-mono" style="font-size:13px;color:rgba(255,255,255,.6)">•••</span></div>
+      <div class="jk-row"><span class="jk-rl">Statut</span><span class="jk-badge jk-bg">Active</span></div>
+    `;
+    body.appendChild(cardInfo);
+
+    const showBtn = document.createElement('button'); showBtn.className = 'jk-btn'; showBtn.textContent = 'Afficher les détails complets';
+    showBtn.addEventListener('click', () => { showBtn.textContent = 'Débloqué via Face ID / PIN dans l\'app réelle'; showBtn.disabled = true; });
+    body.appendChild(showBtn);
+
+    const txSec = document.createElement('div'); txSec.className = 'jk-sec'; txSec.textContent = 'TRANSACTIONS RÉCENTES'; body.appendChild(txSec);
+    const txCard = document.createElement('div'); txCard.className = 'jk-card'; txCard.style.padding = '12px 16px'; txCard.id = 'jk-tx-list'; body.appendChild(txCard);
+    renderTxList(txCard);
+
+    const paySimSec = document.createElement('div'); paySimSec.className = 'jk-sec'; paySimSec.textContent = 'SIMULER UN PAIEMENT'; body.appendChild(paySimSec);
+    const payCard = document.createElement('div'); payCard.className = 'jk-card'; body.appendChild(payCard);
+
+    const mLbl = document.createElement('label'); mLbl.className = 'jk-label'; mLbl.textContent = 'Commerçant'; payCard.appendChild(mLbl);
+    const mInp = document.createElement('input'); mInp.className = 'jk-inp'; mInp.placeholder = 'Amazon, Fnac…'; payCard.appendChild(mInp);
+    const aLbl = document.createElement('label'); aLbl.className = 'jk-label'; aLbl.textContent = 'Montant (EUR)'; payCard.appendChild(aLbl);
+    const aInp = document.createElement('input'); aInp.className = 'jk-inp'; aInp.type = 'number'; aInp.placeholder = '29.99'; aInp.min = '0.01'; aInp.step = '0.01'; payCard.appendChild(aInp);
+
+    const payBtn = document.createElement('button'); payBtn.className = 'jk-cta'; payBtn.textContent = 'Payer avec la carte'; payCard.appendChild(payBtn);
+    const payFb  = document.createElement('div'); payCard.appendChild(payFb);
+
+    payBtn.addEventListener('click', () => {
+      const merchant = mInp.value.trim();
+      const amt = parseFloat(aInp.value) || 0;
+      payFb.innerHTML = '';
+      if (!merchant || amt <= 0) { payFb.appendChild(mkNotice('Renseigne un commerçant et un montant.', 'err')); return; }
+      const bal = cycle.walletBalance || 240;
+      if (bal < amt) { payFb.appendChild(mkNotice('Solde insuffisant.', 'err')); return; }
+      cycle.walletBalance = bal - amt;
+      saveCycle(cycle);
+      _payments.unshift({ merchant, amount: amt, currency: 'EUR', date: new Date().toLocaleDateString('fr-FR'), cat: 'Paiement' });
+      payFb.appendChild(mkNotice('Paiement de ' + eur(amt) + ' chez ' + merchant + ' effectué. Tes tickets ne sont pas affectés.', 'ok'));
+      mInp.value = ''; aInp.value = '';
+      renderTxList(document.getElementById('jk-tx-list'));
+    });
+  }
+
+  function renderTxList(container) {
+    if (!container) return;
+    container.innerHTML = '';
+    _payments.forEach((p, i) => {
+      const row = document.createElement('div'); row.className = 'jk-hist-row'; if (i === 0) row.style.paddingTop = '0';
+      row.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="jk-pay-icon">${esc(p.merchant[0])}</div>
+          <div>
+            <div style="font-size:13px;font-weight:500">${esc(p.merchant)}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(p.date)} · ${esc(p.cat)}</div>
+          </div>
+        </div>
+        <span style="font-size:14px;font-weight:500;color:#fff">−${eur(p.amount)}</span>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  /* ─── TAB : CONFIG ────────────────────────────────────── */
+  function tabConfig(body, root) {
+    body.classList.add('jk-in');
+    const user = loadUser();
+    const fb   = document.createElement('div');
+
+    /* Compte */
+    const accSec = document.createElement('div'); accSec.className = 'jk-sec'; accSec.textContent = 'MON COMPTE'; body.appendChild(accSec);
+
+    if (user) {
+      const uuid = user.id || user.userId || 'usr_' + user.email?.slice(0, 8);
+      const profCard = document.createElement('div'); profCard.className = 'jk-card'; profCard.style.padding = '14px 16px';
+      const avt = document.createElement('div');
+      avt.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:14px';
+      avt.innerHTML = `
+        <div class="jk-avatar" style="width:44px;height:44px;font-size:16px">${esc(user.firstName?.[0] || '?')}${esc(user.lastName?.[0] || '?')}</div>
+        <div style="flex:1">
+          <div style="font-size:15px;font-weight:500">${esc(user.firstName || '')} ${esc(user.lastName || '')}</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.35)">${esc(user.email || '')}</div>
+        </div>
+        <span class="jk-badge ${user.kycStatus === 'APPROVED' ? 'jk-bg' : 'jk-ba'}">${user.kycStatus === 'APPROVED' ? 'Vérifié' : 'En attente'}</span>
+      `;
+      profCard.appendChild(avt);
+
+      const uuidLabel = document.createElement('div'); uuidLabel.style.cssText = 'font-size:11px;color:rgba(255,255,255,.3);margin-bottom:5px'; uuidLabel.textContent = 'Mon UUID — partage-le pour recevoir des dons';
+      const uuidBox = document.createElement('div'); uuidBox.className = 'jk-uuid';
+      const uuidVal = document.createElement('span'); uuidVal.className = 'jk-uuid-val'; uuidVal.textContent = uuid;
+      const copyBtn = document.createElement('button'); copyBtn.className = 'jk-copy'; copyBtn.textContent = 'Copier';
+      copyBtn.addEventListener('click', () => copyText(uuid, copyBtn));
+      uuidBox.appendChild(uuidVal); uuidBox.appendChild(copyBtn);
+      profCard.appendChild(uuidLabel); profCard.appendChild(uuidBox);
+      body.appendChild(profCard);
+    }
+
+    /* KYC */
+    const kycSec = document.createElement('div'); kycSec.className = 'jk-sec'; kycSec.textContent = 'KYC — VÉRIFICATION D\'IDENTITÉ'; body.appendChild(kycSec);
+
+    if (!user) {
+      /* Formulaire création */
+      body.appendChild(mkNotice('Crée ton compte pour accéder au wallet et à la carte Mastercard virtuelle.', 'info'));
+      const form = document.createElement('div'); form.className = 'jk-card';
+
+      [['jk-fn','Prénom','Jean'],['jk-ln','Nom','Dupont'],['jk-dob','Date de naissance (AAAA-MM-JJ)','1990-01-15'],['jk-nat','Nationalité (FR, DE…)','FR'],['jk-email','Email','jean@example.com'],['jk-tel','Téléphone (+33…)','+33612345678'],['jk-addr','Adresse','12 rue de la Paix'],['jk-city','Ville','Paris'],['jk-postal','Code postal','75001'],['jk-country','Pays','FR']].forEach(([id, label, ph]) => {
+        const lbl = document.createElement('label'); lbl.className = 'jk-label'; lbl.textContent = label; form.appendChild(lbl);
+        const inp = document.createElement('input'); inp.className = 'jk-inp'; inp.id = id; inp.placeholder = ph;
+        if (id === 'jk-email') inp.type = 'email';
+        if (id === 'jk-tel')   inp.type = 'tel';
+        form.appendChild(inp);
+      });
+
+      const createBtn = document.createElement('button'); createBtn.className = 'jk-cta'; createBtn.textContent = 'Créer mon compte'; form.appendChild(createBtn);
+      form.appendChild(fb);
+      body.appendChild(form);
+
+      createBtn.addEventListener('click', async () => {
+        createBtn.disabled = true; createBtn.innerHTML = ''; createBtn.appendChild(mkSpin()); createBtn.append(' Création en cours…');
+        const dob = v('jk-dob').split('-');
+        const payload = {
+          firstName: v('jk-fn'), lastName: v('jk-ln'),
+          dateOfBirth: { year: +dob[0] || 1990, month: +dob[1] || 1, day: +dob[2] || 1 },
+          email: v('jk-email'),
+          mobile: { phoneNumber: v('jk-tel').replace(/\s/g, '').replace(/^\+/, '') },
+          nationality: v('jk-nat').toUpperCase(),
+          address: { addressLine1: v('jk-addr'), city: v('jk-city'), postalCode: v('jk-postal'), state: '', country: v('jk-country').toUpperCase() },
+        };
+        try {
+          const r = await api('POST', '/user/create', payload);
+          saveUser({ ...r, kycStatus: 'NOT_STARTED' });
+          window.YM_toast?.('Compte créé avec succès !', 'success');
+          renderPanel(root);
+        } catch (e) {
+          fb.innerHTML = ''; fb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
+          createBtn.disabled = false; createBtn.textContent = 'Créer mon compte';
+        }
+      });
+    } else {
+      /* Étapes KYC */
+      const kycCard = document.createElement('div'); kycCard.className = 'jk-card'; kycCard.style.padding = '12px 16px';
+      [
+        { label: 'Compte créé', sub: 'Nom, email, date de naissance', done: true },
+        { label: 'Identité vérifiée', sub: 'Pièce d\'identité + selfie via Striga', done: user.kycStatus === 'APPROVED' },
+        { label: 'Wallet et carte activés', sub: 'IBAN + Mastercard virtuelle', done: user.kycStatus === 'APPROVED' },
+      ].forEach(s => {
+        const step = document.createElement('div'); step.className = 'jk-kyc-step';
+        const dot = document.createElement('div'); dot.className = 'jk-kyc-dot ' + (s.done ? 'jk-dot-done' : 'jk-dot-pend'); dot.textContent = s.done ? '✓' : '…';
+        const txt = document.createElement('div');
+        txt.innerHTML = `<div style="font-size:13px;font-weight:500">${esc(s.label)}</div><div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(s.sub)}</div>`;
+        step.appendChild(dot); step.appendChild(txt); kycCard.appendChild(step);
+      });
+      body.appendChild(kycCard);
+      body.appendChild(fb);
+
+      if (user.kycStatus !== 'APPROVED') {
+        const kycBtn = document.createElement('button'); kycBtn.className = 'jk-cta'; kycBtn.textContent = 'Lancer la vérification d\'identité';
+        kycBtn.addEventListener('click', async () => {
+          kycBtn.disabled = true; kycBtn.innerHTML = ''; kycBtn.appendChild(mkSpin()); kycBtn.append(' Chargement…');
+          try {
+            const r = await api('POST', '/user/' + (user.id || user.userId) + '/kyc/start', {});
+            if (r.verificationLink) window.open(r.verificationLink, '_blank');
+            fb.appendChild(mkNotice('Lien ouvert. Reviens ici une fois la vérification terminée.', 'info'));
+            kycBtn.disabled = false; kycBtn.textContent = 'Lancer la vérification d\'identité';
+          } catch (e) {
+            fb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
+            kycBtn.disabled = false; kycBtn.textContent = 'Lancer la vérification d\'identité';
+          }
+        });
+        body.appendChild(kycBtn);
+
+        const refreshBtn = document.createElement('button'); refreshBtn.className = 'jk-btn'; refreshBtn.textContent = '↻  Actualiser mon statut KYC';
+        refreshBtn.addEventListener('click', async () => {
+          refreshBtn.disabled = true; refreshBtn.innerHTML = ''; refreshBtn.appendChild(mkSpin()); refreshBtn.append(' Vérification…');
+          try {
+            const r = await api('GET', '/user/' + (user.id || user.userId), {});
+            saveUser({ ...user, ...r });
+            window.YM_toast?.(r.kycStatus === 'APPROVED' ? 'KYC approuvé ! 🎉' : 'Statut : ' + r.kycStatus, 'info');
+            renderPanel(root);
+          } catch (e) {
+            fb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
+            refreshBtn.disabled = false; refreshBtn.textContent = '↻  Actualiser mon statut KYC';
+          }
+        });
+        body.appendChild(refreshBtn);
+      }
+
+      const delBtn = document.createElement('button'); delBtn.className = 'jk-btn red'; delBtn.textContent = 'Supprimer mon compte local';
+      delBtn.addEventListener('click', () => {
+        if (confirm('Supprimer les données locales ?')) {
+          saveUser(null); saveCycle(null);
+          window.YM_toast?.('Supprimé', 'info');
+          renderPanel(root);
+        }
+      });
+      body.appendChild(delBtn);
+    }
+
+    /* FAQ */
+    const faqSec = document.createElement('div'); faqSec.className = 'jk-sec'; faqSec.textContent = 'COMMENT ÇA MARCHE'; body.appendChild(faqSec);
+    const faqCard = document.createElement('div'); faqCard.className = 'jk-card'; faqCard.style.padding = '12px 16px'; body.appendChild(faqCard);
+
+    [
+      ['Qui détient la caisse ?', 'Personne. Il n\'y a pas de compte central. Chaque euro reste dans le wallet Striga de son propriétaire jusqu\'au tirage. Le Worker Cloudflare calcule le gagnant et déclenche les virements directement entre wallets.'],
+      ['Comment le gagnant est désigné ?', 'Un hash est calculé à partir de toutes les transactions du cycle. Ce hash est converti en nombre, on applique un modulo sur le total des tickets. Le ticket résultant désigne le gagnant — déterministe et non manipulable.'],
+      ['Multi-devises, comment ça marche ?', 'Chaque don est converti en EUR au taux Striga du moment. 1 ticket = 1 EUR converti. Le virement au gagnant se fait dans sa devise locale via Striga FX.'],
+      ['Qu\'est-ce que le bonus diversité ?', '1 destinataire : ×1.00. 2 : ×1.25. 3–4 : ×1.50. 5+ : ×2.00. Ça encourage de vrais échanges et empêche les boucles entre comptes.'],
+      ['Retirer = quitter le jeu ?', 'Oui. Si tu retires tes dons reçus avant le tirage, tu perds tous tes tickets. Les paiements carte sont séparés et n\'ont aucun impact.'],
+    ].forEach(([q, a], i) => {
+      const item = document.createElement('div'); item.className = 'jk-faq-item';
+      const qEl = document.createElement('div'); qEl.className = 'jk-faq-q';
+      qEl.innerHTML = '<span>' + esc(q) + '</span><span style="color:rgba(255,255,255,.3);font-weight:400">' + (_faqOpen[i] ? '−' : '+') + '</span>';
+      const aEl = document.createElement('div'); aEl.className = 'jk-faq-a'; aEl.style.display = _faqOpen[i] ? 'block' : 'none'; aEl.textContent = a;
+      item.appendChild(qEl); item.appendChild(aEl);
+      item.addEventListener('click', () => {
+        _faqOpen[i] = !_faqOpen[i];
+        aEl.style.display = _faqOpen[i] ? 'block' : 'none';
+        qEl.querySelector('span:last-child').textContent = _faqOpen[i] ? '−' : '+';
+      });
+      faqCard.appendChild(item);
+    });
+  }
+
+  /* ─── REGISTRATION ────────────────────────────────────── */
+  window.YM_S['jackpot.sphere.js'] = {
+    name: 'Jackpot',
+    icon: '🎰',
+    category: 'Finance',
+    description: 'Caisse commune · dons multi-devises · tirage automatique · carte Mastercard virtuelle',
+    emit: [],
+    receive: [],
+    activate:    function () { injectCSS(); },
+    deactivate:  function () {},
+    renderPanel,
+    profileSection: function (container) {
+      const user  = loadUser(); if (!user) return;
+      const cycle = loadCycle() || defaultCycle();
+      injectCSS();
+      const pct = cycle.myTickets / Math.max(cycle.totalTickets, 1);
+      const el = document.createElement('div');
+      el.style.fontFamily = "'DM Sans',system-ui,sans-serif";
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#0f0527,#1a0845);border-radius:16px;padding:14px 16px">
+          <div style="width:44px;height:44px;border-radius:14px;background:rgba(124,58,237,.2);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🎰</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:500;color:#fff">${esc(user.firstName || '')} ${esc(user.lastName || '')}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:2px">${num(cycle.myTickets)} tickets · ${(pct * 100).toFixed(3)}% de chance</div>
+          </div>
+          <div style="font-size:16px;font-weight:500;color:#a78bfa;flex-shrink:0">${eur(cycle.jackpot)}</div>
+        </div>
+      `;
+      container.appendChild(el);
+    },
+  };
 })();
