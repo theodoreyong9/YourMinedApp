@@ -21,18 +21,16 @@
   let _ctx=null, _running=false, _raf=null, _renderer=null;
 
   // ── Obtenir les dimensions réelles d'un container ──────────────────────────
-  // Remonte la chaîne parentale jusqu'à trouver un élément avec des dimensions
   function getContainerSize(el) {
-    let w=0, h=0;
+    // Essayer getBoundingClientRect sur l'élément et ses parents
     let cur=el;
     while(cur && cur!==document.body) {
       const r=cur.getBoundingClientRect();
-      if(r.width>10 && r.height>10){ w=r.width; h=r.height; break; }
+      if(r.width>10 && r.height>10) return { W:Math.round(r.width), H:Math.round(r.height) };
       cur=cur.parentElement;
     }
-    if(!w) w=el.offsetWidth||el.clientWidth||360;
-    if(!h) h=el.offsetHeight||el.clientHeight||window.innerHeight*0.7||520;
-    return { W:Math.round(w), H:Math.round(h) };
+    // Fallback absolu : dimensions de la fenêtre
+    return { W:window.innerWidth||360, H:window.innerHeight||600 };
   }
 
   const TRACKS = {
@@ -218,13 +216,14 @@
     const THREE=window.THREE;
     const T=TRACKS[trackId], SD=SHIPS[shipId];
 
-    // Vider et prendre toute la place
+    // Vider et prendre toute la place - hauteur explicite pour que le canvas soit visible
     rootContainer.innerHTML='';
-    rootContainer.style.cssText='position:relative;width:100%;height:100%;overflow:hidden;background:#000';
+    const minH = Math.max(H, window.innerHeight * 0.6, 400);
+    rootContainer.style.cssText=`position:relative;width:100%;height:${minH}px;min-height:${minH}px;overflow:hidden;background:#000;flex:1`;
 
-    // Fallback dimensions si tout le reste échoue
-    if(!W||W<10) W=rootContainer.clientWidth||rootContainer.offsetWidth||360;
-    if(!H||H<10) H=rootContainer.clientHeight||rootContainer.offsetHeight||window.innerHeight||520;
+    // Fallback dimensions — window.innerHeight est toujours disponible
+    if(!W||W<10) W=rootContainer.clientWidth||window.innerWidth||360;
+    if(!H||H<10) H=window.innerHeight||600;
 
     const SEG=isMobile?180:360;
     const BLDG=isMobile?25:50;
@@ -238,9 +237,9 @@
     renderer.toneMapping=THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure=1.15;
 
-    // Le canvas créé par Three, positionné en absolu
+    // Le canvas créé par Three, positionné en absolu couvrant tout le container
     const canvas=renderer.domElement;
-    canvas.style.cssText='position:absolute;top:0;left:0;display:block';
+    canvas.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;display:block';
     rootContainer.appendChild(canvas);
 
     const scene=new THREE.Scene();
