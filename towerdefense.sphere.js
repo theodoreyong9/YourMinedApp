@@ -349,6 +349,8 @@
 
         this.input.on('pointerdown',ptr=>{
           if(gameOver) return;
+          // Ne rien faire si le shop inter-vague est ouvert (HTML overlay)
+          if(shopIsOpen) return;
           removeAllOverlays();
           const {x,y}=ptr;
           const clickedTower=towers.find(t=>Math.hypot(t.x-x,t.y-y)<22);
@@ -366,7 +368,7 @@
         const preview=this.add.graphics().setDepth(50);
         this.input.on('pointermove',ptr=>{
           preview.clear();
-          if(gameOver||ptr.y>H-BAR_H||ptr.y<TOP_H) return;
+          if(gameOver||shopIsOpen||ptr.y>H-BAR_H||ptr.y<TOP_H) return;
           const cfg=TOWER_DEFS[selectedType];
           const ok=!isOnAnyPath(ptr.x,ptr.y)&&!towers.some(t=>Math.hypot(t.x-ptr.x,t.y-ptr.y)<36);
           preview.lineStyle(1,ok?cfg.col:0xff4444,0.3);
