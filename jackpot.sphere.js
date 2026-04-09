@@ -1,22 +1,16 @@
-/* jackpot.sphere.js — Néobank Jackpot
+/* jackpot.sphere.js — Néobank Jackpot v3
  * Plugin YourMine — caisse commune, dons multi-devises, carte Mastercard virtuelle
- * Branché sur Striga via striga-proxy Worker Cloudflare
- *
- * ⚠️  Remplace WORKER_URL par l'URL de ton Worker Cloudflare
+ * ⚠️  Remplace WORKER_URL par l'URL de ton Worker Cloudflare unifié
  */
 (function () {
   'use strict';
   window.YM_S = window.YM_S || {};
 
   /* ─── CONFIG ─────────────────────────────────────────── */
-  const WORKER_URL = 'https://striga-proxy.yourmine.workers.dev';
+  const WORKER_URL = 'https://yourmine-worker.yourmine.workers.dev';
   const USER_KEY   = 'ym_jackpot_user_v1';
   const CYCLE_KEY  = 'ym_jackpot_cycle_v1';
-
-  /* Taux de change indicatifs — remplacés par l'API Striga en prod */
-  const RATES = { EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96, JPY: 162 };
-
-  /* Bonus diversité : nb de destinataires uniques → multiplicateur de tickets */
+  const RATES      = { EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96, JPY: 162 };
   const BONUS_TABLE = [
     { max: 1, mult: 1.00 },
     { max: 2, mult: 1.25 },
@@ -25,74 +19,70 @@
   ];
 
   /* ─── STORAGE ─────────────────────────────────────────── */
-  function loadUser()  { try { return JSON.parse(localStorage.getItem(USER_KEY) || 'null'); } catch { return null; } }
-  function saveUser(d) { d === null ? localStorage.removeItem(USER_KEY) : localStorage.setItem(USER_KEY, JSON.stringify(d)); }
-  function loadCycle() { try { return JSON.parse(localStorage.getItem(CYCLE_KEY) || 'null'); } catch { return null; } }
-  function saveCycle(d){ localStorage.setItem(CYCLE_KEY, JSON.stringify(d)); }
+  function loadUser()   { try { return JSON.parse(localStorage.getItem(USER_KEY)  || 'null'); } catch { return null; } }
+  function saveUser(d)  { d === null ? localStorage.removeItem(USER_KEY)  : localStorage.setItem(USER_KEY,  JSON.stringify(d)); }
+  function loadCycle()  { try { return JSON.parse(localStorage.getItem(CYCLE_KEY) || 'null'); } catch { return null; } }
+  function saveCycle(d) { d === null ? localStorage.removeItem(CYCLE_KEY) : localStorage.setItem(CYCLE_KEY, JSON.stringify(d)); }
 
   function defaultCycle() {
     return {
-      jackpot: 0,
-      totalTickets: 0,
-      participants: 0,
-      uniqueDonors: 0,
-      cycleEnd: Date.now() + 7 * 24 * 3600 * 1000,
-      myTickets: 0,
-      myDeposit: 0,
-      receivedDons: 0,
-      donHistory: [],
-      myGifts: [],
-      myHistory: [],
-      winners: [],
+      jackpotEur: 0, carryEur: 0, totalTickets: 0, participants: 0,
+      uniqueDonors: 0, cycleEnd: Date.now() + 7 * 24 * 3600 * 1000,
+      status: 'active', distributedAt: null,
+      myTickets: 0, myDepositEur: 0, myReceivedEur: 0,
+      wantsWithdraw: false, withdrawn: false,
+      canWithdrawFunds: false,
+      donHistory: [], myGifts: [], winners: [],
     };
   }
 
   /* ─── API ─────────────────────────────────────────────── */
-  async function api(method, endpoint, body = {}) {
+  async function apiProxy(method, endpoint, body = {}) {
     const r = await fetch(WORKER_URL + '/proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ method, endpoint, body }),
     });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || d.errorDetails || d.message || 'Erreur ' + r.status);
+    if (!r.ok) throw new Error(d.error || d.message || 'Erreur ' + r.status);
+    return d;
+  }
+
+  async function apiWorker(route, body = {}) {
+    const isGet = !body || Object.keys(body).length === 0;
+    const url   = WORKER_URL + route;
+    const r = await fetch(isGet ? url : url, {
+      method: isGet ? 'GET' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: isGet ? undefined : JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || d.message || 'Erreur ' + r.status);
     return d;
   }
 
   /* ─── HELPERS ─────────────────────────────────────────── */
-  function toEUR(amt, cur) { return amt / (RATES[cur] || 1); }
-  function getBonus(n)     { return (BONUS_TABLE.find(b => n <= b.max) || BONUS_TABLE[BONUS_TABLE.length - 1]).mult; }
-  function eur(n)          { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n); }
-  function num(n)          { return new Intl.NumberFormat('fr-FR').format(Math.round(n)); }
-  function esc(s)          { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function toEUR(amt, cur)  { return amt / (RATES[cur] || 1); }
+  function getBonus(n)      { return (BONUS_TABLE.find(b => n <= b.max) || BONUS_TABLE[BONUS_TABLE.length - 1]).mult; }
+  function eur(n)           { return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(n); }
+  function num(n)           { return new Intl.NumberFormat('fr-FR').format(Math.round(n)); }
+  function esc(s)           { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function copyText(t, btn) { navigator.clipboard?.writeText(t).catch(() => {}); const o = btn.textContent; btn.textContent = 'Copié !'; setTimeout(() => btn.textContent = o, 1500); }
 
   function timeLeft(ts) {
     const ms = ts - Date.now();
     if (ms <= 0) return 'Tirage en cours…';
-    const d = Math.floor(ms / 86400000);
-    const h = Math.floor((ms % 86400000) / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
+    const d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000), m = Math.floor((ms % 3600000) / 60000);
     return d + 'j ' + h + 'h ' + m + 'm';
   }
-
   function cycleProgress(ts) {
-    const total = 7 * 24 * 3600 * 1000;
-    const ms = ts - Date.now();
+    const total = 7 * 24 * 3600 * 1000, ms = ts - Date.now();
     return Math.min(Math.max((total - ms) / total, 0), 1);
-  }
-
-  function copyText(txt, btn) {
-    navigator.clipboard?.writeText(txt).catch(() => {});
-    const orig = btn.textContent;
-    btn.textContent = 'Copié !';
-    setTimeout(() => { btn.textContent = orig; }, 1500);
   }
 
   /* ─── CSS ─────────────────────────────────────────────── */
   function injectCSS() {
     if (document.getElementById('jk-css')) return;
-    const s = document.createElement('style');
-    s.id = 'jk-css';
+    const s = document.createElement('style'); s.id = 'jk-css';
     s.textContent = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=DM+Mono:wght@400;500&display=swap');
 .jk{font-family:'DM Sans',system-ui,sans-serif;display:flex;flex-direction:column;height:100%;overflow:hidden;background:#07070e;color:#fff;-webkit-font-smoothing:antialiased}
@@ -133,6 +123,7 @@
 .jk-btn:hover{border-color:rgba(124,58,237,.4);color:#fff;background:rgba(124,58,237,.07)}
 .jk-btn.red{border-color:rgba(239,68,68,.3);color:rgba(239,68,68,.7)}
 .jk-btn.red:hover{background:rgba(239,68,68,.07);color:#f87171}
+.jk-btn:disabled{opacity:.35;cursor:not-allowed}
 .jk-bar{height:5px;border-radius:3px;background:rgba(255,255,255,.06);margin:8px 0 3px;overflow:hidden}
 .jk-bar-fill{height:100%;border-radius:3px;background:#7c3aed;transition:width .4s}
 .jk-vcard{background:linear-gradient(135deg,#0a0020,#18004a,#2a1270);border-radius:22px;padding:20px;margin-bottom:12px;aspect-ratio:1.7;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;border:1px solid rgba(124,58,237,.25)}
@@ -160,6 +151,10 @@
 .jk-dot-done{background:rgba(52,211,153,.15);color:#34d399}
 .jk-dot-pend{background:rgba(124,58,237,.15);color:#a78bfa}
 .jk-spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.1);border-top-color:#7c3aed;border-radius:50%;animation:jk-r .6s linear infinite;display:inline-block;flex-shrink:0}
+.jk-locked-banner{background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.jk-locked-title{font-size:12px;font-weight:500;color:#fbbf24;margin-bottom:4px}
+.jk-locked-sub{font-size:11px;color:rgba(251,191,36,.6);line-height:1.5}
+.jk-carry-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:11px;background:rgba(52,211,153,.08);color:#34d399;border:1px solid rgba(52,211,153,.2);margin-left:6px}
 @keyframes jk-r{to{transform:rotate(360deg)}}
 @keyframes jk-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .jk-in{animation:jk-up .25s ease forwards}
@@ -180,12 +175,12 @@
   function v(id) { return document.getElementById(id)?.value?.trim() || ''; }
 
   /* ─── STATE ───────────────────────────────────────────── */
-  let _tab = 'jackpot';
+  let _tab     = 'jackpot';
   let _faqOpen = {};
   let _payments = [
-    { merchant: 'Netflix', amount: 15.99, currency: 'EUR', date: '06 avr', cat: 'Abonnement' },
-    { merchant: 'Carrefour', amount: 43.20, currency: 'EUR', date: '05 avr', cat: 'Courses' },
-    { merchant: 'Uber', amount: 12.50, currency: 'EUR', date: '04 avr', cat: 'Transport' },
+    { merchant: 'Netflix',    amount: 15.99, currency: 'EUR', date: '06 avr', cat: 'Abonnement' },
+    { merchant: 'Carrefour',  amount: 43.20, currency: 'EUR', date: '05 avr', cat: 'Courses' },
+    { merchant: 'Uber',       amount: 12.50, currency: 'EUR', date: '04 avr', cat: 'Transport' },
   ];
 
   /* ─── RENDER PANEL ────────────────────────────────────── */
@@ -193,10 +188,8 @@
     injectCSS();
     container.innerHTML = '';
     container.className = 'jk';
-
-    const nav = document.createElement('div');
-    nav.className = 'jk-nav';
-    [['jackpot', 'Jackpot'], ['wallet', 'Wallet'], ['dons', 'Dons'], ['payments', 'Paiements'], ['config', 'Config']].forEach(([id, label]) => {
+    const nav = document.createElement('div'); nav.className = 'jk-nav';
+    [['jackpot','Jackpot'],['wallet','Wallet'],['dons','Dons'],['payments','Paiements'],['config','Config']].forEach(([id, label]) => {
       const b = document.createElement('button');
       b.className = 'jk-tab' + (_tab === id ? ' on' : '');
       b.textContent = label;
@@ -204,14 +197,10 @@
       nav.appendChild(b);
     });
     container.appendChild(nav);
-
-    const body = document.createElement('div');
-    body.className = 'jk-body';
-    container.appendChild(body);
-
-    if (_tab === 'jackpot')      tabJackpot(body, container);
-    else if (_tab === 'wallet')  tabWallet(body, container);
-    else if (_tab === 'dons')    tabDons(body, container);
+    const body = document.createElement('div'); body.className = 'jk-body'; container.appendChild(body);
+    if      (_tab === 'jackpot')  tabJackpot(body, container);
+    else if (_tab === 'wallet')   tabWallet(body, container);
+    else if (_tab === 'dons')     tabDons(body, container);
     else if (_tab === 'payments') tabPayments(body, container);
     else                          tabConfig(body, container);
   }
@@ -225,14 +214,16 @@
     const circ  = 2 * Math.PI * 36;
     const offset = circ * (1 - cycleProgress(cycle.cycleEnd));
     const uuid  = user ? (user.id || user.userId || 'usr_' + user.email?.slice(0, 8)) : null;
+    const jackpotTotal = (cycle.jackpotEur || 0) + (cycle.carryEur || 0);
 
-    /* Jackpot hero */
-    const hero = document.createElement('div');
-    hero.className = 'jk-card';
-    hero.style.padding = '20px 16px';
+    /* Hero jackpot */
+    const hero = document.createElement('div'); hero.className = 'jk-card'; hero.style.padding = '20px 16px';
     hero.innerHTML = `
       <div style="font-size:10px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:10px">JACKPOT EN COURS</div>
-      <div style="font-size:42px;font-weight:500;letter-spacing:-1.5px;line-height:1;margin-bottom:4px">${eur(cycle.jackpot)}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+        <div style="font-size:42px;font-weight:500;letter-spacing:-1.5px;line-height:1">${eur(jackpotTotal)}</div>
+        ${cycle.carryEur > 0 ? `<span class="jk-carry-pill">dont ${eur(cycle.carryEur)} reporté</span>` : ''}
+      </div>
       <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:16px">
         ${num(cycle.participants)} participants · ${num(cycle.totalTickets)} tickets ·
         <span style="background:rgba(255,255,255,.06);border-radius:99px;padding:2px 8px;font-size:11px">multi-devises → EUR</span>
@@ -246,15 +237,14 @@
         <div>
           <div style="font-size:11px;color:rgba(255,255,255,.3)">Tirage automatique dans</div>
           <div style="font-size:20px;font-weight:500;margin:3px 0" id="jk-clock">${timeLeft(cycle.cycleEnd)}</div>
-          <div style="font-size:11px;color:rgba(255,255,255,.3)">Distribution directe · sans compte central</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.3)">50% au gagnant · 50% reporté au cycle suivant</div>
         </div>
       </div>
     `;
     body.appendChild(hero);
 
     /* Chance */
-    const chanceCard = document.createElement('div');
-    chanceCard.className = 'jk-card';
+    const chanceCard = document.createElement('div'); chanceCard.className = 'jk-card';
     chanceCard.innerHTML = `
       <div style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:4px">Ma chance de gagner</div>
       <div class="jk-chance">${(pct * 100).toFixed(3)}%</div>
@@ -268,41 +258,26 @@
     if (uuid) {
       const uuidWrap = document.createElement('div');
       uuidWrap.innerHTML = '<div style="font-size:11px;color:rgba(255,255,255,.3);margin-bottom:5px">Mon UUID — partage-le pour recevoir des dons</div>';
-      const uuidBox = document.createElement('div');
-      uuidBox.className = 'jk-uuid';
-      const uuidVal = document.createElement('span');
-      uuidVal.className = 'jk-uuid-val';
-      uuidVal.textContent = uuid;
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'jk-copy';
-      copyBtn.textContent = 'Copier';
+      const uuidBox = document.createElement('div'); uuidBox.className = 'jk-uuid';
+      const uuidVal = document.createElement('span'); uuidVal.className = 'jk-uuid-val'; uuidVal.textContent = uuid;
+      const copyBtn = document.createElement('button'); copyBtn.className = 'jk-copy'; copyBtn.textContent = 'Copier';
       copyBtn.addEventListener('click', () => copyText(uuid, copyBtn));
-      uuidBox.appendChild(uuidVal);
-      uuidBox.appendChild(copyBtn);
-      uuidWrap.appendChild(uuidBox);
+      uuidBox.appendChild(uuidVal); uuidBox.appendChild(copyBtn); uuidWrap.appendChild(uuidBox);
       body.appendChild(uuidWrap);
     } else {
       body.appendChild(mkNotice('Crée un compte (Config) pour obtenir ton UUID et participer.', 'info'));
     }
 
     /* Gagnants précédents */
-    const sec = document.createElement('div');
-    sec.className = 'jk-sec';
-    sec.textContent = 'GAGNANTS PRÉCÉDENTS';
-    body.appendChild(sec);
-
-    const wCard = document.createElement('div');
-    wCard.className = 'jk-card';
-    wCard.style.padding = '12px 16px';
-    const winners = cycle.winners.length ? cycle.winners : [
-      { name: 'J.M.', amount: 8320, date: '31 mar', tickets: 412, currency: 'EUR' },
-      { name: 'S.K.', amount: 6140, date: '24 mar', tickets: 298, currency: 'GBP' },
-      { name: 'A.L.', amount: 9870, date: '17 mar', tickets: 503, currency: 'USD' },
+    const sec = document.createElement('div'); sec.className = 'jk-sec'; sec.textContent = 'GAGNANTS PRÉCÉDENTS'; body.appendChild(sec);
+    const wCard = document.createElement('div'); wCard.className = 'jk-card'; wCard.style.padding = '12px 16px';
+    const winners = cycle.winners?.length ? cycle.winners : [
+      { name: 'J.M.', winnerAmount: 4160, totalJackpot: 8320, date: '31 mar', tickets: 412, currency: 'EUR' },
+      { name: 'S.K.', winnerAmount: 3070, totalJackpot: 6140, date: '24 mar', tickets: 298, currency: 'GBP' },
+      { name: 'A.L.', winnerAmount: 4935, totalJackpot: 9870, date: '17 mar', tickets: 503, currency: 'USD' },
     ];
     winners.forEach((w, i) => {
-      const row = document.createElement('div');
-      row.className = 'jk-hist-row';
-      if (i === 0) row.style.paddingTop = '0';
+      const row = document.createElement('div'); row.className = 'jk-hist-row'; if (i === 0) row.style.paddingTop = '0';
       row.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px">
           <div class="jk-avatar">${esc(w.name.split('.')[0])}</div>
@@ -311,17 +286,16 @@
             <div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(w.date)} · ${num(w.tickets)} tickets · reçu en ${esc(w.currency || 'EUR')}</div>
           </div>
         </div>
-        <span style="font-size:15px;font-weight:500;color:#34d399">${eur(w.amount)}</span>
+        <div style="text-align:right">
+          <div style="font-size:15px;font-weight:500;color:#34d399">${eur(w.winnerAmount)}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.3)">50% de ${eur(w.totalJackpot)}</div>
+        </div>
       `;
       wCard.appendChild(row);
     });
     body.appendChild(wCard);
 
-    /* Clock tick */
-    setInterval(() => {
-      const el = document.getElementById('jk-clock');
-      if (el) el.textContent = timeLeft(cycle.cycleEnd);
-    }, 30000);
+    setInterval(() => { const el = document.getElementById('jk-clock'); if (el) el.textContent = timeLeft(cycle.cycleEnd); }, 30000);
   }
 
   /* ─── TAB : WALLET ────────────────────────────────────── */
@@ -329,25 +303,20 @@
     body.classList.add('jk-in');
     const user  = loadUser();
     const cycle = loadCycle() || defaultCycle();
-
-    if (!user) {
-      body.appendChild(mkNotice('Crée un compte dans Config pour accéder au wallet.', 'info'));
-      return;
-    }
+    if (!user) { body.appendChild(mkNotice('Crée un compte dans Config pour accéder au wallet.', 'info')); return; }
 
     const iban = 'FR76 3000 6000 0112 3456 7890 189';
     let ibanVisible = false;
 
     /* Carte virtuelle */
-    const vcard = document.createElement('div');
-    vcard.className = 'jk-vcard';
+    const vcard = document.createElement('div'); vcard.className = 'jk-vcard';
     vcard.innerHTML = `
       <div style="position:relative;z-index:1">
         <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:2px" class="jk-mono">JACKPOT · STRIGA · MASTERCARD</div>
       </div>
       <div style="position:relative;z-index:1">
         <div style="font-size:11px;color:rgba(255,255,255,.35);margin-bottom:4px" class="jk-mono">SOLDE DISPONIBLE</div>
-        <div style="font-size:32px;font-weight:500;color:#fff;letter-spacing:-1px;margin-bottom:14px" id="jk-wallet-bal">${eur(cycle.walletBalance || 240)}</div>
+        <div style="font-size:32px;font-weight:500;color:#fff;letter-spacing:-1px;margin-bottom:14px">${eur(cycle.walletBalance || 0)}</div>
         <div style="display:flex;justify-content:space-between;align-items:flex-end">
           <div>
             <div style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:1px;margin-bottom:3px" class="jk-mono">TITULAIRE</div>
@@ -363,23 +332,83 @@
     body.appendChild(vcard);
 
     /* Métriques */
-    const g2 = document.createElement('div');
-    g2.className = 'jk-grid2';
+    const g2 = document.createElement('div'); g2.className = 'jk-grid2';
     g2.innerHTML = `
-      <div class="jk-metric"><div class="jk-metric-val">${eur(cycle.receivedDons)}</div><div class="jk-metric-lbl">dons reçus ce cycle</div></div>
-      <div class="jk-metric"><div class="jk-metric-val">${cycle.uniqueDonors}</div><div class="jk-metric-lbl">donateurs actifs</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${eur(cycle.myReceivedEur || 0)}</div><div class="jk-metric-lbl">dons reçus ce cycle</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${cycle.uniqueDonors || 0}</div><div class="jk-metric-lbl">donateurs actifs</div></div>
     `;
     body.appendChild(g2);
 
-    /* IBAN */
-    const ibanSec = document.createElement('div');
-    ibanSec.className = 'jk-sec';
-    ibanSec.textContent = 'IBAN';
-    body.appendChild(ibanSec);
+    /* ── Bloc retrait — logique en 2 temps ── */
+    const retSec = document.createElement('div'); retSec.className = 'jk-sec'; retSec.textContent = 'DONS REÇUS — CAISSE'; body.appendChild(retSec);
+    const fb = document.createElement('div');
 
-    const ibanCard = document.createElement('div');
-    ibanCard.className = 'jk-card';
-    ibanCard.style.padding = '14px 16px';
+    if (cycle.wantsWithdraw && !cycle.withdrawn) {
+      /* Demande enregistrée — fonds bloqués */
+      const locked = document.createElement('div'); locked.className = 'jk-locked-banner';
+      locked.innerHTML = `
+        <div class="jk-locked-title">Fonds en attente de déblocage</div>
+        <div class="jk-locked-sub">
+          ${eur(cycle.myReceivedEur || 0)} bloqués jusqu'à la fin de la distribution du jackpot en cours.<br>
+          Tes tickets ont déjà été annulés.
+        </div>
+      `;
+      body.appendChild(locked);
+
+      const unlockBtn = document.createElement('button'); unlockBtn.className = 'jk-cta';
+      unlockBtn.textContent = cycle.canWithdrawFunds
+        ? 'Récupérer mes fonds · ' + eur(cycle.myReceivedEur || 0)
+        : 'Fonds disponibles après distribution';
+      unlockBtn.disabled = !cycle.canWithdrawFunds;
+
+      unlockBtn.addEventListener('click', async () => {
+        unlockBtn.disabled = true; unlockBtn.innerHTML = ''; unlockBtn.appendChild(mkSpin()); unlockBtn.append(' Retrait…');
+        try {
+          await apiWorker('/jackpot/retrait/effectif', { userId: user.id || user.userId, accountId: user.accountId });
+          cycle.withdrawn = true; cycle.myReceivedEur = 0; saveCycle(cycle);
+          fb.appendChild(mkNotice('Fonds disponibles dans ton wallet Striga.', 'ok'));
+          tabWallet(body, root);
+        } catch (e) {
+          fb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
+          unlockBtn.disabled = false; unlockBtn.textContent = 'Récupérer mes fonds';
+        }
+      });
+      body.appendChild(unlockBtn);
+
+    } else if (cycle.withdrawn) {
+      body.appendChild(mkNotice('Fonds retirés ce cycle. Tu ne participes plus au jackpot.', 'info'));
+
+    } else {
+      /* Peut demander à sortir */
+      body.appendChild(mkNotice('Quitter le jeu annule tes tickets immédiatement. Tes fonds seront disponibles après la distribution du jackpot.', 'warn'));
+
+      const withdrawBtn = document.createElement('button'); withdrawBtn.className = 'jk-btn red';
+      withdrawBtn.textContent = 'Quitter le jeu · ' + eur(cycle.myReceivedEur || 0);
+      withdrawBtn.disabled = (cycle.myReceivedEur || 0) <= 0;
+
+      withdrawBtn.addEventListener('click', async () => {
+        if (!confirm('Quitter le jeu ? Tes tickets seront annulés immédiatement. Tes fonds seront disponibles après la distribution du jackpot.')) return;
+        withdrawBtn.disabled = true; withdrawBtn.innerHTML = ''; withdrawBtn.appendChild(mkSpin()); withdrawBtn.append(' Traitement…');
+        try {
+          const r = await apiWorker('/jackpot/retrait/demande', { userId: user.id || user.userId });
+          cycle.wantsWithdraw = true; cycle.myTickets = 0;
+          cycle.canWithdrawFunds = r.retrait?.fundsLockedUntil === null;
+          saveCycle(cycle);
+          fb.appendChild(mkNotice('Tickets annulés. ' + (cycle.canWithdrawFunds ? 'Fonds disponibles maintenant.' : 'Fonds disponibles après la distribution du jackpot.'), 'ok'));
+          tabWallet(body, root);
+        } catch (e) {
+          fb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
+          withdrawBtn.disabled = false; withdrawBtn.textContent = 'Quitter le jeu · ' + eur(cycle.myReceivedEur || 0);
+        }
+      });
+      body.appendChild(withdrawBtn);
+    }
+
+    body.appendChild(fb);
+
+    /* IBAN */
+    const ibanSec = document.createElement('div'); ibanSec.className = 'jk-sec'; ibanSec.textContent = 'IBAN'; body.appendChild(ibanSec);
+    const ibanCard = document.createElement('div'); ibanCard.className = 'jk-card'; ibanCard.style.padding = '14px 16px';
 
     function renderIBAN() {
       ibanCard.innerHTML = `
@@ -390,71 +419,23 @@
         <div class="jk-mono" style="font-size:13px;color:rgba(255,255,255,.7);letter-spacing:1px;word-break:break-all">
           ${ibanVisible ? esc(iban) : 'FR76 •••• •••• •••• •••• •••• •••'}
         </div>
-        ${ibanVisible ? `
-          <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:6px">BIC : STRIEU21XXX</div>
-          <button class="jk-copy" style="margin-top:8px;display:block" id="jk-copy-iban">Copier l'IBAN</button>
-        ` : ''}
+        ${ibanVisible ? `<div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:6px">BIC : STRIEU21XXX</div><button class="jk-copy" style="margin-top:8px;display:block" id="jk-copy-iban">Copier l'IBAN</button>` : ''}
       `;
       document.getElementById('jk-toggle-iban')?.addEventListener('click', () => { ibanVisible = !ibanVisible; renderIBAN(); });
       document.getElementById('jk-copy-iban')?.addEventListener('click', e => copyText(iban, e.target));
     }
-    renderIBAN();
-    body.appendChild(ibanCard);
-
-    /* Retrait dons */
-    const actionSec = document.createElement('div');
-    actionSec.className = 'jk-sec';
-    actionSec.textContent = 'ACTIONS';
-    body.appendChild(actionSec);
-
-    const fb = document.createElement('div');
-    body.appendChild(mkNotice('Retirer tes dons reçus te fait perdre tous tes tickets pour ce cycle. Les paiements carte sont séparés.', 'warn'));
-
-    const withdrawBtn = document.createElement('button');
-    withdrawBtn.className = 'jk-cta';
-    withdrawBtn.textContent = 'Retirer les dons reçus · ' + eur(cycle.receivedDons);
-    withdrawBtn.addEventListener('click', async () => {
-      if (cycle.receivedDons <= 0) return;
-      if (!confirm('Retirer ' + eur(cycle.receivedDons) + ' ? Tu perdras tous tes tickets ce cycle.')) return;
-      withdrawBtn.disabled = true;
-      withdrawBtn.innerHTML = '';
-      withdrawBtn.appendChild(mkSpin());
-      withdrawBtn.append(' Retrait en cours…');
-      try {
-        /* TODO: appel API Striga virement wallet → compte utilisateur */
-        cycle.walletBalance = (cycle.walletBalance || 240) + cycle.receivedDons;
-        cycle.myTickets = 0;
-        cycle.receivedDons = 0;
-        saveCycle(cycle);
-        fb.appendChild(mkNotice('Retrait effectué. Tes tickets ont été annulés.', 'ok'));
-        tabWallet(body, root);
-      } catch (e) {
-        fb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
-        withdrawBtn.disabled = false;
-        withdrawBtn.textContent = 'Retirer les dons reçus · ' + eur(cycle.receivedDons);
-      }
-    });
-    body.appendChild(withdrawBtn);
-    body.appendChild(fb);
+    renderIBAN(); body.appendChild(ibanCard);
 
     /* Historique dons reçus */
-    const donSec = document.createElement('div');
-    donSec.className = 'jk-sec';
-    donSec.textContent = 'DONS REÇUS CE CYCLE';
-    body.appendChild(donSec);
-
-    const donCard = document.createElement('div');
-    donCard.className = 'jk-card';
-    donCard.style.padding = '12px 16px';
-    const donHistory = cycle.donHistory.length ? cycle.donHistory : [
-      { from: 'A.M.', amount: 20, currency: 'EUR', date: '07 avr', tickets: 25 },
+    const donSec = document.createElement('div'); donSec.className = 'jk-sec'; donSec.textContent = 'DONS REÇUS CE CYCLE'; body.appendChild(donSec);
+    const donCard = document.createElement('div'); donCard.className = 'jk-card'; donCard.style.padding = '12px 16px';
+    const donHistory = cycle.donHistory?.length ? cycle.donHistory : [
+      { from: 'A.M.', amount: 20,    currency: 'EUR', date: '07 avr', tickets: 25 },
       { from: 'S.K.', amount: 22.13, currency: 'USD', date: '06 avr', tickets: 18 },
-      { from: 'L.R.', amount: 50, currency: 'EUR', date: '05 avr', tickets: 75 },
+      { from: 'L.R.', amount: 50,    currency: 'EUR', date: '05 avr', tickets: 75 },
     ];
     donHistory.forEach((d, i) => {
-      const row = document.createElement('div');
-      row.className = 'jk-hist-row';
-      if (i === 0) row.style.paddingTop = '0';
+      const row = document.createElement('div'); row.className = 'jk-hist-row'; if (i === 0) row.style.paddingTop = '0';
       row.innerHTML = `
         <div style="display:flex;align-items:center;gap:10px">
           <div class="jk-avatar">${esc(d.from.split('.')[0])}</div>
@@ -475,12 +456,14 @@
     body.classList.add('jk-in');
     const user  = loadUser();
     const cycle = loadCycle() || defaultCycle();
-
     if (!user) { body.appendChild(mkNotice('Crée un compte dans Config pour envoyer des dons.', 'info')); return; }
+    if (cycle.wantsWithdraw || cycle.withdrawn) {
+      body.appendChild(mkNotice('Tu as quitté le jeu ce cycle. Tu pourras participer au prochain cycle.', 'warn'));
+      return;
+    }
 
     body.appendChild(mkNotice('1 ticket = 1 EUR converti. Répartis vers plusieurs personnes pour augmenter ton multiplicateur (jusqu\'à ×2).', 'info'));
 
-    /* Formulaire */
     const sec1 = document.createElement('div'); sec1.className = 'jk-sec'; sec1.textContent = 'ENVOYER UN DON'; body.appendChild(sec1);
     const formCard = document.createElement('div'); formCard.className = 'jk-card'; body.appendChild(formCard);
 
@@ -496,14 +479,10 @@
     const curWrap = document.createElement('div'); curWrap.style.width = '90px';
     const curLbl = document.createElement('label'); curLbl.className = 'jk-label'; curLbl.textContent = 'Devise'; curWrap.appendChild(curLbl);
     const curSel = document.createElement('select'); curSel.className = 'jk-sel'; curSel.id = 'jk-don-cur';
-    ['EUR', 'USD', 'GBP', 'CHF', 'JPY'].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; curSel.appendChild(o); });
-    curWrap.appendChild(curSel);
-    row2.appendChild(curWrap);
+    ['EUR','USD','GBP','CHF','JPY'].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; curSel.appendChild(o); });
+    curWrap.appendChild(curSel); row2.appendChild(curWrap);
 
-    /* Preview */
-    const prevDiv = document.createElement('div');
-    prevDiv.id = 'jk-don-prev';
-    prevDiv.style.display = 'none';
+    const prevDiv = document.createElement('div'); prevDiv.id = 'jk-don-prev'; prevDiv.style.display = 'none';
     prevDiv.style.cssText = 'background:rgba(255,255,255,.03);border-radius:12px;padding:12px;margin-bottom:12px;border:1px solid rgba(255,255,255,.06)';
     prevDiv.innerHTML = `
       <div class="jk-row" style="padding-top:0"><span class="jk-rl">Équivalent EUR</span><span class="jk-rv" id="jk-prev-eur">—</span></div>
@@ -514,21 +493,18 @@
     formCard.appendChild(prevDiv);
 
     function calcDon() {
-      const uuid   = uuidInp.value.trim();
-      const amt    = parseFloat(amtInp.value) || 0;
-      const cur    = curSel.value;
+      const uuid = uuidInp.value.trim(), amt = parseFloat(amtInp.value) || 0, cur = curSel.value;
       if (!uuid || amt <= 0) { prevDiv.style.display = 'none'; return null; }
       const amtEur = toEUR(amt, cur);
-      const uniqBefore = new Set(cycle.myGifts.map(g => g.toRaw)).size;
-      const isNew  = !cycle.myGifts.find(g => g.toRaw === uuid);
+      const uniqBefore = new Set((cycle.myGifts || []).map(g => g.toRaw)).size;
+      const isNew  = !(cycle.myGifts || []).find(g => g.toRaw === uuid);
       const uniq   = uniqBefore + (isNew ? 1 : 0);
       const mult   = getBonus(uniq);
       const tickets = Math.floor(amtEur * mult);
       prevDiv.style.display = 'block';
-      document.getElementById('jk-prev-eur').textContent    = eur(amtEur) + (cur !== 'EUR' ? ' (converti)' : '');
-      document.getElementById('jk-prev-count').textContent  = uniq + ' unique' + (uniq > 1 ? 's' : '');
-      const me = document.getElementById('jk-prev-mult');
-      me.textContent = '×' + mult.toFixed(2);
+      document.getElementById('jk-prev-eur').textContent   = eur(amtEur) + (cur !== 'EUR' ? ' (converti)' : '');
+      document.getElementById('jk-prev-count').textContent = uniq + ' unique' + (uniq > 1 ? 's' : '');
+      const me = document.getElementById('jk-prev-mult'); me.textContent = '×' + mult.toFixed(2);
       me.className = 'jk-badge ' + (mult >= 2 ? 'jk-bg' : mult >= 1.5 ? 'jk-ba' : 'jk-bp');
       document.getElementById('jk-prev-tickets').textContent = num(tickets) + ' tickets';
       return { uuid, amt, cur, amtEur, mult, tickets };
@@ -542,24 +518,27 @@
     const donFb  = document.createElement('div'); formCard.appendChild(donFb);
 
     donBtn.addEventListener('click', async () => {
-      const res = calcDon();
-      donFb.innerHTML = '';
+      const res = calcDon(); donFb.innerHTML = '';
       if (!res) { donFb.appendChild(mkNotice('Renseigne un destinataire et un montant.', 'err')); return; }
-      const walBal = cycle.walletBalance || 240;
+      const walBal = cycle.walletBalance || 0;
       if (walBal < res.amtEur) { donFb.appendChild(mkNotice('Solde insuffisant.', 'err')); return; }
       donBtn.disabled = true; donBtn.innerHTML = ''; donBtn.appendChild(mkSpin()); donBtn.append(' Envoi…');
       try {
-        /* TODO: appel API Striga — virement wallet donateur → wallet destinataire */
-        cycle.walletBalance = walBal - res.amtEur;
-        cycle.jackpot      += res.amtEur;
-        cycle.totalTickets += res.tickets;
-        cycle.myTickets    += res.tickets;
+        await apiWorker('/jackpot/don', {
+          fromUserId: user.id || user.userId, toUserId: res.uuid,
+          amountLocal: res.amt, currency: res.cur,
+          fromAccountId: user.accountId, toAccountId: res.uuid,
+        });
+        cycle.walletBalance  = walBal - res.amtEur;
+        cycle.jackpotEur     = (cycle.jackpotEur || 0) + res.amtEur;
+        cycle.totalTickets   = (cycle.totalTickets || 0) + res.tickets;
+        cycle.myTickets      = (cycle.myTickets || 0) + res.tickets;
+        if (!cycle.myGifts) cycle.myGifts = [];
         cycle.myGifts.push({ to: res.uuid.slice(0, 10) + '…', toRaw: res.uuid, amount: res.amtEur, cur: res.cur, mult: res.mult, tickets: res.tickets, date: new Date().toLocaleDateString('fr-FR') });
         saveCycle(cycle);
         donFb.appendChild(mkNotice('Don de ' + res.amt + ' ' + res.cur + ' (' + eur(res.amtEur) + ') envoyé — +' + num(res.tickets) + ' tickets (×' + res.mult.toFixed(2) + ')', 'ok'));
         uuidInp.value = ''; amtInp.value = ''; prevDiv.style.display = 'none';
         donBtn.disabled = false; donBtn.textContent = 'Envoyer le don';
-        /* Refresh liste */
         renderGiftsList(giftsCard, cycle);
       } catch (e) {
         donFb.appendChild(mkNotice('Erreur : ' + e.message, 'err'));
@@ -569,7 +548,7 @@
 
     /* QR code */
     const qrSec = document.createElement('div'); qrSec.className = 'jk-sec'; qrSec.textContent = 'OU PAR QR CODE'; body.appendChild(qrSec);
-    const qrCard = document.createElement('div'); qrCard.className = 'jk-card'; qrCard.style.textAlign = 'center'; qrCard.style.padding = '20px';
+    const qrCard = document.createElement('div'); qrCard.className = 'jk-card'; qrCard.style.cssText = 'text-align:center;padding:20px';
     qrCard.innerHTML = `
       <div style="width:72px;height:72px;background:rgba(255,255,255,.05);border-radius:14px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center">
         <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -594,12 +573,11 @@
     const statSec = document.createElement('div'); statSec.className = 'jk-sec'; statSec.textContent = 'STATISTIQUES DU CYCLE'; body.appendChild(statSec);
     const g2 = document.createElement('div'); g2.className = 'jk-grid2';
     g2.innerHTML = `
-      <div class="jk-metric"><div class="jk-metric-val">${cycle.uniqueDonors || 31}</div><div class="jk-metric-lbl">personnes actives</div></div>
-      <div class="jk-metric"><div class="jk-metric-val">${cycle.myGifts.length}</div><div class="jk-metric-lbl">mes dons envoyés</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${cycle.uniqueDonors || 0}</div><div class="jk-metric-lbl">personnes actives</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${(cycle.myGifts || []).length}</div><div class="jk-metric-lbl">mes dons envoyés</div></div>
     `;
     body.appendChild(g2);
 
-    /* Historique dons envoyés */
     const giftSec = document.createElement('div'); giftSec.className = 'jk-sec'; giftSec.textContent = 'MES DONS ENVOYÉS CE CYCLE'; body.appendChild(giftSec);
     const giftsCard = document.createElement('div'); giftsCard.className = 'jk-card'; giftsCard.style.padding = '12px 16px'; body.appendChild(giftsCard);
     renderGiftsList(giftsCard, cycle);
@@ -607,9 +585,8 @@
 
   function renderGiftsList(container, cycle) {
     container.innerHTML = '';
-    if (!cycle.myGifts.length) {
-      container.innerHTML = '<div style="text-align:center;padding:16px;font-size:13px;color:rgba(255,255,255,.3)">Aucun don envoyé</div>';
-      return;
+    if (!(cycle.myGifts || []).length) {
+      container.innerHTML = '<div style="text-align:center;padding:16px;font-size:13px;color:rgba(255,255,255,.3)">Aucun don envoyé</div>'; return;
     }
     cycle.myGifts.forEach((g, i) => {
       const row = document.createElement('div'); row.className = 'jk-hist-row'; if (i === 0) row.style.paddingTop = '0';
@@ -636,7 +613,7 @@
     const total = _payments.reduce((a, p) => a + p.amount, 0);
     const g2 = document.createElement('div'); g2.className = 'jk-grid2';
     g2.innerHTML = `
-      <div class="jk-metric"><div class="jk-metric-val">${eur(cycle.walletBalance || 240)}</div><div class="jk-metric-lbl">solde disponible</div></div>
+      <div class="jk-metric"><div class="jk-metric-val">${eur(cycle.walletBalance || 0)}</div><div class="jk-metric-lbl">solde disponible</div></div>
       <div class="jk-metric"><div class="jk-metric-val">${eur(total)}</div><div class="jk-metric-lbl">dépensé ce mois</div></div>
     `;
     body.appendChild(g2);
@@ -661,24 +638,19 @@
 
     const paySimSec = document.createElement('div'); paySimSec.className = 'jk-sec'; paySimSec.textContent = 'SIMULER UN PAIEMENT'; body.appendChild(paySimSec);
     const payCard = document.createElement('div'); payCard.className = 'jk-card'; body.appendChild(payCard);
-
     const mLbl = document.createElement('label'); mLbl.className = 'jk-label'; mLbl.textContent = 'Commerçant'; payCard.appendChild(mLbl);
     const mInp = document.createElement('input'); mInp.className = 'jk-inp'; mInp.placeholder = 'Amazon, Fnac…'; payCard.appendChild(mInp);
     const aLbl = document.createElement('label'); aLbl.className = 'jk-label'; aLbl.textContent = 'Montant (EUR)'; payCard.appendChild(aLbl);
     const aInp = document.createElement('input'); aInp.className = 'jk-inp'; aInp.type = 'number'; aInp.placeholder = '29.99'; aInp.min = '0.01'; aInp.step = '0.01'; payCard.appendChild(aInp);
-
     const payBtn = document.createElement('button'); payBtn.className = 'jk-cta'; payBtn.textContent = 'Payer avec la carte'; payCard.appendChild(payBtn);
     const payFb  = document.createElement('div'); payCard.appendChild(payFb);
 
     payBtn.addEventListener('click', () => {
-      const merchant = mInp.value.trim();
-      const amt = parseFloat(aInp.value) || 0;
-      payFb.innerHTML = '';
+      const merchant = mInp.value.trim(), amt = parseFloat(aInp.value) || 0; payFb.innerHTML = '';
       if (!merchant || amt <= 0) { payFb.appendChild(mkNotice('Renseigne un commerçant et un montant.', 'err')); return; }
-      const bal = cycle.walletBalance || 240;
+      const bal = cycle.walletBalance || 0;
       if (bal < amt) { payFb.appendChild(mkNotice('Solde insuffisant.', 'err')); return; }
-      cycle.walletBalance = bal - amt;
-      saveCycle(cycle);
+      cycle.walletBalance = bal - amt; saveCycle(cycle);
       _payments.unshift({ merchant, amount: amt, currency: 'EUR', date: new Date().toLocaleDateString('fr-FR'), cat: 'Paiement' });
       payFb.appendChild(mkNotice('Paiement de ' + eur(amt) + ' chez ' + merchant + ' effectué. Tes tickets ne sont pas affectés.', 'ok'));
       mInp.value = ''; aInp.value = '';
@@ -687,8 +659,7 @@
   }
 
   function renderTxList(container) {
-    if (!container) return;
-    container.innerHTML = '';
+    if (!container) return; container.innerHTML = '';
     _payments.forEach((p, i) => {
       const row = document.createElement('div'); row.className = 'jk-hist-row'; if (i === 0) row.style.paddingTop = '0';
       row.innerHTML = `
@@ -711,14 +682,12 @@
     const user = loadUser();
     const fb   = document.createElement('div');
 
-    /* Compte */
     const accSec = document.createElement('div'); accSec.className = 'jk-sec'; accSec.textContent = 'MON COMPTE'; body.appendChild(accSec);
 
     if (user) {
       const uuid = user.id || user.userId || 'usr_' + user.email?.slice(0, 8);
       const profCard = document.createElement('div'); profCard.className = 'jk-card'; profCard.style.padding = '14px 16px';
-      const avt = document.createElement('div');
-      avt.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:14px';
+      const avt = document.createElement('div'); avt.style.cssText = 'display:flex;align-items:center;gap:12px;margin-bottom:14px';
       avt.innerHTML = `
         <div class="jk-avatar" style="width:44px;height:44px;font-size:16px">${esc(user.firstName?.[0] || '?')}${esc(user.lastName?.[0] || '?')}</div>
         <div style="flex:1">
@@ -728,7 +697,6 @@
         <span class="jk-badge ${user.kycStatus === 'APPROVED' ? 'jk-bg' : 'jk-ba'}">${user.kycStatus === 'APPROVED' ? 'Vérifié' : 'En attente'}</span>
       `;
       profCard.appendChild(avt);
-
       const uuidLabel = document.createElement('div'); uuidLabel.style.cssText = 'font-size:11px;color:rgba(255,255,255,.3);margin-bottom:5px'; uuidLabel.textContent = 'Mon UUID — partage-le pour recevoir des dons';
       const uuidBox = document.createElement('div'); uuidBox.className = 'jk-uuid';
       const uuidVal = document.createElement('span'); uuidVal.className = 'jk-uuid-val'; uuidVal.textContent = uuid;
@@ -739,14 +707,11 @@
       body.appendChild(profCard);
     }
 
-    /* KYC */
     const kycSec = document.createElement('div'); kycSec.className = 'jk-sec'; kycSec.textContent = 'KYC — VÉRIFICATION D\'IDENTITÉ'; body.appendChild(kycSec);
 
     if (!user) {
-      /* Formulaire création */
       body.appendChild(mkNotice('Crée ton compte pour accéder au wallet et à la carte Mastercard virtuelle.', 'info'));
       const form = document.createElement('div'); form.className = 'jk-card';
-
       [['jk-fn','Prénom','Jean'],['jk-ln','Nom','Dupont'],['jk-dob','Date de naissance (AAAA-MM-JJ)','1990-01-15'],['jk-nat','Nationalité (FR, DE…)','FR'],['jk-email','Email','jean@example.com'],['jk-tel','Téléphone (+33…)','+33612345678'],['jk-addr','Adresse','12 rue de la Paix'],['jk-city','Ville','Paris'],['jk-postal','Code postal','75001'],['jk-country','Pays','FR']].forEach(([id, label, ph]) => {
         const lbl = document.createElement('label'); lbl.className = 'jk-label'; lbl.textContent = label; form.appendChild(lbl);
         const inp = document.createElement('input'); inp.className = 'jk-inp'; inp.id = id; inp.placeholder = ph;
@@ -754,10 +719,8 @@
         if (id === 'jk-tel')   inp.type = 'tel';
         form.appendChild(inp);
       });
-
       const createBtn = document.createElement('button'); createBtn.className = 'jk-cta'; createBtn.textContent = 'Créer mon compte'; form.appendChild(createBtn);
-      form.appendChild(fb);
-      body.appendChild(form);
+      form.appendChild(fb); body.appendChild(form);
 
       createBtn.addEventListener('click', async () => {
         createBtn.disabled = true; createBtn.innerHTML = ''; createBtn.appendChild(mkSpin()); createBtn.append(' Création en cours…');
@@ -771,7 +734,7 @@
           address: { addressLine1: v('jk-addr'), city: v('jk-city'), postalCode: v('jk-postal'), state: '', country: v('jk-country').toUpperCase() },
         };
         try {
-          const r = await api('POST', '/user/create', payload);
+          const r = await apiProxy('POST', '/user/create', payload);
           saveUser({ ...r, kycStatus: 'NOT_STARTED' });
           window.YM_toast?.('Compte créé avec succès !', 'success');
           renderPanel(root);
@@ -781,28 +744,26 @@
         }
       });
     } else {
-      /* Étapes KYC */
       const kycCard = document.createElement('div'); kycCard.className = 'jk-card'; kycCard.style.padding = '12px 16px';
       [
-        { label: 'Compte créé', sub: 'Nom, email, date de naissance', done: true },
-        { label: 'Identité vérifiée', sub: 'Pièce d\'identité + selfie via Striga', done: user.kycStatus === 'APPROVED' },
-        { label: 'Wallet et carte activés', sub: 'IBAN + Mastercard virtuelle', done: user.kycStatus === 'APPROVED' },
+        { label: 'Compte créé',            sub: 'Nom, email, date de naissance',          done: true },
+        { label: 'Identité vérifiée',       sub: 'Pièce d\'identité + selfie via Striga', done: user.kycStatus === 'APPROVED' },
+        { label: 'Wallet et carte activés', sub: 'IBAN + Mastercard virtuelle',            done: user.kycStatus === 'APPROVED' },
       ].forEach(s => {
         const step = document.createElement('div'); step.className = 'jk-kyc-step';
-        const dot = document.createElement('div'); dot.className = 'jk-kyc-dot ' + (s.done ? 'jk-dot-done' : 'jk-dot-pend'); dot.textContent = s.done ? '✓' : '…';
-        const txt = document.createElement('div');
+        const dot  = document.createElement('div'); dot.className = 'jk-kyc-dot ' + (s.done ? 'jk-dot-done' : 'jk-dot-pend'); dot.textContent = s.done ? '✓' : '…';
+        const txt  = document.createElement('div');
         txt.innerHTML = `<div style="font-size:13px;font-weight:500">${esc(s.label)}</div><div style="font-size:11px;color:rgba(255,255,255,.3)">${esc(s.sub)}</div>`;
         step.appendChild(dot); step.appendChild(txt); kycCard.appendChild(step);
       });
-      body.appendChild(kycCard);
-      body.appendChild(fb);
+      body.appendChild(kycCard); body.appendChild(fb);
 
       if (user.kycStatus !== 'APPROVED') {
         const kycBtn = document.createElement('button'); kycBtn.className = 'jk-cta'; kycBtn.textContent = 'Lancer la vérification d\'identité';
         kycBtn.addEventListener('click', async () => {
           kycBtn.disabled = true; kycBtn.innerHTML = ''; kycBtn.appendChild(mkSpin()); kycBtn.append(' Chargement…');
           try {
-            const r = await api('POST', '/user/' + (user.id || user.userId) + '/kyc/start', {});
+            const r = await apiProxy('POST', '/user/' + (user.id || user.userId) + '/kyc/start', {});
             if (r.verificationLink) window.open(r.verificationLink, '_blank');
             fb.appendChild(mkNotice('Lien ouvert. Reviens ici une fois la vérification terminée.', 'info'));
             kycBtn.disabled = false; kycBtn.textContent = 'Lancer la vérification d\'identité';
@@ -817,7 +778,7 @@
         refreshBtn.addEventListener('click', async () => {
           refreshBtn.disabled = true; refreshBtn.innerHTML = ''; refreshBtn.appendChild(mkSpin()); refreshBtn.append(' Vérification…');
           try {
-            const r = await api('GET', '/user/' + (user.id || user.userId), {});
+            const r = await apiProxy('GET', '/user/' + (user.id || user.userId), {});
             saveUser({ ...user, ...r });
             window.YM_toast?.(r.kycStatus === 'APPROVED' ? 'KYC approuvé ! 🎉' : 'Statut : ' + r.kycStatus, 'info');
             renderPanel(root);
@@ -831,11 +792,7 @@
 
       const delBtn = document.createElement('button'); delBtn.className = 'jk-btn red'; delBtn.textContent = 'Supprimer mon compte local';
       delBtn.addEventListener('click', () => {
-        if (confirm('Supprimer les données locales ?')) {
-          saveUser(null); saveCycle(null);
-          window.YM_toast?.('Supprimé', 'info');
-          renderPanel(root);
-        }
+        if (confirm('Supprimer les données locales ?')) { saveUser(null); saveCycle(null); window.YM_toast?.('Supprimé', 'info'); renderPanel(root); }
       });
       body.appendChild(delBtn);
     }
@@ -843,18 +800,18 @@
     /* FAQ */
     const faqSec = document.createElement('div'); faqSec.className = 'jk-sec'; faqSec.textContent = 'COMMENT ÇA MARCHE'; body.appendChild(faqSec);
     const faqCard = document.createElement('div'); faqCard.className = 'jk-card'; faqCard.style.padding = '12px 16px'; body.appendChild(faqCard);
-
     [
-      ['Qui détient la caisse ?', 'Personne. Il n\'y a pas de compte central. Chaque euro reste dans le wallet Striga de son propriétaire jusqu\'au tirage. Le Worker Cloudflare calcule le gagnant et déclenche les virements directement entre wallets.'],
-      ['Comment le gagnant est désigné ?', 'Un hash est calculé à partir de toutes les transactions du cycle. Ce hash est converti en nombre, on applique un modulo sur le total des tickets. Le ticket résultant désigne le gagnant — déterministe et non manipulable.'],
-      ['Multi-devises, comment ça marche ?', 'Chaque don est converti en EUR au taux Striga du moment. 1 ticket = 1 EUR converti. Le virement au gagnant se fait dans sa devise locale via Striga FX.'],
-      ['Qu\'est-ce que le bonus diversité ?', '1 destinataire : ×1.00. 2 : ×1.25. 3–4 : ×1.50. 5+ : ×2.00. Ça encourage de vrais échanges et empêche les boucles entre comptes.'],
-      ['Retirer = quitter le jeu ?', 'Oui. Si tu retires tes dons reçus avant le tirage, tu perds tous tes tickets. Les paiements carte sont séparés et n\'ont aucun impact.'],
+      ['Qui détient la caisse ?', 'Personne. Chaque euro reste dans le wallet Striga de son propriétaire. Le Worker Cloudflare calcule le gagnant et déclenche les virements directement entre wallets, sans compte central.'],
+      ['Comment le gagnant est désigné ?', 'Un hash est calculé à partir de toutes les transactions du cycle. On applique un modulo sur le total des tickets. Déterministe, vérifiable, non manipulable.'],
+      ['50% / 50% — comment ça marche ?', 'Le gagnant reçoit 50% du jackpot total. Les 50% restants sont automatiquement reportés au cycle suivant comme mise de départ, garantissant un jackpot dès le premier jour.'],
+      ['Quitter le jeu — ce qui se passe', 'Tes tickets sont annulés immédiatement. Tes fonds reçus restent bloqués dans la caisse jusqu\'à la fin de la distribution du jackpot en cours. Ensuite tu peux les récupérer librement.'],
+      ['Multi-devises ?', 'Chaque don est converti en EUR au taux live. 1 ticket = 1 EUR converti. Le virement au gagnant se fait dans sa devise locale via Striga FX.'],
+      ['Bonus diversité ?', '1 destinataire : ×1.00 · 2 : ×1.25 · 3–4 : ×1.50 · 5+ : ×2.00. Encourage de vrais échanges, empêche les boucles.'],
     ].forEach(([q, a], i) => {
       const item = document.createElement('div'); item.className = 'jk-faq-item';
-      const qEl = document.createElement('div'); qEl.className = 'jk-faq-q';
+      const qEl  = document.createElement('div'); qEl.className = 'jk-faq-q';
       qEl.innerHTML = '<span>' + esc(q) + '</span><span style="color:rgba(255,255,255,.3);font-weight:400">' + (_faqOpen[i] ? '−' : '+') + '</span>';
-      const aEl = document.createElement('div'); aEl.className = 'jk-faq-a'; aEl.style.display = _faqOpen[i] ? 'block' : 'none'; aEl.textContent = a;
+      const aEl  = document.createElement('div'); aEl.className = 'jk-faq-a'; aEl.style.display = _faqOpen[i] ? 'block' : 'none'; aEl.textContent = a;
       item.appendChild(qEl); item.appendChild(aEl);
       item.addEventListener('click', () => {
         _faqOpen[i] = !_faqOpen[i];
@@ -866,22 +823,22 @@
   }
 
   /* ─── REGISTRATION ────────────────────────────────────── */
-  window.YM_S['jackpot.sphere.js'] = {
+  window.YM_S['striga.sphere.js'] = {
     name: 'Jackpot',
     icon: '🎰',
     category: 'Finance',
-    description: 'Caisse commune · dons multi-devises · tirage automatique · carte Mastercard virtuelle',
-    emit: [],
-    receive: [],
-    activate:    function () { injectCSS(); },
-    deactivate:  function () {},
+    description: 'Caisse commune · dons multi-devises · 50/50 · tirage automatique · carte Mastercard virtuelle',
+    emit: [], receive: [],
+    activate:   function () { injectCSS(); },
+    deactivate: function () {},
     renderPanel,
     profileSection: function (container) {
       const user  = loadUser(); if (!user) return;
       const cycle = loadCycle() || defaultCycle();
       injectCSS();
-      const pct = cycle.myTickets / Math.max(cycle.totalTickets, 1);
-      const el = document.createElement('div');
+      const pct  = cycle.myTickets / Math.max(cycle.totalTickets, 1);
+      const jack = (cycle.jackpotEur || 0) + (cycle.carryEur || 0);
+      const el   = document.createElement('div');
       el.style.fontFamily = "'DM Sans',system-ui,sans-serif";
       el.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#0f0527,#1a0845);border-radius:16px;padding:14px 16px">
@@ -890,7 +847,7 @@
             <div style="font-size:14px;font-weight:500;color:#fff">${esc(user.firstName || '')} ${esc(user.lastName || '')}</div>
             <div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:2px">${num(cycle.myTickets)} tickets · ${(pct * 100).toFixed(3)}% de chance</div>
           </div>
-          <div style="font-size:16px;font-weight:500;color:#a78bfa;flex-shrink:0">${eur(cycle.jackpot)}</div>
+          <div style="font-size:16px;font-weight:500;color:#a78bfa;flex-shrink:0">${eur(jack)}</div>
         </div>
       `;
       container.appendChild(el);
