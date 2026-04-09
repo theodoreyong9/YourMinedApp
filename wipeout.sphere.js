@@ -163,7 +163,11 @@
         <button id="wo-go" style="width:100%;background:linear-gradient(135deg,#00ccff,#0055ff);border:none;color:#000;font-weight:800;font-size:15px;padding:14px;border-radius:12px;cursor:pointer;letter-spacing:2px;font-family:monospace">▶  DÉMARRER</button>`;
       div.querySelectorAll('[data-track]').forEach(el=>el.onclick=()=>{selTrack=el.dataset.track;build();});
       div.querySelectorAll('[data-ship]').forEach(el=>el.onclick=()=>{selShip=el.dataset.ship;build();});
-      div.querySelector('#wo-go').onclick=()=>{div.remove();startRace(container,selTrack,selShip);};
+      div.querySelector('#wo-go').onclick=()=>{
+        div.remove();
+        // Attendre le prochain frame pour que le layout soit recalculé après div.remove()
+        requestAnimationFrame(()=>startRace(container,selTrack,selShip));
+      };
     }
     build();
     container.appendChild(div);
@@ -267,13 +271,14 @@
     const THREE=window.THREE;
     const T=TRACKS[trackId], SD=SHIPS[shipId];
 
-    // Canvas — inséré AVANT de lire les dimensions pour forcer le layout
+    // Canvas — on s'assure que le container a ses dimensions via getBoundingClientRect
     const canvas=document.createElement('canvas');
     canvas.style.cssText='position:absolute;inset:0;width:100%;height:100%;display:block';
     container.appendChild(canvas);
-    // Forcer un reflow pour que offsetWidth soit correct
-    void container.offsetWidth;
-    const W=container.offsetWidth||360, H=container.offsetHeight||520;
+    // getBoundingClientRect force un reflow synchrone et retourne les vraies dimensions
+    const _rect=container.getBoundingClientRect();
+    const W=(_rect.width>10?_rect.width:container.offsetWidth)||360;
+    const H=(_rect.height>10?_rect.height:container.offsetHeight)||520;
     canvas.width=W; canvas.height=H;
 
     // Renderer
