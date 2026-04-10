@@ -159,6 +159,10 @@
 
   function startRace(container,trackId,shipId){
     if(!window.THREE){
+      // Afficher un spinner pendant le chargement de Three.js
+      container.innerHTML='';
+      container.style.cssText='flex:1;overflow:hidden;position:relative;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';
+      container.innerHTML=`<div style="font-size:32px">🚀</div><div style="font-size:12px;color:rgba(0,200,255,.7);font-family:monospace;letter-spacing:2px">CHARGEMENT...</div><div style="width:120px;height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden"><div style="height:100%;background:#00ccff;border-radius:2px;animation:wo-load 1.2s ease-in-out infinite alternate;width:40%"></div></div><style>@keyframes wo-load{from{width:10%}to{width:90%}}</style>`;
       const s=document.createElement('script');
       s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
       s.onload=()=>startRace(container,trackId,shipId); document.head.appendChild(s); return;
@@ -183,11 +187,11 @@
     renderer.toneMappingExposure=1.15;
 
     const scene=new THREE.Scene();
-    scene.fog=new THREE.FogExp2(T.fog,T.fogD);
+    scene.fog=new THREE.FogExp2(T.fog, isMobile ? T.fogD*2.2 : T.fogD);
     scene.background=new THREE.Color(T.fog);
-    const camera=new THREE.PerspectiveCamera(70,W/H,0.2,1200);
+    const camera=new THREE.PerspectiveCamera(70,W/H,0.2,isMobile?400:1200);
 
-    // HUD
+    // HUD — tour + temps seulement, pas de stats vitesse/boost/shield
     const hud=document.createElement('div');
     hud.style.cssText='position:absolute;top:0;left:0;right:0;padding:8px 12px;pointer-events:none;z-index:10;font-family:monospace';
     hud.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -196,24 +200,11 @@
       <div style="text-align:center"><div style="font-size:7px;color:rgba(0,200,255,.45);letter-spacing:3px">TEMPS</div>
         <div id="wo-time" style="font-size:24px;font-weight:700;color:#00ccff;line-height:1">0:00.000</div>
         <div id="wo-best" style="font-size:10px;color:rgba(0,200,255,.4)">Meilleur: --:--.---</div></div>
-      <div style="text-align:right"><div style="font-size:7px;color:rgba(0,200,255,.45);letter-spacing:3px">TOUR</div>
+      <div style="text-align:right"><div style="font-size:7px;color:rgba(0,200,255,.45);letter-spacing:3px">LAP</div>
         <div id="wo-laptime" style="font-size:13px;color:rgba(0,200,255,.6)">--:--.---</div>
         <div style="font-size:8px;color:rgba(255,255,255,.2)">${T.name}</div></div></div>`;
     container.appendChild(hud);
-
-    const speedo=document.createElement('div');
-    speedo.style.cssText='position:absolute;bottom:92px;left:12px;right:12px;pointer-events:none;z-index:10;font-family:monospace';
-    speedo.innerHTML=`
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">KM/H</span>
-        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="sb" style="height:100%;background:linear-gradient(90deg,#00ccff,#0af);border-radius:3px;width:0%"></div></div>
-        <span id="sv" style="font-size:12px;color:#00ccff;width:36px;text-align:right;font-weight:700">0</span></div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">BOOST</span>
-        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="bb" style="height:100%;background:linear-gradient(90deg,#7700ff,#cc00ff);border-radius:3px;width:80%"></div></div>
-        <span id="bv" style="font-size:12px;color:#aa88ff;width:36px;text-align:right">80</span></div>
-      <div style="display:flex;align-items:center;gap:6px"><span style="font-size:8px;color:rgba(255,255,255,.3);width:32px">SHLD</span>
-        <div style="flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="shb" style="height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:3px;width:100%"></div></div>
-        <span id="shv" style="font-size:12px;color:#34d399;width:36px;text-align:right">100</span></div>`;
-    container.appendChild(speedo);
+    // Pas de speedo — supprimé comme demandé
 
     const cntDiv=document.createElement('div');
     cntDiv.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:25';
@@ -228,18 +219,30 @@
     const ctrlDiv=document.createElement('div');
     ctrlDiv.style.cssText='position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 10px;z-index:10';
     const L=document.createElement('div');
-    L.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;width:140px';
-    L.innerHTML=`<div></div><button id="wu" style="height:36px;background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.25);color:#00ccff;border-radius:8px;cursor:pointer;font-size:15px">↑</button><div></div>
-      <button id="wl" style="height:36px;background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.2);color:#00ccff;border-radius:8px;cursor:pointer;font-size:15px">←</button>
-      <button id="wd" style="height:36px;background:rgba(255,100,100,.08);border:1px solid rgba(255,100,100,.2);color:#ff6464;border-radius:8px;cursor:pointer;font-size:15px">↓</button>
-      <button id="wr" style="height:36px;background:rgba(0,200,255,.08);border:1px solid rgba(0,200,255,.2);color:#00ccff;border-radius:8px;cursor:pointer;font-size:15px">→</button>`;
+    L.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:5px;width:180px';
+    L.innerHTML=`<div></div><button id="wu" style="height:58px;background:rgba(0,200,255,.12);border:1.5px solid rgba(0,200,255,.4);color:#00ccff;border-radius:10px;cursor:pointer;font-size:26px;touch-action:none">↑</button><div></div>
+      <button id="wl" style="height:58px;background:rgba(0,200,255,.12);border:1.5px solid rgba(0,200,255,.35);color:#00ccff;border-radius:10px;cursor:pointer;font-size:26px;touch-action:none">←</button>
+      <button id="wd" style="height:58px;background:rgba(255,100,100,.12);border:1.5px solid rgba(255,100,100,.35);color:#ff6464;border-radius:10px;cursor:pointer;font-size:26px;touch-action:none">↓</button>
+      <button id="wr" style="height:58px;background:rgba(0,200,255,.12);border:1.5px solid rgba(0,200,255,.35);color:#00ccff;border-radius:10px;cursor:pointer;font-size:26px;touch-action:none">→</button>`;
     ctrlDiv.appendChild(L);
     const bstBtn=document.createElement('button');
     bstBtn.id='wbs';
-    bstBtn.style.cssText='width:80px;height:80px;background:rgba(100,0,255,.18);border:2px solid rgba(100,0,255,.5);color:#bb99ff;font-size:24px;border-radius:50%;cursor:pointer;font-family:monospace;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1px';
-    bstBtn.innerHTML='⚡<span style="font-size:9px;letter-spacing:1px">BOOST</span>';
+    bstBtn.style.cssText='width:110px;height:110px;background:rgba(100,0,255,.22);border:2.5px solid rgba(120,0,255,.6);color:#cc99ff;font-size:34px;border-radius:50%;cursor:pointer;font-family:monospace;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;touch-action:none';
+    bstBtn.innerHTML='⚡<span style="font-size:11px;letter-spacing:1px;font-weight:700">BOOST</span>';
     ctrlDiv.appendChild(bstBtn);
     container.appendChild(ctrlDiv);
+
+    // Overlay paysage mobile
+    const landscapeWarn=document.createElement('div');
+    landscapeWarn.style.cssText='position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;pointer-events:none';
+    landscapeWarn.innerHTML=`<div style="font-size:48px">📱</div><div style="font-size:16px;font-weight:700;color:#00ccff;font-family:monospace">TOURNEZ L'ÉCRAN</div><div style="font-size:11px;color:rgba(255,255,255,.4);font-family:monospace">Mode paysage requis</div>`;
+    container.appendChild(landscapeWarn);
+    function checkOrientation(){
+      const portrait=window.innerHeight>window.innerWidth;
+      landscapeWarn.style.display=isMobile&&portrait?'flex':'none';
+    }
+    checkOrientation();
+    window.addEventListener('resize',checkOrientation);
 
     const finDiv=document.createElement('div');
     finDiv.style.cssText='position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.92);z-index:30';
@@ -265,7 +268,7 @@
     // ── PISTE ───────────────────────────────────────────────────────────────
     const curvePts=T.pts();
     const curve=new THREE.CatmullRomCurve3(curvePts,true,'catmullrom',0.5);
-    const N=isMobile?200:400;
+    const N=isMobile?120:400;
     const frames=curve.computeFrenetFrames(N,true);
     const TW=T.width;
 
@@ -473,8 +476,6 @@
     let pos=startPt.clone().add(new THREE.Vector3(0,1.3,0));
     let vel=new THREE.Vector3();
     let heading=Math.atan2(startTan.x,startTan.z);
-    // FIX hover : spring-damper au lieu de lerp brutal
-    let vertVel=0;
     let speed=0, roll=0, pitch=0, hoverPhase=0;
     let boost=.8, shield=SD.shield;
     let laps=0, lapStart=0, raceStart=0, started=false, done=false;
@@ -532,7 +533,13 @@
 
     let lastTs=0;
     function loop(ts){
-      if(!_running){ro.disconnect();window.removeEventListener('keydown',onKey);window.removeEventListener('keyup',onKey);return;}
+      if(!_running){
+        ro.disconnect();
+        window.removeEventListener('keydown',onKey);
+        window.removeEventListener('keyup',onKey);
+        window.removeEventListener('resize',checkOrientation);
+        return;
+      }
       _raf=requestAnimationFrame(loop);
       const dt=Math.min((ts-lastTs)/1000,.05); lastTs=ts;
 
@@ -558,11 +565,11 @@
           const ct=nearestT(pos);
           const trackPt=new THREE.Vector3(); curve.getPointAt(ct,trackPt);
 
-          // FIX hover : spring-damper (plus de sautillement)
-          const targetY=trackPt.y+1.25+Math.sin(hoverPhase)*.12;
-          const springForce=(targetY-pos.y)*12;
-          vertVel=(vertVel+springForce*dt)*.82;
-          pos.y+=vertVel*dt;
+          // Hover Y : lerp rapide vers la surface + offset, ne traverse jamais le terrain
+          const targetY=trackPt.y+1.25+Math.sin(hoverPhase)*.08;
+          pos.y+=(targetY-pos.y)*Math.min(1,dt*18);
+          // Plancher dur : ne jamais passer sous la piste
+          if(pos.y<trackPt.y+0.5) pos.y=trackPt.y+0.5;
           pos.x+=vel.x*dt; pos.z+=vel.z*dt;
 
           if(wallCD>0) wallCD-=dt;
@@ -574,7 +581,7 @@
               const imp=Math.abs(vel.dot(r2));
               shield=Math.max(0,shield-imp*2.8);
               vel.reflect(r2.clone().multiplyScalar(Math.sign(lat))).multiplyScalar(.32);
-              speed*=.35; vertVel*=.5; camShake=Math.min(3.5,imp*.9); wallCD=.38;
+              speed*=.35; camShake=Math.min(3.5,imp*.9); wallCD=.38;
               dmgFlash.style.background='rgba(255,0,0,.5)';
               setTimeout(()=>dmgFlash.style.background='rgba(255,0,0,0)',230);
               for(let k=0;k<18;k++) SPK.p.push({x:pos.x,y:pos.y,z:pos.z,vx:(Math.random()-.5)*60,vy:Math.random()*45+12,vz:(Math.random()-.5)*60,life:.8});
@@ -597,18 +604,7 @@
           }
 
           if(started) document.getElementById('wo-time').textContent=fmt(Date.now()-raceStart);
-          const spd3=vel.length()*36;
-          document.getElementById('sb').style.width=Math.round(Math.min(100,spd3/(SD.maxSpd*SD.boostMult*36)*100))+'%';
-          document.getElementById('sv').textContent=Math.round(spd3);
-          document.getElementById('bb').style.width=Math.round(boost*100)+'%';
-          document.getElementById('bv').textContent=Math.round(boost*100);
-          const shp=Math.round(shield/SD.shield*100);
-          document.getElementById('shb').style.width=Math.max(0,shp)+'%';
-          document.getElementById('shv').textContent=Math.max(0,Math.round(shield));
-          const shEl=document.getElementById('shb');
-          if(shp<25)shEl.style.background='linear-gradient(90deg,#ef4444,#f87171)';
-          else if(shp<55)shEl.style.background='linear-gradient(90deg,#fbbf24,#f59e0b)';
-          else shEl.style.background='linear-gradient(90deg,#10b981,#34d399)';
+          // Stats vitesse/boost/shield supprimées du HUD
 
           hoverPhase+=dt*3.5;
           ship.position.copy(pos);
