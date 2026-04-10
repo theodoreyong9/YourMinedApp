@@ -64,6 +64,33 @@
   };
 
   function renderPanel(container) {
+    // Paysage forcé sur mobile : rotate le container entier du plugin
+    if(isMobile){
+      const applyLandscape=()=>{
+        const isPortrait=window.innerHeight>window.innerWidth;
+        if(isPortrait){
+          const w=window.innerWidth, h=window.innerHeight;
+          container.style.position='fixed';
+          container.style.top='0';
+          container.style.left='0';
+          container.style.width=h+'px';
+          container.style.height=w+'px';
+          container.style.transformOrigin='top left';
+          container.style.transform=`rotate(90deg) translateX(0) translateY(-${w}px)`;
+        } else {
+          container.style.position='';
+          container.style.top='';
+          container.style.left='';
+          container.style.width='';
+          container.style.height='';
+          container.style.transformOrigin='';
+          container.style.transform='';
+        }
+      };
+      applyLandscape();
+      window.addEventListener('resize', applyLandscape);
+    }
+
     container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden;background:#000;font-family:monospace';
     container.innerHTML='';
     const body=document.createElement('div');
@@ -245,27 +272,7 @@
     ctrlDiv.appendChild(bstBtn);
     container.appendChild(ctrlDiv);
 
-    // Paysage forcé sur mobile : on pivote tout le container via CSS
     let _landscapeCleanup=null;
-    if(isMobile){
-      function applyLandscape(){
-        const isPortrait=window.innerHeight>window.innerWidth;
-        if(isPortrait){
-          const w=window.innerWidth, h=window.innerHeight;
-          container.style.width=h+'px';
-          container.style.height=w+'px';
-          container.style.transform=`rotate(90deg) translateY(-${w}px)`;
-          container.style.transformOrigin='top left';
-        } else {
-          container.style.transform='';
-          container.style.width='';
-          container.style.height='';
-        }
-      }
-      applyLandscape();
-      window.addEventListener('resize',applyLandscape);
-      _landscapeCleanup=()=>window.removeEventListener('resize',applyLandscape);
-    }
 
     const finDiv=document.createElement('div');
     finDiv.style.cssText='position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.92);z-index:30';
@@ -572,7 +579,6 @@
         ro.disconnect();
         window.removeEventListener('keydown',onKey);
         window.removeEventListener('keyup',onKey);
-        if(_landscapeCleanup) _landscapeCleanup();
         return;
       }
       _raf=requestAnimationFrame(loop);
@@ -585,7 +591,7 @@
         if(cdDone){
           const baseMax=SD.maxSpd;
           const effMax=boostOn?baseMax*SD.boostMult:baseMax;
-          const turn=SD.turnRate*(1+Math.abs(speed)*.012)*(boostOn?.78:1);
+          const turn=SD.turnRate*(1+Math.abs(speed)*.012)*(boostOn ? 0.78:1);
           // FIX : gauche/droite indépendants
           if(keys.l) heading+=turn*dt;
           if(keys.r) heading-=turn*dt;
@@ -658,12 +664,12 @@
           ship.rotateX(-pitch);
 
           engineGlows.forEach((g,i)=>{
-            g.material.color.setHSL(boostOn?.78:.54,1,.3+boostI*.5);
+            g.material.color.setHSL(boostOn ? 0.78:.54,1,.3+boostI*.5);
             const sc=.4+spF*2+Math.sin(ts*.022+i)*.18;
             g.scale.set(sc,sc,.5+spF*1.8+boostI*2.5);
             g.material.opacity=.5+spF*.5;
           });
-          engineLts.forEach(l=>{l.color.setHSL(boostOn?.78:.54,1,.5);l.intensity=5+spF*12+boostI*20;});
+          engineLts.forEach(l=>{l.color.setHSL(boostOn ? 0.78:.54,1,.5);l.intensity=5+spF*12+boostI*20;});
           hPods.forEach((p2,i)=>{p2.material.color.setHSL(.54,1,.3+Math.sin(hoverPhase*2+i)*.25);});
           shipGL.position.copy(pos); shipGL.intensity=6+spF*15;
           boostGL.position.copy(pos); boostGL.intensity=boostOn?boost*25:0;
