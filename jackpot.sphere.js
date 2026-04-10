@@ -7,7 +7,7 @@
   window.YM_S = window.YM_S || {};
 
   /* ─── CONFIG ─────────────────────────────────────────── */
-  const WORKER_URL = 'https://yourmine-worker.yourmine.workers.dev';
+  const WORKER_URL = 'https://yourmine-worker.yourminedapp.workers.dev';
   const USER_KEY   = 'ym_jackpot_user_v1';
   const CYCLE_KEY  = 'ym_jackpot_cycle_v1';
   const RATES      = { EUR: 1, USD: 1.08, GBP: 0.86, CHF: 0.96, JPY: 162 };
