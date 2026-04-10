@@ -159,13 +159,26 @@
 
   function startRace(container,trackId,shipId){
     if(!window.THREE){
-      // Afficher un spinner pendant le chargement de Three.js
       container.innerHTML='';
       container.style.cssText='flex:1;overflow:hidden;position:relative;background:#000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px';
-      container.innerHTML=`<div style="font-size:32px">🚀</div><div style="font-size:12px;color:rgba(0,200,255,.7);font-family:monospace;letter-spacing:2px">CHARGEMENT...</div><div style="width:120px;height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden"><div style="height:100%;background:#00ccff;border-radius:2px;animation:wo-load 1.2s ease-in-out infinite alternate;width:40%"></div></div><style>@keyframes wo-load{from{width:10%}to{width:90%}}</style>`;
+      // Spinner avec transform (GPU, ne bloque pas même si JS parse)
+      const spin=document.createElement('div');
+      spin.innerHTML=`<div style="font-size:32px;margin-bottom:8px">🚀</div>
+        <div style="font-size:12px;color:rgba(0,200,255,.7);font-family:monospace;letter-spacing:2px;margin-bottom:12px">CHARGEMENT...</div>
+        <div style="width:80px;height:80px;border:3px solid rgba(0,200,255,.15);border-top:3px solid #00ccff;border-radius:50%;animation:wospin .8s linear infinite"></div>`;
+      container.appendChild(spin);
+      // Injecter le keyframe dans le head (une seule fois)
+      if(!document.getElementById('wo-spin-style')){
+        const st=document.createElement('style');
+        st.id='wo-spin-style';
+        st.textContent='@keyframes wospin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(st);
+      }
       const s=document.createElement('script');
       s.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-      s.onload=()=>startRace(container,trackId,shipId); document.head.appendChild(s); return;
+      s.onload=()=>startRace(container,trackId,shipId);
+      document.head.appendChild(s);
+      return;
     }
     stopRace(); _running=true;
 
@@ -232,17 +245,27 @@
     ctrlDiv.appendChild(bstBtn);
     container.appendChild(ctrlDiv);
 
-    // Overlay paysage mobile
-    const landscapeWarn=document.createElement('div');
-    landscapeWarn.style.cssText='position:absolute;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:100;pointer-events:none';
-    landscapeWarn.innerHTML=`<div style="font-size:48px">📱</div><div style="font-size:16px;font-weight:700;color:#00ccff;font-family:monospace">TOURNEZ L'ÉCRAN</div><div style="font-size:11px;color:rgba(255,255,255,.4);font-family:monospace">Mode paysage requis</div>`;
-    container.appendChild(landscapeWarn);
-    function checkOrientation(){
-      const portrait=window.innerHeight>window.innerWidth;
-      landscapeWarn.style.display=isMobile&&portrait?'flex':'none';
+    // Paysage forcé sur mobile : on pivote tout le container via CSS
+    let _landscapeCleanup=null;
+    if(isMobile){
+      function applyLandscape(){
+        const isPortrait=window.innerHeight>window.innerWidth;
+        if(isPortrait){
+          const w=window.innerWidth, h=window.innerHeight;
+          container.style.width=h+'px';
+          container.style.height=w+'px';
+          container.style.transform=`rotate(90deg) translateY(-${w}px)`;
+          container.style.transformOrigin='top left';
+        } else {
+          container.style.transform='';
+          container.style.width='';
+          container.style.height='';
+        }
+      }
+      applyLandscape();
+      window.addEventListener('resize',applyLandscape);
+      _landscapeCleanup=()=>window.removeEventListener('resize',applyLandscape);
     }
-    checkOrientation();
-    window.addEventListener('resize',checkOrientation);
 
     const finDiv=document.createElement('div');
     finDiv.style.cssText='position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(0,0,0,.92);z-index:30';
@@ -500,14 +523,26 @@
     };
     window.addEventListener('keydown',onKey); window.addEventListener('keyup',onKey);
 
-    // FIX multitouch : Map des pointeurs actifs
+    // Multitouch avec capture du pointeur — le bouton garde le contact même si le doigt glisse
     const ptrMap=new Map();
     const bindBtn=(id,key)=>{
       const el=container.querySelector('#'+id); if(!el) return;
-      const dn=e=>{e.preventDefault();ptrMap.set(e.pointerId,key);keys[key]=true;};
-      const up=e=>{e.preventDefault();if(ptrMap.get(e.pointerId)===key){ptrMap.delete(e.pointerId);if(![...ptrMap.values()].includes(key))keys[key]=false;}};
+      const dn=e=>{
+        e.preventDefault();
+        try{el.setPointerCapture(e.pointerId);}catch(ex){}
+        ptrMap.set(e.pointerId,key);
+        keys[key]=true;
+      };
+      const up=e=>{
+        e.preventDefault();
+        if(ptrMap.get(e.pointerId)===key){
+          ptrMap.delete(e.pointerId);
+          if(![...ptrMap.values()].includes(key)) keys[key]=false;
+        }
+      };
       el.addEventListener('pointerdown',dn,{passive:false});
-      ['pointerup','pointercancel','pointerleave'].forEach(ev=>el.addEventListener(ev,up,{passive:false}));
+      ['pointerup','pointercancel'].forEach(ev=>el.addEventListener(ev,up,{passive:false}));
+      // pointerleave retiré — remplacé par pointer capture
     };
     bindBtn('wu','u'); bindBtn('wd','d'); bindBtn('wl','l'); bindBtn('wr','r'); bindBtn('wbs','b');
 
@@ -537,7 +572,7 @@
         ro.disconnect();
         window.removeEventListener('keydown',onKey);
         window.removeEventListener('keyup',onKey);
-        window.removeEventListener('resize',checkOrientation);
+        if(_landscapeCleanup) _landscapeCleanup();
         return;
       }
       _raf=requestAnimationFrame(loop);
@@ -565,11 +600,13 @@
           const ct=nearestT(pos);
           const trackPt=new THREE.Vector3(); curve.getPointAt(ct,trackPt);
 
-          // Hover Y : lerp rapide vers la surface + offset, ne traverse jamais le terrain
+          // Hover Y : lissage exponentiel indépendant du framerate, doux et stable
+          // alpha=1-e^(-k*dt) garantit la même fluidité à 30fps ou 60fps
           const targetY=trackPt.y+1.25+Math.sin(hoverPhase)*.08;
-          pos.y+=(targetY-pos.y)*Math.min(1,dt*18);
-          // Plancher dur : ne jamais passer sous la piste
-          if(pos.y<trackPt.y+0.5) pos.y=trackPt.y+0.5;
+          const alpha=1-Math.exp(-8*dt);  // constante 8 = réponse douce sans sautillement
+          pos.y=pos.y+(targetY-pos.y)*alpha;
+          // Plancher dur : jamais sous la surface
+          if(pos.y<trackPt.y+0.4) pos.y=trackPt.y+0.4;
           pos.x+=vel.x*dt; pos.z+=vel.z*dt;
 
           if(wallCD>0) wallCD-=dt;
