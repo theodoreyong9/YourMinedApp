@@ -334,42 +334,38 @@
   function _sendVSInviteTo(opponentUUID, opponentName){
     const gameId='td_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
     const sess={
-      status:'waiting',
-      role:'host',
-      opponentUUID,
-      opponentName,
-      gameId,
-      myLives:30,
-      opponentLives:30,
-      myAttackers:{},
-      myGoldDef:200,
-      myGoldAtk:100,
-      opponentWaveIdx:0,
-      fogReveal:[],
+      status:'waiting', role:'host',
+      opponentUUID, opponentName, gameId,
+      myLives:30, opponentLives:30,
+      myAttackers:{}, myGoldDef:200, myGoldAtk:100,
+      opponentWaveIdx:0, fogReveal:[],
     };
     setVSSession(sess);
-
-    // 1. Message de jeu (sync technique)
-    sendGameMsg(opponentUUID,{type:'td_invite',gameId,fromName:_myName()});
-
-    // 2. Message lisible dans YM_Messenger (visible même si le plugin n'est pas ouvert)
-    const inviteText=`⚔️ **Défi Tower Defense VS !**\n${_myName()} vous défie en Tower Defense.\nOuvrez le plugin Tower Defense pour accepter.`;
-    if(window.YM_Messenger && window.YM_Messenger.sendMsg){
-      window.YM_Messenger.sendMsg(opponentUUID, inviteText);
-    } else if(window.YM_Social && window.YM_Social.sendMsg){
-      window.YM_Social.sendMsg(opponentUUID, inviteText);
-    }
-
-    // 3. Notification système YM
-    if(window.YM && window.YM.notify){
-      window.YM.notify({title:'Défi Tower Defense', body:`${_myName()} vous défie !`, icon:'⚔️', targetUUID:opponentUUID});
-    }
-
-    // 4. Stocker l'invite côté receveur si même device (test)
-    const pendingKey='ym_td_pending_invite_'+opponentUUID;
-    localStorage.setItem(pendingKey, JSON.stringify({fromUUID:_myUUID(),fromName:_myName(),gameId,ts:Date.now()}));
-
+    // Écrire l'invite dans le localStorage avec la clé de l'adversaire
+    // → il la verra dès qu'il ouvre le plugin Tower Defense
+    localStorage.setItem('ym_td_pending_invite_'+opponentUUID, JSON.stringify({
+      fromUUID:_myUUID(), fromName:_myName(), gameId, ts:Date.now()
+    }));
+    // Canal réseau en bonus (si disponible)
+    sendGameMsg(opponentUUID,{type:'td_invite', gameId, fromName:_myName()});
     return sess;
+  }
+
+  function _checkPendingInvite(){
+    const myId=_myUUID();
+    try{
+      const v=localStorage.getItem('ym_td_pending_invite_'+myId);
+      if(v){const inv=JSON.parse(v); if(Date.now()-inv.ts<3600000) return inv;} // expire 1h
+    }catch{}
+    return null;
+  }
+
+  function _storePendingInvite(inv){
+    localStorage.setItem('ym_td_pending_invite_'+_myUUID(), JSON.stringify({...inv, ts:Date.now()}));
+  }
+
+  function _clearPendingInvite(){
+    localStorage.removeItem('ym_td_pending_invite_'+_myUUID());
   }
 
   function _destroyGame(){
