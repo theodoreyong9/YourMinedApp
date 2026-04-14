@@ -193,7 +193,6 @@
       opponentWaveIdx:0, fogReveal:[],
     };
     setVSSession(sess);
-    // Stocker dans MON profil — le receveur verra l'invite en ouvrant ma fiche
     _writeInviteToMyProfile(opponentUUID, gameId);
     return sess;
   }
@@ -240,87 +239,148 @@
   function renderModeSelect(container){
     _destroyGame();
     container.innerHTML='';
-    container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;box-sizing:border-box';
+    container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e;display:flex;flex-direction:column';
 
-    // Vérifier si une session VS est en cours ou en attente
     const sess=getVSSession();
     const pendingInvite=_checkPendingInvite();
 
-    container.innerHTML=`
-      <div style="font-size:34px">🗼</div>
-      <div style="font-size:20px;font-weight:900;color:#f59e0b;letter-spacing:-0.5px">Tower Defense</div>
+    const scroll=document.createElement('div');
+    scroll.style.cssText='flex:1;overflow-y:auto;padding:14px 12px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px';
+    container.appendChild(scroll);
 
-      <div style="width:100%;max-width:290px;display:flex;flex-direction:column;gap:10px;margin-top:4px">
-        <button id="td-solo" style="width:100%;padding:14px 16px;background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04));border:1.5px solid rgba(245,158,11,.45);border-radius:12px;cursor:pointer;font-family:monospace;text-align:left">
-          <div style="font-size:18px;margin-bottom:3px">🗡️ Solo</div>
-          <div style="font-size:12px;font-weight:700;color:#f59e0b">Mode Solo</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">20 vagues · Boutique inter-vagues · Améliorations globales</div>
-        </button>
+    // Titre
+    const titleDiv=document.createElement('div');
+    titleDiv.style.cssText='text-align:center;margin-bottom:2px';
+    titleDiv.innerHTML='<div style="font-size:28px">🗼</div><div style="font-size:17px;font-weight:900;color:#f59e0b">Tower Defense</div>';
+    scroll.appendChild(titleDiv);
 
-        <button id="td-vs" style="width:100%;padding:14px 16px;background:linear-gradient(135deg,rgba(239,68,68,.1),rgba(99,102,241,.07));border:1.5px solid rgba(239,68,68,.38);border-radius:12px;cursor:pointer;font-family:monospace;text-align:left">
-          <div style="font-size:18px;margin-bottom:3px">⚔️ VS</div>
-          <div style="font-size:12px;font-weight:700;color:#ef4444">Mode Versus</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">2 terminaux · Invitez via fiche profil · Brouillard de guerre</div>
-        </button>
-
-        ${pendingInvite?`<button id="td-accept-btn-live" style="width:100%;padding:12px 16px;background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(16,185,129,.05));border:1.5px solid rgba(16,185,129,.6);border-radius:12px;cursor:pointer;font-family:monospace;animation:tdpulse 1.5s ease-in-out infinite alternate">
-          <div style="font-size:12px;font-weight:700;color:#10b981">📨 Invitation de ${pendingInvite.fromName}</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">Tap pour accepter le défi Tower Defense</div>
-        </button>`:''}
-        ${sess&&sess.status==='active'?`<button id="td-resume" style="width:100%;padding:10px 16px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);border-radius:10px;cursor:pointer;font-family:monospace;color:#a5b4fc;font-size:11px">⟳ Reprendre partie VS vs ${sess.opponentName||'adversaire'}</button>`:''}
-      </div>
-
-      <div id="td-vs-hint" style="font-size:10px;color:rgba(255,255,255,.25);text-align:center;max-width:260px;line-height:1.6">
-        Pour défier quelqu'un en VS : allez sur sa fiche profil → onglet Spheres → Tower Defense → Défier
-      </div>
-      <style>@keyframes tdpulse{from{box-shadow:0 0 0 0 rgba(16,185,129,.4)}to{box-shadow:0 0 0 8px rgba(16,185,129,0)}}</style>
-    `;
-
-    container.querySelector('#td-solo').onclick=()=>{
-      container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
-      container.innerHTML='';
-      _loadPhaser(()=>renderSoloGame(container));
-    };
-
-    container.querySelector('#td-vs').onclick=()=>{
-      const hint=container.querySelector('#td-vs-hint');
-      if(sess&&sess.status==='active'){
-        _startVSGame(container,sess);
-      } else {
-        hint.style.color='rgba(245,158,11,.7)';
-        hint.textContent='Invitez un contact depuis ⬡ Spheres → Tower Defense dans sa fiche profil !';
-      }
-    };
-
-    const acceptBtn=container.querySelector('#td-accept-btn-live');
-    if(acceptBtn&&pendingInvite){
-      acceptBtn.onclick=()=>{
-        _acceptVSInvite(pendingInvite);
-        container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
-        container.innerHTML='';
-        _startVSGame(container,getVSSession());
-      };
+    // Animation CSS
+    if(!document.getElementById('td-pulse-style')){
+      const st=document.createElement('style');
+      st.id='td-pulse-style';
+      st.textContent='@keyframes tdpulse{from{box-shadow:0 0 0 0 rgba(16,185,129,.4)}to{box-shadow:0 0 0 8px rgba(16,185,129,0)}}';
+      document.head.appendChild(st);
     }
 
-    const resumeBtn=container.querySelector('#td-resume');
-    if(resumeBtn&&sess){
-      resumeBtn.onclick=()=>{
+    // ── Invitation reçue en attente ──────────────────────────
+    if(pendingInvite){
+      const inv=document.createElement('button');
+      inv.style.cssText='width:100%;padding:11px 14px;background:linear-gradient(135deg,rgba(16,185,129,.14),rgba(16,185,129,.04));border:1.5px solid rgba(16,185,129,.6);border-radius:12px;cursor:pointer;font-family:monospace;text-align:left;animation:tdpulse 1.5s ease-in-out infinite alternate';
+      inv.innerHTML=`<div style="font-size:13px;font-weight:700;color:#10b981;margin-bottom:2px">📨 Défi de ${pendingInvite.fromName}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.5)">Tap pour accepter · Tower Defense VS</div>`;
+      inv.onclick=()=>{
+        _acceptVSInvite(pendingInvite); _clearPendingInvite();
         container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
-        container.innerHTML='';
-        _startVSGame(container,sess);
+        container.innerHTML=''; _startVSGame(container,getVSSession());
       };
+      scroll.appendChild(inv);
     }
 
-    // Écouter les invitations — on poll simplement le localStorage
-    // (l'invite est stockée par _acceptVSInvite quand l'utilisateur accepte depuis peerSection)
-    const pollInterval=setInterval(()=>{
-      if(!container.isConnected){clearInterval(pollInterval);return;}
-      const inv=_checkPendingInvite();
-      if(inv&&!document.getElementById('td-accept-btn-live')){
-        renderModeSelect(container); // rafraîchir pour montrer le bouton
+    // ── Partie VS active ─────────────────────────────────────
+    if(sess&&sess.status==='active'){
+      const res=document.createElement('button');
+      res.style.cssText='width:100%;padding:10px 14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);border-radius:10px;cursor:pointer;font-family:monospace;text-align:left';
+      res.innerHTML=`<div style="font-size:12px;font-weight:700;color:#a5b4fc">⟳ Reprendre VS vs ${sess.opponentName||'adversaire'}</div>`;
+      res.onclick=()=>{container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';container.innerHTML='';_startVSGame(container,sess);};
+      scroll.appendChild(res);
+    }
+
+    // ── Solo ─────────────────────────────────────────────────
+    const soloBtn=document.createElement('button');
+    soloBtn.style.cssText='width:100%;padding:13px 14px;background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04));border:1.5px solid rgba(245,158,11,.45);border-radius:12px;cursor:pointer;font-family:monospace;text-align:left';
+    soloBtn.innerHTML=`<div style="font-size:14px;font-weight:700;color:#f59e0b;margin-bottom:2px">🗡️ Mode Solo</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.4)">20 vagues · Boutique inter-vagues · Améliorations globales</div>`;
+    soloBtn.onclick=()=>{container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';container.innerHTML='';_loadPhaser(()=>renderSoloGame(container));};
+    scroll.appendChild(soloBtn);
+
+    // ── VS : liste contacts/near invitables ──────────────────
+    const vsTitle=document.createElement('div');
+    vsTitle.style.cssText='font-size:10px;font-weight:700;color:rgba(239,68,68,.75);letter-spacing:1px;text-transform:uppercase;margin-top:4px';
+    vsTitle.textContent='⚔️ Versus — Défier';
+    scroll.appendChild(vsTitle);
+
+    // Construire la liste des pairs disponibles
+    function getPeers(){
+      const peers=[]; const seen=new Set();
+      if(window.YM_Social&&window.YM_Social._nearUsers){
+        window.YM_Social._nearUsers.forEach((u,uuid)=>{
+          if(uuid===_myUUID()||seen.has(uuid))return; seen.add(uuid);
+          peers.push({uuid,name:(u.profile&&u.profile.name)||uuid.slice(0,8),near:true,profile:u.profile||u});
+        });
       }
-    },2000);
+      try{
+        JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]').forEach(c=>{
+          if(!c.uuid||seen.has(c.uuid)||c.uuid===_myUUID())return; seen.add(c.uuid);
+          peers.push({uuid:c.uuid,name:c.nickname||(c.profile&&c.profile.name)||c.uuid.slice(0,8),near:false,profile:c.profile||c});
+        });
+      }catch{}
+      return peers;
+    }
+
+    const peers=getPeers();
+
+    if(!peers.length){
+      const empty=document.createElement('div');
+      empty.style.cssText='font-size:11px;color:rgba(255,255,255,.3);text-align:center;padding:14px 0;background:rgba(255,255,255,.03);border-radius:10px;border:1px solid rgba(255,255,255,.06)';
+      empty.textContent='Aucun contact disponible.\nAjoutez des contacts dans votre profil.';
+      scroll.appendChild(empty);
+    } else {
+      peers.forEach(peer=>{
+        const isSent=sess&&sess.opponentUUID===peer.uuid&&sess.status==='waiting';
+        const invFromPeer=_readInviteFromProfile(peer.profile);
+
+        const row=document.createElement('div');
+        row.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px';
+
+        const av=document.createElement('div');
+        av.style.cssText='width:34px;height:34px;border-radius:50%;background:#1a1b2e;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;position:relative';
+        av.textContent=(peer.name&&peer.name.charAt(0).toUpperCase())||'?';
+        if(peer.near){const d=document.createElement('div');d.style.cssText='position:absolute;bottom:0;right:0;width:8px;height:8px;background:#10b981;border-radius:50%;border:2px solid #07080e';av.appendChild(d);}
+        row.appendChild(av);
+
+        const info=document.createElement('div');
+        info.style.cssText='flex:1;min-width:0';
+        info.innerHTML=`<div style="font-size:12px;font-weight:600;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${peer.name}</div><div style="font-size:9px;color:rgba(255,255,255,.35)">${peer.near?'● Nearby':'Contact'}</div>`;
+        row.appendChild(info);
+
+        const act=document.createElement('div');
+        if(invFromPeer){
+          const b=document.createElement('button');
+          b.style.cssText='padding:5px 9px;background:rgba(16,185,129,.2);border:1px solid #10b981;color:#10b981;border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;font-family:monospace;white-space:nowrap';
+          b.textContent='✓ Accepter';
+          b.onclick=()=>{
+            _storePendingInvite({fromUUID:peer.uuid,fromName:peer.name,gameId:invFromPeer.gameId});
+            _acceptVSInvite({fromUUID:peer.uuid,fromName:peer.name,gameId:invFromPeer.gameId});
+            container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
+            container.innerHTML=''; _startVSGame(container,getVSSession());
+          };
+          act.appendChild(b);
+        } else if(isSent){
+          const w=document.createElement('div');w.style.cssText='display:flex;flex-direction:column;align-items:flex-end;gap:3px';
+          const s=document.createElement('div');s.style.cssText='font-size:9px;color:#f59e0b';s.textContent='⏳ En attente';
+          const x=document.createElement('button');x.style.cssText='font-size:9px;color:rgba(239,68,68,.6);background:none;border:none;cursor:pointer;font-family:monospace';x.textContent='Annuler';
+          x.onclick=()=>{setVSSession(null);_clearInviteFromMyProfile();renderModeSelect(container);};
+          w.appendChild(s);w.appendChild(x);act.appendChild(w);
+        } else {
+          const b=document.createElement('button');
+          b.style.cssText='padding:5px 9px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);color:#ef4444;border-radius:7px;cursor:pointer;font-size:10px;font-weight:700;font-family:monospace;white-space:nowrap';
+          b.textContent='⚔️ Défier';
+          b.onclick=()=>{_sendVSInviteTo(peer.uuid,peer.name);renderModeSelect(container);};
+          act.appendChild(b);
+        }
+
+        row.appendChild(act);
+        scroll.appendChild(row);
+      });
+    }
+
+    // Poll toutes les 3s pour rafraîchir si une invite arrive
+    const iv=setInterval(()=>{
+      if(!container.isConnected){clearInterval(iv);return;}
+      renderModeSelect(container);
+    },4000);
   }
+
 
   // ── HELPERS VS ─────────────────────────────────────────────────────────────
   function _checkPendingInvite(){
