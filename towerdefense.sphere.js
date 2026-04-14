@@ -127,41 +127,75 @@
   function getVSSession(){try{return JSON.parse(localStorage.getItem(VS_SESSION_KEY)||'null');}catch{return null;}}
   function setVSSession(s){if(s)localStorage.setItem(VS_SESSION_KEY,JSON.stringify(s));else localStorage.removeItem(VS_SESSION_KEY);}
 
-  // Envoyer un message de jeu via YM_Social si dispo, sinon localStorage cross-tab
-  function sendGameMsg(toUUID, payload){
-    const msg={...payload, _tdGame:true, _from: _myUUID(), _ts:Date.now()};
-    if(window.YM_Social && window.YM_Social.sendMsg){
-      window.YM_Social.sendMsg(toUUID, JSON.stringify(msg));
-    } else {
-      // Fallback : localStorage pour tests sur même device
-      const key='ym_td_msg_'+toUUID;
-      const arr=JSON.parse(localStorage.getItem(key)||'[]');
-      arr.push(msg);
-      localStorage.setItem(key,JSON.stringify(arr.slice(-50)));
-      window.dispatchEvent(new CustomEvent('ym_td_msg',{detail:{to:toUUID,msg}}));
-    }
+  // ── INVITATION VS ──────────────────────────────────────────────────────────
+  // Mécanisme : l'invitant stocke l'invitation dans SON PROPRE PROFIL (YM.saveProfile)
+  // Le receveur lit le profil de l'invitant dans peerSection → voit l'invitation
+  // Pas de réseau custom nécessaire : YM.getProfile/saveProfile suffit
+
+  function _myUUID(){
+    const p=window.YM&&window.YM.getProfile&&window.YM.getProfile();
+    return (p&&p.uuid)||null;
+  }
+  function _myName(){
+    const p=window.YM&&window.YM.getProfile&&window.YM.getProfile();
+    return (p&&p.name)||'Joueur';
   }
 
-  function _myUUID(){return (window.YM&&window.YM.getProfile&&window.YM.getProfile().uuid)||'local';}
+  // Écrire l'invitation dans MON profil (champ td_invite)
+  function _writeInviteToMyProfile(toUUID, gameId){
+    if(!window.YM||!window.YM.getProfile||!window.YM.saveProfile) return;
+    const p=window.YM.getProfile();
+    p.td_invite={toUUID, gameId, fromName:_myName(), ts:Date.now()};
+    window.YM.saveProfile(p);
+  }
 
-  // Écouter les messages entrants
-  function onGameMsg(handler){
-    // Via YM_Social
-    if(window.YM_Social && window.YM_Social.onMsg){
-      window.YM_Social.onMsg((from,raw)=>{
-        try{const m=JSON.parse(raw);if(m._tdGame)handler(from,m);}catch{}
-      });
-    }
-    // Fallback localStorage
+  // Effacer l'invitation de mon profil
+  function _clearInviteFromMyProfile(){
+    if(!window.YM||!window.YM.getProfile||!window.YM.saveProfile) return;
+    const p=window.YM.getProfile();
+    delete p.td_invite;
+    window.YM.saveProfile(p);
+  }
+
+  // Lire une invitation destinée à moi dans le profil d'un contact
+  // (appelé depuis peerSection avec le profil du contact visité)
+  function _readInviteFromProfile(peerProfile){
+    const inv=peerProfile&&peerProfile.td_invite;
+    if(!inv) return null;
     const myId=_myUUID();
-    function checkLocal(){
-      const key='ym_td_msg_'+myId;
-      const arr=JSON.parse(localStorage.getItem(key)||'[]');
-      if(arr.length){localStorage.removeItem(key);arr.forEach(m=>handler(m._from,m));}
-    }
-    const iv=setInterval(checkLocal,800);
-    window.addEventListener('ym_td_msg',e=>{if(e.detail.to===myId)handler(e.detail.msg._from,e.detail.msg);});
-    return ()=>clearInterval(iv);
+    if(inv.toUUID!==myId) return null; // cette invite ne m'est pas destinée
+    if(Date.now()-inv.ts>3600000) return null; // expirée (1h)
+    return inv;
+  }
+
+  // Lire une invitation que j'ai REÇUE (stockée dans mon propre localStorage)
+  function _checkPendingInvite(){
+    try{
+      const v=localStorage.getItem('ym_td_pending_invite');
+      if(v){const inv=JSON.parse(v);if(Date.now()-inv.ts<3600000)return inv;}
+    }catch{}
+    return null;
+  }
+  function _storePendingInvite(inv){
+    localStorage.setItem('ym_td_pending_invite',JSON.stringify({...inv,ts:inv.ts||Date.now()}));
+  }
+  function _clearPendingInvite(){
+    localStorage.removeItem('ym_td_pending_invite');
+  }
+
+  function _sendVSInviteTo(opponentUUID, opponentName){
+    const gameId='td_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+    const sess={
+      status:'waiting', role:'host',
+      opponentUUID, opponentName, gameId,
+      myLives:30, opponentLives:30,
+      myAttackers:{}, myGoldDef:200, myGoldAtk:100,
+      opponentWaveIdx:0, fogReveal:[],
+    };
+    setVSSession(sess);
+    // Stocker dans MON profil — le receveur verra l'invite en ouvrant ma fiche
+    _writeInviteToMyProfile(opponentUUID, gameId);
+    return sess;
   }
 
   // ── PANEL PRINCIPAL ────────────────────────────────────────────────────────
@@ -229,9 +263,9 @@
           <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">2 terminaux · Invitez via fiche profil · Brouillard de guerre</div>
         </button>
 
-        ${pendingInvite?`<button id="td-accept" style="width:100%;padding:12px 16px;background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(16,185,129,.05));border:1.5px solid rgba(16,185,129,.6);border-radius:12px;cursor:pointer;font-family:monospace;animation:tdpulse 1.5s ease-in-out infinite alternate">
+        ${pendingInvite?`<button id="td-accept-btn-live" style="width:100%;padding:12px 16px;background:linear-gradient(135deg,rgba(16,185,129,.15),rgba(16,185,129,.05));border:1.5px solid rgba(16,185,129,.6);border-radius:12px;cursor:pointer;font-family:monospace;animation:tdpulse 1.5s ease-in-out infinite alternate">
           <div style="font-size:12px;font-weight:700;color:#10b981">📨 Invitation de ${pendingInvite.fromName}</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">Accepter le défi Tower Defense</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">Tap pour accepter le défi Tower Defense</div>
         </button>`:''}
         ${sess&&sess.status==='active'?`<button id="td-resume" style="width:100%;padding:10px 16px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);border-radius:10px;cursor:pointer;font-family:monospace;color:#a5b4fc;font-size:11px">⟳ Reprendre partie VS vs ${sess.opponentName||'adversaire'}</button>`:''}
       </div>
@@ -258,7 +292,7 @@
       }
     };
 
-    const acceptBtn=container.querySelector('#td-accept');
+    const acceptBtn=container.querySelector('#td-accept-btn-live');
     if(acceptBtn&&pendingInvite){
       acceptBtn.onclick=()=>{
         _acceptVSInvite(pendingInvite);
@@ -277,15 +311,15 @@
       };
     }
 
-    // Écouter les invitations entrantes pendant qu'on est sur cet écran
-    const stopListen=onGameMsg((from,msg)=>{
-      if(msg.type==='td_invite'){
-        _storePendingInvite({fromUUID:from,fromName:msg.fromName,gameId:msg.gameId});
-        renderModeSelect(container); // refresh
+    // Écouter les invitations — on poll simplement le localStorage
+    // (l'invite est stockée par _acceptVSInvite quand l'utilisateur accepte depuis peerSection)
+    const pollInterval=setInterval(()=>{
+      if(!container.isConnected){clearInterval(pollInterval);return;}
+      const inv=_checkPendingInvite();
+      if(inv&&!document.getElementById('td-accept-btn-live')){
+        renderModeSelect(container); // rafraîchir pour montrer le bouton
       }
-    });
-    // Nettoyer à la sortie (sera remplacé au prochain render)
-    container._tdStopListen=stopListen;
+    },2000);
   }
 
   // ── HELPERS VS ─────────────────────────────────────────────────────────────
@@ -1454,6 +1488,114 @@
     container.appendChild(wrap);
   }
 
+  // ── peerSection : affiché dans la fiche d'un contact ──────────────────────
+  // ctx = {uuid, isNear, isReciproc} + profile.js passe le profil complet via sphereObj.peerSection(body, ctx)
+  // MAIS profile.js ne passe que ctx={uuid,isNear,isReciproc} sans le profil complet
+  // On doit donc chercher le profil du pair dans YM_Social._nearUsers ou contacts
+  function peerSection(container, ctx){
+    container.innerHTML='';
+    const myUUID=_myUUID();
+    if(!ctx||!ctx.uuid||ctx.uuid===myUUID){
+      container.innerHTML='<div style="font-size:11px;color:rgba(255,255,255,.3)">C\'est votre propre profil.</div>';
+      return;
+    }
+
+    // Chercher le profil complet du pair pour lire td_invite
+    let peerProfile=null;
+    if(window.YM_Social&&window.YM_Social._nearUsers&&window.YM_Social._nearUsers.has(ctx.uuid)){
+      const u=window.YM_Social._nearUsers.get(ctx.uuid);
+      peerProfile=u&&(u.profile||u);
+    }
+    // Aussi chercher dans les contacts
+    if(!peerProfile){
+      try{
+        const contacts=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');
+        const c=contacts.find(x=>x.uuid===ctx.uuid);
+        if(c) peerProfile=c.profile||c;
+      }catch{}
+    }
+
+    const sess=getVSSession();
+    const isWaiting=sess&&sess.opponentUUID===ctx.uuid&&sess.status==='waiting';
+    const isActive=sess&&sess.opponentUUID===ctx.uuid&&sess.status==='active';
+
+    // Lire une invitation que CE CONTACT m'aurait envoyée (dans son profil)
+    const inviteFromPeer=peerProfile?_readInviteFromProfile(peerProfile):null;
+
+    // Lire une invitation que MOI j'ai envoyée à ce contact (dans mon propre profil)
+    const myProfile=window.YM&&window.YM.getProfile&&window.YM.getProfile();
+    const myOutgoingInvite=myProfile&&myProfile.td_invite&&myProfile.td_invite.toUUID===ctx.uuid?myProfile.td_invite:null;
+
+    const wrap=document.createElement('div');
+    wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
+
+    // ── Invitation reçue de ce contact ──────────────────────
+    if(inviteFromPeer){
+      const fromName=peerProfile.name||ctx.uuid.slice(0,8);
+      const invDiv=document.createElement('div');
+      invDiv.style.cssText='padding:10px;background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04));border:1.5px solid rgba(16,185,129,.5);border-radius:10px;animation:tdpulse2 1.5s ease-in-out infinite alternate';
+      invDiv.innerHTML=`<div style="font-size:12px;font-weight:700;color:#10b981;margin-bottom:4px">⚔️ ${fromName} vous défie !</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:8px">Invitation Tower Defense VS en attente</div>
+        <button id="td-peer-accept" style="width:100%;padding:8px;background:rgba(16,185,129,.2);border:1px solid #10b981;color:#10b981;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;font-family:monospace">✓ Accepter le défi</button>`;
+      invDiv.querySelector('#td-peer-accept').onclick=()=>{
+        _storePendingInvite({fromUUID:ctx.uuid,fromName,gameId:inviteFromPeer.gameId});
+        _acceptVSInvite({fromUUID:ctx.uuid,fromName,gameId:inviteFromPeer.gameId});
+        // Ouvrir le plugin Tower Defense
+        if(window.YM&&window.YM.openSpherePanel) window.YM.openSpherePanel('towerdefense.sphere.js');
+      };
+      wrap.appendChild(invDiv);
+      // Ajouter le style d'animation si absent
+      if(!document.getElementById('td-pulse-style2')){
+        const st=document.createElement('style');
+        st.id='td-pulse-style2';
+        st.textContent='@keyframes tdpulse2{from{box-shadow:0 0 0 0 rgba(16,185,129,.3)}to{box-shadow:0 0 0 6px rgba(16,185,129,0)}}';
+        document.head.appendChild(st);
+      }
+    }
+
+    // ── Invitation envoyée en attente ────────────────────────
+    if(isWaiting||myOutgoingInvite){
+      const waitDiv=document.createElement('div');
+      waitDiv.style.cssText='padding:9px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:9px';
+      waitDiv.innerHTML=`<div style="font-size:11px;color:#f59e0b;margin-bottom:6px">⏳ Invitation envoyée, en attente…</div>
+        <button id="td-peer-cancel" style="width:100%;padding:6px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:7px;cursor:pointer;font-size:10px;font-family:monospace">Annuler</button>`;
+      waitDiv.querySelector('#td-peer-cancel').onclick=()=>{
+        setVSSession(null);
+        _clearInviteFromMyProfile();
+        peerSection(container,ctx);
+      };
+      wrap.appendChild(waitDiv);
+    }
+
+    // ── Partie active ────────────────────────────────────────
+    if(isActive){
+      const actDiv=document.createElement('div');
+      actDiv.style.cssText='padding:9px 12px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3);border-radius:9px';
+      actDiv.innerHTML=`<div style="font-size:11px;color:#10b981;margin-bottom:6px">✓ Partie VS en cours</div>
+        <button id="td-peer-open" style="width:100%;padding:7px;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4);color:#10b981;border-radius:7px;cursor:pointer;font-size:11px;font-family:monospace">▶ Ouvrir Tower Defense</button>`;
+      actDiv.querySelector('#td-peer-open').onclick=()=>{if(window.YM&&window.YM.openSpherePanel)window.YM.openSpherePanel('towerdefense.sphere.js');};
+      wrap.appendChild(actDiv);
+    }
+
+    // ── Bouton Défier (si pas d'invite en cours) ─────────────
+    if(!inviteFromPeer&&!isWaiting&&!myOutgoingInvite&&!isActive){
+      const defBtn=document.createElement('button');
+      defBtn.style.cssText='width:100%;padding:10px;background:linear-gradient(135deg,rgba(239,68,68,.1),rgba(99,102,241,.07));border:1.5px solid rgba(239,68,68,.38);border-radius:10px;cursor:pointer;font-family:monospace;font-size:12px;font-weight:700;color:#ef4444';
+      defBtn.textContent='⚔️ Défier en Tower Defense VS';
+      defBtn.onclick=()=>{
+        _sendVSInviteTo(ctx.uuid, peerProfile&&peerProfile.name||ctx.uuid.slice(0,8));
+        peerSection(container,ctx); // refresh pour montrer "en attente"
+      };
+      wrap.appendChild(defBtn);
+      const hint=document.createElement('div');
+      hint.style.cssText='font-size:10px;color:rgba(255,255,255,.25);text-align:center;line-height:1.5';
+      hint.textContent='L\'invitation sera visible quand l\'adversaire ouvrira votre fiche profil';
+      wrap.appendChild(hint);
+    }
+
+    container.appendChild(wrap);
+  }
+
   // ── EXPORT ─────────────────────────────────────────────────────────────────
   window.YM_S['towerdefense.sphere.js']={
     name:'Tower Defense', icon:'🗼', category:'Games',
@@ -1461,16 +1603,6 @@
     emit:[], receive:[],
     activate(ctx){
       _ctx=ctx;
-      // Écouter les invitations en arrière-plan même si le plugin n'est pas au premier plan
-      onGameMsg((from,msg)=>{
-        if(msg.type==='td_invite'){
-          _storePendingInvite({fromUUID:from,fromName:msg.fromName,gameId:msg.gameId});
-          // Badge sur l'icône du plugin si YM le supporte
-          if(window.YM&&window.YM.setBadge) window.YM.setBadge('towerdefense.sphere.js','⚔️');
-          // Notification
-          if(window.YM&&window.YM.notify) window.YM.notify({title:'Défi Tower Defense',body:`${msg.fromName} vous défie !`,icon:'⚔️'});
-        }
-      });
     },
     deactivate(){_destroyGame();},
     renderPanel,
