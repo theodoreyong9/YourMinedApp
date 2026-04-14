@@ -41,59 +41,36 @@
   }
 
   /* ─── HMAC STRIGA ─────────────────────────────────────── */
-  // Formule validée : key=UTF8(secret), msg=ts+METHOD+endpoint+md5hex(JSON.stringify(body))
-  function md5hex(str) {
-    const input = new TextEncoder().encode(str);
-    function safeAdd(a, b) { return (a + b) | 0; }
-    function rotL(x, n)    { return (x << n) | (x >>> (32 - n)); }
-    function F(x, y, z)    { return (x & y) | (~x & z); }
-    function G(x, y, z)    { return (x & z) | (y & ~z); }
-    function H(x, y, z)    { return x ^ y ^ z; }
-    function I(x, y, z)    { return y ^ (x | ~z); }
-    function round(fn, a, b, c, d, x, t, s) {
-      return safeAdd(rotL(safeAdd(safeAdd(a, fn(b, c, d)), safeAdd(x, t)), s), b);
-    }
-    const len = input.length, extra = 64 - ((len + 9) % 64 || 64);
-    const padded = new Uint8Array(len + 1 + extra + 8);
-    padded.set(input); padded[len] = 0x80;
-    const dv = new DataView(padded.buffer);
-    dv.setUint32(padded.length - 8, len * 8, true);
-    let a0 = 0x67452301, b0 = 0xEFCDAB89, c0 = 0x98BADCFE, d0 = 0x10325476;
-    const T = [0,0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391];
-    const M = new Int32Array(padded.buffer);
-    const S1 = [7,12,17,22], S2 = [5,9,14,20], S3 = [4,11,16,23], S4 = [6,10,15,21];
-    for (let i = 0; i < M.length; i += 16) {
-      let a = a0, b = b0, c = c0, d = d0;
-      for (let j = 0; j < 64; j++) {
-        let fn, g;
-        if      (j < 16) { fn = F; g = j; }
-        else if (j < 32) { fn = G; g = (5 * j + 1) % 16; }
-        else if (j < 48) { fn = H; g = (3 * j + 5) % 16; }
-        else             { fn = I; g = (7 * j) % 16; }
-        const si = j < 16 ? S1[j%4] : j < 32 ? S2[j%4] : j < 48 ? S3[j%4] : S4[j%4];
-        const temp = d; d = c; c = b;
-        b = round(fn, a, b, c, d, M[i + g], T[j + 1], si);
-        a = temp;
-      }
-      a0 = safeAdd(a0, a); b0 = safeAdd(b0, b); c0 = safeAdd(c0, c); d0 = safeAdd(d0, d);
-    }
-    const result = new Uint8Array(16), rv = new DataView(result.buffer);
-    rv.setInt32(0, a0, true); rv.setInt32(4, b0, true);
-    rv.setInt32(8, c0, true); rv.setInt32(12, d0, true);
-    return Array.from(result).map(b => b.toString(16).padStart(2, '0')).join('');
+  // MD5 via blueimp-md5 (chargé dynamiquement une seule fois)
+  // Formule : key=UTF8(secret), msg=ts+METHOD+endpoint+md5(JSON.stringify(body))
+  let _md5Ready = null;
+  function ensureMd5() {
+    if (_md5Ready) return _md5Ready;
+    _md5Ready = new Promise(function(resolve) {
+      if (window.md5) return resolve();
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js';
+      s.onload = resolve;
+      s.onerror = resolve; // fallback silencieux
+      document.head.appendChild(s);
+    });
+    return _md5Ready;
   }
 
   async function strigaHmac(method, endpoint, bodyObj) {
+    await ensureMd5();
     const ts       = Date.now().toString();
     const bodyStr  = JSON.stringify(bodyObj);
-    const bodyHash = md5hex(bodyStr);
+    const bodyHash = window.md5 ? window.md5(bodyStr) : '';
     const message  = ts + method + endpoint + bodyHash;
     const keyBytes = new TextEncoder().encode(STRIGA_SEC);
     const key      = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
     const sig      = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
-    const sigHex   = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const sigHex   = Array.from(new Uint8Array(sig)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
     return 'HMAC ' + ts + ':' + sigHex;
   }
+
+
 
   /* ─── API STRIGA (appel direct navigateur) ────────────── */
   async function striga(method, endpoint, body = {}) {
@@ -838,7 +815,7 @@
   }
 
   /* ─── REGISTRATION ────────────────────────────────────── */
-  window.YM_S['jackpot.sphere.js'] = {
+  window.YM_S['striga.sphere.js'] = {
     name:        'Jackpot',
     icon:        '🎰',
     category:    'Finance',
