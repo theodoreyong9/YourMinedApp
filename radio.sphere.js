@@ -64,6 +64,32 @@ function loadPos(){try{return JSON.parse(localStorage.getItem(POS_KEY)||'{"right
 function savePos(p){localStorage.setItem(POS_KEY,JSON.stringify(p));}
 function allStations(){return [...BUILTIN,...loadCustom()];}
 
+// ── Calcul des limites de zone sûre pour le widget ─────────────────────────
+const _isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+
+function _getNavBounds(){
+  const navBar=document.getElementById('nav-bar');
+  if(!navBar)return{maxRight:window.innerWidth,maxBottom:window.innerHeight,navW:0,navH:0};
+  const r=navBar.getBoundingClientRect();
+  if(_isPC()){
+    // Desktop : nav barre verticale à droite
+    return{maxRight:r.left,maxBottom:window.innerHeight,navW:r.width,navH:0};
+  }else{
+    // Mobile : nav barre horizontale en bas
+    return{maxRight:window.innerWidth,maxBottom:r.top,navW:0,navH:r.height};
+  }
+}
+
+// Clamp wx,wy pour que le widget reste entièrement dans la zone bureau
+function _clampPos(wx,wy){
+  const bounds=_getNavBounds();
+  const ww=_widget?_widget.offsetWidth:200;
+  const wh=_widget?_widget.offsetHeight:90;
+  const cx=Math.max(0,Math.min(bounds.maxRight-ww,wx));
+  const cy=Math.max(0,Math.min(bounds.maxBottom-wh,wy));
+  return{x:cx,y:cy};
+}
+
 // ── AUDIO ──────────────────────────────────────────────────────────────────
 function getAudio(){
   if(!_audio){
@@ -101,7 +127,6 @@ function _updateMediaSession(){
 let _panelRefresh=null;
 function _refreshPanel(){if(_panelRefresh)_panelRefresh();}
 
-// Enregistre la page du widget dans desk.js pour que autoCleanPages ne la supprime pas
 function _registerPage(page){
   if(window.YM_Desk&&window.YM_Desk.registerWidgetPage)window.YM_Desk.registerWidgetPage(WIDGET_ID,page);
 }
@@ -124,7 +149,19 @@ function createWidget(){
   _refreshWidget();
   document.body.appendChild(_widget);
 
-  // Enregistre la page initiale
+  // Valide la position sauvegardée au prochain frame (widget a sa taille réelle)
+  requestAnimationFrame(()=>{
+    if(!_widget)return;
+    const rect=_widget.getBoundingClientRect();
+    const clamped=_clampPos(rect.left,rect.top);
+    if(clamped.x!==rect.left||clamped.y!==rect.top){
+      _widget.style.left=clamped.x+'px';
+      _widget.style.top=clamped.y+'px';
+      _widget.style.right='';
+      _widget.style.bottom='';
+    }
+  });
+
   _registerPage(pos.page||0);
   _syncWidgetPage();
 
@@ -134,20 +171,25 @@ function createWidget(){
 
   const onMove=(cx,cy)=>{
     if(!dragging)return;
-    wx=Math.max(0,Math.min(window.innerWidth-_widget.offsetWidth,wx+(cx-ox)));
-    wy=Math.max(0,Math.min(window.innerHeight-_widget.offsetHeight,wy+(cy-oy)));
+    // Calcule nouvelle position brute
+    const rawX=wx+(cx-ox);
+    const rawY=wy+(cy-oy);
     ox=cx;oy=cy;
+    // Clamp dans la zone bureau (respecte la nav bar)
+    const clamped=_clampPos(rawX,rawY);
+    wx=clamped.x;wy=clamped.y;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
-    _widget.style.display='block';
-    const vw=window.innerWidth,ew=vw*0.15;
+
+    // Navigation de page sur les bords latéraux
+    const vw=_isPC()?window.innerWidth-72:window.innerWidth;
+    const ew=vw*0.15;
     const curPage=window._deskCurPage||0;
     if(cx<ew&&curPage>0){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
         const tp=curPage-1;
         if(window.YM_Desk)window.YM_Desk.goPage(tp);
-        // Met à jour l'enregistrement de page
         _registerPage(tp);
         const p=loadPos();savePos(Object.assign({},p,{page:tp}));
       },500);
@@ -165,15 +207,15 @@ function createWidget(){
   const onEnd=()=>{
     if(!dragging)return;dragging=false;_widget._dragging=false;
     clearTimeout(_edgeT);_edgeT=null;
-    const r=Math.max(0,window.innerWidth-wx-_widget.offsetWidth);
-    const b=Math.max(0,window.innerHeight-wy-_widget.offsetHeight);
+    // Recalcule right/bottom depuis la position clamped finale
+    const bounds=_getNavBounds();
+    const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
+    const r=Math.max(0,window.innerWidth-wx-ww);
+    const b=Math.max(0,window.innerHeight-wy-wh);
     const curPage=window._deskCurPage||0;
-    // FIX: enregistre la page finale avant autoCleanPages
     _registerPage(curPage);
     savePos({right:r,bottom:b,page:curPage});
     _syncWidgetPage();
-    // FIX: autoCleanPages APRES avoir enregistré la page du widget
-    // (desk.js saura ne pas supprimer la page du widget)
     setTimeout(()=>{if(window.YM_Desk)window.YM_Desk.autoCleanPages();},100);
   };
 
@@ -192,10 +234,7 @@ function createWidget(){
   _widget.addEventListener('pointercancel',onEnd,{passive:true});
 }
 
-const _onPageChange=()=>{
-  // Seulement sync visibilité — PAS autoCleanPages (widget est enregistré)
-  _syncWidgetPage();
-};
+const _onPageChange=()=>{_syncWidgetPage();};
 
 function _refreshWidget(){
   if(!_widget)return;
