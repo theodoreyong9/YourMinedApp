@@ -718,23 +718,23 @@
         createBtn.disabled = true; createBtn.innerHTML = ''; createBtn.appendChild(mkSpin()); createBtn.append(' Création en cours…');
         const dob = v('jk-dob').split('-');
         const payload = {
-  firstName: v('jk-fn'),
-  lastName:  v('jk-ln'),
-  dateOfBirth: {
-    year:  parseInt(dob[0]) || 1990,
-    month: parseInt(dob[1]) || 1,
-    day:   parseInt(dob[2]) || 1,
-  },
-  email:    v('jk-email'),
-  mobile:   { phoneNumber: v('jk-tel').replace(/[\s\-\(\)]/g, '').replace(/^\+/, '') },
-  nationality: v('jk-nat').toUpperCase().slice(0, 2),
-  address: {
-    addressLine1: v('jk-addr'),
-    city:         v('jk-city'),
-    postalCode:   v('jk-postal'),
-    country:      v('jk-country').toUpperCase().slice(0, 2),
-  },
-};
+          firstName:   v('jk-fn').trim(),
+          lastName:    v('jk-ln').trim(),
+          dateOfBirth: {
+            year:  parseInt(dob[0], 10) || 1990,
+            month: parseInt(dob[1], 10) || 1,
+            day:   parseInt(dob[2], 10) || 1,
+          },
+          email:       v('jk-email').trim().toLowerCase(),
+          mobile:      { phoneNumber: v('jk-tel').replace(/[\s\-\(\)]/g, '').replace(/^\+/, '') },
+          nationality: v('jk-nat').toUpperCase().slice(0, 2),
+          address: {
+            addressLine1: v('jk-addr').trim(),
+            city:         v('jk-city').trim(),
+            postalCode:   v('jk-postal').trim(),
+            country:      v('jk-country').toUpperCase().slice(0, 2),
+          },
+        };
         try {
           const r = await striga('POST', '/user/create', payload);
           saveUser(Object.assign({}, r, { kycStatus: 'NOT_STARTED' }));
@@ -825,7 +825,7 @@
   }
 
   /* ─── REGISTRATION ────────────────────────────────────── */
-  window.YM_S['jackpot.sphere.js'] = {
+  window.YM_S['striga.sphere.js'] = {
     name:        'Jackpot',
     icon:        '🎰',
     category:    'Finance',
