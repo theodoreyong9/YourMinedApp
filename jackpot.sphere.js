@@ -825,7 +825,7 @@
   }
 
   /* ─── REGISTRATION ────────────────────────────────────── */
-  window.YM_S['jackpot.sphere.js'] = {
+  window.YM_S['striga.sphere.js'] = {
     name:        'Jackpot',
     icon:        '🎰',
     category:    'Finance',
