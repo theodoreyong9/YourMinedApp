@@ -727,16 +727,18 @@
           },
           email:       v('jk-email').trim().toLowerCase(),
           mobile: (function() {
-            var tel = v('jk-tel').replace(/[\s\-\(\)]/g, '').replace(/^\+/, '');
-            // Séparer l'indicatif pays du numéro local
-            // Ex: 33612345678 → countryCode=33, number=612345678
-            // Ex: 1234567890 → countryCode=1, number=234567890
-            var cc = '33', num = tel;
-            if (tel.startsWith('33') && tel.length >= 11) { cc = '33'; num = tel.slice(2); }
-            else if (tel.startsWith('44') && tel.length >= 11) { cc = '44'; num = tel.slice(2); }
-            else if (tel.startsWith('1')  && tel.length === 11) { cc = '1';  num = tel.slice(1); }
-            else if (tel.startsWith('49') && tel.length >= 11) { cc = '49'; num = tel.slice(2); }
-            else if (tel.startsWith('41') && tel.length >= 11) { cc = '41'; num = tel.slice(2); }
+            var tel = v('jk-tel').replace(/[\s\-\(\)]/g, '');
+            // Striga attend countryCode avec le + et number sans indicatif
+            // Ex: +33612345678 → countryCode='+33', number='612345678'
+            var cc = '+33', num = tel.replace(/^\+/, '');
+            if (tel.startsWith('+')) {
+              var match = tel.match(/^(\+\d{1,3})(\d+)$/);
+              if (match) { cc = match[1]; num = match[2]; }
+            } else if (tel.startsWith('33') && tel.length >= 11) { cc = '+33'; num = tel.slice(2); }
+            else if (tel.startsWith('44') && tel.length >= 11)   { cc = '+44'; num = tel.slice(2); }
+            else if (tel.startsWith('1')  && tel.length === 11)  { cc = '+1';  num = tel.slice(1); }
+            else if (tel.startsWith('49') && tel.length >= 11)   { cc = '+49'; num = tel.slice(2); }
+            else if (tel.startsWith('41') && tel.length >= 11)   { cc = '+41'; num = tel.slice(2); }
             return { countryCode: cc, number: num };
           })(),
           nationality: v('jk-nat').toUpperCase().slice(0, 2),
@@ -837,7 +839,7 @@
   }
 
   /* ─── REGISTRATION ────────────────────────────────────── */
-  window.YM_S['jackpot.sphere.js'] = {
+  window.YM_S['striga.sphere.js'] = {
     name:        'Jackpot',
     icon:        '🎰',
     category:    'Finance',
