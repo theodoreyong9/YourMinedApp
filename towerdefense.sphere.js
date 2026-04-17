@@ -128,9 +128,10 @@
   function setVSSession(s){if(s)localStorage.setItem(VS_SESSION_KEY,JSON.stringify(s));else localStorage.removeItem(VS_SESSION_KEY);}
 
   // ── INVITATION VS ──────────────────────────────────────────────────────────
-  // Mécanisme : l'invitant stocke l'invitation dans SON PROPRE PROFIL (YM.saveProfile)
-  // Le receveur lit le profil de l'invitant dans peerSection → voit l'invitation
-  // Pas de réseau custom nécessaire : YM.getProfile/saveProfile suffit
+  // Mécanisme correct YourMine :
+  // L'invitant expose td_invite via broadcastData() → inclus dans social:presence heartbeat
+  // Le receveur le lit depuis _nearUsers.get(uuid).profile.td_invite (mis à jour en temps réel)
+  // Pas d'API réseau custom — utilise l'infra existante de social.sphere.js
 
   function _myUUID(){
     const p=window.YM&&window.YM.getProfile&&window.YM.getProfile();
@@ -141,47 +142,34 @@
     return (p&&p.name)||'Joueur';
   }
 
-  // Écrire l'invitation dans MON profil (champ td_invite)
-  function _writeInviteToMyProfile(toUUID, gameId){
-    if(!window.YM||!window.YM.getProfile||!window.YM.saveProfile) return;
-    const p=window.YM.getProfile();
-    p.td_invite={toUUID, gameId, fromName:_myName(), ts:Date.now()};
-    window.YM.saveProfile(p);
+  // L'invite en cours à broadcaster (lu par broadcastData())
+  let _currentInviteBroadcast=null;
+
+  // broadcastData() est appelé par social.sphere.js dans buildProfilePacket()
+  // → le champ td_invite arrive dans le profil broadcasté à tous les peers
+  function broadcastData(){
+    if(_currentInviteBroadcast) return {td_invite:_currentInviteBroadcast};
+    return {};
   }
 
-  // Effacer l'invitation de mon profil
-  function _clearInviteFromMyProfile(){
-    if(!window.YM||!window.YM.getProfile||!window.YM.saveProfile) return;
-    const p=window.YM.getProfile();
-    delete p.td_invite;
-    window.YM.saveProfile(p);
-  }
-
-  // Lire une invitation destinée à moi dans le profil d'un contact
-  // (appelé depuis peerSection avec le profil du contact visité)
+  // Lire une invitation destinée à moi dans le profil d'un near user
+  // peerProfile = _nearUsers.get(uuid).profile (mis à jour à chaque heartbeat)
   function _readInviteFromProfile(peerProfile){
     const inv=peerProfile&&peerProfile.td_invite;
     if(!inv) return null;
     const myId=_myUUID();
-    if(inv.toUUID!==myId) return null; // cette invite ne m'est pas destinée
-    if(Date.now()-inv.ts>3600000) return null; // expirée (1h)
+    if(myId&&inv.toUUID!==myId) return null; // pas pour moi
+    if(Date.now()-inv.ts>3600000) return null; // expirée 1h
     return inv;
   }
 
-  // Lire une invitation que j'ai REÇUE (stockée dans mon propre localStorage)
+  // Invitation acceptée → stockée localement pour renderModeSelect
   function _checkPendingInvite(){
-    try{
-      const v=localStorage.getItem('ym_td_pending_invite');
-      if(v){const inv=JSON.parse(v);if(Date.now()-inv.ts<3600000)return inv;}
-    }catch{}
+    try{const v=localStorage.getItem('ym_td_pending_invite');if(v){const inv=JSON.parse(v);if(Date.now()-inv.ts<3600000)return inv;}}catch{}
     return null;
   }
-  function _storePendingInvite(inv){
-    localStorage.setItem('ym_td_pending_invite',JSON.stringify({...inv,ts:inv.ts||Date.now()}));
-  }
-  function _clearPendingInvite(){
-    localStorage.removeItem('ym_td_pending_invite');
-  }
+  function _storePendingInvite(inv){localStorage.setItem('ym_td_pending_invite',JSON.stringify({...inv,ts:inv.ts||Date.now()}));}
+  function _clearPendingInvite(){localStorage.removeItem('ym_td_pending_invite');}
 
   function _sendVSInviteTo(opponentUUID, opponentName){
     const gameId='td_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
@@ -193,8 +181,25 @@
       opponentWaveIdx:0, fogReveal:[],
     };
     setVSSession(sess);
-    _writeInviteToMyProfile(opponentUUID, gameId);
+    // Mettre l'invite dans _currentInviteBroadcast → sera incluse dans le prochain heartbeat social
+    _currentInviteBroadcast={toUUID:opponentUUID, gameId, fromName:_myName(), ts:Date.now()};
     return sess;
+  }
+
+  function _clearInviteFromMyProfile(){
+    _currentInviteBroadcast=null;
+  }
+
+  function _acceptVSInvite(invite){
+    _clearPendingInvite();
+    const sess={
+      status:'active', role:'guest',
+      opponentUUID:invite.fromUUID, opponentName:invite.fromName, gameId:invite.gameId,
+      myLives:30, opponentLives:30,
+      myAttackers:{}, myGoldDef:200, myGoldAtk:100,
+      opponentWaveIdx:0, fogReveal:[],
+    };
+    setVSSession(sess);
   }
 
   // ── PANEL PRINCIPAL ────────────────────────────────────────────────────────
@@ -302,16 +307,22 @@
     // Construire la liste des pairs disponibles
     function getPeers(){
       const peers=[]; const seen=new Set();
+      // Near users — profil mis à jour en temps réel par social:presence heartbeat
       if(window.YM_Social&&window.YM_Social._nearUsers){
         window.YM_Social._nearUsers.forEach((u,uuid)=>{
           if(uuid===_myUUID()||seen.has(uuid))return; seen.add(uuid);
-          peers.push({uuid,name:(u.profile&&u.profile.name)||uuid.slice(0,8),near:true,profile:u.profile||u});
+          const profile=u.profile||u;
+          peers.push({uuid,name:profile.name||uuid.slice(0,8),near:true,profile});
         });
       }
+      // Contacts (snapshot localStorage — pas temps réel, mais utile si pas nearby)
       try{
         JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]').forEach(c=>{
           if(!c.uuid||seen.has(c.uuid)||c.uuid===_myUUID())return; seen.add(c.uuid);
-          peers.push({uuid:c.uuid,name:c.nickname||(c.profile&&c.profile.name)||c.uuid.slice(0,8),near:false,profile:c.profile||c});
+          // Préférer le profil live si disponible
+          const liveProfile=window.YM_Social?._nearUsers?.get(c.uuid)?.profile;
+          const profile=liveProfile||c.profile||c;
+          peers.push({uuid:c.uuid,name:c.nickname||profile.name||c.uuid.slice(0,8),near:false,profile});
         });
       }catch{}
       return peers;
@@ -1560,13 +1571,13 @@
       return;
     }
 
-    // Chercher le profil complet du pair pour lire td_invite
+    // Chercher le profil live du pair — _nearUsers est mis à jour en temps réel par social:presence
     let peerProfile=null;
     if(window.YM_Social&&window.YM_Social._nearUsers&&window.YM_Social._nearUsers.has(ctx.uuid)){
       const u=window.YM_Social._nearUsers.get(ctx.uuid);
       peerProfile=u&&(u.profile||u);
     }
-    // Aussi chercher dans les contacts
+    // Fallback : contacts (profil snapshot, pas temps réel)
     if(!peerProfile){
       try{
         const contacts=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');
@@ -1659,12 +1670,14 @@
   // ── EXPORT ─────────────────────────────────────────────────────────────────
   window.YM_S['towerdefense.sphere.js']={
     name:'Tower Defense', icon:'🗼', category:'Games',
-    description:'Tower Defense v8 — Solo (20 vagues) + VS multijoueur (2 terminaux, invitation profil, brouillard de guerre)',
+    description:'Tower Defense v8 — Solo (20 vagues) + VS multijoueur (2 terminaux, invitation réseau, brouillard de guerre)',
     emit:[], receive:[],
-    activate(ctx){
-      _ctx=ctx;
-    },
-    deactivate(){_destroyGame();},
+    // ← Clé : appelé par social.sphere.js dans buildProfilePacket()
+    // → td_invite est inclus dans le heartbeat de présence (social:presence)
+    // → _nearUsers.get(uuid).profile.td_invite est mis à jour en temps réel côté receveur
+    broadcastData,
+    activate(ctx){_ctx=ctx;},
+    deactivate(){_destroyGame();_currentInviteBroadcast=null;},
     renderPanel,
     peerSection,
     profileSection(container){
