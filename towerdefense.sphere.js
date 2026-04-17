@@ -12,6 +12,13 @@
   function saveScore(s) { const a=loadScores(); a.unshift(s); localStorage.setItem(SCORES_KEY,JSON.stringify(a.slice(0,20))); }
 
   let _ctx=null, _game=null;
+  let _stopMenuPoll=null; // arrête le poll du menu quand un jeu est lancé
+
+  function _launchGame(container, launchFn){
+    // Stopper le poll du menu avant de lancer le jeu
+    if(_stopMenuPoll){_stopMenuPoll();_stopMenuPoll=null;}
+    launchFn();
+  }
 
   // ── TOURS ──────────────────────────────────────────────────────────────────
   const TOWER_DEFS = {
@@ -242,12 +249,12 @@
 
   // ── ÉCRAN DE SÉLECTION DE MODE ─────────────────────────────────────────────
   function renderModeSelect(container){
-    _destroyGame();
-    container.innerHTML='';
-    container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e;display:flex;flex-direction:column';
-
+    // Ne jamais détruire un jeu en cours ici — seulement nettoyer si on revient vraiment au menu
     const sess=getVSSession();
     const pendingInvite=_checkPendingInvite();
+
+    container.innerHTML='';
+    container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e;display:flex;flex-direction:column';
 
     const scroll=document.createElement('div');
     scroll.style.cssText='flex:1;overflow-y:auto;padding:14px 12px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px';
@@ -275,8 +282,10 @@
         <div style="font-size:10px;color:rgba(255,255,255,.5)">Tap pour accepter · Tower Defense VS</div>`;
       inv.onclick=()=>{
         _acceptVSInvite(pendingInvite); _clearPendingInvite();
-        container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
-        container.innerHTML=''; _startVSGame(container,getVSSession());
+        _launchGame(container,()=>{
+          container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
+          container.innerHTML=''; _startVSGame(container,getVSSession());
+        });
       };
       scroll.appendChild(inv);
     }
@@ -286,7 +295,7 @@
       const res=document.createElement('button');
       res.style.cssText='width:100%;padding:10px 14px;background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.4);border-radius:10px;cursor:pointer;font-family:monospace;text-align:left';
       res.innerHTML=`<div style="font-size:12px;font-weight:700;color:#a5b4fc">⟳ Reprendre VS vs ${sess.opponentName||'adversaire'}</div>`;
-      res.onclick=()=>{container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';container.innerHTML='';_startVSGame(container,sess);};
+      res.onclick=()=>_launchGame(container,()=>{container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';container.innerHTML='';_startVSGame(container,sess);});
       scroll.appendChild(res);
     }
 
@@ -295,7 +304,7 @@
     soloBtn.style.cssText='width:100%;padding:13px 14px;background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04));border:1.5px solid rgba(245,158,11,.45);border-radius:12px;cursor:pointer;font-family:monospace;text-align:left';
     soloBtn.innerHTML=`<div style="font-size:14px;font-weight:700;color:#f59e0b;margin-bottom:2px">🗡️ Mode Solo</div>
       <div style="font-size:10px;color:rgba(255,255,255,.4)">20 vagues · Boutique inter-vagues · Améliorations globales</div>`;
-    soloBtn.onclick=()=>{container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';container.innerHTML='';_loadPhaser(()=>renderSoloGame(container));};
+    soloBtn.onclick=()=>_launchGame(container,()=>{container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';container.innerHTML='';_loadPhaser(()=>renderSoloGame(container));});
     scroll.appendChild(soloBtn);
 
     // ── VS : liste contacts/near invitables ──────────────────
@@ -362,8 +371,10 @@
           b.onclick=()=>{
             _storePendingInvite({fromUUID:peer.uuid,fromName:peer.name,gameId:invFromPeer.gameId});
             _acceptVSInvite({fromUUID:peer.uuid,fromName:peer.name,gameId:invFromPeer.gameId});
-            container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
-            container.innerHTML=''; _startVSGame(container,getVSSession());
+            _launchGame(container,()=>{
+              container.style.cssText='flex:1;overflow:hidden;position:relative;background:#07080e';
+              container.innerHTML=''; _startVSGame(container,getVSSession());
+            });
           };
           act.appendChild(b);
         } else if(isSent){
@@ -385,11 +396,23 @@
       });
     }
 
-    // Poll toutes les 3s pour rafraîchir si une invite arrive
+    // Poll léger — vérifie seulement si une nouvelle invite est arrivée
+    // S'arrête dès que le container n'est plus le menu (jeu lancé)
+    let _pollStopped=false;
     const iv=setInterval(()=>{
-      if(!container.isConnected){clearInterval(iv);return;}
-      renderModeSelect(container);
+      if(_pollStopped||!container.isConnected){clearInterval(iv);return;}
+      if(!container.contains(scroll)){clearInterval(iv);return;}
+      const peers=getPeers();
+      const hasNewInvite=peers.some(p=>_readInviteFromProfile(p.profile));
+      const hasPending=!!_checkPendingInvite();
+      if(hasNewInvite||hasPending){
+        _pollStopped=true;
+        clearInterval(iv);
+        renderModeSelect(container);
+      }
     },4000);
+    // Enregistrer l'arrêt du poll — appelé quand un jeu est lancé
+    _stopMenuPoll=()=>{_pollStopped=true;clearInterval(iv);};
   }
 
 
