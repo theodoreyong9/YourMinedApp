@@ -393,86 +393,6 @@
   }
 
 
-  // ── HELPERS VS ─────────────────────────────────────────────────────────────
-  function _checkPendingInvite(){
-    const myId=_myUUID();
-    // Clé spécifique à cet utilisateur (pour test same-device)
-    try{
-      const v=localStorage.getItem('ym_td_pending_invite_'+myId);
-      if(v) return JSON.parse(v);
-    }catch{}
-    // Fallback : clé générique (envoyée par onGameMsg)
-    try{return JSON.parse(localStorage.getItem('ym_td_pending_invite')||'null');}catch{return null;}
-  }
-  function _storePendingInvite(inv){
-    localStorage.setItem('ym_td_pending_invite',JSON.stringify(inv));
-  }
-  function _clearPendingInvite(){
-    const myId=_myUUID();
-    localStorage.removeItem('ym_td_pending_invite_'+myId);
-    localStorage.removeItem('ym_td_pending_invite');
-  }
-
-  function _acceptVSInvite(invite){
-    _clearPendingInvite();
-    const sess={
-      status:'active',
-      role:'guest',
-      opponentUUID:invite.fromUUID,
-      opponentName:invite.fromName,
-      gameId:invite.gameId,
-      myLives:30,
-      opponentLives:30,
-      myAttackers:{},
-      myGoldDef:200,
-      myGoldAtk:100,
-      opponentWaveIdx:0,
-      fogReveal:[],  // zones révélées du terrain adverse
-    };
-    setVSSession(sess);
-    // Confirmer à l'hôte
-    sendGameMsg(invite.fromUUID,{type:'td_accept',gameId:invite.gameId,fromName:_myName()});
-  }
-
-  function _myName(){return (window.YM&&window.YM.getProfile&&window.YM.getProfile().name)||'Joueur';}
-
-  function _sendVSInviteTo(opponentUUID, opponentName){
-    const gameId='td_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
-    const sess={
-      status:'waiting', role:'host',
-      opponentUUID, opponentName, gameId,
-      myLives:30, opponentLives:30,
-      myAttackers:{}, myGoldDef:200, myGoldAtk:100,
-      opponentWaveIdx:0, fogReveal:[],
-    };
-    setVSSession(sess);
-    // Écrire l'invite dans le localStorage avec la clé de l'adversaire
-    // → il la verra dès qu'il ouvre le plugin Tower Defense
-    localStorage.setItem('ym_td_pending_invite_'+opponentUUID, JSON.stringify({
-      fromUUID:_myUUID(), fromName:_myName(), gameId, ts:Date.now()
-    }));
-    // Canal réseau en bonus (si disponible)
-    sendGameMsg(opponentUUID,{type:'td_invite', gameId, fromName:_myName()});
-    return sess;
-  }
-
-  function _checkPendingInvite(){
-    const myId=_myUUID();
-    try{
-      const v=localStorage.getItem('ym_td_pending_invite_'+myId);
-      if(v){const inv=JSON.parse(v); if(Date.now()-inv.ts<3600000) return inv;} // expire 1h
-    }catch{}
-    return null;
-  }
-
-  function _storePendingInvite(inv){
-    localStorage.setItem('ym_td_pending_invite_'+_myUUID(), JSON.stringify({...inv, ts:Date.now()}));
-  }
-
-  function _clearPendingInvite(){
-    localStorage.removeItem('ym_td_pending_invite_'+_myUUID());
-  }
-
   function _destroyGame(){
     if(_game){try{_game.destroy(true);}catch(e){} _game=null;}
   }
@@ -1111,48 +1031,43 @@
     const effD=(cfg)=>cfg.dmg;
     const effRate=(cfg)=>cfg.rate;
 
-    // ── Communication VS ──────────────────────────────────────────────────
-    const stopListen=onGameMsg((from,msg)=>{
-      if(from!==sess.opponentUUID)return;
-      if(msg.type==='td_vs_spawn_attackers'){
-        // L'adversaire envoie des attaquants sur mon chemin
-        msg.attackers.forEach(a=>{
-          const def=ATTACKER_DEFS[a.type];
-          if(!def)return;
-          spawnOnMyPath(scene,{...def,typeid:a.type,hp:Math.round(def.hp*(1+waveIdx*.15)),spd:Math.min(def.spd+waveIdx*1.5,150),reward:Math.round(def.reward*(1+waveIdx*.1))});
-        });
-      }
-      if(msg.type==='td_vs_lives'){opponentLives=msg.lives;updateHUD();}
-      if(msg.type==='td_vs_fog'){msg.segs.forEach(s=>fogReveal.add(s));}
-      if(msg.type==='td_vs_gameover'){
-        // L'adversaire a perdu
-        if(!gameOver){gameOver=true;showVSResult(true,'Votre adversaire a été éliminé !');}
-      }
-    });
+    // ── Communication VS via ctx.send/ctx.onReceive (API YourMine réelle) ────
+    function vsSend(type, payload){
+      if(_ctx&&_ctx.send) _ctx.send('td:vs:'+type, {...payload, _gameId:sess.gameId});
+    }
 
-    // Envoyer mes attaquants achetés à l'adversaire
+    let _vsReceiveCleanup=null;
+    if(_ctx&&_ctx.onReceive){
+      _ctx.onReceive((type,data)=>{
+        if(!type.startsWith('td:vs:')) return;
+        if(data._gameId&&data._gameId!==sess.gameId) return;
+        const msgType=type.replace('td:vs:','');
+        if(msgType==='spawn_attackers'){
+          (data.attackers||[]).forEach(a=>{
+            const def=ATTACKER_DEFS[a.type]; if(!def)return;
+            spawnOnMyPath(scene,{...def,typeid:a.type,hp:Math.round(def.hp*(1+waveIdx*.15)),spd:Math.min(def.spd+waveIdx*1.5,150),reward:Math.round(def.reward*(1+waveIdx*.1))});
+          });
+        }
+        if(msgType==='lives'){opponentLives=data.lives;updateHUD();}
+        if(msgType==='fog'){(data.segs||[]).forEach(s=>fogReveal.add(s));}
+        if(msgType==='gameover'){if(!gameOver){gameOver=true;showVSResult(true,'Votre adversaire a été éliminé !');}}
+      });
+    }
+
+    // Envoyer mes attaquants à l'adversaire
     function sendMyAttackers(){
       const list=[];
-      Object.entries(myAttackers).forEach(([type,count])=>{
-        for(let i=0;i<count;i++) list.push({type});
-      });
-      if(list.length===0)return;
-      sendGameMsg(sess.opponentUUID,{type:'td_vs_spawn_attackers',attackers:list});
-      // Simuler localement pour le brouillard
-      list.forEach(a=>{
-        const def=ATTACKER_DEFS[a.type];
-        if(def) myAttackersInFlight.push({distTraveled:0,spd:def.spd||55,dead:false,typeid:a.type});
-      });
+      Object.entries(myAttackers).forEach(([type,count])=>{for(let i=0;i<count;i++)list.push({type});});
+      if(!list.length)return;
+      vsSend('spawn_attackers',{attackers:list});
+      list.forEach(a=>{const def=ATTACKER_DEFS[a.type];if(def)myAttackersInFlight.push({distTraveled:0,spd:def.spd||55,dead:false,typeid:a.type});});
     }
 
-    function updateOpponentLives(lives){
-      sendGameMsg(sess.opponentUUID,{type:'td_vs_lives',lives});
-    }
-
+    function updateOpponentLives(lives){ vsSend('lives',{lives}); }
     function updateFog(newSegs){
       const toSend=[];
       newSegs.forEach(s=>{if(!fogReveal.has(s)){fogReveal.add(s);toSend.push(s);}});
-      if(toSend.length) sendGameMsg(sess.opponentUUID,{type:'td_vs_fog',segs:toSend});
+      if(toSend.length) vsSend('fog',{segs:toSend});
     }
 
     // ── Phaser ─────────────────────────────────────────────────────────────
@@ -1436,7 +1351,7 @@
           myLives=Math.max(0,myLives-loss);
           updateHUD();
           if(myLives<=0){
-            sendGameMsg(sess.opponentUUID,{type:'td_vs_gameover'});
+            vsSend('gameover',{});
             showVSResult(false,'Vos défenses ont été percées !');
             return;
           }
