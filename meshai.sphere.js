@@ -7,7 +7,7 @@
   window.YM_S = window.YM_S || {};
 
   // ── Config worker (à adapter) ──────────────────────────────────────────────
-  const WORKER_URL = (window.MESHAI_WORKER_URL || 'https://meshai-worker.YOUR_ACCOUNT.workers.dev');
+  const WORKER_URL = (window.MESHAI_WORKER_URL || 'https://yourmine-worker.yourminedapp.workers.dev');
 
   // ── Persistance locale ─────────────────────────────────────────────────────
   const SK = 'meshai_node_v2';
