@@ -703,7 +703,7 @@
     if (!user) {
       body.appendChild(mkNotice('Crée ton compte pour accéder au wallet et à la carte Mastercard virtuelle.', 'info'));
       const form = document.createElement('div'); form.className = 'jk-card';
-      [['jk-fn','Prénom','Jean'],['jk-ln','Nom','Dupont'],['jk-dob','Date de naissance (AAAA-MM-JJ)','1990-01-15'],['jk-nat','Nationalité (FR, DE…)','FR'],['jk-email','Email','jean@example.com'],['jk-tel','Téléphone (+33…)','+33612345678'],['jk-addr','Adresse','12 rue de la Paix'],['jk-city','Ville','Paris'],['jk-postal','Code postal','75001'],['jk-country','Pays','FR']].forEach(function(arr) {
+      [['jk-fn','Prénom','Jean'],['jk-ln','Nom','Dupont'],['jk-dob','Date de naissance (AAAA-MM-JJ)','1990-01-15'],['jk-nat','Nationalité (FR, DE…)','FR'],['jk-email','Email','jean@example.com'],['jk-tel','Téléphone (ex: 0612345678 ou +33612345678)','+33612345678'],['jk-addr','Adresse','12 rue de la Paix'],['jk-city','Ville','Paris'],['jk-postal','Code postal','75001'],['jk-country','Pays','FR']].forEach(function(arr) {
         const id = arr[0], label = arr[1], ph = arr[2];
         const lbl = document.createElement('label'); lbl.className = 'jk-label'; lbl.textContent = label; form.appendChild(lbl);
         const inp = document.createElement('input'); inp.className = 'jk-inp'; inp.id = id; inp.placeholder = ph;
@@ -726,7 +726,19 @@
             day:   parseInt(dob[2], 10) || 1,
           },
           email:       v('jk-email').trim().toLowerCase(),
-          mobile:      { phoneNumber: v('jk-tel').replace(/[\s\-\(\)]/g, '').replace(/^\+/, '') },
+          mobile: (function() {
+            var tel = v('jk-tel').replace(/[\s\-\(\)]/g, '').replace(/^\+/, '');
+            // Séparer l'indicatif pays du numéro local
+            // Ex: 33612345678 → countryCode=33, number=612345678
+            // Ex: 1234567890 → countryCode=1, number=234567890
+            var cc = '33', num = tel;
+            if (tel.startsWith('33') && tel.length >= 11) { cc = '33'; num = tel.slice(2); }
+            else if (tel.startsWith('44') && tel.length >= 11) { cc = '44'; num = tel.slice(2); }
+            else if (tel.startsWith('1')  && tel.length === 11) { cc = '1';  num = tel.slice(1); }
+            else if (tel.startsWith('49') && tel.length >= 11) { cc = '49'; num = tel.slice(2); }
+            else if (tel.startsWith('41') && tel.length >= 11) { cc = '41'; num = tel.slice(2); }
+            return { countryCode: cc, number: num };
+          })(),
           nationality: v('jk-nat').toUpperCase().slice(0, 2),
           address: {
             addressLine1: v('jk-addr').trim(),
