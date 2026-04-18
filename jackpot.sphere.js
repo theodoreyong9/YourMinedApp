@@ -1,4 +1,4 @@
-/* jackpot.sphere.js — Néobank Jackpot v4
+/* jackpot.sphere.js — Néobank Jackpot v5
  * Plugin YourMine — caisse commune, dons multi-devises, carte Mastercard virtuelle
  * Appels Striga directs depuis le navigateur (HMAC calculé côté client)
  * Logique jackpot via Worker Cloudflare
