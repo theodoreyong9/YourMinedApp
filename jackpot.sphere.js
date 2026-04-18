@@ -354,7 +354,7 @@
     // Charger le vrai solde depuis Striga
     const userId = user.id || user.userId;
     if (userId) {
-      striga('POST', '/user/' + userId + '/wallets', { startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
+      striga('POST', '/wallets/get/all', { userId: userId, startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
         const accounts = (r.wallets && r.wallets[0] && r.wallets[0].accounts) || {};
         const eurAcc   = accounts['EUR'];
         const bal      = eurAcc ? (parseInt(eurAcc.availableBalance || 0) / 100) : 0;
@@ -535,7 +535,7 @@
         const userId = user.id || user.userId;
 
         // 1. Récupérer les wallets des deux utilisateurs via Striga
-        const senderWallets = await striga('POST', '/user/' + userId + '/wallets', { startDate: 0, endDate: Date.now(), page: 0 });
+        const senderWallets = await striga('POST', '/wallets/get/all', { userId: userId, startDate: 0, endDate: Date.now(), page: 0 });
         const senderWallet  = senderWallets.wallets && senderWallets.wallets[0];
         if (!senderWallet) throw new Error('Wallet expéditeur introuvable');
         const senderEurEntries = Object.entries(senderWallet.accounts || {}).filter(function(e) { return e[0] === 'EUR'; });
@@ -629,7 +629,7 @@
     // Charger le vrai solde
     const userId = user.id || user.userId;
     if (userId) {
-      striga('POST', '/user/' + userId + '/wallets', { startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
+      striga('POST', '/wallets/get/all', { userId: userId, startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
         const accounts = (r.wallets && r.wallets[0] && r.wallets[0].accounts) || {};
         const eurAcc   = accounts['EUR'];
         const bal      = eurAcc ? (parseInt(eurAcc.availableBalance || 0) / 100) : 0;
@@ -779,7 +779,7 @@
         kycBtn.addEventListener('click', async function() {
           kycBtn.disabled = true; kycBtn.innerHTML = ''; kycBtn.appendChild(mkSpin()); kycBtn.append(' Chargement…');
           try {
-            const r = await striga('POST', '/user/' + (user.id || user.userId) + '/kyc/start', {});
+            const r = await striga('POST', '/user/kyc/start', { userId: user.id || user.userId });
             if (r.verificationLink) window.open(r.verificationLink, '_blank');
             fb.appendChild(mkNotice('Lien ouvert. Reviens ici une fois la vérification terminée.', 'info'));
             kycBtn.disabled = false; kycBtn.textContent = 'Lancer la vérification d\'identité';
@@ -839,7 +839,7 @@
   }
 
   /* ─── REGISTRATION ────────────────────────────────────── */
-  window.YM_S['jackpot.sphere.js'] = {
+  window.YM_S['striga.sphere.js'] = {
     name:        'Jackpot',
     icon:        '🎰',
     category:    'Finance',
