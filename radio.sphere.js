@@ -1,134 +1,57 @@
 /* jshint esversion:11, browser:true */
 // radio.sphere.js — YourMine Radio
-// Widget draggable sur le bureau, lecture background PWA
 (function(){
 'use strict';
 window.YM_S = window.YM_S || {};
 
+const WIDGET_ID  = 'radio';
 const STATE_KEY  = 'ym_radio_state_v1';
 const CUSTOM_KEY = 'ym_radio_custom_v1';
 const POS_KEY    = 'ym_radio_pos_v1';
 
 const BUILTIN = [
-  // ── 🇫🇷 France ──────────────────────────────────────────────────────────
-  {name:'FIP',             url:'https://icecast.radiofrance.fr/fip-midfi.mp3',                   genre:'Eclectic',      country:'🇫🇷'},
-  {name:'FIP Rock',        url:'https://icecast.radiofrance.fr/fiprock-midfi.mp3',               genre:'Rock',          country:'🇫🇷'},
-  {name:'FIP Jazz',        url:'https://icecast.radiofrance.fr/fipjazz-midfi.mp3',               genre:'Jazz',          country:'🇫🇷'},
-  {name:'FIP Groove',      url:'https://icecast.radiofrance.fr/fipgroove-midfi.mp3',             genre:'Groove',        country:'🇫🇷'},
-  {name:'FIP Monde',       url:'https://icecast.radiofrance.fr/fipworld-midfi.mp3',              genre:'World',         country:'🇫🇷'},
-  {name:'FIP Nouveautés',  url:'https://icecast.radiofrance.fr/fipnouveautes-midfi.mp3',         genre:'New Music',     country:'🇫🇷'},
-  {name:'FIP Reggae',      url:'https://icecast.radiofrance.fr/fipreggae-midfi.mp3',             genre:'Reggae',        country:'🇫🇷'},
-  {name:'FIP Electro',     url:'https://icecast.radiofrance.fr/fipelectro-midfi.mp3',            genre:'Electro',       country:'🇫🇷'},
-  {name:'France Inter',    url:'https://icecast.radiofrance.fr/franceinter-midfi.mp3',           genre:'Talk/Music',    country:'🇫🇷'},
-  {name:'France Info',     url:'https://icecast.radiofrance.fr/franceinfo-midfi.mp3',            genre:'News',          country:'🇫🇷'},
-  {name:'France Culture',  url:'https://icecast.radiofrance.fr/franceculture-midfi.mp3',         genre:'Culture',       country:'🇫🇷'},
-  {name:'France Musique',  url:'https://icecast.radiofrance.fr/francemusique-midfi.mp3',         genre:'Classical',     country:'🇫🇷'},
-  {name:'Mouv\'',          url:'https://icecast.radiofrance.fr/mouv-midfi.mp3',                  genre:'Hip-Hop',       country:'🇫🇷'},
-  {name:'Nova',            url:'https://novazz.ice.infomaniak.ch/novazz-128.mp3',                genre:'Jazz/Soul',     country:'🇫🇷'},
-  {name:'TSF Jazz',        url:'https://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3',             genre:'Jazz',          country:'🇫🇷'},
-  {name:'Nostalgie',       url:'https://scdn.nrjaudio.fm/adwstream/fr/00002/mp3_128.mp3',        genre:'Oldies',        country:'🇫🇷'},
-  {name:'NRJ',             url:'https://scdn.nrjaudio.fm/adwstream/fr/00001/mp3_128.mp3',        genre:'Pop/Dance',     country:'🇫🇷'},
-  {name:'Skyrock',         url:'https://icecast.skyrock.net/s/natio_mp3_128k',                   genre:'Hip-Hop',       country:'🇫🇷'},
-  {name:'RTL',             url:'https://streaming.rtl.fr/RTL-1-44-128',                          genre:'Talk',          country:'🇫🇷'},
-  {name:'Europe 1',        url:'https://europe1.lmn.fm/europe1.mp3',                             genre:'Talk/News',     country:'🇫🇷'},
-  // ── 🇬🇧 UK ──────────────────────────────────────────────────────────────
-  {name:'BBC Radio 1',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one',            genre:'Pop/Chart',     country:'🇬🇧'},
-  {name:'BBC Radio 2',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_two',            genre:'Easy Listening',country:'🇬🇧'},
-  {name:'BBC Radio 3',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_three',          genre:'Classical',     country:'🇬🇧'},
-  {name:'BBC Radio 4',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_four_fm',        genre:'Talk',          country:'🇬🇧'},
-  {name:'BBC Radio 5',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_five_live',      genre:'Sport/News',    country:'🇬🇧'},
-  {name:'BBC 6 Music',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_6music',               genre:'Alternative',   country:'🇬🇧'},
-  {name:'BBC World',       url:'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service',        genre:'News',          country:'🇬🇧'},
-  {name:'BBC Asian',       url:'https://stream.live.vc.bbcmedia.co.uk/bbc_asian_network',        genre:'Asian/World',   country:'🇬🇧'},
-  {name:'Jazz FM UK',      url:'https://streaming.radio.co/s6f1f4e490/listen',                   genre:'Jazz',          country:'🇬🇧'},
-  {name:'Absolute Radio',  url:'https://icy-e-bab-04-cr.sharp-stream.com/absoluteradio.mp3',     genre:'Rock/Pop',      country:'🇬🇧'},
-  {name:'Capital FM',      url:'https://media-ice.musicradio.com/Capital',                       genre:'Pop/Chart',     country:'🇬🇧'},
-  {name:'LBC',             url:'https://media-ice.musicradio.com/LBCNews',                       genre:'News/Talk',     country:'🇬🇧'},
-  // ── 🇺🇸 USA ─────────────────────────────────────────────────────────────
-  {name:'NPR News',        url:'https://npr-ice.streamguys1.com/live.mp3',                       genre:'News/Talk',     country:'🇺🇸'},
-  {name:'KCRW',            url:'https://kcrw.streamguys1.com/kcrw_192k_mp3_on_air',              genre:'Indie/World',   country:'🇺🇸'},
-  {name:'WNYC',            url:'https://fm939.wnyc.org/wnycfm-tunein.aac',                       genre:'Public Radio',  country:'🇺🇸'},
-  {name:'KEXP',            url:'https://kexp-mp3-128.streamguys1.com/kexp128.mp3',               genre:'Indie/Alt',     country:'🇺🇸'},
-  {name:'WBGO Jazz',       url:'https://wbgo.streamguys1.com/wbgo128.mp3',                       genre:'Jazz',          country:'🇺🇸'},
-  {name:'Classical KDFC',  url:'https://playerservices.streamtheworld.com/api/livestream-redirect/KDFCFM_SC',genre:'Classical',country:'🇺🇸'},
-  {name:'Blues Radio',     url:'https://live.wostreaming.net/proxy/john/stream/1/',              genre:'Blues',         country:'🇺🇸'},
-  {name:'WFMU',            url:'https://stream0.wfmu.org/freeform-128k',                         genre:'Freeform',      country:'🇺🇸'},
-  // ── 🇩🇪 Germany ─────────────────────────────────────────────────────────
-  {name:'Deutschlandfunk',    url:'https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3',    genre:'Culture/Talk',  country:'🇩🇪'},
-  {name:'Deutschlandradio',   url:'https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3',    genre:'Culture',       country:'🇩🇪'},
-  {name:'Bayern 3',           url:'https://br-br3-live.cast.addradio.de/br/br3/live/mp3/128/stream.mp3',genre:'Pop', country:'🇩🇪'},
-  {name:'NDR Info',           url:'https://ndr-ndrinfo.cast.addradio.de/ndr/ndrinfo/live/mp3/128/stream.mp3',genre:'News',country:'🇩🇪'},
-  {name:'Fritz',              url:'https://www.radioplayer.de/api/live/fritz.mp3',               genre:'Alt/Indie',     country:'🇩🇪'},
-  {name:'SWR3',               url:'https://liveradio.swr.de/sw282p3/swr3/play.mp3',             genre:'Pop/Rock',      country:'🇩🇪'},
-  // ── 🇪🇸 Spain ────────────────────────────────────────────────────────────
-  {name:'Radio Nacional',     url:'https://rne.rtveradio.cires21.com/rne1.mp3',                  genre:'Talk',          country:'🇪🇸'},
-  {name:'Cadena SER',         url:'https://playerservices.streamtheworld.com/api/livestream-redirect/SER_SPAIN_SC',genre:'Talk',country:'🇪🇸'},
-  {name:'40 Principales',     url:'https://playerservices.streamtheworld.com/api/livestream-redirect/LOS40_SC',genre:'Pop/Chart',country:'🇪🇸'},
-  {name:'RNE Clásica',        url:'https://rne.rtveradio.cires21.com/rne2.mp3',                  genre:'Classical',     country:'🇪🇸'},
-  {name:'Rock FM Spain',      url:'https://playerservices.streamtheworld.com/api/livestream-redirect/ROCKFM_SC',genre:'Rock',country:'🇪🇸'},
-  // ── 🇮🇹 Italy ────────────────────────────────────────────────────────────
-  {name:'RAI Radio 1',        url:'https://icecast.unitedradio.it/Radio1.mp3',                   genre:'Talk/Music',    country:'🇮🇹'},
-  {name:'RAI Radio 2',        url:'https://icecast.unitedradio.it/Radio2.mp3',                   genre:'Pop/Music',     country:'🇮🇹'},
-  {name:'RAI Radio 3',        url:'https://icecast.unitedradio.it/Radio3.mp3',                   genre:'Culture',       country:'🇮🇹'},
-  {name:'Radio Italia',       url:'https://icecast.unitedradio.it/RadioItalia.mp3',              genre:'Italian Pop',   country:'🇮🇹'},
-  // ── 🇧🇪 Belgium ──────────────────────────────────────────────────────────
-  {name:'Classic 21',         url:'https://radios.rtbf.be/classic21-128.mp3',                   genre:'Rock/Classic',  country:'🇧🇪'},
-  {name:'Musiq3',             url:'https://radios.rtbf.be/musiq3-128.mp3',                      genre:'Classical',     country:'🇧🇪'},
-  {name:'La Première',        url:'https://radios.rtbf.be/lapremiere-128.mp3',                  genre:'Talk',          country:'🇧🇪'},
-  // ── 🇨🇭 Switzerland ───────────────────────────────────────────────────────
-  {name:'RTS La Première',    url:'https://stream.srg-ssr.ch/m/la-1ere/mp3_128',                genre:'Talk',          country:'🇨🇭'},
-  {name:'SRF 1',              url:'https://stream.srg-ssr.ch/m/drs1/mp3_128',                   genre:'Talk',          country:'🇨🇭'},
-  {name:'SRF 3',              url:'https://stream.srg-ssr.ch/m/drs3/mp3_128',                   genre:'Pop',           country:'🇨🇭'},
-  // ── 🇳🇱 Netherlands ───────────────────────────────────────────────────────
-  {name:'NPO Radio 1',        url:'https://icecast.omroep.nl/radio1-bb-mp3',                    genre:'News/Talk',     country:'🇳🇱'},
-  {name:'NPO Radio 2',        url:'https://icecast.omroep.nl/radio2-bb-mp3',                    genre:'Pop',           country:'🇳🇱'},
-  {name:'NPO 3FM',            url:'https://icecast.omroep.nl/3fm-bb-mp3',                       genre:'Pop/Alt',       country:'🇳🇱'},
-  {name:'Concertzender',      url:'https://www.concertzender.nl/streams/concertzender_low.mp3', genre:'Classical',     country:'🇳🇱'},
-  // ── 🇵🇹 Portugal ─────────────────────────────────────────────────────────
-  {name:'Antena 1',           url:'https://streaming.rtp.pt/live/a1/a1.aac',                    genre:'Talk/Music',    country:'🇵🇹'},
-  {name:'Antena 3',           url:'https://streaming.rtp.pt/live/a3/a3.aac',                    genre:'Rock/Alt',      country:'🇵🇹'},
-  {name:'Rádio Comercial',    url:'https://audiocdn.comercial.clix.pt/CC_live',                 genre:'Pop',           country:'🇵🇹'},
-  // ── 🇵🇱 Poland ────────────────────────────────────────────────────────────
-  {name:'Polskie Radio 1',    url:'https://stream.polskieradio.pl:8900/pr1',                    genre:'Talk/Music',    country:'🇵🇱'},
-  {name:'Trójka',             url:'https://stream.polskieradio.pl:8904/pr3',                    genre:'Culture/Alt',   country:'🇵🇱'},
-  // ── 🇸🇪 Sweden ────────────────────────────────────────────────────────────
-  {name:'SR P1',              url:'https://sverigesradio.se/topsy/direkt/132-hi.mp3',           genre:'Talk',          country:'🇸🇪'},
-  {name:'SR P3',              url:'https://sverigesradio.se/topsy/direkt/164-hi.mp3',           genre:'Pop/Alt',       country:'🇸🇪'},
-  // ── 🇩🇰 Denmark ───────────────────────────────────────────────────────────
-  {name:'DR P4',              url:'https://live-icy.dr.dk/A/A05H.mp3',                          genre:'Pop/Talk',      country:'🇩🇰'},
-  {name:'DR P6',              url:'https://live-icy.dr.dk/A/A24H.mp3',                          genre:'Urban/Hip-Hop', country:'🇩🇰'},
-  // ── 🇧🇷 Brazil ────────────────────────────────────────────────────────────
-  {name:'Rádio MEC',          url:'https://radios.ebc.com.br/radios-ebc/mec-fm',                genre:'MPB/Jazz',      country:'🇧🇷'},
-  {name:'Jovem Pan',          url:'https://playerservices.streamtheworld.com/api/livestream-redirect/JOVEM_PAN_NEWS_SC',genre:'News',country:'🇧🇷'},
-  // ── 🇯🇵 Japan ─────────────────────────────────────────────────────────────
-  {name:'NHK World',          url:'https://nhkworld.jp/en/radio/stream/nhkworldradio_all_en_128.m3u8',genre:'News',  country:'🇯🇵'},
-  // ── 🌐 Internet / Genre ───────────────────────────────────────────────────
-  {name:'Groove Salad',       url:'https://ice6.somafm.com/groovesalad-128-mp3',                genre:'Ambient',       country:'🌐'},
-  {name:'Drone Zone',         url:'https://ice6.somafm.com/dronezone-128-mp3',                  genre:'Drone',         country:'🌐'},
-  {name:'Lush',               url:'https://ice6.somafm.com/lush-128-mp3',                       genre:'Indie Pop',     country:'🌐'},
-  {name:'Indie Pop Rocks',    url:'https://ice6.somafm.com/indiepop-128-mp3',                   genre:'Indie',         country:'🌐'},
-  {name:'Left Coast 70s',     url:'https://ice6.somafm.com/seventies-128-mp3',                  genre:'70s',           country:'🌐'},
-  {name:'Underground 80s',    url:'https://ice6.somafm.com/u80s-128-mp3',                       genre:'80s',           country:'🌐'},
-  {name:'ThistleRadio',       url:'https://ice6.somafm.com/thistle-128-mp3',                    genre:'Celtic',        country:'🌐'},
-  {name:'Bossa Beyond',       url:'https://ice6.somafm.com/bossa-128-mp3',                      genre:'Bossa Nova',    country:'🌐'},
-  {name:'Boot Liquor',        url:'https://ice6.somafm.com/bootliquor-128-mp3',                 genre:'Country',       country:'🌐'},
-  {name:'Illinois Street',    url:'https://ice6.somafm.com/illstreet-128-mp3',                  genre:'Soul/Funk',     country:'🌐'},
-  {name:'Sonic Universe',     url:'https://ice6.somafm.com/sonicuniverse-128-mp3',              genre:'Eclectic Jazz', country:'🌐'},
-  {name:'Deep Space One',     url:'https://ice6.somafm.com/deepspaceone-128-mp3',               genre:'Space Ambient', country:'🌐'},
-  {name:'Mission Control',    url:'https://ice6.somafm.com/missioncontrol-128-mp3',             genre:'Space/Ambient', country:'🌐'},
-  {name:'Lofi Hip-Hop',       url:'https://streams.ilovemusic.de/iloveradio17.mp3',             genre:'Lofi',          country:'🌐'},
-  {name:'Chillhop',           url:'https://streams.ilovemusic.de/iloveradio18.mp3',             genre:'Chillhop',      country:'🌐'},
-  {name:'Smooth Jazz',        url:'https://streams.ilovemusic.de/iloveradio14.mp3',             genre:'Smooth Jazz',   country:'🌐'},
-  {name:'Nightwave Plaza',    url:'https://radio.plaza.one/mp3',                                genre:'City Pop/Vaporwave',country:'🌐'},
-  {name:'Radio Paradise',     url:'https://stream.radioparadise.com/aac-320',                   genre:'Eclectic',      country:'🌐'},
-  {name:'Radio Paradise Rock',url:'https://stream.radioparadise.com/rock-aac-320',              genre:'Rock',          country:'🌐'},
-  {name:'Radio Paradise Mellow',url:'https://stream.radioparadise.com/mellow-aac-320',         genre:'Mellow',        country:'🌐'},
-  {name:'Di.fm Chillout',     url:'https://prem2.di.fm/chillout?listen_key=public3',            genre:'Chillout',      country:'🌐'},
-  {name:'Di.fm Trance',       url:'https://prem2.di.fm/trance?listen_key=public3',              genre:'Trance',        country:'🌐'},
-  {name:'Di.fm Drum&Bass',    url:'https://prem2.di.fm/drumandbass?listen_key=public3',         genre:'D&B',           country:'🌐'},
-  {name:'Di.fm House',        url:'https://prem2.di.fm/house?listen_key=public3',               genre:'House',         country:'🌐'},
-  {name:'Di.fm Electronica',  url:'https://prem2.di.fm/electronica?listen_key=public3',         genre:'Electronica',   country:'🌐'},
-  {name:'BoxUK Chill',        url:'https://boxuk.out.airtime.pro/boxuk_b',                      genre:'Chill',         country:'🌐'},
+  {name:'FIP',             url:'https://icecast.radiofrance.fr/fip-midfi.mp3',           genre:'Eclectic',       country:'🇫🇷'},
+  {name:'FIP Rock',        url:'https://icecast.radiofrance.fr/fiprock-midfi.mp3',       genre:'Rock',           country:'🇫🇷'},
+  {name:'FIP Jazz',        url:'https://icecast.radiofrance.fr/fipjazz-midfi.mp3',       genre:'Jazz',           country:'🇫🇷'},
+  {name:'FIP Groove',      url:'https://icecast.radiofrance.fr/fipgroove-midfi.mp3',     genre:'Groove',         country:'🇫🇷'},
+  {name:'FIP Monde',       url:'https://icecast.radiofrance.fr/fipworld-midfi.mp3',      genre:'World',          country:'🇫🇷'},
+  {name:'FIP Nouveautés',  url:'https://icecast.radiofrance.fr/fipnouveautes-midfi.mp3', genre:'New Music',      country:'🇫🇷'},
+  {name:'FIP Electro',     url:'https://icecast.radiofrance.fr/fipelectro-midfi.mp3',    genre:'Electro',        country:'🇫🇷'},
+  {name:'France Inter',    url:'https://icecast.radiofrance.fr/franceinter-midfi.mp3',   genre:'Talk/Music',     country:'🇫🇷'},
+  {name:'France Info',     url:'https://icecast.radiofrance.fr/franceinfo-midfi.mp3',    genre:'News',           country:'🇫🇷'},
+  {name:'France Culture',  url:'https://icecast.radiofrance.fr/franceculture-midfi.mp3', genre:'Culture',        country:'🇫🇷'},
+  {name:'France Musique',  url:'https://icecast.radiofrance.fr/francemusique-midfi.mp3', genre:'Classical',      country:'🇫🇷'},
+  {name:"Mouv'",           url:'https://icecast.radiofrance.fr/mouv-midfi.mp3',          genre:'Hip-Hop',        country:'🇫🇷'},
+  {name:'Nova',            url:'https://novazz.ice.infomaniak.ch/novazz-128.mp3',        genre:'Jazz/Soul',      country:'🇫🇷'},
+  {name:'TSF Jazz',        url:'https://tsfjazz.ice.infomaniak.ch/tsfjazz-high.mp3',     genre:'Jazz',           country:'🇫🇷'},
+  {name:'NRJ',             url:'https://scdn.nrjaudio.fm/adwstream/fr/00001/mp3_128.mp3',genre:'Pop/Dance',      country:'🇫🇷'},
+  {name:'Skyrock',         url:'https://icecast.skyrock.net/s/natio_mp3_128k',           genre:'Hip-Hop',        country:'🇫🇷'},
+  {name:'BBC Radio 1',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one',    genre:'Pop/Chart',      country:'🇬🇧'},
+  {name:'BBC Radio 2',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_two',    genre:'Easy Listening', country:'🇬🇧'},
+  {name:'BBC Radio 3',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_three',  genre:'Classical',      country:'🇬🇧'},
+  {name:'BBC Radio 4',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_radio_four_fm',genre:'Talk',           country:'🇬🇧'},
+  {name:'BBC 6 Music',     url:'https://stream.live.vc.bbcmedia.co.uk/bbc_6music',       genre:'Alternative',    country:'🇬🇧'},
+  {name:'BBC World',       url:'https://stream.live.vc.bbcmedia.co.uk/bbc_world_service',genre:'News',           country:'🇬🇧'},
+  {name:'NPR News',        url:'https://npr-ice.streamguys1.com/live.mp3',               genre:'News/Talk',      country:'🇺🇸'},
+  {name:'KCRW',            url:'https://kcrw.streamguys1.com/kcrw_192k_mp3_on_air',      genre:'Indie/World',    country:'🇺🇸'},
+  {name:'KEXP',            url:'https://kexp-mp3-128.streamguys1.com/kexp128.mp3',       genre:'Indie/Alt',      country:'🇺🇸'},
+  {name:'WBGO Jazz',       url:'https://wbgo.streamguys1.com/wbgo128.mp3',               genre:'Jazz',           country:'🇺🇸'},
+  {name:'Deutschlandfunk', url:'https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3',genre:'Culture/Talk',   country:'🇩🇪'},
+  {name:'SWR3',            url:'https://liveradio.swr.de/sw282p3/swr3/play.mp3',         genre:'Pop/Rock',       country:'🇩🇪'},
+  {name:'Antena 1',        url:'https://streaming.rtp.pt/live/a1/a1.aac',                genre:'Talk/Music',     country:'🇵🇹'},
+  {name:'Antena 3',        url:'https://streaming.rtp.pt/live/a3/a3.aac',                genre:'Rock/Alt',       country:'🇵🇹'},
+  {name:'NPO Radio 1',     url:'https://icecast.omroep.nl/radio1-bb-mp3',                genre:'News/Talk',      country:'🇳🇱'},
+  {name:'SR P3',           url:'https://sverigesradio.se/topsy/direkt/164-hi.mp3',       genre:'Pop/Alt',        country:'🇸🇪'},
+  {name:'Groove Salad',    url:'https://ice6.somafm.com/groovesalad-128-mp3',            genre:'Ambient',        country:'🌐'},
+  {name:'Drone Zone',      url:'https://ice6.somafm.com/dronezone-128-mp3',              genre:'Drone',          country:'🌐'},
+  {name:'Lush',            url:'https://ice6.somafm.com/lush-128-mp3',                   genre:'Indie Pop',      country:'🌐'},
+  {name:'Nightwave Plaza', url:'https://radio.plaza.one/mp3',                            genre:'Vaporwave',      country:'🌐'},
+  {name:'Radio Paradise',  url:'https://stream.radioparadise.com/aac-320',               genre:'Eclectic',       country:'🌐'},
+  {name:'Lofi Hip-Hop',    url:'https://streams.ilovemusic.de/iloveradio17.mp3',         genre:'Lofi',           country:'🌐'},
+  {name:'Chillhop',        url:'https://streams.ilovemusic.de/iloveradio18.mp3',         genre:'Chillhop',       country:'🌐'},
+  {name:'Di.fm Chillout',  url:'https://prem2.di.fm/chillout?listen_key=public3',        genre:'Chillout',       country:'🌐'},
+  {name:'Di.fm Trance',    url:'https://prem2.di.fm/trance?listen_key=public3',          genre:'Trance',         country:'🌐'},
+  {name:'Di.fm House',     url:'https://prem2.di.fm/house?listen_key=public3',           genre:'House',          country:'🌐'},
 ];
 
 let _ctx=null, _audio=null, _playing=false, _curStation=null, _widget=null, _vol=0.8;
@@ -137,9 +60,35 @@ function loadState(){try{return JSON.parse(localStorage.getItem(STATE_KEY)||'{}'
 function saveState(d){localStorage.setItem(STATE_KEY,JSON.stringify(d));}
 function loadCustom(){try{return JSON.parse(localStorage.getItem(CUSTOM_KEY)||'[]');}catch(e){return[];}}
 function saveCustom(d){localStorage.setItem(CUSTOM_KEY,JSON.stringify(d));}
-function loadPos(){try{return JSON.parse(localStorage.getItem(POS_KEY)||'{"right":12,"bottom":80}');}catch(e){return{right:12,bottom:80};}}
+function loadPos(){try{return JSON.parse(localStorage.getItem(POS_KEY)||'{"right":12,"bottom":90,"page":0}');}catch(e){return{right:12,bottom:90,page:0};}}
 function savePos(p){localStorage.setItem(POS_KEY,JSON.stringify(p));}
 function allStations(){return [...BUILTIN,...loadCustom()];}
+
+// ── Calcul des limites de zone sûre pour le widget ─────────────────────────
+const _isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+
+function _getNavBounds(){
+  const navBar=document.getElementById('nav-bar');
+  if(!navBar)return{maxRight:window.innerWidth,maxBottom:window.innerHeight,navW:0,navH:0};
+  const r=navBar.getBoundingClientRect();
+  if(_isPC()){
+    // Desktop : nav barre verticale à droite
+    return{maxRight:r.left,maxBottom:window.innerHeight,navW:r.width,navH:0};
+  }else{
+    // Mobile : nav barre horizontale en bas
+    return{maxRight:window.innerWidth,maxBottom:r.top,navW:0,navH:r.height};
+  }
+}
+
+// Clamp wx,wy pour que le widget reste entièrement dans la zone bureau
+function _clampPos(wx,wy){
+  const bounds=_getNavBounds();
+  const ww=_widget?_widget.offsetWidth:200;
+  const wh=_widget?_widget.offsetHeight:90;
+  const cx=Math.max(0,Math.min(bounds.maxRight-ww,wx));
+  const cy=Math.max(0,Math.min(bounds.maxBottom-wh,wy));
+  return{x:cx,y:cy};
+}
 
 // ── AUDIO ──────────────────────────────────────────────────────────────────
 function getAudio(){
@@ -149,50 +98,24 @@ function getAudio(){
   }
   return _audio;
 }
-
 function play(station){
   _curStation=station;
-  const a=getAudio();
-  a.src=station.url;a.volume=_vol;
-  a.play().catch(e=>{window.YM_toast?.('Stream error: '+e.message,'error');});
-  _playing=true;
-  saveState({station,vol:_vol,playing:true});
-  _updateMediaSession();
-  _refreshWidget();
-  _refreshPanel();
+  const a=getAudio();a.src=station.url;a.volume=_vol;
+  a.play().catch(e=>{if(window.YM_toast)window.YM_toast('Stream error: '+e.message,'error');});
+  _playing=true;saveState({station,vol:_vol,playing:true});
+  _updateMediaSession();_refreshWidget();_refreshPanel();
 }
-
 function stop(){
   const a=getAudio();a.pause();a.src='';
-  _playing=false;
-  saveState({...(loadState()),playing:false});
-  _updateMediaSession();
-  _refreshWidget();
-  _refreshPanel();
+  _playing=false;saveState(Object.assign({},loadState(),{playing:false}));
+  _updateMediaSession();_refreshWidget();_refreshPanel();
 }
-
 function toggle(){if(_playing)stop();else if(_curStation)play(_curStation);}
-
-function nextStation(){
-  const all=allStations();
-  const idx=_curStation?all.findIndex(s=>s.url===_curStation.url):-1;
-  play(all[(idx+1)%all.length]);
-}
-
-function prevStation(){
-  const all=allStations();
-  const idx=_curStation?all.findIndex(s=>s.url===_curStation.url):-1;
-  play(all[(idx-1+all.length)%all.length]);
-}
-
-// Media Session API — contrôles lock screen / notification PWA
+function nextStation(){const all=allStations();const idx=_curStation?all.findIndex(s=>s.url===_curStation.url):-1;play(all[(idx+1)%all.length]);}
+function prevStation(){const all=allStations();const idx=_curStation?all.findIndex(s=>s.url===_curStation.url):-1;play(all[(idx-1+all.length)%all.length]);}
 function _updateMediaSession(){
   if(!('mediaSession' in navigator))return;
-  navigator.mediaSession.metadata=new MediaMetadata({
-    title:_curStation?.name||'Radio',
-    artist:_curStation?.genre||'',
-    album:'YourMine Radio',
-  });
+  navigator.mediaSession.metadata=new MediaMetadata({title:_curStation&&_curStation.name||'Radio',artist:_curStation&&_curStation.genre||'',album:'YourMine Radio'});
   navigator.mediaSession.playbackState=_playing?'playing':'paused';
   navigator.mediaSession.setActionHandler('play',()=>{if(!_playing&&_curStation)play(_curStation);});
   navigator.mediaSession.setActionHandler('pause',()=>{if(_playing)stop();});
@@ -200,10 +123,16 @@ function _updateMediaSession(){
   navigator.mediaSession.setActionHandler('previoustrack',prevStation);
 }
 
-// ── WIDGET DRAGGABLE ───────────────────────────────────────────────────────
-let _panelRefresh=null; // callback pour rafraîchir le panel si ouvert
-
+// ── WIDGET ─────────────────────────────────────────────────────────────────
+let _panelRefresh=null;
 function _refreshPanel(){if(_panelRefresh)_panelRefresh();}
+
+function _registerPage(page){
+  if(window.YM_Desk&&window.YM_Desk.registerWidgetPage)window.YM_Desk.registerWidgetPage(WIDGET_ID,page);
+}
+function _unregisterPage(){
+  if(window.YM_Desk&&window.YM_Desk.unregisterWidget)window.YM_Desk.unregisterWidget(WIDGET_ID);
+}
 
 function createWidget(){
   if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
@@ -213,124 +142,133 @@ function createWidget(){
   _widget.style.cssText=
     'position:fixed;z-index:250;'+
     'background:rgba(8,8,15,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'+
-    'border:1px solid rgba(232,160,32,.35);border-radius:14px;'+
-    'padding:0;overflow:hidden;'+
+    'border:1px solid rgba(232,160,32,.35);border-radius:14px;overflow:hidden;'+
     'box-shadow:0 4px 24px rgba(0,0,0,.7);'+
     'touch-action:none;user-select:none;-webkit-user-select:none;'+
     'right:'+pos.right+'px;bottom:'+pos.bottom+'px;width:200px';
-
   _refreshWidget();
   document.body.appendChild(_widget);
+
+  // Valide la position sauvegardée au prochain frame (widget a sa taille réelle)
+  requestAnimationFrame(()=>{
+    if(!_widget)return;
+    const rect=_widget.getBoundingClientRect();
+    const clamped=_clampPos(rect.left,rect.top);
+    if(clamped.x!==rect.left||clamped.y!==rect.top){
+      _widget.style.left=clamped.x+'px';
+      _widget.style.top=clamped.y+'px';
+      _widget.style.right='';
+      _widget.style.bottom='';
+    }
+  });
+
+  _registerPage(pos.page||0);
   _syncWidgetPage();
 
-  // Écoute les changements de page bureau — mais pas pendant le drag
-  window.addEventListener('ym:page-change',_syncWidgetPage);
+  window.addEventListener('ym:page-change',_onPageChange);
 
   let dragging=false,ox=0,oy=0,wx=0,wy=0,_edgeT=null;
 
-  function onMove(cx,cy){
+  const onMove=(cx,cy)=>{
     if(!dragging)return;
-    wx=Math.max(0,Math.min(window.innerWidth-_widget.offsetWidth,wx+(cx-ox)));
-    wy=Math.max(0,Math.min(window.innerHeight-_widget.offsetHeight,wy+(cy-oy)));
+    // Calcule nouvelle position brute
+    const rawX=wx+(cx-ox);
+    const rawY=wy+(cy-oy);
     ox=cx;oy=cy;
+    // Clamp dans la zone bureau (respecte la nav bar)
+    const clamped=_clampPos(rawX,rawY);
+    wx=clamped.x;wy=clamped.y;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
-    // Reste visible pendant tout le drag
-    _widget.style.display='block';
 
-    const vw=window.innerWidth,ew=vw*0.15;
-    const curPage=window._deskCurPage??0;
-    const pageCount=window._deskPageCount??1;
-
+    // Navigation de page sur les bords latéraux
+    const vw=_isPC()?window.innerWidth-72:window.innerWidth;
+    const ew=vw*0.15;
+    const curPage=window._deskCurPage||0;
     if(cx<ew&&curPage>0){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
-        const targetPage=curPage-1;
-        window.YM_Desk?.goPage?.(targetPage);
-        const p=loadPos();savePos({...p,page:targetPage});
+        const tp=curPage-1;
+        if(window.YM_Desk)window.YM_Desk.goPage(tp);
+        _registerPage(tp);
+        const p=loadPos();savePos(Object.assign({},p,{page:tp}));
       },500);
     }else if(cx>vw-ew){
       if(!_edgeT)_edgeT=setTimeout(()=>{
         _edgeT=null;
-        const targetPage=(window._deskCurPage??0)+1;
-        // goPageOrCreate crée la page si besoin, puis navigue
-        window.YM_Desk?.goPageOrCreate?.(targetPage);
-        const p=loadPos();savePos({...p,page:targetPage});
+        const tp=(window._deskCurPage||0)+1;
+        if(window.YM_Desk)window.YM_Desk.goPageOrCreate(tp);
+        _registerPage(tp);
+        const p=loadPos();savePos(Object.assign({},p,{page:tp}));
       },500);
     }else{clearTimeout(_edgeT);_edgeT=null;}
-  }
+  };
 
-  function onEnd(){
-    if(!dragging)return;dragging=false;
-    _widget._dragging=false;
+  const onEnd=()=>{
+    if(!dragging)return;dragging=false;_widget._dragging=false;
     clearTimeout(_edgeT);_edgeT=null;
-    const r=Math.max(0,window.innerWidth-wx-_widget.offsetWidth);
-    const b=Math.max(0,window.innerHeight-wy-_widget.offsetHeight);
-    const curPage=window._deskCurPage??0;
+    // Recalcule right/bottom depuis la position clamped finale
+    const bounds=_getNavBounds();
+    const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
+    const r=Math.max(0,window.innerWidth-wx-ww);
+    const b=Math.max(0,window.innerHeight-wy-wh);
+    const curPage=window._deskCurPage||0;
+    _registerPage(curPage);
     savePos({right:r,bottom:b,page:curPage});
-    // Maintenant on sync (drag terminé)
     _syncWidgetPage();
-  }
+    setTimeout(()=>{if(window.YM_Desk)window.YM_Desk.autoCleanPages();},100);
+  };
 
   _widget.addEventListener('pointerdown',e=>{
     if(e.target.closest('button'))return;
-    dragging=true;
-    _widget._dragging=true;
+    dragging=true;_widget._dragging=true;
     const rect=_widget.getBoundingClientRect();
     wx=rect.left;wy=rect.top;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
     ox=e.clientX;oy=e.clientY;
-    _widget.setPointerCapture(e.pointerId);
+    try{_widget.setPointerCapture(e.pointerId);}catch(ex){}
   },{passive:true});
   _widget.addEventListener('pointermove',e=>{if(dragging)onMove(e.clientX,e.clientY);},{passive:true});
   _widget.addEventListener('pointerup',onEnd,{passive:true});
   _widget.addEventListener('pointercancel',onEnd,{passive:true});
 }
 
+const _onPageChange=()=>{_syncWidgetPage();};
+
 function _refreshWidget(){
   if(!_widget)return;
-  const name=_curStation?.name||'No station';
-  const genre=_curStation?.genre||'';
+  const name=(_curStation&&_curStation.name)||'No station';
+  const genre=(_curStation&&_curStation.genre)||'';
   _widget.innerHTML=
-    '<div id="rw-drag" style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:grab">'+
+    '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:grab">'+
       '<span style="font-size:16px">📻</span>'+
       '<div style="flex:1;min-width:0">'+
         '<div style="font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+name+'</div>'+
-        '<div style="font-size:9px;color:'+(_playing?'var(--accent)':'var(--text3)')+'">'+(_playing?'▶ ON AIR — '+genre:'⏹ stopped')+'</div>'+
+        '<div style="font-size:9px;color:'+(_playing?'var(--gold)':'var(--text3)')+'">'+(_playing?'▶ ON AIR — '+genre:'⏹ stopped')+'</div>'+
       '</div>'+
     '</div>'+
     '<div style="display:flex;align-items:center;justify-content:space-around;padding:4px 8px 8px;gap:4px">'+
       '<button id="rw-prev" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px;line-height:1">⏮</button>'+
-      '<button id="rw-pp" style="background:var(--accent);border:none;color:#000;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">'+(_playing?'⏸':'▶')+'</button>'+
+      '<button id="rw-pp" style="background:var(--gold);border:none;color:#000;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center">'+(_playing?'⏸':'▶')+'</button>'+
       '<button id="rw-next" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px;line-height:1">⏭</button>'+
-      '<button id="rw-open" style="background:none;border:none;color:rgba(232,160,32,.5);font-size:12px;cursor:pointer;padding:4px;line-height:1" title="Open">⬡</button>'+
+      '<button id="rw-open" style="background:none;border:none;color:rgba(232,160,32,.5);font-size:12px;cursor:pointer;padding:4px;line-height:1">⬡</button>'+
     '</div>';
-
   _widget.querySelector('#rw-prev').addEventListener('click',e=>{e.stopPropagation();prevStation();});
   _widget.querySelector('#rw-pp').addEventListener('click',e=>{e.stopPropagation();toggle();});
   _widget.querySelector('#rw-next').addEventListener('click',e=>{e.stopPropagation();nextStation();});
-  _widget.querySelector('#rw-open').addEventListener('click',e=>{e.stopPropagation();window.YM?.openSpherePanel?.('radio.sphere.js');});
-
-  // Ré-attache le drag après innerHTML
-  _widget.addEventListener('pointerdown',e=>{
-    if(e.target.closest('button'))return;
-  },{passive:true,once:false});
+  _widget.querySelector('#rw-open').addEventListener('click',e=>{e.stopPropagation();if(window.YM)window.YM.openSpherePanel('radio.sphere.js');});
 }
 
 function _syncWidgetPage(){
   if(!_widget)return;
-  // Widget retiré du DOM → recrée
-  if(!document.body.contains(_widget)){
-    _widget=null;createWidget();return;
-  }
+  if(!document.body.contains(_widget)){_widget=null;createWidget();return;}
   if(_widget._dragging)return;
   const pos=loadPos();
-  const widgetPage=pos.page??0;
+  const widgetPage=pos.page||0;
   const curPage=window._deskCurPage;
   if(curPage===undefined||curPage===null){_widget.style.opacity='1';_widget.style.pointerEvents='all';return;}
   const visible=curPage===widgetPage;
-  // Fondu au lieu de display:none pour éviter la disparition sèche
   _widget.style.transition='opacity .25s ease';
   _widget.style.opacity=visible?'1':'0';
   _widget.style.pointerEvents=visible?'all':'none';
@@ -338,67 +276,61 @@ function _syncWidgetPage(){
 
 function removeWidget(){
   if(_widget){
-    window.removeEventListener('ym:page-change',_syncWidgetPage);
+    window.removeEventListener('ym:page-change',_onPageChange);
     _widget.remove();_widget=null;
   }
+  _unregisterPage();
 }
 
 // ── PANEL ──────────────────────────────────────────────────────────────────
 function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
+  _panelRefresh=()=>renderPanel(container);
 
-  function refresh(){renderPanel(container);}
-  _panelRefresh=refresh;
-
-  // Now playing
   const nowEl=document.createElement('div');
-  nowEl.style.cssText='flex-shrink:0;padding:14px 16px;border-bottom:1px solid var(--border);text-align:center';
+  nowEl.style.cssText='flex-shrink:0;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);text-align:center';
   container.appendChild(nowEl);
 
-  // Volume
   const volEl=document.createElement('div');
-  volEl.style.cssText='flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)';
+  volEl.style.cssText='flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06)';
   volEl.innerHTML=
     '<span style="font-size:13px">🔊</span>'+
-    '<input type="range" id="rad-vol" min="0" max="1" step="0.05" value="'+_vol+'" style="flex:1;accent-color:var(--accent)">'+
+    '<input type="range" id="rad-vol" min="0" max="1" step="0.05" value="'+_vol+'" style="flex:1;accent-color:var(--gold)">'+
     '<span id="rad-vol-lbl" style="font-size:11px;color:var(--text3);min-width:28px">'+Math.round(_vol*100)+'%</span>';
   container.appendChild(volEl);
   volEl.querySelector('#rad-vol').addEventListener('input',e=>{
     _vol=parseFloat(e.target.value);
     volEl.querySelector('#rad-vol-lbl').textContent=Math.round(_vol*100)+'%';
     if(_audio)_audio.volume=_vol;
-    saveState({...(loadState()),vol:_vol});
+    saveState(Object.assign({},loadState(),{vol:_vol}));
   });
 
-  // Liste stations
-  const list=document.createElement('div');
-  list.style.cssText='flex:1;overflow-y:auto';
+  const list=document.createElement('div');list.style.cssText='flex:1;overflow-y:auto';
   container.appendChild(list);
 
-  // Add custom
   const addEl=document.createElement('div');
-  addEl.style.cssText='flex-shrink:0;padding:10px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px';
+  addEl.style.cssText='flex-shrink:0;padding:10px 16px;border-top:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px';
   addEl.innerHTML=
     '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Custom station</div>'+
     '<div style="display:flex;gap:6px">'+
       '<input id="rad-cname" class="ym-input" placeholder="Name" style="flex:1;font-size:11px">'+
-      '<input id="rad-curl" class="ym-input" placeholder="Stream URL (.mp3/.aac)" style="flex:2;font-size:11px">'+
+      '<input id="rad-curl" class="ym-input" placeholder="Stream URL" style="flex:2;font-size:11px">'+
       '<button id="rad-cadd" class="ym-btn ym-btn-ghost" style="font-size:11px">Add</button>'+
     '</div>';
   container.appendChild(addEl);
   addEl.querySelector('#rad-cadd').addEventListener('click',()=>{
     const n=addEl.querySelector('#rad-cname').value.trim();
     const u=addEl.querySelector('#rad-curl').value.trim();
-    if(!n||!u){window.YM_toast?.('Name and URL required','warn');return;}
-    const c=loadCustom();c.push({name:n,url:u,genre:'Custom'});saveCustom(c);
+    if(!n||!u){if(window.YM_toast)window.YM_toast('Name and URL required','warn');return;}
+    const c=loadCustom();c.push({name:n,url:u,genre:'Custom',country:'🌐'});saveCustom(c);
     addEl.querySelector('#rad-cname').value='';addEl.querySelector('#rad-curl').value='';
     renderStations();
   });
 
   function renderNow(){
-    const n=_curStation?.name||'—';
-    const g=_curStation?.genre||'';
+    const n=(_curStation&&_curStation.name)||'—';
+    const g=(_curStation&&_curStation.genre)||'';
     nowEl.innerHTML=
       '<div style="font-size:10px;color:var(--text3);margin-bottom:4px">'+(_playing?'▶ NOW PLAYING':'STOPPED')+'</div>'+
       '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:2px">'+n+'</div>'+
@@ -408,58 +340,55 @@ function renderPanel(container){
         '<button id="pnl-pp" class="ym-btn '+(_playing?'ym-btn-ghost':'ym-btn-accent')+'" style="font-size:14px;padding:6px 18px">'+(_playing?'⏸ Pause':'▶ Play')+'</button>'+
         '<button id="pnl-next" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer">⏭</button>'+
       '</div>';
-    nowEl.querySelector('#pnl-prev').addEventListener('click',()=>{prevStation();});
-    nowEl.querySelector('#pnl-pp').addEventListener('click',()=>{toggle();});
-    nowEl.querySelector('#pnl-next').addEventListener('click',()=>{nextStation();});
+    nowEl.querySelector('#pnl-prev').addEventListener('click',()=>{prevStation();renderNow();});
+    nowEl.querySelector('#pnl-pp').addEventListener('click',()=>{toggle();renderNow();});
+    nowEl.querySelector('#pnl-next').addEventListener('click',()=>{nextStation();renderNow();});
   }
 
   function renderStations(){
     list.innerHTML='';
-    var countries=[...new Set(allStations().map(s=>s.country||'🌐'))];
-    // Filtre pays actif
-    var activeCo=list._activeCo||'All';
-    // Barre pays
-    var coBar=document.createElement('div');
-    coBar.style.cssText='display:flex;gap:4px;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid var(--border)';
-    ['All',...countries].forEach(function(co){
-      var b=document.createElement('button');
+    const countries=[...new Set(allStations().map(s=>s.country||'🌐'))];
+    const activeCo=list._activeCo||'All';
+    const coBar=document.createElement('div');
+    coBar.style.cssText='display:flex;gap:4px;flex-wrap:wrap;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.06)';
+    ['All',...countries].forEach(co=>{
+      const b=document.createElement('button');
       b.className='ym-btn ym-btn-ghost';
-      b.style.cssText='font-size:11px;padding:2px 8px'+(co===activeCo?';background:var(--accent);color:#000':'');
+      b.style.cssText='font-size:11px;padding:2px 8px'+(co===activeCo?';background:var(--gold);color:#000':'');
       b.textContent=co;
-      b.addEventListener('click',function(){list._activeCo=co;renderStations();});
+      b.addEventListener('click',()=>{list._activeCo=co;renderStations();});
       coBar.appendChild(b);
     });
     list.appendChild(coBar);
-    var stations=allStations().filter(function(s){return activeCo==='All'||(s.country||'🌐')===activeCo;});
-    stations.forEach(function(s,i){
-      var isActive=_curStation&&_curStation.url===s.url;
-      var row=document.createElement('div');
+    const stations=allStations().filter(s=>activeCo==='All'||(s.country||'🌐')===activeCo);
+    stations.forEach((s,i)=>{
+      const isActive=_curStation&&_curStation.url===s.url;
+      const row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.04)'+(isActive?';background:rgba(232,160,32,.07)':'');
       row.innerHTML=
-        '<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+(isActive&&_playing?'var(--accent)':'var(--surface3)')+'"></div>'+
+        '<div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+(isActive&&_playing?'var(--gold)':'rgba(255,255,255,.15)')+'"></div>'+
         '<span style="font-size:14px;flex-shrink:0">'+(s.country||'🌐')+'</span>'+
-        '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:13px;font-weight:'+(isActive?600:400)+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+'</div>'+
-          (s.genre?'<div style="font-size:10px;color:var(--text3)">'+s.genre+'</div>':'')+
-        '</div>'+
-        (i>=BUILTIN.length?'<button data-del="'+(i-BUILTIN.length)+'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 6px">×</button>':'');
-      row.addEventListener('click',function(e){
+        '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:'+(isActive?600:400)+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+s.name+'</div>'+(s.genre?'<div style="font-size:10px;color:var(--text3)">'+s.genre+'</div>':'')+
+        '</div>'+(i>=BUILTIN.length?'<button data-del="'+(i-BUILTIN.length)+'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:2px 6px">×</button>':'');
+      row.addEventListener('click',e=>{
         if(e.target.dataset.del!==undefined)return;
         const scrollY=list.scrollTop;
         if(isActive)toggle();else play(s);
         renderNow();renderStations();
         requestAnimationFrame(()=>{list.scrollTop=scrollY;});
       });
-      var delBtn=row.querySelector('[data-del]');
-      if(delBtn){delBtn.addEventListener('click',function(e){
-        e.stopPropagation();var c=loadCustom();c.splice(parseInt(e.target.dataset.del),1);saveCustom(c);renderStations();
-      });}
+      const delBtn=row.querySelector('[data-del]');
+      if(delBtn){
+        delBtn.addEventListener('click',e=>{
+          e.stopPropagation();
+          const c=loadCustom();c.splice(parseInt(e.target.dataset.del),1);saveCustom(c);renderStations();
+        });
+      }
       list.appendChild(row);
     });
   }
 
-  renderNow();
-  renderStations();
+  renderNow();renderStations();
 }
 
 // ── SPHERE ─────────────────────────────────────────────────────────────────
@@ -479,18 +408,11 @@ window.YM_S['radio.sphere.js']={
     _vol=st.vol||0.8;
     if(st.station){_curStation=st.station;if(st.playing)play(st.station);}
     createWidget();
-    // Recrée le widget si l'app revient au premier plan (mobile/PWA background)
-    document._ymRadioVisHandler=function(){
+    document._ymRadioVisHandler=()=>{
       if(document.visibilityState==='visible'){
-        if(_widget&&!document.body.contains(_widget)){
-          _widget=null;
-        }
-        if(!_widget){
-          createWidget();
-        }else{
-          _refreshWidget();
-          _syncWidgetPage();
-        }
+        if(_widget&&!document.body.contains(_widget))_widget=null;
+        if(!_widget)createWidget();
+        else{_refreshWidget();_syncWidgetPage();}
       }
     };
     document.addEventListener('visibilitychange',document._ymRadioVisHandler);
@@ -498,7 +420,7 @@ window.YM_S['radio.sphere.js']={
 
   deactivate(){
     stop();removeWidget();_panelRefresh=null;
-    document.getElementById('ym-radio-audio')?.remove();
+    const audioEl=document.getElementById('ym-radio-audio');if(audioEl)audioEl.remove();
     _audio=null;_ctx=null;
     if(document._ymRadioVisHandler){
       document.removeEventListener('visibilitychange',document._ymRadioVisHandler);
@@ -509,7 +431,7 @@ window.YM_S['radio.sphere.js']={
   renderPanel,
 
   profileSection(container){
-    const n=_curStation?.name||'—';
+    const n=(_curStation&&_curStation.name)||'—';
     const el=document.createElement('div');
     el.style.cssText='display:flex;align-items:center;gap:10px';
     el.innerHTML=
@@ -518,17 +440,15 @@ window.YM_S['radio.sphere.js']={
       '<button id="ps-rad-pp" class="ym-btn ym-btn-ghost" style="font-size:11px">'+(_playing?'Stop':'Play')+'</button>'+
       '<button id="ps-rad-nx" class="ym-btn ym-btn-ghost" style="font-size:11px">⏭</button>';
     el.querySelector('#ps-rad-pp').addEventListener('click',()=>{
-      if(!_curStation){window.YM?.openSpherePanel?.('radio.sphere.js');return;}
+      if(!_curStation){if(window.YM)window.YM.openSpherePanel('radio.sphere.js');return;}
       toggle();
       el.querySelector('#ps-rad-pp').textContent=_playing?'Stop':'Play';
-      el.querySelector('div').textContent=_playing?'▶ '+_curStation.name:'⏹ '+(_curStation?.name||'—');
     });
-    el.querySelector('#ps-rad-nx').addEventListener('click',()=>{nextStation();});
+    el.querySelector('#ps-rad-nx').addEventListener('click',nextStation);
     container.appendChild(el);
   },
 
-  peerSection(container, ctx){
-    // Un pair a la sphere Radio — on montre juste ce qu'il écoute si broadcasté
+  peerSection(container){
     const info=document.createElement('div');
     info.style.cssText='font-size:11px;color:var(--text3)';
     info.textContent='📻 Has Radio sphere active';
@@ -536,4 +456,3 @@ window.YM_S['radio.sphere.js']={
   }
 };
 })();
-
