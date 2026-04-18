@@ -1,32 +1,46 @@
-/* meshai.sphere.js — MeshAI — Délégation de capacités Anthropic en cascade
+/* meshai.sphere.js — MeshAI v2
    Modèle : sphere plugin YourMine (même API que poker.sphere.js)
-   Usage  : charger ce fichier dans le PWA, il s'enregistre dans window.YM_S
+   Nouveautés v2 : device binding, budget plafonné au disponible réel, multi-codes
 */
 (function () {
   'use strict';
   window.YM_S = window.YM_S || {};
 
-  // ── Config worker (à adapter) ──────────────────────────────────────────────
   const WORKER_URL = (window.MESHAI_WORKER_URL || 'https://yourmine-worker.yourminedapp.workers.dev');
-
-  // ── Persistance locale ─────────────────────────────────────────────────────
   const SK = 'meshai_node_v2';
+
   function loadNode()  { try { return JSON.parse(localStorage.getItem(SK) || 'null'); } catch { return null; } }
   function saveNode(n) { localStorage.setItem(SK, JSON.stringify(n)); }
   function clearNode() { localStorage.removeItem(SK); }
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  let _ctx   = null;
-  let _node  = loadNode(); // { nodeId, tokenId, label, role, budgetTotal, budgetUsed, expiresAt }
-  let _status = null;      // dernière réponse /api/status
-  let _refresh = null;     // callback pour re-render le panel
+  let _ctx        = null;
+  let _node       = loadNode();
+  let _status     = null;
+  let _refresh    = null;
+  let _deviceHash = null;
 
-  // ── API helpers ────────────────────────────────────────────────────────────
+  // ── Device fingerprint SHA-256 ─────────────────────────────────────────────
+  async function getDeviceHash() {
+    if (_deviceHash) return _deviceHash;
+    const raw = [
+      navigator.userAgent,
+      navigator.language,
+      Intl.DateTimeFormat().resolvedOptions().timeZone,
+      screen.width + 'x' + screen.height,
+      screen.colorDepth,
+    ].join('|');
+    const buf   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    _deviceHash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('').slice(0, 32);
+    return _deviceHash;
+  }
+
+  // ── API (deviceHash automatiquement ajouté) ────────────────────────────────
   async function api(path, body) {
-    const r = await fetch(WORKER_URL + path, {
-      method: 'POST',
+    const dh = await getDeviceHash();
+    const r  = await fetch(WORKER_URL + path, {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body:    JSON.stringify({ ...body, deviceHash: dh }),
     });
     return r.json();
   }
@@ -35,7 +49,7 @@
   async function registerRoot(apiKey, label, budget) {
     const r = await api('/api/register-root', { apiKey, label, budgetTokens: budget });
     if (r.error) throw new Error(r.error);
-    _node = { nodeId: r.nodeId, tokenId: r.tokenId, label, role: 'root', budgetTotal: budget, budgetUsed: 0 };
+    _node = { nodeId: r.nodeId, tokenId: r.tokenId, label, role: 'root', budgetTotal: r.budgetTotal || budget, budgetUsed: 0 };
     saveNode(_node);
     await refreshStatus();
     return _node;
@@ -45,9 +59,13 @@
     const r = await api('/api/join', { code: code.toUpperCase().trim(), label });
     if (r.error) throw new Error(r.error);
     _node = {
-      nodeId: r.nodeId, tokenId: r.tokenId, label: label || 'Consumer',
-      role: 'consumer', budgetTotal: r.budgetTotal, budgetUsed: 0,
-      expiresAt: r.expiresAt,
+      nodeId:      r.nodeId,
+      tokenId:     r.tokenId,
+      label:       label || 'Consumer',
+      role:        'consumer',
+      budgetTotal: r.budgetTotal,
+      budgetUsed:  r.budgetUsed || 0,
+      expiresAt:   r.expiresAt,
     };
     saveNode(_node);
     await refreshStatus();
@@ -56,9 +74,16 @@
 
   async function generateCode(label, budget, hours, maxChildren) {
     if (!_node) throw new Error('not_registered');
+    // budget est déjà plafonné côté worker, mais on plafonne aussi localement
+    const maxDelegatable = _status?.node?.maxDelegatable ?? (_node.budgetTotal - _node.budgetUsed);
+    const safeBudget = Math.min(budget || 10000, maxDelegatable);
     const r = await api('/api/generate-code', {
-      tokenId: _node.tokenId, nodeId: _node.nodeId,
-      label, budgetTokens: budget, expiresInHours: hours, maxChildren,
+      tokenId:      _node.tokenId,
+      nodeId:       _node.nodeId,
+      label,
+      budgetTokens: safeBudget,
+      expiresInHours: hours,
+      maxChildren,
     });
     if (r.error) throw new Error(r.error);
     return r;
@@ -69,11 +94,10 @@
     const r = await api('/api/status', { tokenId: _node.tokenId, nodeId: _node.nodeId });
     if (r.error) return;
     _status = r;
-    if (_node) {
-      _node.budgetUsed  = r.node.budgetUsed;
-      _node.budgetTotal = r.node.budgetTotal;
-      saveNode(_node);
-    }
+    _node.budgetUsed      = r.node.budgetUsed;
+    _node.budgetTotal     = r.node.budgetTotal;
+    _node.maxDelegatable  = r.node.maxDelegatable;
+    saveNode(_node);
     _refresh?.();
   }
 
@@ -83,8 +107,7 @@
     await refreshStatus();
   }
 
-  // ── LLM public (utilisé par l'extension et le bridge) ─────────────────────
-  // Exposé sur window.MeshAI.llm pour que n'importe quelle page puisse l'appeler
+  // ── LLM public ────────────────────────────────────────────────────────────
   async function llm(messages, opts = {}) {
     if (!_node) throw new Error('no_mesh_node');
     const r = await api('/api/llm', {
@@ -93,45 +116,38 @@
       model: opts.model, stream: false,
     });
     if (r.error) throw new Error(r.error);
-    if (r.usage) {
-      _node.budgetUsed = r.usage.nodeUsed || _node.budgetUsed;
-      saveNode(_node);
-    }
+    if (r.usage) { _node.budgetUsed = r.usage.nodeUsed || _node.budgetUsed; saveNode(_node); }
     return r;
   }
 
-  // Streaming — retourne un ReadableStream d'events SSE
   async function llmStream(messages, opts = {}) {
     if (!_node) throw new Error('no_mesh_node');
-    const r = await fetch(WORKER_URL + '/api/llm', {
-      method: 'POST',
+    const dh = await getDeviceHash();
+    const r  = await fetch(WORKER_URL + '/api/llm', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body:    JSON.stringify({
         tokenId: _node.tokenId, nodeId: _node.nodeId,
         messages, system: opts.system, maxTokens: opts.maxTokens || 2048,
-        model: opts.model, stream: true,
+        model: opts.model, stream: true, deviceHash: dh,
       }),
     });
     if (!r.ok) throw new Error('stream_error');
     return r.body;
   }
 
-  // ── Helpers UI ─────────────────────────────────────────────────────────────
+  // ── UI helpers ─────────────────────────────────────────────────────────────
   function pct() {
     if (!_node || !_node.budgetTotal) return 0;
     return Math.round((_node.budgetUsed / _node.budgetTotal) * 100);
   }
-
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
-
   function fmtNum(n) { return (n || 0).toLocaleString('fr'); }
-
   function roleLabel(role) {
-    return role === 'root' ? '⬡ root (B)' : role === 'consumer' ? '◎ consumer' : '—';
+    return role === 'root' ? '⬡ root (B)' : '◎ consumer';
   }
-
   function budgetColor(p) {
     if (p > 85) return '#f06a6a';
     if (p > 60) return '#f0a84a';
@@ -142,12 +158,8 @@
   function renderPanel(container) {
     container.innerHTML = '';
     container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden;background:var(--bg,#0a0a0f)';
-
-    if (!_node) {
-      renderOnboarding(container);
-    } else {
-      renderDashboard(container);
-    }
+    if (!_node) renderOnboarding(container);
+    else renderDashboard(container);
   }
 
   // ── Onboarding ─────────────────────────────────────────────────────────────
@@ -158,25 +170,22 @@
           <div style="font-size:20px;font-weight:600;margin-bottom:4px">MeshAI</div>
           <div style="font-size:12px;color:var(--text3,#666)">Délégation de capacités Anthropic</div>
         </div>
-
-        <div id="mesh-tab-onboard" style="display:flex;gap:6px;margin-bottom:16px">
-          <button data-tab="join"  class="ym-btn ym-btn-accent" style="flex:1;font-size:12px" id="mesh-btn-join">J'ai un code</button>
-          <button data-tab="root" class="ym-btn ym-btn-ghost"  style="flex:1;font-size:12px" id="mesh-btn-root">Je fournis la clé</button>
+        <div style="display:flex;gap:6px;margin-bottom:16px">
+          <button class="ym-btn ym-btn-accent" style="flex:1;font-size:12px" id="mesh-btn-join">J'ai un code</button>
+          <button class="ym-btn ym-btn-ghost"  style="flex:1;font-size:12px" id="mesh-btn-root">Je fournis la clé</button>
         </div>
-
         <div id="mesh-pane-join">
           <div style="margin-bottom:10px">
-            <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Code de session (donné par B)</label>
-            <input id="mesh-code-input" class="ym-input" placeholder="ABC123" style="text-transform:uppercase;letter-spacing:3px;font-size:18px;text-align:center;width:100%">
+            <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Code de session</label>
+            <input id="mesh-code-input" class="ym-input" placeholder="EX: AB3K7P" style="text-transform:uppercase;letter-spacing:3px;font-size:18px;text-align:center;width:100%">
           </div>
           <div style="margin-bottom:10px">
-            <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Ton nom / label</label>
+            <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Ton nom</label>
             <input id="mesh-join-label" class="ym-input" placeholder="Mon poste" style="width:100%">
           </div>
           <button id="mesh-do-join" class="ym-btn ym-btn-accent" style="width:100%">Rejoindre →</button>
           <div id="mesh-join-err" style="font-size:11px;color:#f06a6a;margin-top:6px;display:none"></div>
         </div>
-
         <div id="mesh-pane-root" style="display:none">
           <div style="margin-bottom:10px">
             <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Clé Anthropic (sk-ant-…)</label>
@@ -184,19 +193,18 @@
           </div>
           <div style="margin-bottom:10px">
             <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Label</label>
-            <input id="mesh-root-label" class="ym-input" placeholder="Mon compte Anthropic" style="width:100%">
+            <input id="mesh-root-label" class="ym-input" placeholder="Mon compte" style="width:100%">
           </div>
-          <div style="margin-bottom:10px">
+          <div style="margin-bottom:4px">
             <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Budget total (tokens)</label>
             <input id="mesh-root-budget" class="ym-input" type="number" value="1000000" style="width:100%">
+            <div style="font-size:10px;color:var(--text3,#666);margin-top:4px">Fixe ta limite d'usage globale. Tu pourras ensuite distribuer des sous-budgets aux utilisateurs A.</div>
           </div>
-          <button id="mesh-do-root" class="ym-btn ym-btn-accent" style="width:100%">Enregistrer →</button>
+          <button id="mesh-do-root" class="ym-btn ym-btn-accent" style="width:100%;margin-top:10px">Enregistrer →</button>
           <div id="mesh-root-err" style="font-size:11px;color:#f06a6a;margin-top:6px;display:none"></div>
         </div>
-      </div>
-    `;
+      </div>`;
 
-    // Tab switch
     container.querySelector('#mesh-btn-join').addEventListener('click', () => {
       container.querySelector('#mesh-pane-join').style.display = 'block';
       container.querySelector('#mesh-pane-root').style.display = 'none';
@@ -210,7 +218,6 @@
       container.querySelector('#mesh-btn-join').className = 'ym-btn ym-btn-ghost';
     });
 
-    // Join
     container.querySelector('#mesh-do-join').addEventListener('click', async () => {
       const code  = container.querySelector('#mesh-code-input').value.trim();
       const label = container.querySelector('#mesh-join-label').value.trim() || 'Consumer';
@@ -222,25 +229,30 @@
         await joinWithCode(code, label);
         renderPanel(container);
         window.YM_toast?.('MeshAI activé ✓', 'success');
+        _pushBridgeConfig();
       } catch (e) {
-        errEl.textContent = e.message; errEl.style.display = 'block';
+        errEl.textContent = e.message === 'invalid_code' ? 'Code invalide ou expiré'
+          : e.message === 'rate_limited' ? 'Trop de tentatives, réessaie dans 1 min'
+          : e.message === 'code_full' ? 'Ce code a atteint sa limite d\'utilisateurs'
+          : e.message;
+        errEl.style.display = 'block';
         container.querySelector('#mesh-do-join').textContent = 'Rejoindre →';
       }
     });
 
-    // Root
     container.querySelector('#mesh-do-root').addEventListener('click', async () => {
       const key    = container.querySelector('#mesh-api-key').value.trim();
       const label  = container.querySelector('#mesh-root-label').value.trim() || 'Root';
       const budget = parseInt(container.querySelector('#mesh-root-budget').value) || 1_000_000;
       const errEl  = container.querySelector('#mesh-root-err');
-      if (!key.startsWith('sk-ant-')) { errEl.textContent = 'Clé invalide'; errEl.style.display = 'block'; return; }
+      if (!key.startsWith('sk-ant-')) { errEl.textContent = 'Clé invalide (doit commencer par sk-ant-)'; errEl.style.display = 'block'; return; }
       try {
         errEl.style.display = 'none';
         container.querySelector('#mesh-do-root').textContent = '…';
         await registerRoot(key, label, budget);
         renderPanel(container);
         window.YM_toast?.('Compte root enregistré ✓', 'success');
+        _pushBridgeConfig();
       } catch (e) {
         errEl.textContent = e.message; errEl.style.display = 'block';
         container.querySelector('#mesh-do-root').textContent = 'Enregistrer →';
@@ -248,18 +260,18 @@
     });
   }
 
-  // ── Dashboard principal ────────────────────────────────────────────────────
+  // ── Dashboard ──────────────────────────────────────────────────────────────
   function renderDashboard(container) {
     _refresh = () => renderDashboard(container);
-    const p = pct();
-    const bc = budgetColor(p);
+    const p    = pct();
+    const bc   = budgetColor(p);
     const node = _node;
-    const s = _status;
+    const s    = _status;
+    const maxDel = s?.node?.maxDelegatable ?? (node.budgetTotal - node.budgetUsed);
 
     container.innerHTML = `
       <div style="flex:1;overflow-y:auto;padding:16px">
 
-        <!-- Identité -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px;background:var(--card-bg,rgba(255,255,255,.04));border-radius:10px;border:1px solid rgba(255,255,255,.07)">
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(node.label)}</div>
@@ -268,7 +280,6 @@
           <button id="mesh-logout" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:3px 8px;color:#f06a6a;border-color:rgba(240,106,106,.3)">✕ quitter</button>
         </div>
 
-        <!-- Budget -->
         <div style="margin-bottom:16px;padding:12px;background:var(--card-bg,rgba(255,255,255,.04));border-radius:10px;border:1px solid rgba(255,255,255,.07)">
           <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
             <span style="font-size:11px;color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em">Budget tokens</span>
@@ -281,16 +292,15 @@
             <span>${fmtNum(node.budgetUsed)} utilisés</span>
             <span>${fmtNum(node.budgetTotal - node.budgetUsed)} restants</span>
           </div>
+          ${maxDel < node.budgetTotal ? `<div style="font-size:10px;color:var(--text3,#666);margin-top:4px;text-align:right">max délégable : ${fmtNum(maxDel)}</div>` : ''}
         </div>
 
-        <!-- Amont (parent) -->
         ${s?.parent ? `
         <div style="margin-bottom:12px;padding:10px 12px;background:rgba(124,106,247,.08);border-radius:8px;border:1px solid rgba(124,106,247,.2)">
-          <div style="font-size:10px;color:#7c6af7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Délégation reçue de</div>
+          <div style="font-size:10px;color:#7c6af7;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Reçu de</div>
           <div style="font-size:12px;font-weight:500">${esc(s.parent.label)}</div>
         </div>` : ''}
 
-        <!-- Aval (enfants) -->
         ${s?.children?.length ? `
         <div style="margin-bottom:12px;padding:10px 12px;background:rgba(79,209,160,.06);border-radius:8px;border:1px solid rgba(79,209,160,.15)">
           <div style="font-size:10px;color:#4fd1a0;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Délégations actives (${s.children.length})</div>
@@ -298,27 +308,22 @@
             <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">
               <div style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.label)}</div>
               <div style="font-size:10px;color:var(--text3,#666)">${fmtNum(c.budgetUsed)}/${fmtNum(c.budgetTotal)}</div>
-            </div>
-          `).join('')}
+            </div>`).join('')}
         </div>` : ''}
 
-        <!-- Codes actifs -->
         ${s?.codes?.length ? `
         <div style="margin-bottom:12px;padding:10px 12px;background:var(--card-bg,rgba(255,255,255,.04));border-radius:8px;border:1px solid rgba(255,255,255,.07)">
           <div style="font-size:10px;color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Codes actifs</div>
           ${s.codes.map(c => `
             <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">
               <div style="font-family:monospace;font-size:14px;font-weight:700;letter-spacing:2px;color:#4fd1a0">${esc(c.code)}</div>
-              <div style="flex:1;font-size:10px;color:var(--text3,#666)">${esc(c.label)} · ${fmtNum(c.budgetTokens)} tok · ${c.childCount} rejoints</div>
+              <div style="flex:1;font-size:10px;color:var(--text3,#666)">${esc(c.label)} · ${fmtNum(c.budgetTokens)} tok · ${c.childCount}/${c.maxChildren}</div>
               <button data-revoke="${esc(c.code)}" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:2px 6px;color:#f06a6a;border-color:rgba(240,106,106,.3)">✕</button>
-            </div>
-          `).join('')}
+            </div>`).join('')}
         </div>` : ''}
 
-        <!-- Bouton générer code -->
         <button id="mesh-gen-code" class="ym-btn ym-btn-accent" style="width:100%;margin-bottom:10px">+ Générer un code de session</button>
 
-        <!-- Formulaire code (caché par défaut) -->
         <div id="mesh-gen-form" style="display:none;padding:12px;background:var(--card-bg,rgba(255,255,255,.04));border-radius:8px;border:1px solid rgba(255,255,255,.07);margin-bottom:12px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
             <div>
@@ -326,8 +331,8 @@
               <input id="mesh-gen-label" class="ym-input" placeholder="Pour Thomas" style="width:100%;font-size:12px">
             </div>
             <div>
-              <label style="font-size:10px;color:var(--text3,#666);display:block;margin-bottom:3px">Budget (tokens)</label>
-              <input id="mesh-gen-budget" class="ym-input" type="number" value="10000" style="width:100%;font-size:12px">
+              <label style="font-size:10px;color:var(--text3,#666);display:block;margin-bottom:3px">Budget (max : ${fmtNum(maxDel)})</label>
+              <input id="mesh-gen-budget" class="ym-input" type="number" value="${Math.min(10000, maxDel)}" max="${maxDel}" style="width:100%;font-size:12px">
             </div>
             <div>
               <label style="font-size:10px;color:var(--text3,#666);display:block;margin-bottom:3px">Durée (heures)</label>
@@ -335,18 +340,17 @@
             </div>
             <div>
               <label style="font-size:10px;color:var(--text3,#666);display:block;margin-bottom:3px">Max utilisateurs</label>
-              <input id="mesh-gen-max" class="ym-input" type="number" value="5" style="width:100%;font-size:12px">
+              <input id="mesh-gen-max" class="ym-input" type="number" value="10" style="width:100%;font-size:12px">
             </div>
           </div>
-          <button id="mesh-gen-confirm" class="ym-btn ym-btn-accent" style="width:100%;font-size:12px">Créer le code →</button>
-          <div id="mesh-gen-result" style="display:none;margin-top:10px;text-align:center">
+          <button id="mesh-gen-confirm" class="ym-btn ym-btn-accent" style="width:100%;font-size:12px">Créer →</button>
+          <div id="mesh-gen-result" style="display:none;margin-top:12px;text-align:center">
             <div style="font-size:36px;font-weight:700;letter-spacing:6px;color:#4fd1a0;font-family:monospace" id="mesh-gen-code-display"></div>
             <div style="font-size:11px;color:var(--text3,#666);margin-top:4px">Donne ce code à l'autre utilisateur</div>
-            <button id="mesh-gen-copy" class="ym-btn ym-btn-ghost" style="margin-top:8px;font-size:11px;width:100%">Copier le code</button>
+            <button id="mesh-gen-copy" class="ym-btn ym-btn-ghost" style="margin-top:8px;font-size:11px;width:100%">Copier</button>
           </div>
         </div>
 
-        <!-- Audit -->
         ${s?.audit?.length ? `
         <div style="padding:10px 12px;background:var(--card-bg,rgba(255,255,255,.04));border-radius:8px;border:1px solid rgba(255,255,255,.07)">
           <div style="font-size:10px;color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Activité récente</div>
@@ -354,25 +358,21 @@
             <div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
               <div style="font-size:10px;color:var(--text3,#666);flex:1">${esc(a.action)} · ${esc(a.detail)}</div>
               <div style="font-size:9px;color:var(--text3,#666);flex-shrink:0">${new Date(a.ts).toLocaleTimeString('fr')}</div>
-            </div>
-          `).join('')}
+            </div>`).join('')}
         </div>` : ''}
 
       </div>
-
-      <div style="flex-shrink:0;border-top:1px solid rgba(255,255,255,.07);padding:10px;display:flex;justify-content:center">
+      <div style="flex-shrink:0;border-top:1px solid rgba(255,255,255,.07);padding:10px">
         <button id="mesh-refresh" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">↻ Actualiser</button>
-      </div>
-    `;
+      </div>`;
 
-    // Events
     container.querySelector('#mesh-logout').addEventListener('click', () => {
-      if (!confirm('Quitter MeshAI ? (ton node sera déconnecté)')) return;
+      if (!confirm('Quitter MeshAI ?')) return;
       clearNode(); _node = null; _status = null;
       renderPanel(container);
     });
 
-    container.querySelector('#mesh-refresh').addEventListener('click', () => refreshStatus());
+    container.querySelector('#mesh-refresh').addEventListener('click', refreshStatus);
 
     container.querySelector('#mesh-gen-code').addEventListener('click', () => {
       const f = container.querySelector('#mesh-gen-form');
@@ -381,15 +381,19 @@
 
     container.querySelector('#mesh-gen-confirm').addEventListener('click', async () => {
       const label  = container.querySelector('#mesh-gen-label').value || 'Session';
-      const budget = parseInt(container.querySelector('#mesh-gen-budget').value) || 10000;
+      const budget = Math.min(
+        parseInt(container.querySelector('#mesh-gen-budget').value) || 10000,
+        maxDel
+      );
       const hours  = parseInt(container.querySelector('#mesh-gen-hours').value) || 24;
-      const max    = parseInt(container.querySelector('#mesh-gen-max').value) || 5;
+      const max    = parseInt(container.querySelector('#mesh-gen-max').value) || 10;
       try {
         container.querySelector('#mesh-gen-confirm').textContent = '…';
         const r = await generateCode(label, budget, hours, max);
         container.querySelector('#mesh-gen-result').style.display = 'block';
         container.querySelector('#mesh-gen-code-display').textContent = r.code;
         container.querySelector('#mesh-gen-confirm').textContent = 'Créer →';
+        window.YM_toast?.('Code créé : ' + r.code, 'success');
         await refreshStatus();
       } catch (e) {
         window.YM_toast?.(e.message, 'error');
@@ -412,6 +416,15 @@
     refreshStatus();
   }
 
+  // ── Push config au bridge local (si actif sur cette machine) ───────────────
+  function _pushBridgeConfig() {
+    if (!_node) return;
+    fetch('http://localhost:3779/configure', {
+      method: 'POST',
+      body:   JSON.stringify({ nodeId: _node.nodeId, tokenId: _node.tokenId, workerUrl: WORKER_URL, label: _node.label }),
+    }).catch(() => {});
+  }
+
   // ── profileSection ─────────────────────────────────────────────────────────
   function profileSection(container) {
     const el = document.createElement('div');
@@ -421,8 +434,8 @@
       el.innerHTML =
         '<span style="font-size:14px">⬡</span>' +
         '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(_node.label) + '</div>' +
-        '<div style="font-size:10px;color:var(--text3,#666)">' + fmtNum(_node.budgetTotal - _node.budgetUsed) + ' tokens restants · ' + p + '%</div>' +
+          '<div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(_node.label) + '</div>' +
+          '<div style="font-size:10px;color:var(--text3,#666)">' + fmtNum(_node.budgetTotal - _node.budgetUsed) + ' tok restants · ' + p + '%</div>' +
         '</div>' +
         '<button id="mesh-ps-open" class="ym-btn ym-btn-ghost" style="font-size:11px">Ouvrir</button>';
     } else {
@@ -437,30 +450,25 @@
 
   // ── Enregistrement sphere ──────────────────────────────────────────────────
   window.YM_S['meshai.sphere.js'] = {
-    name: 'MeshAI',
-    icon: '⬡',
-    category: 'AI',
-    description: 'Délégation de capacités Anthropic en cascade — codes de session, budgets, graphe B→A→C',
-    emit: [],
+    name:        'MeshAI',
+    icon:        '⬡',
+    category:    'AI',
+    description: 'Délégation de capacités Anthropic en cascade — codes de session, budgets, device binding',
+    emit:    [],
     receive: [],
-
-    activate(ctx) {
-      _ctx = ctx;
-      refreshStatus();
-    },
-    deactivate() { _ctx = null; _refresh = null; },
+    activate(ctx)  { _ctx = ctx; refreshStatus(); _pushBridgeConfig(); },
+    deactivate()   { _ctx = null; _refresh = null; },
     renderPanel,
     profileSection,
   };
 
-  // ── API publique globale ───────────────────────────────────────────────────
-  // Utilisée par l'extension Chrome et le bridge local
+  // ── API publique (bridge + extension) ──────────────────────────────────────
   window.MeshAI = {
     llm,
     llmStream,
-    getNode: () => _node,
+    getNode:      () => _node,
     getWorkerUrl: () => WORKER_URL,
-    isReady: () => !!_node,
+    isReady:      () => !!_node,
     generateCode,
     refreshStatus,
   };
