@@ -4,8 +4,10 @@ const path   = require('path');
 const crypto = require('crypto');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
-const MAX_FILE_SIZE  = 100 * 1024;  // 100 Ko
-const MIN_TS_GAP_SEC = 300;         // 5 min entre soumissions du même wallet (nouveaux fichiers seulement)
+const MAX_FILE_SIZE   = 100 * 1024;  // 100 Ko
+const MIN_TS_GAP_SEC  = 300;         // 5 min entre soumissions du même wallet (nouveaux fichiers seulement)
+const MAX_EVENT_AGE_SEC = 3600;      // FIX: un event de plus d'1h est rejeté (évite les vieux events du fork)
+const MAX_NEW_FILES   = 1;           // FIX: 1 seul nouveau fichier par PR
 
 function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
@@ -30,22 +32,46 @@ async function main() {
   const eventsDir = path.join(prContentDir, 'events');
   if (!fs.existsSync(eventsDir)) { console.error('No events/ directory in PR'); process.exit(1); }
 
+  const now = Math.floor(Date.now() / 1000);
+
   const allEvents = fs.readdirSync(eventsDir)
     .filter(f => f.endsWith('.json'))
-    .map(f => { try { return JSON.parse(fs.readFileSync(path.join(eventsDir, f), 'utf8')); } catch(e) { return null; } })
+    .map(f => {
+      try { return JSON.parse(fs.readFileSync(path.join(eventsDir, f), 'utf8')); }
+      catch(e) { return null; }
+    })
     .filter(e => e && e.wallet && e.filename);
 
   if (!allEvents.length) { console.error('No event logs found'); process.exit(1); }
 
-  const eventsByFile = {};
-  for (const ev of allEvents) {
-    if (!eventsByFile[ev.filename] || ev.timestamp > eventsByFile[ev.filename].timestamp)
-      eventsByFile[ev.filename] = ev;
+  // FIX: filtrer les events trop anciens (vieux events du fork)
+  const freshEvents = allEvents.filter(ev => {
+    const age = now - (ev.timestamp || 0);
+    if (age > MAX_EVENT_AGE_SEC) {
+      console.log(`  Skipping stale event for ${ev.filename} (age: ${age}s > ${MAX_EVENT_AGE_SEC}s)`);
+      return false;
+    }
+    return true;
+  });
+
+  if (!freshEvents.length) {
+    console.error(`✗ No fresh events found (all events are older than ${MAX_EVENT_AGE_SEC}s)`);
+    process.exit(1);
   }
 
+  // Garde l'event le plus récent par fichier
+  const eventsByFile = {};
+  for (const ev of freshEvents) {
+    if (!eventsByFile[ev.filename] || ev.timestamp > eventsByFile[ev.filename].timestamp) {
+      eventsByFile[ev.filename] = ev;
+    }
+  }
+
+  // Garde seulement les fichiers dont le .sphere.js est présent dans le PR
   const presentFiles = Object.values(eventsByFile).filter(ev =>
     fs.existsSync(path.join(prContentDir, ev.filename))
   );
+
   if (!presentFiles.length) { console.error('No sphere files found in PR'); process.exit(1); }
 
   const walletPubkey = presentFiles[0].wallet;
@@ -58,14 +84,30 @@ async function main() {
   // Classifie les fichiers : nouveaux vs upgrades
   const newFiles = presentFiles.filter(ev => {
     const existing = filesJsonMain.find(f => f.filename === ev.filename);
-    return !existing; // pas dans files.json = nouveau
+    return !existing;
   });
   const upgradeFiles = presentFiles.filter(ev => {
     const existing = filesJsonMain.find(f => f.filename === ev.filename);
-    return existing && existing.ghAuthor === ghActor; // déjà dans files.json et même propriétaire = upgrade
+    return existing && existing.ghAuthor === ghActor;
+  });
+  // FIX: fichiers appartenant à quelqu'un d'autre → rejet immédiat
+  const unauthorizedFiles = presentFiles.filter(ev => {
+    const existing = filesJsonMain.find(f => f.filename === ev.filename);
+    return existing && existing.ghAuthor !== ghActor;
   });
 
   console.log(`New files: ${newFiles.length}, Upgrades: ${upgradeFiles.length}`);
+
+  if (unauthorizedFiles.length > 0) {
+    console.error(`✗ Unauthorized files: ${unauthorizedFiles.map(f => f.filename).join(', ')}`);
+    process.exit(1);
+  }
+
+  // FIX: max 1 nouveau fichier par PR
+  if (newFiles.length > MAX_NEW_FILES) {
+    console.error(`✗ Too many new files in one PR: ${newFiles.length} (max ${MAX_NEW_FILES})`);
+    process.exit(1);
+  }
 
   // ── PROTECTION rate limit — seulement pour les NOUVEAUX fichiers ────────────
   if (newFiles.length > 0) {
@@ -97,7 +139,10 @@ async function main() {
   const mainEvDir2 = 'events';
   if (fs.existsSync(mainEvDir2)) {
     for (const ef of fs.readdirSync(mainEvDir2).filter(f => f.endsWith('.json'))) {
-      try { const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir2, ef), 'utf8')); if (ev.nonce) knownNonces.add(ev.nonce); } catch(e) {}
+      try {
+        const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir2, ef), 'utf8'));
+        if (ev.nonce) knownNonces.add(ev.nonce);
+      } catch(e) {}
     }
   }
   for (const event of presentFiles) {
@@ -171,10 +216,15 @@ async function main() {
     }
     console.log('✓ Hash OK');
 
+    // FIX: message signé SANS burnSlot pour correspondre à build.js
     const message = JSON.stringify({
-      action: event.action, filename: event.filename,
-      content_hash: event.content_hash, nonce: event.nonce,
-      timestamp: event.timestamp, score: event.score, laps: event.laps
+      action:       event.action,
+      filename:     event.filename,
+      content_hash: event.content_hash,
+      nonce:        event.nonce,
+      timestamp:    event.timestamp,
+      score:        event.score,
+      laps:         event.laps
     });
     if (!verifySignature(message, event.signature, walletPubkey)) {
       console.error(`✗ Invalid signature for ${filename}`);
