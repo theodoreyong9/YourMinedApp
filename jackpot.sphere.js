@@ -354,7 +354,7 @@
     // Charger le vrai solde depuis Striga
     const userId = user.id || user.userId;
     if (userId) {
-      striga('POST', '/user/' + userId + '/wallets', { startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
+      striga('POST', '/wallets/get/all', { userId: userId, startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
         const accounts = (r.wallets && r.wallets[0] && r.wallets[0].accounts) || {};
         const eurAcc   = accounts['EUR'];
         const bal      = eurAcc ? (parseInt(eurAcc.availableBalance || 0) / 100) : 0;
@@ -535,7 +535,7 @@
         const userId = user.id || user.userId;
 
         // 1. Récupérer les wallets des deux utilisateurs via Striga
-        const senderWallets = await striga('POST', '/user/' + userId + '/wallets', { startDate: 0, endDate: Date.now(), page: 0 });
+        const senderWallets = await striga('POST', '/wallets/get/all', { userId: userId, startDate: 0, endDate: Date.now(), page: 0 });
         const senderWallet  = senderWallets.wallets && senderWallets.wallets[0];
         if (!senderWallet) throw new Error('Wallet expéditeur introuvable');
         const senderEurEntries = Object.entries(senderWallet.accounts || {}).filter(function(e) { return e[0] === 'EUR'; });
@@ -629,7 +629,7 @@
     // Charger le vrai solde
     const userId = user.id || user.userId;
     if (userId) {
-      striga('POST', '/user/' + userId + '/wallets', { startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
+      striga('POST', '/wallets/get/all', { userId: userId, startDate: 0, endDate: Date.now(), page: 0 }).then(function(r) {
         const accounts = (r.wallets && r.wallets[0] && r.wallets[0].accounts) || {};
         const eurAcc   = accounts['EUR'];
         const bal      = eurAcc ? (parseInt(eurAcc.availableBalance || 0) / 100) : 0;
@@ -727,16 +727,18 @@
           },
           email:       v('jk-email').trim().toLowerCase(),
           mobile: (function() {
-            var tel = v('jk-tel').replace(/[\s\-\(\)]/g, '').replace(/^\+/, '');
-            // Séparer l'indicatif pays du numéro local
-            // Ex: 33612345678 → countryCode=33, number=612345678
-            // Ex: 1234567890 → countryCode=1, number=234567890
-            var cc = '33', num = tel;
-            if (tel.startsWith('33') && tel.length >= 11) { cc = '33'; num = tel.slice(2); }
-            else if (tel.startsWith('44') && tel.length >= 11) { cc = '44'; num = tel.slice(2); }
-            else if (tel.startsWith('1')  && tel.length === 11) { cc = '1';  num = tel.slice(1); }
-            else if (tel.startsWith('49') && tel.length >= 11) { cc = '49'; num = tel.slice(2); }
-            else if (tel.startsWith('41') && tel.length >= 11) { cc = '41'; num = tel.slice(2); }
+            var tel = v('jk-tel').replace(/[\s\-\(\)]/g, '');
+            // Striga attend countryCode avec le + et number sans indicatif
+            // Ex: +33612345678 → countryCode='+33', number='612345678'
+            var cc = '+33', num = tel.replace(/^\+/, '');
+            if (tel.startsWith('+')) {
+              var match = tel.match(/^(\+\d{1,3})(\d+)$/);
+              if (match) { cc = match[1]; num = match[2]; }
+            } else if (tel.startsWith('33') && tel.length >= 11) { cc = '+33'; num = tel.slice(2); }
+            else if (tel.startsWith('44') && tel.length >= 11)   { cc = '+44'; num = tel.slice(2); }
+            else if (tel.startsWith('1')  && tel.length === 11)  { cc = '+1';  num = tel.slice(1); }
+            else if (tel.startsWith('49') && tel.length >= 11)   { cc = '+49'; num = tel.slice(2); }
+            else if (tel.startsWith('41') && tel.length >= 11)   { cc = '+41'; num = tel.slice(2); }
             return { countryCode: cc, number: num };
           })(),
           nationality: v('jk-nat').toUpperCase().slice(0, 2),
@@ -777,7 +779,7 @@
         kycBtn.addEventListener('click', async function() {
           kycBtn.disabled = true; kycBtn.innerHTML = ''; kycBtn.appendChild(mkSpin()); kycBtn.append(' Chargement…');
           try {
-            const r = await striga('POST', '/user/' + (user.id || user.userId) + '/kyc/start', {});
+            const r = await striga('POST', '/user/kyc/start', { userId: user.id || user.userId });
             if (r.verificationLink) window.open(r.verificationLink, '_blank');
             fb.appendChild(mkNotice('Lien ouvert. Reviens ici une fois la vérification terminée.', 'info'));
             kycBtn.disabled = false; kycBtn.textContent = 'Lancer la vérification d\'identité';
@@ -837,7 +839,7 @@
   }
 
   /* ─── REGISTRATION ────────────────────────────────────── */
-  window.YM_S['jackpot.sphere.js'] = {
+  window.YM_S['striga.sphere.js'] = {
     name:        'Jackpot',
     icon:        '🎰',
     category:    'Finance',
