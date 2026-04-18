@@ -87,17 +87,6 @@
     "burnSlot": 0
   },
   {
-    "filename": "social.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.384776,
-    "laps": 0,
-    "timestamp": 1774960561,
-    "merged_at": 1776518277,
-    "burnSlot": 0
-  },
-  {
     "filename": "jackpot.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
@@ -118,60 +107,5 @@
     "timestamp": 1774961327,
     "merged_at": 1776518277,
     "burnSlot": 0
-  },
-  {
-    "filename": "automator.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.404131,
-    "laps": 0,
-    "burnSlot": 0,
-    "timestamp": 1775021735,
-    "merged_at": 1776518277
-  },
-  {
-    "filename": "wipeout.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.394973,
-    "laps": 0,
-    "burnSlot": 0,
-    "timestamp": 1774993049,
-    "merged_at": 1776518277
-  },
-  {
-    "filename": "mysphere.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.394807,
-    "laps": 0,
-    "burnSlot": 0,
-    "timestamp": 1774992334,
-    "merged_at": 1776518277
-  },
-  {
-    "filename": "deeplink.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.38441,
-    "laps": 0,
-    "burnSlot": 0,
-    "timestamp": 1774959426,
-    "merged_at": 1776518277
-  },
-  {
-    "filename": "striga.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.384907,
-    "laps": 0,
-    "burnSlot": 0,
-    "timestamp": 1774961229,
-    "merged_at": 1776518277
   }
 ]
