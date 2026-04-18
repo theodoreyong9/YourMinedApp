@@ -1061,32 +1061,88 @@
     function vsSend(type, payload){
       if(_ctx&&_ctx.send) try{_ctx.send('td:'+type,{...payload,gid:sess.gameId});}catch(e){}
     }
-    // Recevoir les attaquants adverses → les spawner sur mon chemin
+
+    // ── Sync : handshake ready/go pour démarrer ensemble ─────
+    let _readyReceived=false, _goReceived=false;
+    let _startAt=null; // timestamp absolu de départ commun
+
     if(_ctx&&_ctx.onReceive){
       _ctx.onReceive((type,data)=>{
-        if(type!=='td:atk') return;
+        if(!type.startsWith('td:')) return;
         if(data.gid&&data.gid!==sess.gameId) return;
-        if(gameOver) return;
-        (data.list||[]).forEach(a=>{
-          const def=ATTACKER_DEFS[a.type]; if(!def)return;
-          const scale=1+Math.max(0,waveIdx-1)*.15;
-          const d={...def,typeid:a.type,hp:Math.round(def.hp*scale),spd:Math.min(def.spd+waveIdx*2,160),reward:Math.round(def.reward*scale)};
-          if(sc) spawnEnemy(sc,d);
-        });
+        const t=type.slice(3);
+
+        if(t==='ready'){
+          // L'adversaire est prêt — si je suis hôte, j'envoie go
+          _readyReceived=true;
+          if(sess.role==='host'){
+            const startAt=Date.now()+3000; // départ dans 3s
+            _startAt=startAt;
+            vsSend('go',{startAt});
+            scheduleWave(sc,startAt);
+          }
+        }
+        if(t==='go'){
+          // L'hôte donne le signal de départ
+          if(!_goReceived){_goReceived=true;scheduleWave(sc,data.startAt);}
+        }
+        if(t==='atk'){
+          // Attaquants adverses → spawner sur mon chemin
+          if(gameOver||!sc) return;
+          (data.list||[]).forEach(a=>{
+            const def=ATTACKER_DEFS[a.type]; if(!def)return;
+            const scale=1+Math.max(0,waveIdx-1)*.15;
+            spawnEnemy(sc,{...def,typeid:a.type,
+              hp:Math.round(def.hp*scale),
+              spd:Math.min(def.spd+waveIdx*2,160),
+              reward:Math.round(def.reward*scale)});
+          });
+        }
+        if(t==='towers'){
+          // Tours adverses → stocker pour la vue espion
+          _opponentTowers=data.towers||[];
+          if(spyMode) drawSpyCanvas();
+        }
+        if(t==='gameover'){
+          if(!gameOver){gameOver=true;triggerWin();}
+        }
       });
     }
 
-    // Envoyer mes attaquants + simuler leur progression pour le brouillard
+    // Diffuser mes tours à l'adversaire (pour vue espion)
+    // Appelé après chaque placement/vente/upgrade de tour
+    function broadcastTowers(){
+      const list=myTowers.map(t=>({x:t.x,y:t.y,type:t.type,level:t.level}));
+      vsSend('towers',{towers:list});
+    }
+
+    // Envoyer mes attaquants + simuler avance pour brouillard
     const myAtkInFlight=[];
     function sendAttackers(){
       const list=[];
       Object.entries(myAttackers).forEach(([type,count])=>{for(let i=0;i<count;i++)list.push({type});});
       if(list.length) vsSend('atk',{list});
-      // Simuler en local pour révéler le brouillard progressivement
       list.forEach(a=>{
         const def=ATTACKER_DEFS[a.type];
         if(def) myAtkInFlight.push({dist:0,spd:def.spd||55,done:false});
       });
+    }
+
+    // Planifier la première vague au timestamp de départ commun
+    function scheduleWave(psc, startAt){
+      if(!psc){// sc pas encore dispo, réessayer
+        setTimeout(()=>scheduleWave(sc,startAt),200); return;
+      }
+      const delay=Math.max(500, startAt-Date.now());
+      // Afficher compte à rebours
+      let rem=Math.ceil(delay/1000);
+      const tick=setInterval(()=>{
+        rem--;
+        if(rem>0&&sc) showFloat2(sc,''+rem,W/2,H/2-40,'#fbbf24');
+        else clearInterval(tick);
+      },1000);
+      if(sc) showFloat2(sc,'⚔️ VS!',W/2,H/2-60,'#ef4444');
+      setTimeout(()=>launchAutoWave(psc),delay);
     }
 
     // ── VAGUES AUTOMATIQUES ──────────────────────────────────
@@ -1131,6 +1187,7 @@
       drawBg(this); drawPath(this);
       createHUD(this); createIconBar(this);
 
+      // Déposer les tours → broadcaster aux adversaire
       this.input.on('pointerdown',ptr=>{
         if(gameOver||shopIsOpen)return;
         const{x,y}=ptr;
@@ -1142,11 +1199,29 @@
         const cfg=TOWER_DEFS[selectedTower];
         if(myGoldDef<cfg.cost){showFloat(this,'Pas assez 💰',x,y-28,'#ef4444');return;}
         myGoldDef-=cfg.cost; placeTower(this,x,y,selectedTower); updateHUD();
+        broadcastTowers();
       });
 
-      // Démarrer la première vague après 5s
-      this.time.delayedCall(5000,()=>launchAutoWave(this));
-      showFloat2(this,'⚔️ VS — Préparez-vous !',W/2,H/2-60,'#ef4444');
+      // Handshake : envoyer ready, attendre go de l'hôte
+      // Si hôte : attendre ready du guest (ou timeout 15s)
+      // Si guest : envoyer ready immédiatement
+      showFloat2(this,'⚔️ VS — En attente…',W/2,H/2-60,'rgba(255,255,255,.5)');
+      if(sess.role==='guest'){
+        // Guest envoie ready
+        setTimeout(()=>vsSend('ready',{}), 800);
+        // Timeout sécurité : si pas de go dans 15s, démarrer quand même
+        setTimeout(()=>{if(!_goReceived){_goReceived=true;scheduleWave(this,Date.now()+2000);}},15000);
+      } else {
+        // Hôte attend ready du guest, timeout 20s
+        setTimeout(()=>{
+          if(!_readyReceived){
+            // Guest pas encore connecté, démarrer seul
+            const startAt=Date.now()+2000;
+            _startAt=startAt;
+            scheduleWave(this,startAt);
+          }
+        },20000);
+      }
     }
 
     function drawBg(s){
@@ -1192,22 +1267,18 @@
     }
 
     // ── VUE ESPION ───────────────────────────────────────────
-    // Zones révélées par les attaquants envoyés (0..19 = 20 tranches du chemin)
     const FOG=20;
     const fogRevealedSegs=new Set(sess.fogReveal||[]);
+    let _opponentTowers=[]; // reçus via td:towers
 
-    function toggleSpy(){
-      if(spyMode){closeSpyOv();}else{openSpyOv();}
-    }
+    function toggleSpy(){spyMode?closeSpyOv():openSpyOv();}
     function openSpyOv(){
       spyMode=true;
       if(hudTexts.spyBtn){hudTexts.spyBtn.textContent='🔙 MON TERRAIN';hudTexts.spyBtn.style.borderColor='rgba(96,165,250,.5)';hudTexts.spyBtn.style.color='#60a5fa';}
       spyOverlay=document.createElement('div');
       spyOverlay.style.cssText=`position:absolute;left:0;top:${TOP_H}px;right:0;bottom:${BAR_H}px;z-index:80;background:#07080e;overflow:hidden`;
-      // Fond quadrillage
-      spyOverlay.innerHTML=`<canvas id="spy-canvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
-        <div id="spy-fog" style="position:absolute;inset:0;pointer-events:none"></div>
-        <div style="position:absolute;top:8px;left:0;right:0;text-align:center;font-family:monospace;font-size:10px;color:rgba(239,68,68,.6);letter-spacing:2px">TERRAIN ADVERSE</div>`;
+      spyOverlay.innerHTML=`<canvas id="spy-canvas" style="position:absolute;inset:0"></canvas>
+        <div style="position:absolute;top:6px;left:0;right:0;text-align:center;font-family:monospace;font-size:9px;color:rgba(239,68,68,.5);letter-spacing:2px">TERRAIN ADVERSE</div>`;
       container.appendChild(spyOverlay);
       drawSpyCanvas();
     }
@@ -1225,48 +1296,55 @@
       const cw=container.offsetWidth, ch=container.offsetHeight-TOP_H-BAR_H;
       canvas.width=cw; canvas.height=ch;
       const ctx=canvas.getContext('2d');
+
       // Fond + grille
-      ctx.fillStyle='#07080e'; ctx.fillRect(0,0,cw,ch);
-      ctx.strokeStyle='rgba(255,255,255,0.025)'; ctx.lineWidth=0.5;
+      ctx.fillStyle='#07080e';ctx.fillRect(0,0,cw,ch);
+      ctx.strokeStyle='rgba(255,255,255,0.02)';ctx.lineWidth=0.5;
       for(let x=0;x<cw;x+=36){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ch);ctx.stroke();}
       for(let y=0;y<ch;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();}
-      // Chemin adverse (même chemin mais en rouge)
-      ctx.strokeStyle='rgba(239,68,68,0.5)'; ctx.lineWidth=36;
-      ctx.beginPath();
-      pathPts.forEach((p,i)=>{
-        const py=p.y-TOP_H;
-        i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);
-      });
-      ctx.stroke();
-      ctx.strokeStyle='rgba(20,15,30,1)'; ctx.lineWidth=30;
+
+      // Chemin
+      ctx.strokeStyle='rgba(30,20,40,1)';ctx.lineWidth=40;
       ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-TOP_H;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
-      ctx.strokeStyle='rgba(239,68,68,0.3)'; ctx.lineWidth=2;
+      ctx.strokeStyle='rgba(239,68,68,0.3)';ctx.lineWidth=2;
       ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-TOP_H;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
 
-      // Brouillard de guerre : couvrir les zones non révélées
+      // Brouillard de guerre par tranches verticales
       const segH=ch/FOG;
       for(let seg=0;seg<FOG;seg++){
         if(!fogRevealedSegs.has(seg)){
-          ctx.fillStyle='rgba(0,0,0,0.88)';
-          ctx.fillRect(0,seg*segH,cw,segH);
-          // Icône brouillard
-          ctx.font='14px monospace';ctx.fillStyle='rgba(255,255,255,0.08)';ctx.textAlign='center';
-          ctx.fillText('▓▓▓▓▓',cw/2,seg*segH+segH/2+5);
+          ctx.fillStyle='rgba(0,0,0,0.92)';ctx.fillRect(0,seg*segH,cw,segH);
+        } else {
+          // Zone révélée : afficher les tours adverses dans cette zone
+          _opponentTowers.forEach(t=>{
+            const ty=t.y-TOP_H;
+            const tSeg=Math.floor((ty/ch)*FOG);
+            if(tSeg!==seg)return;
+            const cfg=TOWER_DEFS[t.type];if(!cfg)return;
+            const col='#'+cfg.col.toString(16).padStart(6,'0');
+            // Cercle tour
+            ctx.beginPath();ctx.arc(t.x,ty,18,0,Math.PI*2);ctx.fillStyle='rgba(8,11,26,0.9)';ctx.fill();
+            ctx.strokeStyle=col;ctx.lineWidth=t.level>=1?2.5:1.8;ctx.stroke();
+            // Emoji
+            ctx.font='12px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+            ctx.fillText(cfg.emoji,t.x,ty);
+            // Niveau
+            if(t.level>0){ctx.font='7px monospace';ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText('Niv'+(t.level+1),t.x+14,ty-12);}
+          });
         }
       }
-      // Label révélé vs non révélé
+
+      // Stats en bas
       const revealed=fogRevealedSegs.size;
-      ctx.font='9px monospace';ctx.fillStyle='rgba(255,255,255,.3)';ctx.textAlign='left';
-      ctx.fillText(`${Math.round(revealed/FOG*100)}% du terrain révélé`,8,ch-8);
+      ctx.font='9px monospace';ctx.fillStyle='rgba(255,255,255,.3)';ctx.textAlign='left';ctx.textBaseline='bottom';
+      ctx.fillText(`${Math.round(revealed/FOG*100)}% révélé · ${_opponentTowers.length} tours adverses`,8,ch-6);
     }
 
-    // Quand mes attaquants avancent, révéler des zones du terrain adverse
-    function revealFog(distTraveled, totalPath){
+    function revealFog(distTraveled,totalPath){
       const seg=Math.floor((distTraveled/totalPath)*FOG);
       if(seg>=0&&seg<FOG&&!fogRevealedSegs.has(seg)){
         fogRevealedSegs.add(seg);
-        if(spyMode)drawSpyCanvas(); // rafraîchir la vue espion
-        // Persister
+        if(spyMode)drawSpyCanvas();
         const s=getVSSession();if(s){s.fogReveal=[...fogRevealedSegs];setVSSession(s);}
       }
     }
@@ -1406,14 +1484,14 @@
       ov.querySelector('#vs-cl').onclick=()=>removeShopOv();
       ov.querySelector('#vs-sell').onclick=()=>{
         myGoldDef+=sell; tower.g.destroy();tower.ico.destroy();tower.rg.destroy();tower.lvlTxt.destroy();
-        myTowers=myTowers.filter(t=>t!==tower); updateHUD(); removeShopOv();
+        myTowers=myTowers.filter(t=>t!==tower); updateHUD(); removeShopOv(); broadcastTowers();
       };
       if(hasUpg){const ub=ov.querySelector('#vs-upg');if(ub)ub.onclick=()=>{
         if(myGoldDef<upg.cost)return;
         myGoldDef-=upg.cost; tower.level++;
         Object.keys(upg).forEach(k=>{if(k!=='cost'&&k!=='label')tower.cfg[k]=upg[k];});
         drawTGfx(tower.g,tower.cfg,tower.level); tower.rg.clear();tower.rg.lineStyle(1,tower.cfg.col,.12);tower.rg.strokeCircle(0,0,tower.cfg.range);tower.lvlTxt.setText(''+(tower.level+1));
-        emitB(sc,tower.x,tower.y,tower.cfg.col); updateHUD(); removeShopOv();
+        emitB(sc,tower.x,tower.y,tower.cfg.col); updateHUD(); removeShopOv(); broadcastTowers();
       };}
     }
 
