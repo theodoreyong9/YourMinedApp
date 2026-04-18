@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "jackpot.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "8feb643768c3b157ff79a2510b2f474b51c5c70e4c92bbedd2b3551dca0c7c9c",
+  "signature": "9EU3Dt8Amyombrmcv7yYn5lxncnErH0/O3CAHH7r1nAKEvh9VfjSHndCvpJAWNtxkCEgC1+D74dBIayOXiaDCw==",
+  "nonce": "577cc9f6-6a7a-4baa-aec7-eb8a1b3c6015",
+  "timestamp": 1776518246,
+  "score": 0.8970445157933646,
+  "laps": 7619089,
+  "burnSlot": 448770336
+}
