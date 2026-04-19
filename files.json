@@ -70,11 +70,11 @@
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
     "last_committer": "Keanuji",
-    "score": 0.414328,
-    "laps": 0,
-    "timestamp": 1775054094,
-    "merged_at": 1776518277,
-    "burnSlot": 0
+    "score": 0.923418,
+    "laps": 7823098,
+    "timestamp": 1776595503,
+    "merged_at": 1776595526,
+    "burnSlot": 448770336
   },
   {
     "filename": "jackpot.sphere.js",
