@@ -4,11 +4,12 @@
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
     "last_committer": "Keanuji",
-    "score": 0.38398,
-    "laps": 0,
-    "timestamp": 1774958073,
-    "merged_at": 1776518277,
-    "burnSlot": 0
+    "score": 0.931547,
+    "laps": 7885881,
+    "timestamp": 1776619284,
+    "merged_at": 1776619307,
+    "burnSlot": 448770336,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/activity.sphere.code.js"
   },
   {
     "filename": "anonmessenger.sphere.js",
