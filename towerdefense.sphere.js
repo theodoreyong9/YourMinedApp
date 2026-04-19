@@ -12,7 +12,8 @@
   function saveScore(s) { const a=loadScores(); a.unshift(s); localStorage.setItem(SCORES_KEY,JSON.stringify(a.slice(0,20))); }
 
   let _ctx=null, _game=null;
-  let _stopMenuPoll=null; // arrête le poll du menu quand un jeu est lancé
+  let _stopMenuPoll=null;
+  let _myTowersBroadcast=[]; // tours locales exposées via broadcastData() pour vue espion adverse
 
   function _launchGame(container, launchFn){
     // Stopper le poll du menu avant de lancer le jeu
@@ -155,8 +156,12 @@
   // broadcastData() est appelé par social.sphere.js dans buildProfilePacket()
   // → le champ td_invite arrive dans le profil broadcasté à tous les peers
   function broadcastData(){
-    if(_currentInviteBroadcast) return {td_invite:_currentInviteBroadcast};
-    return {};
+    const out={};
+    if(_currentInviteBroadcast) out.td_invite=_currentInviteBroadcast;
+    // Exposer les tours pour la vue espion adverse (lues via _nearUsers.profile.td_towers)
+    if(typeof _myTowersBroadcast!=='undefined'&&_myTowersBroadcast.length)
+      out.td_towers=_myTowersBroadcast;
+    return out;
   }
 
   // Lire une invitation destinée à moi dans le profil d'un near user
@@ -1064,7 +1069,6 @@
 
     // ── Sync : handshake ready/go pour démarrer ensemble ─────
     let _readyReceived=false, _goReceived=false;
-    let _startAt=null; // timestamp absolu de départ commun
 
     if(_ctx&&_ctx.onReceive){
       _ctx.onReceive((type,data)=>{
@@ -1073,21 +1077,23 @@
         const t=type.slice(3);
 
         if(t==='ready'){
-          // L'adversaire est prêt — si je suis hôte, j'envoie go
           _readyReceived=true;
           if(sess.role==='host'){
-            const startAt=Date.now()+3000; // départ dans 3s
-            _startAt=startAt;
+            const startAt=Date.now()+3000;
             vsSend('go',{startAt});
             scheduleWave(sc,startAt);
           }
         }
         if(t==='go'){
-          // L'hôte donne le signal de départ
           if(!_goReceived){_goReceived=true;scheduleWave(sc,data.startAt);}
         }
+        if(t==='wave'){
+          // L'hôte nous donne le timestamp de la prochaine vague
+          if(sess.role==='guest'&&data.startAt){
+            launchAutoWave(sc, data.startAt);
+          }
+        }
         if(t==='atk'){
-          // Attaquants adverses → spawner sur mon chemin
           if(gameOver||!sc) return;
           (data.list||[]).forEach(a=>{
             const def=ATTACKER_DEFS[a.type]; if(!def)return;
@@ -1099,7 +1105,7 @@
           });
         }
         if(t==='towers'){
-          // Tours adverses → stocker pour la vue espion
+          // Backup si broadcastData ne suffit pas (rate limit)
           _opponentTowers=data.towers||[];
           if(spyMode) drawSpyCanvas();
         }
@@ -1109,40 +1115,86 @@
       });
     }
 
-    // Diffuser mes tours à l'adversaire (pour vue espion)
-    // Appelé après chaque placement/vente/upgrade de tour
+    // Diffuser mes tours via broadcastData (heartbeat social 5s) — pas via vsSend (rate limité)
+    // broadcastData() est appelé par social.sphere.js buildProfilePacket() toutes les 5s
+    // L'adversaire les reçoit dans _nearUsers.get(uuid).profile.td_towers
     function broadcastTowers(){
-      const list=myTowers.map(t=>({x:t.x,y:t.y,type:t.type,level:t.level}));
-      vsSend('towers',{towers:list});
+      // Stocker localement — sera lu par broadcastData()
+      _myTowersBroadcast=myTowers.map(t=>({x:t.x,y:t.y,type:t.type,level:t.level}));
     }
 
-    // Envoyer mes attaquants + simuler avance pour brouillard
+    // Envoyer mes attaquants (délayé pour éviter le rate limiter GAP=3s)
     const myAtkInFlight=[];
-    function sendAttackers(){
+    function sendAttackers(delayMs){
       const list=[];
       Object.entries(myAttackers).forEach(([type,count])=>{for(let i=0;i<count;i++)list.push({type});});
-      if(list.length) vsSend('atk',{list});
+      if(!list.length) return;
+      setTimeout(()=>vsSend('atk',{list}), delayMs||4000); // délai > GAP=3s
       list.forEach(a=>{
         const def=ATTACKER_DEFS[a.type];
         if(def) myAtkInFlight.push({dist:0,spd:def.spd||55,done:false});
       });
     }
 
+    // Sync vagues : l'hôte émet le timestamp de chaque vague via td:wave
+    // Les deux joueurs utilisent ce timestamp pour démarrer exactement ensemble
+    function launchAutoWave(psc, waveStartAt){
+      if(gameOver) return;
+      const now=Date.now();
+      const delay=waveStartAt?Math.max(0,waveStartAt-now):0;
+
+      setTimeout(()=>{
+        if(gameOver||!sc) return;
+        const ws=AUTO_WAVE[waveIdx%AUTO_WAVE.length];
+        const scale=1+Math.max(0,waveIdx-1)*.18;
+        waveIdx++;
+        if(hudTexts.wave) hudTexts.wave.setText('Vague '+waveIdx);
+        showFloat2(sc, waveIdx<=1?'⚔️ C\'est parti !':'⚔️ Vague '+waveIdx, W/2, H/2-50, '#ef4444');
+
+        // Spawner ennemis auto sur mon chemin
+        ws.forEach(sq=>{
+          for(let i=0;i<sq.count;i++){
+            const t=(sq.offset||0)+i*sq.delay;
+            setTimeout(()=>{
+              if(gameOver||!sc) return;
+              const def=ATTACKER_DEFS[sq.type]||ATTACKER_DEFS.grunt;
+              const d={...def,typeid:sq.type,hp:Math.round(def.hp*scale),spd:Math.min(def.spd+waveIdx*2,160),reward:Math.round(def.reward*scale)};
+              spawnEnemy(sc,d);
+            },t);
+          }
+        });
+
+        // Envoyer mes attaquants achetés sur le terrain adverse
+        sendAttackers(4000);
+        saveState();
+
+        // L'hôte planifie la prochaine vague et broadcast le timestamp
+        if(sess.role==='host'){
+          const nextWaveAt=Date.now()+30000; // dans 30s
+          setTimeout(()=>{
+            if(!gameOver){
+              vsSend('wave',{startAt:nextWaveAt, waveIdx});
+              launchAutoWave(sc, nextWaveAt);
+            }
+          }, 30000);
+          // Broadcaster maintenant pour que le guest sache
+          // (pas de delay car c'est le premier message de la vague)
+        }
+      }, delay);
+    }
+
     // Planifier la première vague au timestamp de départ commun
     function scheduleWave(psc, startAt){
-      if(!psc){// sc pas encore dispo, réessayer
-        setTimeout(()=>scheduleWave(sc,startAt),200); return;
-      }
-      const delay=Math.max(500, startAt-Date.now());
-      // Afficher compte à rebours
+      if(!psc){setTimeout(()=>scheduleWave(sc,startAt),200);return;}
+      const delay=Math.max(500,startAt-Date.now());
       let rem=Math.ceil(delay/1000);
       const tick=setInterval(()=>{
         rem--;
-        if(rem>0&&sc) showFloat2(sc,''+rem,W/2,H/2-40,'#fbbf24');
+        if(rem>0&&sc)showFloat2(sc,''+rem,W/2,H/2-40,'#fbbf24');
         else clearInterval(tick);
       },1000);
-      if(sc) showFloat2(sc,'⚔️ VS!',W/2,H/2-60,'#ef4444');
-      setTimeout(()=>launchAutoWave(psc),delay);
+      if(delay>1000&&sc)showFloat2(sc,'⚔️ VS!',W/2,H/2-60,'#ef4444');
+      launchAutoWave(psc, startAt);
     }
 
     // ── VAGUES AUTOMATIQUES ──────────────────────────────────
@@ -1297,47 +1349,47 @@
       canvas.width=cw; canvas.height=ch;
       const ctx=canvas.getContext('2d');
 
+      // Tours adverses : priorité au profil live (broadcastData via heartbeat social 5s)
+      const liveProfile=window.YM_Social?._nearUsers?.get(sess.opponentUUID)?.profile;
+      const towersToShow=(liveProfile&&liveProfile.td_towers)||_opponentTowers||[];
+
       // Fond + grille
       ctx.fillStyle='#07080e';ctx.fillRect(0,0,cw,ch);
       ctx.strokeStyle='rgba(255,255,255,0.02)';ctx.lineWidth=0.5;
       for(let x=0;x<cw;x+=36){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ch);ctx.stroke();}
       for(let y=0;y<ch;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();}
 
-      // Chemin
+      // Chemin (même chemin que le joueur, les tours sont positionnées dessus)
       ctx.strokeStyle='rgba(30,20,40,1)';ctx.lineWidth=40;
       ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-TOP_H;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
       ctx.strokeStyle='rgba(239,68,68,0.3)';ctx.lineWidth=2;
       ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-TOP_H;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
 
-      // Brouillard de guerre par tranches verticales
+      // Brouillard + tours dans les zones révélées
       const segH=ch/FOG;
       for(let seg=0;seg<FOG;seg++){
         if(!fogRevealedSegs.has(seg)){
           ctx.fillStyle='rgba(0,0,0,0.92)';ctx.fillRect(0,seg*segH,cw,segH);
         } else {
-          // Zone révélée : afficher les tours adverses dans cette zone
-          _opponentTowers.forEach(t=>{
+          towersToShow.forEach(t=>{
             const ty=t.y-TOP_H;
-            const tSeg=Math.floor((ty/ch)*FOG);
+            const tSeg=Math.min(FOG-1,Math.floor((ty/ch)*FOG));
             if(tSeg!==seg)return;
             const cfg=TOWER_DEFS[t.type];if(!cfg)return;
             const col='#'+cfg.col.toString(16).padStart(6,'0');
-            // Cercle tour
-            ctx.beginPath();ctx.arc(t.x,ty,18,0,Math.PI*2);ctx.fillStyle='rgba(8,11,26,0.9)';ctx.fill();
+            ctx.beginPath();ctx.arc(t.x,ty,18,0,Math.PI*2);
+            ctx.fillStyle='rgba(8,11,26,0.9)';ctx.fill();
             ctx.strokeStyle=col;ctx.lineWidth=t.level>=1?2.5:1.8;ctx.stroke();
-            // Emoji
             ctx.font='12px serif';ctx.textAlign='center';ctx.textBaseline='middle';
             ctx.fillText(cfg.emoji,t.x,ty);
-            // Niveau
-            if(t.level>0){ctx.font='7px monospace';ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText('Niv'+(t.level+1),t.x+14,ty-12);}
+            if(t.level>0){ctx.font='7px monospace';ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText('Niv'+(t.level+1),t.x+16,ty-14);}
           });
         }
       }
 
-      // Stats en bas
       const revealed=fogRevealedSegs.size;
       ctx.font='9px monospace';ctx.fillStyle='rgba(255,255,255,.3)';ctx.textAlign='left';ctx.textBaseline='bottom';
-      ctx.fillText(`${Math.round(revealed/FOG*100)}% révélé · ${_opponentTowers.length} tours adverses`,8,ch-6);
+      ctx.fillText(revealed===0?'Envoyez des attaquants pour révéler le terrain!':`${Math.round(revealed/FOG*100)}% révélé · ${towersToShow.length} tours`,8,ch-6);
     }
 
     function revealFog(distTraveled,totalPath){
