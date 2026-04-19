@@ -189,18 +189,26 @@
         <div id="mesh-pane-root" style="display:none">
           <div style="margin-bottom:10px">
             <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Clé Anthropic (sk-ant-…)</label>
-            <input id="mesh-api-key" class="ym-input" type="password" placeholder="sk-ant-..." style="width:100%;font-family:monospace">
+            <div style="position:relative">
+              <input id="mesh-api-key" class="ym-input" type="password" placeholder="sk-ant-..." style="width:100%;font-family:monospace;padding-right:70px">
+              <span id="mesh-key-status" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:10px;font-family:monospace;pointer-events:none"></span>
+            </div>
           </div>
+          <div id="mesh-key-info" style="display:none;margin-bottom:10px;padding:10px;background:rgba(79,209,160,.06);border-radius:8px;border:1px solid rgba(79,209,160,.15)">
+            <div style="font-size:11px;color:#4fd1a0;font-weight:600;margin-bottom:4px" id="mesh-key-tier"></div>
+            <div style="font-size:10px;color:var(--text3,#666)" id="mesh-key-limit"></div>
+          </div>
+          <div id="mesh-key-err-probe" style="display:none;margin-bottom:10px;padding:8px 10px;background:rgba(240,106,106,.08);border-radius:8px;border:1px solid rgba(240,106,106,.2);font-size:11px;color:#f06a6a"></div>
           <div style="margin-bottom:10px">
             <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Label</label>
             <input id="mesh-root-label" class="ym-input" placeholder="Mon compte" style="width:100%">
           </div>
           <div style="margin-bottom:4px">
-            <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Budget total (tokens)</label>
-            <input id="mesh-root-budget" class="ym-input" type="number" value="1000000" style="width:100%">
-            <div style="font-size:10px;color:var(--text3,#666);margin-top:4px">Fixe ta limite d'usage globale. Tu pourras ensuite distribuer des sous-budgets aux utilisateurs A.</div>
+            <label style="font-size:11px;color:var(--text3,#666);display:block;margin-bottom:4px">Budget total (tokens) <span id="mesh-budget-hint" style="color:#4fd1a0"></span></label>
+            <input id="mesh-root-budget" class="ym-input" type="number" value="" placeholder="Vérification de la clé…" disabled style="width:100%;opacity:.5">
+            <div style="font-size:10px;color:var(--text3,#666);margin-top:4px">Pré-rempli automatiquement selon les limites de ton compte. Tu peux réduire pour distribuer moins.</div>
           </div>
-          <button id="mesh-do-root" class="ym-btn ym-btn-accent" style="width:100%;margin-top:10px">Enregistrer →</button>
+          <button id="mesh-do-root" class="ym-btn ym-btn-accent" style="width:100%;margin-top:10px" disabled>Vérification…</button>
           <div id="mesh-root-err" style="font-size:11px;color:#f06a6a;margin-top:6px;display:none"></div>
         </div>
       </div>`;
@@ -240,15 +248,104 @@
       }
     });
 
+    // ── Auto-vérification de la clé (debounce 800ms) ──────────────────────────
+    let _keyCheckTimer = null;
+    let _keyValid      = false;
+    let _keySuggested  = 0;
+
+    async function checkKeyLive(key) {
+      const statusEl  = container.querySelector('#mesh-key-status');
+      const infoEl    = container.querySelector('#mesh-key-info');
+      const errProbe  = container.querySelector('#mesh-key-err-probe');
+      const budgetEl  = container.querySelector('#mesh-root-budget');
+      const hintEl    = container.querySelector('#mesh-budget-hint');
+      const doBtn     = container.querySelector('#mesh-do-root');
+      const tierEl    = container.querySelector('#mesh-key-tier');
+      const limitEl   = container.querySelector('#mesh-key-limit');
+
+      statusEl.textContent  = '…';
+      statusEl.style.color  = 'var(--text3,#666)';
+      infoEl.style.display  = 'none';
+      errProbe.style.display = 'none';
+      _keyValid = false;
+      doBtn.disabled = true;
+      budgetEl.disabled = true;
+      budgetEl.style.opacity = '.5';
+
+      if (!key || !key.startsWith('sk-ant-') || key.length < 20) {
+        statusEl.textContent = key.length > 5 ? '✕' : '';
+        statusEl.style.color = '#f06a6a';
+        budgetEl.placeholder = 'Entrez une clé valide…';
+        return;
+      }
+
+      statusEl.textContent = '⟳';
+      statusEl.style.color = 'var(--text3,#666)';
+
+      try {
+        const r = await fetch(WORKER_URL + '/api/check-key', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ apiKey: key }),
+        }).then(function(x){ return x.json(); });
+
+        if (r.error) {
+          statusEl.textContent = '✕';
+          statusEl.style.color = '#f06a6a';
+          errProbe.textContent  = r.detail || 'Clé refusée par Anthropic';
+          errProbe.style.display = 'block';
+          budgetEl.placeholder = '—';
+          doBtn.textContent = 'Enregistrer →';
+          return;
+        }
+
+        // Clé valide
+        _keyValid    = true;
+        _keySuggested = r.suggestedBudget || 1000000;
+
+        statusEl.textContent = '✓';
+        statusEl.style.color = '#4fd1a0';
+
+        tierEl.textContent  = r.tier || 'Compte détecté';
+        limitEl.textContent = r.tokensLimit > 0
+          ? 'Limite : ' + r.tokensLimit.toLocaleString('fr') + ' tokens/min · Budget suggéré : ' + _keySuggested.toLocaleString('fr') + ' tokens'
+          : 'Limites non détectées — budget par défaut appliqué';
+        infoEl.style.display = 'block';
+
+        budgetEl.value       = _keySuggested;
+        budgetEl.max         = _keySuggested;
+        budgetEl.disabled    = false;
+        budgetEl.style.opacity = '1';
+        budgetEl.placeholder = '';
+        hintEl.textContent   = '(max : ' + _keySuggested.toLocaleString('fr') + ')';
+
+        doBtn.disabled   = false;
+        doBtn.textContent = 'Enregistrer →';
+
+      } catch(e) {
+        statusEl.textContent = '?';
+        statusEl.style.color = '#f0a84a';
+        errProbe.textContent  = 'Impossible de joindre le worker';
+        errProbe.style.display = 'block';
+      }
+    }
+
+    container.querySelector('#mesh-api-key').addEventListener('input', function() {
+      clearTimeout(_keyCheckTimer);
+      const key = this.value.trim();
+      _keyCheckTimer = setTimeout(function(){ checkKeyLive(key); }, 800);
+    });
+
     container.querySelector('#mesh-do-root').addEventListener('click', async () => {
+      if (!_keyValid) return;
       const key    = container.querySelector('#mesh-api-key').value.trim();
       const label  = container.querySelector('#mesh-root-label').value.trim() || 'Root';
-      const budget = parseInt(container.querySelector('#mesh-root-budget').value) || 1_000_000;
+      const budget = parseInt(container.querySelector('#mesh-root-budget').value) || _keySuggested || 1000000;
       const errEl  = container.querySelector('#mesh-root-err');
-      if (!key.startsWith('sk-ant-')) { errEl.textContent = 'Clé invalide (doit commencer par sk-ant-)'; errEl.style.display = 'block'; return; }
       try {
         errEl.style.display = 'none';
         container.querySelector('#mesh-do-root').textContent = '…';
+        container.querySelector('#mesh-do-root').disabled = true;
         await registerRoot(key, label, budget);
         renderPanel(container);
         window.YM_toast?.('Compte root enregistré ✓', 'success');
@@ -256,6 +353,7 @@
       } catch (e) {
         errEl.textContent = e.message; errEl.style.display = 'block';
         container.querySelector('#mesh-do-root').textContent = 'Enregistrer →';
+        container.querySelector('#mesh-do-root').disabled = false;
       }
     });
   }
