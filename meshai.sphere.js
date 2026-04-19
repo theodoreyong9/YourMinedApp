@@ -108,6 +108,14 @@
   }
 
   // ── LLM public ────────────────────────────────────────────────────────────
+
+  async function fetchSubtree() {
+    if (!_node) return null;
+    const r = await api('/api/subtree', { tokenId: _node.tokenId, nodeId: _node.nodeId });
+    if (r.error) return null;
+    return r;
+  }
+
   async function llm(messages, opts = {}) {
     if (!_node) throw new Error('no_mesh_node');
     const r = await api('/api/llm', {
@@ -365,9 +373,18 @@
     const bc   = budgetColor(p);
     const node = _node;
     const s    = _status;
-    const maxDel = s?.node?.maxDelegatable ?? (node.budgetTotal - node.budgetUsed);
+    const maxDel = s && s.node && s.node.maxDelegatable !== undefined
+      ? s.node.maxDelegatable
+      : (node.budgetTotal - node.budgetUsed);
 
     container.innerHTML = `
+      <div style="display:flex;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0">
+        <button class="mesh-tab active" data-tab="dashboard" style="flex:1;padding:10px 4px;background:none;border:none;color:var(--text3,#666);font-size:11px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s">Vue</button>
+        <button class="mesh-tab" data-tab="graphe" style="flex:1;padding:10px 4px;background:none;border:none;color:var(--text3,#666);font-size:11px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s">Graphe</button>
+        <button class="mesh-tab" data-tab="codes" style="flex:1;padding:10px 4px;background:none;border:none;color:var(--text3,#666);font-size:11px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s">Codes</button>
+      </div>
+      <div id="mesh-tab-content" style="flex:1;overflow-y:auto;min-height:0">
+    <div id="mesh-pane-dashboard" style="padding:16px">
       <div style="flex:1;overflow-y:auto;padding:16px">
 
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:12px;background:var(--card-bg,rgba(255,255,255,.04));border-radius:10px;border:1px solid rgba(255,255,255,.07)">
@@ -449,16 +466,28 @@
           </div>
         </div>
 
-        ${s?.audit?.length ? `
+        ${s && s.audit && s.audit.length ? `
         <div style="padding:10px 12px;background:var(--card-bg,rgba(255,255,255,.04));border-radius:8px;border:1px solid rgba(255,255,255,.07)">
           <div style="font-size:10px;color:var(--text3,#666);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Activité récente</div>
-          ${s.audit.slice(0, 6).map(a => `
-            <div style="display:flex;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-              <div style="font-size:10px;color:var(--text3,#666);flex:1">${esc(a.action)} · ${esc(a.detail)}</div>
-              <div style="font-size:9px;color:var(--text3,#666);flex-shrink:0">${new Date(a.ts).toLocaleTimeString('fr')}</div>
-            </div>`).join('')}
+          ${s.audit.slice(0, 6).map(a =>
+            '<div style=\"display:flex;gap:8px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)\">' +
+            '<div style=\"font-size:10px;color:var(--text3,#666);flex:1\">' + esc(a.action) + ' · ' + esc(a.detail) + '</div>' +
+            '<div style=\"font-size:9px;color:var(--text3,#666);flex-shrink:0\">' + new Date(a.ts).toLocaleTimeString('fr') + '</div></div>'
+          ).join('')}
         </div>` : ''}
+    </div>
 
+    <div id="mesh-pane-graphe" style="display:none;padding:16px">
+      <div id="mesh-graphe-content">
+        <div style="font-size:12px;color:var(--text3,#666);text-align:center;padding:20px">Chargement du graphe…</div>
+      </div>
+    </div>
+
+    <div id="mesh-pane-codes" style="display:none;padding:16px">
+      <div id="mesh-codes-content">
+        <div style="font-size:12px;color:var(--text3,#666);text-align:center;padding:20px">Chargement…</div>
+      </div>
+    </div>
       </div>
       <div style="flex-shrink:0;border-top:1px solid rgba(255,255,255,.07);padding:10px">
         <button id="mesh-refresh" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">↻ Actualiser</button>
@@ -499,17 +528,170 @@
       }
     });
 
-    container.querySelector('#mesh-gen-copy')?.addEventListener('click', () => {
-      const code = container.querySelector('#mesh-gen-code-display')?.textContent;
-      if (code) navigator.clipboard.writeText(code).then(() => window.YM_toast?.('Copié !', 'success'));
+    container.querySelector('#mesh-gen-copy') && container.querySelector('#mesh-gen-copy').addEventListener('click', function() {
+      var code = container.querySelector('#mesh-gen-code-display') && container.querySelector('#mesh-gen-code-display').textContent;
+      if (code) navigator.clipboard.writeText(code).then(function(){ window.YM_toast && window.YM_toast('Copié !', 'success'); });
     });
 
-    container.querySelectorAll('[data-revoke]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+    container.querySelectorAll('[data-revoke]').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
         await revokeCode(btn.dataset.revoke);
-        window.YM_toast?.('Code révoqué', 'success');
+        window.YM_toast && window.YM_toast('Code révoqué', 'success');
       });
     });
+
+    // ── Onglets ────────────────────────────────────────────────────────────────
+    var tabs    = container.querySelectorAll('.mesh-tab');
+    var panes   = { dashboard: container.querySelector('#mesh-pane-dashboard'), graphe: container.querySelector('#mesh-pane-graphe'), codes: container.querySelector('#mesh-pane-codes') };
+    var curTab  = 'dashboard';
+    var grapheLoaded = false;
+    var codesLoaded  = false;
+
+    function switchTab(name) {
+      curTab = name;
+      tabs.forEach(function(t) {
+        var active = t.dataset.tab === name;
+        t.style.color       = active ? '#4fd1a0' : 'var(--text3,#666)';
+        t.style.borderColor = active ? '#4fd1a0' : 'transparent';
+        t.style.fontWeight  = active ? '600' : '400';
+      });
+      Object.keys(panes).forEach(function(k) { if (panes[k]) panes[k].style.display = k === name ? 'block' : 'none'; });
+
+      if (name === 'graphe' && !grapheLoaded) { grapheLoaded = true; loadGraphe(); }
+      if (name === 'codes'  && !codesLoaded)  { codesLoaded  = true; loadCodes();  }
+    }
+
+    tabs.forEach(function(t) {
+      t.addEventListener('click', function(){ switchTab(t.dataset.tab); });
+    });
+    switchTab('dashboard');
+
+    // ── Rendu graphe ───────────────────────────────────────────────────────────
+    async function loadGraphe() {
+      var el = container.querySelector('#mesh-graphe-content');
+      if (!el) return;
+      var data = await fetchSubtree();
+      if (!data || !data.tree) {
+        el.innerHTML = '<div style="font-size:12px;color:var(--text3,#666);text-align:center;padding:20px">Impossible de charger le graphe.</div>';
+        return;
+      }
+      el.innerHTML = '';
+
+      if (data.parent) {
+        var parentEl = document.createElement('div');
+        parentEl.style.cssText = 'padding:8px 12px;background:rgba(124,106,247,.08);border-radius:8px;border:1px solid rgba(124,106,247,.2);margin-bottom:8px;font-size:11px;color:#7c6af7;text-align:center';
+        parentEl.textContent = '↑ ' + data.parent.label + ' (parent)';
+        el.appendChild(parentEl);
+      }
+
+      el.appendChild(renderNode(data.tree, 0, true));
+    }
+
+    function renderNode(node, depth, isMe) {
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'margin-left:' + (depth * 16) + 'px;margin-bottom:6px';
+
+      var used = node.budgetUsed || 0;
+      var total = node.budgetTotal || 1;
+      var p = Math.round((used / total) * 100);
+      var bc = p > 85 ? '#f06a6a' : p > 60 ? '#f0a84a' : '#4fd1a0';
+
+      var card = document.createElement('div');
+      card.style.cssText = 'padding:10px 12px;border-radius:8px;border:1px solid ' +
+        (isMe ? 'rgba(79,209,160,.4)' : 'rgba(255,255,255,.07)') + ';' +
+        'background:' + (isMe ? 'rgba(79,209,160,.06)' : 'rgba(255,255,255,.03)');
+
+      var header = document.createElement('div');
+      header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+      header.innerHTML =
+        '<div style="font-size:12px;font-weight:' + (isMe ? '600' : '400') + ';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+          (isMe ? '◎ ' : '· ') + esc(node.label) +
+          (isMe ? ' <span style="font-size:9px;color:#4fd1a0;font-weight:400">(vous)</span>' : '') +
+        '</div>' +
+        '<div style="font-size:10px;color:var(--text3,#666);flex-shrink:0">' + fmtNum(node.remaining) + ' restants</div>';
+      card.appendChild(header);
+
+      // Barre budget
+      var barWrap = document.createElement('div');
+      barWrap.style.cssText = 'height:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;margin-bottom:4px';
+      var barFill = document.createElement('div');
+      barFill.style.cssText = 'height:100%;width:' + Math.min(p,100) + '%;background:' + bc + ';border-radius:2px';
+      barWrap.appendChild(barFill);
+      card.appendChild(barWrap);
+
+      var meta = document.createElement('div');
+      meta.style.cssText = 'display:flex;justify-content:space-between;font-size:9px;color:var(--text3,#666)';
+      meta.innerHTML = '<span>' + fmtNum(used) + ' / ' + fmtNum(total) + '</span><span>' + p + '%</span>';
+      card.appendChild(meta);
+
+      // Codes actifs de ce nœud
+      if (node.codes && node.codes.length) {
+        var codesWrap = document.createElement('div');
+        codesWrap.style.cssText = 'margin-top:6px;display:flex;flex-wrap:wrap;gap:4px';
+        node.codes.forEach(function(c) {
+          var pill = document.createElement('span');
+          pill.style.cssText = 'font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(79,209,160,.1);color:#4fd1a0;font-family:monospace;border:1px solid rgba(79,209,160,.2)';
+          pill.textContent = c.code + ' · ' + fmtNum(c.budgetTokens) + ' tok · ' + c.childCount + '/' + c.maxChildren;
+          codesWrap.appendChild(pill);
+        });
+        card.appendChild(codesWrap);
+      }
+
+      wrap.appendChild(card);
+
+      // Enfants récursifs
+      if (node.children && node.children.length) {
+        var line = document.createElement('div');
+        line.style.cssText = 'margin-left:' + (depth * 16 + 12) + 'px;border-left:1px solid rgba(255,255,255,.07);padding-left:4px;margin-top:2px;margin-bottom:2px';
+        node.children.forEach(function(child) {
+          line.appendChild(renderNode(child, 0, false));
+        });
+        wrap.appendChild(line);
+      }
+
+      return wrap;
+    }
+
+    // ── Rendu codes ────────────────────────────────────────────────────────────
+    async function loadCodes() {
+      var el = container.querySelector('#mesh-codes-content');
+      if (!el) return;
+      if (!s || !s.codes || !s.codes.length) {
+        el.innerHTML = '<div style="font-size:12px;color:var(--text3,#666);text-align:center;padding:20px">Aucun code actif.</div>';
+        return;
+      }
+      el.innerHTML = '';
+      s.codes.forEach(function(c) {
+        var row = document.createElement('div');
+        row.style.cssText = 'padding:10px 12px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid rgba(255,255,255,.07);margin-bottom:8px';
+        row.innerHTML =
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+            '<div style="font-family:monospace;font-size:16px;font-weight:700;letter-spacing:3px;color:#4fd1a0">' + esc(c.code) + '</div>' +
+            '<div style="flex:1;font-size:11px;color:var(--text3,#666)">' + esc(c.label) + '</div>' +
+            '<button data-revoke2="' + esc(c.code) + '" style="font-size:10px;padding:2px 8px;border-radius:5px;border:1px solid rgba(240,106,106,.3);background:transparent;color:#f06a6a;cursor:pointer">✕</button>' +
+          '</div>' +
+          '<div style="display:flex;gap:12px;font-size:10px;color:var(--text3,#666)">' +
+            '<span>Budget : ' + fmtNum(c.budgetTokens) + ' tok</span>' +
+            '<span>' + c.childCount + ' / ' + c.maxChildren + ' utilisateurs</span>' +
+            '<span>Expire : ' + new Date(c.expiresAt).toLocaleString('fr') + '</span>' +
+          '</div>';
+        row.querySelector('[data-revoke2]').addEventListener('click', async function() {
+          await revokeCode(this.dataset.revoke2);
+          window.YM_toast && window.YM_toast('Code révoqué', 'success');
+          codesLoaded = false;
+          loadCodes();
+        });
+        el.appendChild(row);
+      });
+
+      // Bouton générer depuis cet onglet aussi
+      var genBtn = document.createElement('button');
+      genBtn.className = 'ym-btn ym-btn-accent';
+      genBtn.style.cssText = 'width:100%;margin-top:8px;font-size:12px';
+      genBtn.textContent = '+ Nouveau code';
+      genBtn.addEventListener('click', function(){ switchTab('dashboard'); setTimeout(function(){ var f = container.querySelector('#mesh-gen-form'); if (f) f.style.display = 'block'; }, 100); });
+      el.appendChild(genBtn);
+    }
 
     refreshStatus();
   }
