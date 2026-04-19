@@ -1018,6 +1018,14 @@
   // - La session est persistée dans localStorage pour survie aux re-renders
   // ══════════════════════════════════════════════════════════════════════════
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── MODE VS v3 ────────────────────────────────────────────────────────────
+  // - Shop inter-vagues synchronisé (les deux doivent cliquer "Lancer")
+  // - 12 tours comme en solo + upgrades défense entre vagues
+  // - Attaque = upgrades des attaquants de la prochaine vague
+  // - Espion : terrain toujours visible, nouvelles tours révélées par attaquants
+  // ══════════════════════════════════════════════════════════════════════════
+
   function _startVSGame(container, sess){
     _destroyGame();
     container.innerHTML='';
@@ -1028,7 +1036,7 @@
   function renderVSGame(container, sess){
     const Phaser=window.Phaser;
     const W=container.offsetWidth||360, H=container.offsetHeight||520;
-    const BAR_H=82, TOP_H=44;
+    const BAR_H=36, TOP_H=44; // barre du bas fine (sélecteur tour uniquement)
 
     // Chemin
     function makePathPts(){const m=20,GH=H-BAR_H-TOP_H;return[{x:m,y:TOP_H-30},{x:m,y:TOP_H+GH*.15},{x:W*.48,y:TOP_H+GH*.15},{x:W*.48,y:TOP_H+GH*.38},{x:W*.18,y:TOP_H+GH*.38},{x:W*.18,y:TOP_H+GH*.62},{x:W*.70,y:TOP_H+GH*.62},{x:W*.70,y:TOP_H+GH*.82},{x:W-m,y:TOP_H+GH*.82},{x:W-m,y:H+30}];}
@@ -1038,76 +1046,111 @@
 
     const pathPts=makePathPts(), pd=buildPD(pathPts);
 
-    // État persisté dans la session
+    // ── État ─────────────────────────────────────────────────
+    let myGoldDef=sess.myGoldDef||200;
+    let myGoldAtk=sess.myGoldAtk||80;
+    let myLives=sess.myLives||30;
+    let opponentLives=sess.opponentLives||30;
+    // Attaquants prévus pour la prochaine vague : {type, count, hpMult, spdMult}
+    let nextWaveAttackers=sess.nextWaveAttackers||[
+      {type:'grunt',count:3,hpMult:1,spdMult:1},
+    ];
+    // Upgrades globales défense
+    let defUpgrades=sess.defUpgrades||{};
+    let defMods={dmgMult:0,rangeMult:0,rateMult:0,goldBonus:0,detectStealth:false};
+    Object.entries(defUpgrades).forEach(([id,n])=>{for(let i=0;i<n;i++)_applyDefUpg(id);});
+
+    let waveIdx=sess.waveIdx||0;
+    let myKills=0, myScore=0;
+    let gameOver=false, shopIsOpen=false;
+    let selectedTower='archer';
+    let myTowers=[], myEnemies=[], myBullets=[];
+    let hudTexts={}, shopOverlay=null, sc=null;
+
+    function _applyDefUpg(id){
+      const u=GLOBAL_UPGRADES.find(x=>x.id===id);if(!u)return;
+      const e=u.effect;
+      if(e.dmgMult)defMods.dmgMult+=e.dmgMult;
+      if(e.rangeMult)defMods.rangeMult+=e.rangeMult;
+      if(e.rateMult)defMods.rateMult+=e.rateMult;
+      if(e.goldBonus)defMods.goldBonus+=e.goldBonus;
+      if(e.detectStealth)defMods.detectStealth=true;
+    }
+    function effR(cfg){return cfg.range*(1+defMods.rangeMult);}
+    function effD(cfg){return cfg.dmg*(1+defMods.dmgMult);}
+    function effRate(cfg){return cfg.rate*(1+defMods.rateMult);}
+
     function saveState(){
       const s=getVSSession()||sess;
-      s.myGoldDef=myGoldDef; s.myGoldAtk=myGoldAtk;
-      s.myLives=myLives; s.opponentLives=opponentLives;
-      s.myAttackers=myAttackers; s.waveIdx=waveIdx;
-      s.status='active';
+      Object.assign(s,{myGoldDef,myGoldAtk,myLives,opponentLives,waveIdx,nextWaveAttackers,defUpgrades,status:'active'});
       setVSSession(s);
     }
 
-    // Restaurer depuis session
-    let myGoldDef=sess.myGoldDef||200;
-    let myGoldAtk=sess.myGoldAtk||100;
-    let myLives=sess.myLives||30;
-    let opponentLives=sess.opponentLives||30;
-    let myAttackers={...(sess.myAttackers||{})};
-    let waveIdx=sess.waveIdx||0;
-    let myScore=0, myKills=0;
-    let gameOver=false, shopIsOpen=false;
-    let selectedTower='archer', selectedAttacker='grunt';
-    let myTowers=[], myEnemies=[], myBullets=[];
-    let hudTexts={}, shopOverlay=null;
-    let sc=null;
-
     // ── Communication VS ─────────────────────────────────────
-    function vsSend(type, payload){
-      if(_ctx&&_ctx.send) try{_ctx.send('td:'+type,{...payload,gid:sess.gameId});}catch(e){}
+    // Tours locales exposées via broadcastData() (heartbeat 5s, non rate-limité)
+    function refreshBroadcast(){
+      _myTowersBroadcast=myTowers.map(t=>({x:t.x,y:t.y,type:t.type,level:t.level}));
     }
 
-    // ── Sync : handshake ready/go pour démarrer ensemble ─────
-    let _readyReceived=false, _goReceived=false;
+    function vsSend(type,payload){
+      if(_ctx&&_ctx.send)try{_ctx.send('td:'+type,{...payload,gid:sess.gameId});}catch(e){}
+    }
+
+    // Attaquants envoyés avec délai > GAP(3s)
+    function sendAttackers(atkList){
+      if(!atkList||!atkList.length)return;
+      // Simuler localement pour révéler le brouillard adverse
+      atkList.forEach(a=>{
+        const def=ATTACKER_DEFS[a.type];
+        if(def){
+          const count=a.count||1;
+          for(let i=0;i<count;i++)
+            myAtkInFlight.push({dist:i*300, spd:def.spd*(a.spdMult||1), done:false});
+        }
+      });
+      // Envoyer avec délai > GAP=3s pour éviter le rate limiter
+      setTimeout(()=>vsSend('atk',{list:atkList}),4000);
+    }
+
+    let _readyReceived=false,_goReceived=false;
+    let _shopReadyReceived=false;
 
     if(_ctx&&_ctx.onReceive){
       _ctx.onReceive((type,data)=>{
-        if(!type.startsWith('td:')) return;
-        if(data.gid&&data.gid!==sess.gameId) return;
+        if(!type.startsWith('td:'))return;
+        if(data.gid&&data.gid!==sess.gameId)return;
         const t=type.slice(3);
 
         if(t==='ready'){
           _readyReceived=true;
           if(sess.role==='host'){
-            const startAt=Date.now()+3000;
+            const startAt=Date.now()+3500;
             vsSend('go',{startAt});
-            scheduleWave(sc,startAt);
+            scheduleFirstWave(startAt);
           }
         }
-        if(t==='go'){
-          if(!_goReceived){_goReceived=true;scheduleWave(sc,data.startAt);}
-        }
-        if(t==='wave'){
-          // L'hôte nous donne le timestamp de la prochaine vague
-          if(sess.role==='guest'&&data.startAt){
-            launchAutoWave(sc, data.startAt);
-          }
+        if(t==='go'&&!_goReceived){
+          _goReceived=true;
+          scheduleFirstWave(data.startAt);
         }
         if(t==='atk'){
-          if(gameOver||!sc) return;
+          if(gameOver||!sc)return;
           (data.list||[]).forEach(a=>{
-            const def=ATTACKER_DEFS[a.type]; if(!def)return;
-            const scale=1+Math.max(0,waveIdx-1)*.15;
+            const def=ATTACKER_DEFS[a.type];if(!def)return;
             spawnEnemy(sc,{...def,typeid:a.type,
-              hp:Math.round(def.hp*scale),
-              spd:Math.min(def.spd+waveIdx*2,160),
-              reward:Math.round(def.reward*scale)});
+              hp:Math.round(def.hp*(a.hpMult||1)*(1+waveIdx*.12)),
+              spd:Math.min(def.spd*(a.spdMult||1)+waveIdx*1.5,170),
+              reward:Math.round(def.reward*(1+waveIdx*.1))});
           });
         }
-        if(t==='towers'){
-          // Backup si broadcastData ne suffit pas (rate limit)
-          _opponentTowers=data.towers||[];
-          if(spyMode) drawSpyCanvas();
+        if(t==='shopready'){
+          // L'adversaire a cliqué "Lancer"
+          _shopReadyReceived=true;
+          tryLaunchNextWave();
+        }
+        if(t==='wave'){
+          // L'hôte lance la vague → le guest suit
+          if(sess.role==='guest')launchWave(sc,data.waveIdx);
         }
         if(t==='gameover'){
           if(!gameOver){gameOver=true;triggerWin();}
@@ -1115,89 +1158,172 @@
       });
     }
 
-    // Diffuser mes tours via broadcastData (heartbeat social 5s) — pas via vsSend (rate limité)
-    // broadcastData() est appelé par social.sphere.js buildProfilePacket() toutes les 5s
-    // L'adversaire les reçoit dans _nearUsers.get(uuid).profile.td_towers
-    function broadcastTowers(){
-      // Stocker localement — sera lu par broadcastData()
-      _myTowersBroadcast=myTowers.map(t=>({x:t.x,y:t.y,type:t.type,level:t.level}));
-    }
+    // ── Shop inter-vagues synchronisé ─────────────────────────
+    let _myShopReady=false;
 
-    // Envoyer mes attaquants (délayé pour éviter le rate limiter GAP=3s)
-    const myAtkInFlight=[];
-    function sendAttackers(delayMs){
-      const list=[];
-      Object.entries(myAttackers).forEach(([type,count])=>{for(let i=0;i<count;i++)list.push({type});});
-      if(!list.length) return;
-      setTimeout(()=>vsSend('atk',{list}), delayMs||4000); // délai > GAP=3s
-      list.forEach(a=>{
-        const def=ATTACKER_DEFS[a.type];
-        if(def) myAtkInFlight.push({dist:0,spd:def.spd||55,done:false});
-      });
-    }
+    function showInterWaveShop(){
+      shopIsOpen=true; _myShopReady=false; _shopReadyReceived=false;
+      removeShopOv();
 
-    // Sync vagues : l'hôte émet le timestamp de chaque vague via td:wave
-    // Les deux joueurs utilisent ce timestamp pour démarrer exactement ensemble
-    function launchAutoWave(psc, waveStartAt){
-      if(gameOver) return;
-      const now=Date.now();
-      const delay=waveStartAt?Math.max(0,waveStartAt-now):0;
+      const ov=document.createElement('div');
+      ov.style.cssText='position:absolute;inset:0;z-index:500;background:rgba(5,7,16,.97);overflow-y:auto;font-family:monospace;display:flex;flex-direction:column';
+      container.appendChild(ov); shopOverlay=ov;
 
-      setTimeout(()=>{
-        if(gameOver||!sc) return;
-        const ws=AUTO_WAVE[waveIdx%AUTO_WAVE.length];
-        const scale=1+Math.max(0,waveIdx-1)*.18;
-        waveIdx++;
-        if(hudTexts.wave) hudTexts.wave.setText('Vague '+waveIdx);
-        showFloat2(sc, waveIdx<=1?'⚔️ C\'est parti !':'⚔️ Vague '+waveIdx, W/2, H/2-50, '#ef4444');
+      // Tabs Défense / Attaque
+      let shopTab='defense';
+      function renderShop(){
+        ov.innerHTML='';
+        // Header
+        const hdr=document.createElement('div');
+        hdr.style.cssText='padding:10px 12px 0;flex-shrink:0';
+        hdr.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-size:13px;font-weight:700;color:#f59e0b">🏪 Entre-vague ${waveIdx}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.4)">💰${myGoldDef} ⚔️${myGoldAtk}</div>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button id="tab-def" style="flex:1;padding:7px;background:${shopTab==='defense'?'rgba(96,165,250,.2)':'rgba(255,255,255,.05)'};border:1px solid ${shopTab==='defense'?'#60a5fa':'rgba(255,255,255,.1)'};color:${shopTab==='defense'?'#60a5fa':'rgba(255,255,255,.5)'};border-radius:8px;cursor:pointer;font-family:monospace;font-size:11px;font-weight:700">🗼 Défense</button>
+          <button id="tab-atk" style="flex:1;padding:7px;background:${shopTab==='attack'?'rgba(239,68,68,.2)':'rgba(255,255,255,.05)'};border:1px solid ${shopTab==='attack'?'#ef4444':'rgba(255,255,255,.1)'};color:${shopTab==='attack'?'#ef4444':'rgba(255,255,255,.5)'};border-radius:8px;cursor:pointer;font-family:monospace;font-size:11px;font-weight:700">⚔️ Attaque</button>
+        </div>`;
+        ov.appendChild(hdr);
+        hdr.querySelector('#tab-def').onclick=()=>{shopTab='defense';renderShop();};
+        hdr.querySelector('#tab-atk').onclick=()=>{shopTab='attack';renderShop();};
 
-        // Spawner ennemis auto sur mon chemin
-        ws.forEach(sq=>{
-          for(let i=0;i<sq.count;i++){
-            const t=(sq.offset||0)+i*sq.delay;
-            setTimeout(()=>{
-              if(gameOver||!sc) return;
-              const def=ATTACKER_DEFS[sq.type]||ATTACKER_DEFS.grunt;
-              const d={...def,typeid:sq.type,hp:Math.round(def.hp*scale),spd:Math.min(def.spd+waveIdx*2,160),reward:Math.round(def.reward*scale)};
-              spawnEnemy(sc,d);
-            },t);
-          }
+        const body=document.createElement('div');
+        body.style.cssText='flex:1;overflow-y:auto;padding:0 12px 10px';
+        ov.appendChild(body);
+
+        if(shopTab==='defense'){
+          renderDefenseShop(body);
+        } else {
+          renderAttackShop(body);
+        }
+
+        // Bouton lancer
+        const footer=document.createElement('div');
+        footer.style.cssText='flex-shrink:0;padding:10px 12px';
+        footer.innerHTML=`
+          <div id="shop-status" style="font-size:10px;color:rgba(255,255,255,.4);text-align:center;margin-bottom:8px">
+            ${_myShopReady?'✓ Vous êtes prêt · ':''} ${_shopReadyReceived?'✓ Adversaire prêt':'⌛ Attente adversaire…'}
+          </div>
+          <button id="shop-launch" style="width:100%;padding:11px;background:${_myShopReady?'rgba(100,100,100,.2)':'linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.08))'};border:1px solid ${_myShopReady?'rgba(255,255,255,.1)':'rgba(245,158,11,.5)'};color:${_myShopReady?'rgba(255,255,255,.3)':'#f59e0b'};border-radius:10px;cursor:${_myShopReady?'default':'pointer'};font-family:monospace;font-size:13px;font-weight:700">
+            ${_myShopReady?'✓ Prêt — en attente de l\'adversaire…':'▶ Prêt — Lancer la vague →'}
+          </button>`;
+        ov.appendChild(footer);
+        footer.querySelector('#shop-launch').onclick=()=>{
+          if(_myShopReady)return;
+          _myShopReady=true;
+          vsSend('shopready',{});
+          renderShop(); // refresh pour montrer état
+          tryLaunchNextWave();
+        };
+      }
+
+      renderShop();
+
+      function renderDefenseShop(body){
+        body.innerHTML='<div style="font-size:10px;color:rgba(255,255,255,.35);margin-bottom:8px">Améliorations globales (répétables) · 💰 Or défense</div>';
+        const pool=GLOBAL_UPGRADES.filter(u=>!(u.unique&&defUpgrades[u.id]));
+        const offers=pool.sort(()=>Math.random()-.5).slice(0,4).map(u=>{
+          const times=defUpgrades[u.id]||0;
+          const cost=Math.round(u.cost*Math.pow(1.6,times));
+          return{...u,cost,times};
+        });
+        offers.forEach(u=>{
+          const can=myGoldDef>=u.cost;
+          const d=document.createElement('div');
+          d.style.cssText='padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:8px';
+          d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <span style="font-size:13px">${u.emoji} <strong style="color:#fff;font-size:11px">${u.name}</strong>${u.times>0?` <span style="color:rgba(255,255,255,.3);font-size:8px">×${u.times+1}</span>`:''}</span>
+            <span style="font-size:11px;color:#60a5fa">${u.cost}💰</span></div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-bottom:7px">${u.desc}</div>
+          <button data-upg="${u.id}" data-cost="${u.cost}" style="width:100%;padding:6px;background:${can?'rgba(96,165,250,.15)':'rgba(100,100,100,.1)'};border:1px solid ${can?'#60a5fa':'#444'};color:${can?'#60a5fa':'#555'};border-radius:7px;cursor:${can?'pointer':'default'};font-size:10px;font-family:monospace">${can?`✓ Acheter (${u.cost}💰)`:`✗ ${u.cost}💰 requis`}</button>`;
+          body.appendChild(d);
+          const btn=d.querySelector('[data-upg]');
+          btn.onclick=()=>{
+            if(myGoldDef<u.cost)return;
+            myGoldDef-=u.cost;
+            defUpgrades[u.id]=(defUpgrades[u.id]||0)+1;
+            _applyDefUpg(u.id);
+            if(u.effect.livesBonus){myLives+=u.effect.livesBonus;updateHUD();}
+            updateHUD(); renderShop();
+          };
+        });
+      }
+
+      function renderAttackShop(body){
+        body.innerHTML='<div style="font-size:10px;color:rgba(255,255,255,.35);margin-bottom:8px">Améliorez les attaquants de la prochaine vague · ⚔️ Or attaque</div>';
+
+        // Afficher les attaquants prévus avec options d'upgrade
+        nextWaveAttackers.forEach((atk,idx)=>{
+          const def=ATTACKER_DEFS[atk.type];if(!def)return;
+          const d=document.createElement('div');
+          d.style.cssText='padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);margin-bottom:8px';
+          d.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:18px">${def.emoji}</span>
+            <div><div style="font-size:12px;font-weight:700;color:#fff">${def.name} ×${atk.count}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.4)">HP ×${atk.hpMult.toFixed(1)} · Vitesse ×${atk.spdMult.toFixed(1)}</div></div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
+            <button data-mod="count" data-idx="${idx}" style="padding:5px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);color:#f59e0b;border-radius:6px;cursor:pointer;font-size:9px;font-family:monospace">+1 envoi<br><span style="font-size:8px">${20}⚔️</span></button>
+            <button data-mod="hp" data-idx="${idx}" style="padding:5px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:6px;cursor:pointer;font-size:9px;font-family:monospace">+25% HP<br><span style="font-size:8px">${25}⚔️</span></button>
+            <button data-mod="spd" data-idx="${idx}" style="padding:5px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fbbf24;border-radius:6px;cursor:pointer;font-size:9px;font-family:monospace">+20% vit.<br><span style="font-size:8px">${20}⚔️</span></button>
+          </div>`;
+          body.appendChild(d);
+          d.querySelectorAll('[data-mod]').forEach(btn=>{
+            const costs={count:20,hp:25,spd:20};
+            btn.onclick=()=>{
+              const mod=btn.dataset.mod;
+              const cost=costs[mod];
+              if(myGoldAtk<cost)return;
+              myGoldAtk-=cost;
+              if(mod==='count')atk.count++;
+              else if(mod==='hp')atk.hpMult=+(atk.hpMult*1.25).toFixed(2);
+              else atk.spdMult=+(atk.spdMult*1.20).toFixed(2);
+              updateHUD(); renderShop();
+            };
+          });
         });
 
-        // Envoyer mes attaquants achetés sur le terrain adverse
-        sendAttackers(4000);
-        saveState();
+        // Ajouter un nouveau type d'attaquant
+        const addDiv=document.createElement('div');
+        addDiv.style.cssText='margin-top:4px';
+        addDiv.innerHTML='<div style="font-size:10px;color:rgba(255,255,255,.3);margin-bottom:6px">Ajouter un type d\'attaquant :</div>';
+        const sel=document.createElement('select');
+        sel.style.cssText='width:100%;padding:7px;background:#0a0d1a;border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;font-family:monospace;font-size:11px;margin-bottom:6px';
+        Object.entries(ATTACKER_DEFS).forEach(([id,a])=>{
+          const opt=document.createElement('option');
+          opt.value=id; opt.textContent=`${a.emoji} ${a.name} — ${a.desc}`;
+          sel.appendChild(opt);
+        });
+        addDiv.appendChild(sel);
+        const addBtn=document.createElement('button');
+        addBtn.style.cssText='width:100%;padding:7px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#ef4444;border-radius:8px;cursor:pointer;font-family:monospace;font-size:11px;font-weight:700';
+        addBtn.textContent=`+ Ajouter ce type (40⚔️)`;
+        addBtn.onclick=()=>{
+          if(myGoldAtk<40)return;
+          myGoldAtk-=40;
+          const existing=nextWaveAttackers.find(a=>a.type===sel.value);
+          if(existing)existing.count++;
+          else nextWaveAttackers.push({type:sel.value,count:1,hpMult:1,spdMult:1});
+          updateHUD(); renderShop();
+        };
+        addDiv.appendChild(addBtn);
+        body.appendChild(addDiv);
+      }
 
-        // L'hôte planifie la prochaine vague et broadcast le timestamp
+      function tryLaunchNextWave(){
+        if(!_myShopReady||!_shopReadyReceived)return;
+        removeShopOv();
+        shopIsOpen=false;
         if(sess.role==='host'){
-          const nextWaveAt=Date.now()+30000; // dans 30s
-          setTimeout(()=>{
-            if(!gameOver){
-              vsSend('wave',{startAt:nextWaveAt, waveIdx});
-              launchAutoWave(sc, nextWaveAt);
-            }
-          }, 30000);
-          // Broadcaster maintenant pour que le guest sache
-          // (pas de delay car c'est le premier message de la vague)
+          const startAt=Date.now()+2000;
+          vsSend('wave',{waveIdx,startAt});
+          setTimeout(()=>launchWave(sc,waveIdx),2000);
         }
-      }, delay);
+        // Le guest attend td:wave
+      }
     }
 
-    // Planifier la première vague au timestamp de départ commun
-    function scheduleWave(psc, startAt){
-      if(!psc){setTimeout(()=>scheduleWave(sc,startAt),200);return;}
-      const delay=Math.max(500,startAt-Date.now());
-      let rem=Math.ceil(delay/1000);
-      const tick=setInterval(()=>{
-        rem--;
-        if(rem>0&&sc)showFloat2(sc,''+rem,W/2,H/2-40,'#fbbf24');
-        else clearInterval(tick);
-      },1000);
-      if(delay>1000&&sc)showFloat2(sc,'⚔️ VS!',W/2,H/2-60,'#ef4444');
-      launchAutoWave(psc, startAt);
-    }
-
-    // ── VAGUES AUTOMATIQUES ──────────────────────────────────
+    // ── Vagues ───────────────────────────────────────────────
     const AUTO_WAVE=[
       [{type:'grunt',count:6,delay:650}],
       [{type:'grunt',count:8,delay:550},{type:'fast',count:4,delay:400,offset:3000}],
@@ -1209,37 +1335,69 @@
       [{type:'armored',count:10,delay:600},{type:'fast',count:15,delay:250,offset:4000}],
     ];
 
-    function launchAutoWave(psc){
-      if(gameOver) return;
-      const ws=AUTO_WAVE[waveIdx%AUTO_WAVE.length];
-      const scale=1+Math.max(0,waveIdx-1)*.18;
-      waveIdx++;
-      if(hudTexts.wave) hudTexts.wave.setText('Vague '+waveIdx);
-      // Spawner les ennemis automatiques (adversaires qui avancent sur mon chemin)
-      ws.forEach(sq=>{
-        for(let i=0;i<sq.count;i++){
-          psc.time.delayedCall((sq.offset||0)+i*sq.delay,()=>{
-            if(gameOver||!sc) return;
-            const def=ATTACKER_DEFS[sq.type]||ATTACKER_DEFS.grunt;
-            const d={...def,typeid:sq.type,hp:Math.round(def.hp*scale),spd:Math.min(def.spd+waveIdx*2,160),reward:Math.round(def.reward*scale)};
-            spawnEnemy(sc,d);
-          });
-        }
-      });
-      // Envoyer mes attaquants achetés sur le terrain adverse
-      sendAttackers();
-      saveState();
-      // Prochaine vague dans 35s
-      psc.time.delayedCall(35000,()=>launchAutoWave(psc));
+    function scheduleFirstWave(startAt){
+      const delay=Math.max(500,startAt-Date.now());
+      // Compte à rebours
+      let rem=Math.ceil(delay/1000);
+      const tick=setInterval(()=>{
+        rem--;
+        if(rem>0&&sc)showFloat2(sc,String(rem),W/2,H*.4,'#fbbf24');
+        else clearInterval(tick);
+      },1000);
+      if(sc)showFloat2(sc,'⚔️ VS — GO !',W/2,H*.35,'#ef4444');
+      setTimeout(()=>launchWave(sc,0),delay);
     }
 
-    // ── PHASER ───────────────────────────────────────────────
+    function launchWave(psc,idx){
+      if(gameOver||!psc)return;
+      waveIdx=idx+1;
+      if(hudTexts.wave)hudTexts.wave.setText('Vague '+waveIdx);
+      showFloat2(psc,waveIdx===1?'⚔️ Vague 1 !':'⚔️ Vague '+waveIdx,W/2,H*.35,'#ef4444');
+
+      const ws=AUTO_WAVE[(waveIdx-1)%AUTO_WAVE.length];
+      const scale=1+Math.max(0,waveIdx-2)*.18;
+
+      // Spawner ennemis auto sur MON chemin
+      ws.forEach(sq=>{
+        for(let i=0;i<sq.count;i++){
+          setTimeout(()=>{
+            if(gameOver||!sc)return;
+            const def=ATTACKER_DEFS[sq.type]||ATTACKER_DEFS.grunt;
+            spawnEnemy(sc,{...def,typeid:sq.type,
+              hp:Math.round(def.hp*scale),
+              spd:Math.min(def.spd+waveIdx*2,160),
+              reward:Math.round(def.reward*scale)});
+          },(sq.offset||0)+i*sq.delay);
+        }
+      });
+
+      // Envoyer mes attaquants achetés sur le terrain adverse (délai > GAP 3s)
+      sendAttackers(nextWaveAttackers.map(a=>({...a})));
+      saveState();
+
+      // Fin de vague : attendre que tous les ennemis soient morts ou partis, puis shop
+      const waveMaxDur=(ws.reduce((mx,sq)=>Math.max(mx,(sq.offset||0)+sq.count*sq.delay),0))+6000;
+      setTimeout(()=>{
+        if(gameOver)return;
+        // Attendre que le chemin soit vide
+        const checkEmpty=()=>{
+          if(gameOver)return;
+          if(myEnemies.length>0){setTimeout(checkEmpty,1500);return;}
+          const bonus=50+waveIdx*12;
+          myGoldDef+=bonus; myGoldAtk+=Math.round(bonus*.4); updateHUD();
+          showFloat2(sc,`+${bonus}💰 +${Math.round(bonus*.4)}⚔️`,W/2,H*.35,'#10b981');
+          setTimeout(()=>showInterWaveShop(),1000);
+        };
+        checkEmpty();
+      },waveMaxDur);
+    }
+
+    // ── Phaser create / update ────────────────────────────────
     function create(){
       sc=this;
       drawBg(this); drawPath(this);
-      createHUD(this); createIconBar(this);
+      createHUD(this); createTowerSelector(this);
 
-      // Déposer les tours → broadcaster aux adversaire
       this.input.on('pointerdown',ptr=>{
         if(gameOver||shopIsOpen)return;
         const{x,y}=ptr;
@@ -1251,28 +1409,15 @@
         const cfg=TOWER_DEFS[selectedTower];
         if(myGoldDef<cfg.cost){showFloat(this,'Pas assez 💰',x,y-28,'#ef4444');return;}
         myGoldDef-=cfg.cost; placeTower(this,x,y,selectedTower); updateHUD();
-        broadcastTowers();
+        refreshBroadcast();
       });
 
-      // Handshake : envoyer ready, attendre go de l'hôte
-      // Si hôte : attendre ready du guest (ou timeout 15s)
-      // Si guest : envoyer ready immédiatement
-      showFloat2(this,'⚔️ VS — En attente…',W/2,H/2-60,'rgba(255,255,255,.5)');
+      showFloat2(this,'⚔️ VS — En attente…',W/2,H*.35,'rgba(255,255,255,.5)');
       if(sess.role==='guest'){
-        // Guest envoie ready
-        setTimeout(()=>vsSend('ready',{}), 800);
-        // Timeout sécurité : si pas de go dans 15s, démarrer quand même
-        setTimeout(()=>{if(!_goReceived){_goReceived=true;scheduleWave(this,Date.now()+2000);}},15000);
+        setTimeout(()=>vsSend('ready',{}),800);
+        setTimeout(()=>{if(!_goReceived){_goReceived=true;scheduleFirstWave(Date.now()+2000);}},18000);
       } else {
-        // Hôte attend ready du guest, timeout 20s
-        setTimeout(()=>{
-          if(!_readyReceived){
-            // Guest pas encore connecté, démarrer seul
-            const startAt=Date.now()+2000;
-            _startAt=startAt;
-            scheduleWave(this,startAt);
-          }
-        },20000);
+        setTimeout(()=>{if(!_readyReceived){scheduleFirstWave(Date.now()+2000);}},22000);
       }
     }
 
@@ -1286,10 +1431,10 @@
       const g=s.add.graphics();
       g.lineStyle(44,0x1a2040,1);g.beginPath();pathPts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.strokePath();
       g.lineStyle(36,0x131628,1);g.beginPath();pathPts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.strokePath();
-      g.lineStyle(2,0xef4444,.5);g.beginPath();pathPts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.strokePath();
+      g.lineStyle(2,0xef4444,.4);g.beginPath();pathPts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.strokePath();
     }
 
-    // ── HUD VS ───────────────────────────────────────────────
+    // ── HUD ──────────────────────────────────────────────────
     let spyMode=false, spyOverlay=null;
 
     function createHUD(s){
@@ -1299,14 +1444,13 @@
       hudTexts.myGDef=s.add.text(W/2,3,'💰 '+myGoldDef,{fontSize:'11px',color:'#60a5fa',fontFamily:'monospace'}).setOrigin(0.5,0).setDepth(91);
       hudTexts.myGAtk=s.add.text(W/2,17,'⚔️ '+myGoldAtk,{fontSize:'10px',color:'#f59e0b',fontFamily:'monospace'}).setOrigin(0.5,0).setDepth(91);
       hudTexts.wave=s.add.text(W-6,3,'Vague '+waveIdx,{fontSize:'10px',color:'rgba(255,255,255,.35)',fontFamily:'monospace'}).setOrigin(1,0).setDepth(91);
-      // Bouton retour menu
-      const back=s.add.text(W-6,17,'✕ Menu',{fontSize:'9px',color:'rgba(255,255,255,.3)',fontFamily:'monospace'}).setOrigin(1,0).setDepth(91).setInteractive();
-      back.on('pointerdown',()=>{saveState();removeSpyOv();_destroyGame();container.innerHTML='';renderModeSelect(container);});
-      // Bouton espion (HTML pour facilité)
+      const back=s.add.text(W-6,17,'✕',{fontSize:'10px',color:'rgba(255,255,255,.3)',fontFamily:'monospace'}).setOrigin(1,0).setDepth(91).setInteractive();
+      back.on('pointerdown',()=>{saveState();removeShopOv();removeSpyOv();_destroyGame();container.innerHTML='';renderModeSelect(container);});
+      // Bouton espion HTML
       const spyBtn=document.createElement('button');
-      spyBtn.style.cssText='position:absolute;left:50%;top:'+TOP_H+'px;transform:translateX(-50%);padding:3px 10px;background:rgba(0,0,0,.7);border:1px solid rgba(239,68,68,.4);color:rgba(239,68,68,.8);border-radius:0 0 8px 8px;cursor:pointer;font-family:monospace;font-size:9px;font-weight:700;z-index:95;letter-spacing:1px';
+      spyBtn.style.cssText='position:absolute;left:50%;top:'+TOP_H+'px;transform:translateX(-50%);padding:3px 12px;background:rgba(0,0,0,.8);border:1px solid rgba(239,68,68,.4);color:rgba(239,68,68,.8);border-radius:0 0 8px 8px;cursor:pointer;font-family:monospace;font-size:9px;font-weight:700;z-index:95;letter-spacing:1px';
       spyBtn.textContent='👁 ESPIONNER';
-      spyBtn.onclick=()=>toggleSpy();
+      spyBtn.onclick=()=>spyMode?closeSpyOv():openSpyOv();
       container.appendChild(spyBtn);
       hudTexts.spyBtn=spyBtn;
     }
@@ -1318,181 +1462,150 @@
       if(hudTexts.wave)hudTexts.wave.setText('Vague '+waveIdx);
     }
 
-    // ── VUE ESPION ───────────────────────────────────────────
-    const FOG=20;
-    const fogRevealedSegs=new Set(sess.fogReveal||[]);
-    let _opponentTowers=[]; // reçus via td:towers
+    // ── Sélecteur de tour (menu déroulant HTML) ───────────────
+    function createTowerSelector(s){
+      const barY=H-BAR_H;
+      const bg=s.add.graphics().setDepth(90);
+      bg.fillStyle(0x000000,.93);bg.fillRect(0,barY,W,BAR_H);
+      bg.lineStyle(1,0x333344,.5);bg.lineBetween(0,barY,W,barY);
 
-    function toggleSpy(){spyMode?closeSpyOv():openSpyOv();}
+      // Menu déroulant HTML pour les tours (toutes les 12)
+      const wrap=document.createElement('div');
+      wrap.style.cssText='position:absolute;left:8px;right:8px;bottom:4px;z-index:91;display:flex;align-items:center;gap:6px';
+      const sel=document.createElement('select');
+      sel.style.cssText='flex:1;padding:5px 8px;background:#0a0d1a;border:1px solid rgba(96,165,250,.3);color:#60a5fa;border-radius:8px;font-family:monospace;font-size:11px;font-weight:700';
+      Object.entries(TOWER_DEFS).forEach(([id,t])=>{
+        const opt=document.createElement('option');
+        opt.value=id;
+        opt.textContent=`${t.emoji} ${t.name} — ${t.cost}💰`;
+        sel.appendChild(opt);
+      });
+      sel.value=selectedTower;
+      sel.onchange=()=>{selectedTower=sel.value;};
+      wrap.appendChild(sel);
+      // Info coût
+      const info=document.createElement('div');
+      info.style.cssText='font-size:10px;color:rgba(255,255,255,.4);font-family:monospace;white-space:nowrap';
+      info.textContent='← tap';
+      wrap.appendChild(info);
+      container.appendChild(wrap);
+    }
+
+    // ── Vue espion ───────────────────────────────────────────
+    // Zones révélées = segments du chemin traversés par MES attaquants
+    const FOG=16;
+    const fogRevealedSegs=new Set(sess.fogReveal||[]);
+    // Tours adverses connues (toutes les tours, révélées si elles sont dans une zone révélée)
+    let _knownOpTowers=[];
+
     function openSpyOv(){
       spyMode=true;
-      if(hudTexts.spyBtn){hudTexts.spyBtn.textContent='🔙 MON TERRAIN';hudTexts.spyBtn.style.borderColor='rgba(96,165,250,.5)';hudTexts.spyBtn.style.color='#60a5fa';}
+      if(hudTexts.spyBtn){hudTexts.spyBtn.textContent='🔙 MON TERRAIN';hudTexts.spyBtn.style.color='#60a5fa';hudTexts.spyBtn.style.borderColor='rgba(96,165,250,.4)';}
       spyOverlay=document.createElement('div');
-      spyOverlay.style.cssText=`position:absolute;left:0;top:${TOP_H}px;right:0;bottom:${BAR_H}px;z-index:80;background:#07080e;overflow:hidden`;
-      spyOverlay.innerHTML=`<canvas id="spy-canvas" style="position:absolute;inset:0"></canvas>
-        <div style="position:absolute;top:6px;left:0;right:0;text-align:center;font-family:monospace;font-size:9px;color:rgba(239,68,68,.5);letter-spacing:2px">TERRAIN ADVERSE</div>`;
+      spyOverlay.style.cssText=`position:absolute;left:0;top:${TOP_H+20}px;right:0;bottom:${BAR_H}px;z-index:80;background:#07080e;overflow:hidden`;
+      spyOverlay.innerHTML='<canvas id="spy-c" style="position:absolute;inset:0"></canvas><div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-family:monospace;font-size:9px;color:rgba(239,68,68,.5);letter-spacing:2px">TERRAIN ADVERSE</div>';
       container.appendChild(spyOverlay);
       drawSpyCanvas();
     }
     function closeSpyOv(){
       spyMode=false;
       if(spyOverlay&&spyOverlay.parentNode)spyOverlay.remove();spyOverlay=null;
-      if(hudTexts.spyBtn){hudTexts.spyBtn.textContent='👁 ESPIONNER';hudTexts.spyBtn.style.borderColor='rgba(239,68,68,.4)';hudTexts.spyBtn.style.color='rgba(239,68,68,.8)';}
+      if(hudTexts.spyBtn){hudTexts.spyBtn.textContent='👁 ESPIONNER';hudTexts.spyBtn.style.color='rgba(239,68,68,.8)';hudTexts.spyBtn.style.borderColor='rgba(239,68,68,.4)';}
     }
     function removeSpyOv(){if(spyOverlay&&spyOverlay.parentNode)spyOverlay.remove();spyOverlay=null;}
 
     function drawSpyCanvas(){
       if(!spyOverlay)return;
-      const canvas=spyOverlay.querySelector('#spy-canvas');
-      if(!canvas)return;
-      const cw=container.offsetWidth, ch=container.offsetHeight-TOP_H-BAR_H;
-      canvas.width=cw; canvas.height=ch;
+      const canvas=spyOverlay.querySelector('#spy-c');if(!canvas)return;
+      const cw=container.offsetWidth,ch=container.offsetHeight-TOP_H-20-BAR_H;
+      canvas.width=cw;canvas.height=ch;
       const ctx=canvas.getContext('2d');
 
-      // Tours adverses : priorité au profil live (broadcastData via heartbeat social 5s)
-      const liveProfile=window.YM_Social?._nearUsers?.get(sess.opponentUUID)?.profile;
-      const towersToShow=(liveProfile&&liveProfile.td_towers)||_opponentTowers||[];
+      // Tours adverses depuis broadcastData (heartbeat 5s)
+      const liveProf=window.YM_Social?._nearUsers?.get(sess.opponentUUID)?.profile;
+      const allOpTowers=(liveProf&&liveProf.td_towers)||_knownOpTowers;
+      if(allOpTowers.length>_knownOpTowers.length)_knownOpTowers=allOpTowers;
 
-      // Fond + grille
+      // Fond
       ctx.fillStyle='#07080e';ctx.fillRect(0,0,cw,ch);
       ctx.strokeStyle='rgba(255,255,255,0.02)';ctx.lineWidth=0.5;
       for(let x=0;x<cw;x+=36){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ch);ctx.stroke();}
       for(let y=0;y<ch;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();}
 
-      // Chemin (même chemin que le joueur, les tours sont positionnées dessus)
+      // Chemin (toujours visible)
+      const yOff=TOP_H+20;
       ctx.strokeStyle='rgba(30,20,40,1)';ctx.lineWidth=40;
-      ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-TOP_H;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
-      ctx.strokeStyle='rgba(239,68,68,0.3)';ctx.lineWidth=2;
-      ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-TOP_H;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
+      ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-yOff;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
+      ctx.strokeStyle='rgba(239,68,68,0.35)';ctx.lineWidth=2;
+      ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-yOff;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
 
-      // Brouillard + tours dans les zones révélées
+      // Afficher TOUTES les tours dans les zones révélées
+      // Une tour est révélée si elle est dans un segment traversé par mes attaquants
+      _knownOpTowers.forEach(t=>{
+        const ty=t.y-yOff;
+        // Trouver dans quel segment ce point tombe (basé sur distance parcourue)
+        // On cherche la position la plus proche sur le chemin
+        let closest=0,minD=Infinity;
+        pathPts.forEach((p)=>{const d=Math.hypot(p.x-t.x,p.y-(t.y));if(d<minD){minD=d;closest=p;}});
+        // Calculer le segment
+        let distT=0;
+        for(let i=0;i<pathPts.length-1;i++){
+          const sl=pd.segLengths[i];
+          const a=pathPts[i],b=pathPts[i+1];
+          const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
+          const proj=l2?Math.max(0,Math.min(1,((t.x-a.x)*dx+(t.y-a.y)*dy)/l2)):0;
+          const px=a.x+proj*dx,py2=a.y+proj*dy;
+          if(Math.hypot(t.x-px,t.y-py2)<40){distT+=proj*sl;break;}
+          distT+=sl;
+        }
+        const seg=Math.min(FOG-1,Math.floor((distT/pd.total)*FOG));
+
+        if(fogRevealedSegs.has(seg)){
+          // Tour visible dans cette zone
+          const cfg=TOWER_DEFS[t.type];if(!cfg)return;
+          const col='#'+cfg.col.toString(16).padStart(6,'0');
+          ctx.beginPath();ctx.arc(t.x,ty,17,0,Math.PI*2);
+          ctx.fillStyle='rgba(8,11,26,0.9)';ctx.fill();
+          ctx.strokeStyle=col;ctx.lineWidth=t.level>=1?2.5:1.8;ctx.stroke();
+          ctx.font='12px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(cfg.emoji,t.x,ty);
+          if(t.level>0){ctx.font='7px monospace';ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText('N'+(t.level+1),t.x+16,ty-13);}
+        } else {
+          // Tour dans brouillard : juste un point flou
+          ctx.beginPath();ctx.arc(t.x,ty,5,0,Math.PI*2);
+          ctx.fillStyle='rgba(100,100,100,0.15)';ctx.fill();
+        }
+      });
+
+      // Brouillard sur les zones non révélées
       const segH=ch/FOG;
       for(let seg=0;seg<FOG;seg++){
         if(!fogRevealedSegs.has(seg)){
-          ctx.fillStyle='rgba(0,0,0,0.92)';ctx.fillRect(0,seg*segH,cw,segH);
-        } else {
-          towersToShow.forEach(t=>{
-            const ty=t.y-TOP_H;
-            const tSeg=Math.min(FOG-1,Math.floor((ty/ch)*FOG));
-            if(tSeg!==seg)return;
-            const cfg=TOWER_DEFS[t.type];if(!cfg)return;
-            const col='#'+cfg.col.toString(16).padStart(6,'0');
-            ctx.beginPath();ctx.arc(t.x,ty,18,0,Math.PI*2);
-            ctx.fillStyle='rgba(8,11,26,0.9)';ctx.fill();
-            ctx.strokeStyle=col;ctx.lineWidth=t.level>=1?2.5:1.8;ctx.stroke();
-            ctx.font='12px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-            ctx.fillText(cfg.emoji,t.x,ty);
-            if(t.level>0){ctx.font='7px monospace';ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText('Niv'+(t.level+1),t.x+16,ty-14);}
-          });
+          ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,seg*segH,cw,segH);
         }
       }
 
+      // Légende
       const revealed=fogRevealedSegs.size;
-      ctx.font='9px monospace';ctx.fillStyle='rgba(255,255,255,.3)';ctx.textAlign='left';ctx.textBaseline='bottom';
-      ctx.fillText(revealed===0?'Envoyez des attaquants pour révéler le terrain!':`${Math.round(revealed/FOG*100)}% révélé · ${towersToShow.length} tours`,8,ch-6);
+      ctx.font='9px monospace';ctx.fillStyle='rgba(255,255,255,.35)';ctx.textAlign='left';ctx.textBaseline='bottom';
+      ctx.fillText(revealed===0?'Envoyez des attaquants pour révéler!':`${Math.round(revealed/FOG*100)}% révélé · ${_knownOpTowers.filter(t=>{
+        let d=0;for(let i=0;i<pathPts.length-1;i++){const sl=pd.segLengths[i];const a=pathPts[i],b=pathPts[i+1];const l2=(b.x-a.x)**2+(b.y-a.y)**2;const p=l2?Math.max(0,Math.min(1,((t.x-a.x)*(b.x-a.x)+(t.y-a.y)*(b.y-a.y))/l2)):0;if(Math.hypot(t.x-a.x-p*(b.x-a.x),t.y-a.y-p*(b.y-a.y))<40){d+=p*sl;break;}d+=sl;}
+        return fogRevealedSegs.has(Math.min(FOG-1,Math.floor((d/pd.total)*FOG)));
+      }).length} tours vues`,6,ch-5);
     }
 
-    function revealFog(distTraveled,totalPath){
-      const seg=Math.floor((distTraveled/totalPath)*FOG);
-      if(seg>=0&&seg<FOG&&!fogRevealedSegs.has(seg)){
+    // Révéler fog quand mes attaquants avancent (simulé localement)
+    const myAtkInFlight=[];
+    function revealFog(dist){
+      const seg=Math.min(FOG-1,Math.floor((dist/pd.total)*FOG));
+      if(!fogRevealedSegs.has(seg)){
         fogRevealedSegs.add(seg);
         if(spyMode)drawSpyCanvas();
         const s=getVSSession();if(s){s.fogReveal=[...fogRevealedSegs];setVSSession(s);}
       }
     }
 
-    // ── ICÔNES 2 RANGÉES EN BAS ──────────────────────────────
-    // Rangée 1 : Tours (💰), Rangée 2 : Attaquants (⚔️)
-    function createIconBar(s){
-      const barY=H-BAR_H;
-      const bb=s.add.graphics().setDepth(90);
-      bb.fillStyle(0x000000,.93);bb.fillRect(0,barY,W,BAR_H);
-      bb.lineStyle(1,0x333344,.5);bb.lineBetween(0,barY,W,barY);
-      bb.lineStyle(1,0x333344,.3);bb.lineBetween(0,barY+BAR_H/2,W,barY+BAR_H/2);
-
-      const tKeys=Object.keys(TOWER_DEFS).slice(0,6);
-      const aKeys=Object.keys(ATTACKER_DEFS).slice(0,6);
-      const btnW=Math.floor(W/6);
-
-      // Rangée 1 : Tours
-      tKeys.forEach((id,i)=>{
-        const cfg=TOWER_DEFS[id]; const bx=i*btnW;
-        const btn=s.add.graphics().setDepth(91);
-        btn.setInteractive(new Phaser.Geom.Rectangle(bx,barY,btnW,BAR_H/2),Phaser.Geom.Rectangle.Contains);
-        function draw(sel){btn.clear();btn.fillStyle(sel?cfg.col:0x0a0d1a,sel?.20:.93);btn.fillRect(bx+1,barY+1,btnW-2,BAR_H/2-2);if(sel){btn.lineStyle(1.5,cfg.col,.9);btn.strokeRect(bx+1,barY+1,btnW-2,BAR_H/2-2);}}
-        draw(id===selectedTower);
-        btn._id=id;btn._isTT=true;btn.draw=draw;
-        btn.on('pointerdown',()=>{selectedTower=id;shopIsOpen=false;removeShopOv();s.children.list.filter(c=>c._isTT).forEach(c=>c.draw(c._id===id));});
-        const cx=bx+btnW/2;
-        s.add.text(cx,barY+4,cfg.emoji,{fontSize:'13px'}).setOrigin(0.5,0).setDepth(92);
-        s.add.text(cx,barY+20,cfg.cost+'💰',{fontSize:'6px',color:'#60a5fa',fontFamily:'monospace'}).setOrigin(0.5,0).setDepth(92);
-      });
-
-      // Rangée 2 : Attaquants
-      aKeys.forEach((id,i)=>{
-        const a=ATTACKER_DEFS[id]; const bx=i*btnW; const ry=barY+BAR_H/2;
-        const colNum=parseInt(a.col.replace('#',''),16);
-        const btn=s.add.graphics().setDepth(91);
-        btn.setInteractive(new Phaser.Geom.Rectangle(bx,ry,btnW,BAR_H/2),Phaser.Geom.Rectangle.Contains);
-        function draw(sel){btn.clear();btn.fillStyle(sel?colNum:0x0a0d1a,sel?.20:.93);btn.fillRect(bx+1,ry+1,btnW-2,BAR_H/2-2);if(sel){btn.lineStyle(1.5,colNum,.9);btn.strokeRect(bx+1,ry+1,btnW-2,BAR_H/2-2);}}
-        draw(id===selectedAttacker);
-        btn._id=id;btn._isTA=true;btn.draw=draw;
-        btn.on('pointerdown',()=>{selectedAttacker=id;s.children.list.filter(c=>c._isTA).forEach(c=>c.draw(c._id===id));showAtkMenu(id);});
-        const cx=bx+btnW/2;
-        s.add.text(cx,ry+4,a.emoji,{fontSize:'13px'}).setOrigin(0.5,0).setDepth(92);
-        // Afficher le nombre d'attaquants achetés
-        const cntTxt=s.add.text(cx,ry+19,(myAttackers[id]||0)>0?'×'+(myAttackers[id]):'',{fontSize:'7px',color:'#f59e0b',fontFamily:'monospace'}).setOrigin(0.5,0).setDepth(92);
-        btn._cntTxt=cntTxt; btn._atkId=id;
-      });
-    }
-
-    function refreshAtkCounts(s){
-      s.children.list.filter(c=>c._isTA&&c._cntTxt).forEach(btn=>{
-        const n=myAttackers[btn._atkId]||0;
-        btn._cntTxt.setText(n>0?'×'+n:'');
-      });
-    }
-
-    // Menu attaquant (HTML overlay)
-    function showAtkMenu(id){
-      removeShopOv(); shopIsOpen=true;
-      const a=ATTACKER_DEFS[id];
-      const owned=myAttackers[id]||0;
-      const can=myGoldAtk>=a.cost;
-      const ov=document.createElement('div');
-      ov.style.cssText='position:absolute;left:50%;bottom:'+BAR_H+'px;transform:translateX(-50%);width:220px;background:#050710;border:1px solid rgba(245,158,11,.4);border-radius:10px;padding:12px;z-index:400;font-family:monospace';
-      ov.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:20px">${a.emoji}</span>
-        <div><div style="font-size:12px;font-weight:700;color:#fff">${a.name}</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.4)">${a.desc}</div></div></div>
-        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:8px">
-          Achetés : <strong style="color:#f59e0b">${owned}</strong> — envoyés à chaque vague<br>
-          <span style="font-size:9px;color:rgba(255,255,255,.3)">Or attaque : ${myGoldAtk}⚔️</span>
-        </div>
-        <div style="display:flex;gap:6px">
-          <button id="atk-buy" style="flex:1;padding:7px;background:${can?'rgba(245,158,11,.15)':'rgba(100,100,100,.1)'};border:1px solid ${can?'#f59e0b':'#444'};color:${can?'#f59e0b':'#555'};border-radius:7px;cursor:${can?'pointer':'default'};font-size:10px;font-family:monospace">+1 (${a.cost}⚔️)</button>
-          ${owned>0?`<button id="atk-sell" style="flex:1;padding:7px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:7px;cursor:pointer;font-size:10px;font-family:monospace">-1 (+${Math.round(a.cost*.5)}⚔️)</button>`:''}
-        </div>
-        <button id="atk-close" style="width:100%;padding:5px;background:transparent;border:none;color:rgba(255,255,255,.25);cursor:pointer;font-size:10px;margin-top:6px">✕ Fermer</button>`;
-      container.appendChild(ov); shopOverlay=ov;
-      ov.querySelector('#atk-buy').onclick=()=>{
-        if(myGoldAtk<a.cost)return;
-        myGoldAtk-=a.cost; myAttackers[id]=(myAttackers[id]||0)+(a.count||1);
-        updateHUD(); if(sc)refreshAtkCounts(sc); removeShopOv(); showAtkMenu(id);
-      };
-      const sb=ov.querySelector('#atk-sell');
-      if(sb)sb.onclick=()=>{
-        if(!myAttackers[id])return;
-        myAttackers[id]--; if(!myAttackers[id])delete myAttackers[id];
-        myGoldAtk+=Math.round(a.cost*.5);
-        updateHUD(); if(sc)refreshAtkCounts(sc); removeShopOv(); showAtkMenu(id);
-      };
-      ov.querySelector('#atk-close').onclick=()=>removeShopOv();
-    }
-
-    function removeShopOv(){if(shopOverlay&&shopOverlay.parentNode)shopOverlay.remove();shopOverlay=null;shopIsOpen=false;}
-
-    // ── TOURS ────────────────────────────────────────────────
+    // ── Tours ────────────────────────────────────────────────
     function placeTower(s,x,y,type){
       const base=TOWER_DEFS[type];
       const cfg={...base,upgrades:JSON.parse(JSON.stringify(base.upg)),upg:undefined};
@@ -1500,24 +1613,28 @@
       drawTGfx(g,cfg,0);
       g.setInteractive(new Phaser.Geom.Circle(0,0,20),Phaser.Geom.Circle.Contains);
       const ico=s.add.text(x,y-1,cfg.emoji,{fontSize:'12px'}).setOrigin(0.5).setDepth(16);
-      const rg=s.add.graphics().setPosition(x,y).setDepth(9);rg.lineStyle(1,cfg.col,.1);rg.strokeCircle(0,0,cfg.range);rg.visible=false;
+      const rg=s.add.graphics().setPosition(x,y).setDepth(9);rg.lineStyle(1,cfg.col,.1);rg.strokeCircle(0,0,effR(cfg));rg.visible=false;
       g.on('pointerover',()=>rg.visible=true);g.on('pointerout',()=>rg.visible=false);
       const lvl=s.add.text(x+13,y-13,'1',{fontSize:'7px',color:'#ffffff50',fontFamily:'monospace'}).setDepth(17);
+      emitB(s,x,y,cfg.col);
       const t={x,y,type,cfg,g,ico,rg,lvlTxt:lvl,lastFire:0,level:0,totalDmg:0};
-      myTowers.push(t); emitB(s,x,y,cfg.col); return t;
+      myTowers.push(t); return t;
     }
-    function drawTGfx(g,cfg,level){
+    function drawTGfx(g,cfg,lv){
       g.clear();
-      if(level>=2){g.fillStyle(cfg.col,.12);g.fillCircle(0,0,22);}
+      if(lv>=2){g.fillStyle(cfg.col,.1);g.fillCircle(0,0,22);}
       g.fillStyle(0x080b1a);g.fillCircle(0,0,19);g.fillStyle(0x111830);g.fillCircle(0,0,16);
-      g.lineStyle(level>=1?2.5:1.8,cfg.col,level>=2?1:.8);g.strokeCircle(0,0,12);
+      g.lineStyle(lv>=1?2.5:1.8,cfg.col,lv>=2?1:.8);g.strokeCircle(0,0,12);
       if(cfg.splash){g.fillStyle(cfg.col,.5);for(let k=0;k<3;k++){const a=k*Math.PI*2/3;g.fillCircle(Math.cos(a)*5,Math.sin(a)*5,2);}}
       else if(cfg.chain){g.lineStyle(1.5,cfg.col,.7);g.lineBetween(-6,-4,6,-4);g.lineBetween(-6,0,6,0);g.lineBetween(-6,4,6,4);}
       else if(cfg.pierce){g.lineStyle(2.5,cfg.col,.9);g.lineBetween(-7,0,7,0);}
       else{g.lineStyle(1.5,cfg.col,.5);g.lineBetween(-5,0,5,0);g.lineBetween(0,-5,0,5);}
     }
+
+    function removeShopOv(){if(shopOverlay&&shopOverlay.parentNode)shopOverlay.remove();shopOverlay=null;shopIsOpen=false;}
+
     function showTowerMenu(tower){
-      removeShopOv(); shopIsOpen=true;
+      removeShopOv();shopIsOpen=true;
       const canvasEl=container.querySelector('canvas');
       const cRect=canvasEl?canvasEl.getBoundingClientRect():{width:W,height:H};
       const ox=Math.min(tower.x/(W/cRect.width),cRect.width-162);
@@ -1527,75 +1644,69 @@
       const upg=hasUpg?tower.cfg.upgrades[tower.level]:null;
       const sell=Math.round(tower.cfg.cost*.6);
       const ov=document.createElement('div');
-      ov.style.cssText=`position:absolute;left:${ox}px;top:${oy}px;width:155px;background:#050710;border:1px solid ${colHex}55;border-radius:10px;padding:10px;z-index:400;font-family:monospace`;
-      ov.innerHTML=`<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><span style="font-size:15px">${tower.cfg.emoji}</span><div><div style="font-size:12px;font-weight:700;color:#fff">${tower.cfg.name} Niv${tower.level+1}</div><div style="font-size:9px;color:rgba(255,255,255,.4)">${Math.round(tower.totalDmg)} dmg total</div></div></div>
-        ${hasUpg?`<button id="vs-upg" style="width:100%;padding:6px;background:${myGoldDef>=upg.cost?'rgba(16,185,129,.18)':'rgba(100,100,100,.1)'};border:1px solid ${myGoldDef>=upg.cost?'#10b981':'#444'};color:${myGoldDef>=upg.cost?'#10b981':'#555'};border-radius:6px;cursor:pointer;font-size:10px;font-family:monospace">${myGoldDef>=upg.cost?'↑ '+upg.label+' ('+upg.cost+'💰)':'✗ '+upg.cost+'💰'}</button>`:'<div style="font-size:9px;color:#f59e0b;text-align:center">✦ MAX ✦</div>'}
-        <button id="vs-sell" style="width:100%;padding:5px;background:rgba(239,68,68,.1);border:1px solid #ef444444;color:#ef4444;border-radius:6px;cursor:pointer;font-size:10px;margin-top:5px;font-family:monospace">💰 Vendre (${sell}💰)</button>
+      ov.style.cssText=`position:absolute;left:${ox}px;top:${oy}px;width:158px;background:#050710;border:1px solid ${colHex}55;border-radius:10px;padding:10px;z-index:400;font-family:monospace`;
+      ov.innerHTML=`<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px"><span style="font-size:15px">${tower.cfg.emoji}</span><div><div style="font-size:12px;font-weight:700;color:#fff">${tower.cfg.name} Niv${tower.level+1}</div><div style="font-size:9px;color:rgba(255,255,255,.4)">${Math.round(tower.totalDmg)} dmg</div></div></div>
+        ${hasUpg?`<button id="vs-upg" style="width:100%;padding:6px;background:${myGoldDef>=upg.cost?'rgba(16,185,129,.18)':'rgba(100,100,100,.1)'};border:1px solid ${myGoldDef>=upg.cost?'#10b981':'#444'};color:${myGoldDef>=upg.cost?'#10b981':'#555'};border-radius:6px;cursor:pointer;font-size:10px;font-family:monospace">${myGoldDef>=upg.cost?'↑ '+upg.label+' ('+upg.cost+'💰)':'✗ '+upg.cost+'💰'}</button>`:'<div style="font-size:9px;color:#f59e0b;text-align:center">✦ MAX</div>'}
+        <button id="vs-sell" style="width:100%;padding:5px;background:rgba(239,68,68,.1);border:1px solid #ef444433;color:#ef4444;border-radius:6px;cursor:pointer;font-size:10px;margin-top:5px;font-family:monospace">💰 Vendre (${sell}💰)</button>
         <button id="vs-cl" style="width:100%;padding:4px;background:transparent;border:none;color:rgba(255,255,255,.25);cursor:pointer;font-size:10px;margin-top:3px">✕</button>`;
-      container.appendChild(ov); shopOverlay=ov;
+      container.appendChild(ov);shopOverlay=ov;
       ov.querySelector('#vs-cl').onclick=()=>removeShopOv();
       ov.querySelector('#vs-sell').onclick=()=>{
-        myGoldDef+=sell; tower.g.destroy();tower.ico.destroy();tower.rg.destroy();tower.lvlTxt.destroy();
-        myTowers=myTowers.filter(t=>t!==tower); updateHUD(); removeShopOv(); broadcastTowers();
+        myGoldDef+=sell;tower.g.destroy();tower.ico.destroy();tower.rg.destroy();tower.lvlTxt.destroy();
+        myTowers=myTowers.filter(t=>t!==tower);updateHUD();removeShopOv();refreshBroadcast();
       };
       if(hasUpg){const ub=ov.querySelector('#vs-upg');if(ub)ub.onclick=()=>{
         if(myGoldDef<upg.cost)return;
-        myGoldDef-=upg.cost; tower.level++;
+        myGoldDef-=upg.cost;tower.level++;
         Object.keys(upg).forEach(k=>{if(k!=='cost'&&k!=='label')tower.cfg[k]=upg[k];});
-        drawTGfx(tower.g,tower.cfg,tower.level); tower.rg.clear();tower.rg.lineStyle(1,tower.cfg.col,.12);tower.rg.strokeCircle(0,0,tower.cfg.range);tower.lvlTxt.setText(''+(tower.level+1));
-        emitB(sc,tower.x,tower.y,tower.cfg.col); updateHUD(); removeShopOv(); broadcastTowers();
+        drawTGfx(tower.g,tower.cfg,tower.level);tower.rg.clear();tower.rg.lineStyle(1,tower.cfg.col,.12);tower.rg.strokeCircle(0,0,effR(tower.cfg));tower.lvlTxt.setText(''+(tower.level+1));
+        emitB(sc,tower.x,tower.y,tower.cfg.col);updateHUD();removeShopOv();refreshBroadcast();
       };}
     }
 
-    // ── ENNEMIS ──────────────────────────────────────────────
+    // ── Ennemis ──────────────────────────────────────────────
     function spawnEnemy(s,data){
       const colNum=parseInt(data.col.replace('#',''),16);
       const g=s.add.graphics().setDepth(10);
       const hpBar=s.add.graphics().setDepth(12);
       const start=posOnPath(pd,0);
-      const e={g,hpBar,hp:data.hp,maxHp:data.hp,spd:data.spd,col:data.col,colNum,reward:data.reward,size:data.size||9,armor:data.armor||0,stealth:!!data.stealth,heals:!!data.heals,boss:!!data.boss,typeid:data.typeid,distTraveled:0,x:start.x,y:start.y,dead:false,slowTimer:0,slowFactor:1};
-      // Dessiner
+      const e={g,hpBar,hp:data.hp,maxHp:data.hp,spd:data.spd,col:data.col,colNum,reward:data.reward,size:data.size||9,armor:data.armor||0,stealth:!!data.stealth,boss:!!data.boss,typeid:data.typeid,distTraveled:0,x:start.x,y:start.y,dead:false,slowTimer:0,slowFactor:1};
       g.fillStyle(colNum,1);
-      if(data.boss){const pts=[];for(let k=0;k<6;k++){const a2=k/6*Math.PI*2;pts.push({x:Math.cos(a2)*(e.size),y:Math.sin(a2)*(e.size)});}g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.closePath();g.fillPath();g.lineStyle(2,0xffd700,.8);g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.closePath();g.strokePath();}
+      if(data.boss){const pts=[];for(let k=0;k<6;k++){const a=k/6*Math.PI*2;pts.push({x:Math.cos(a)*e.size,y:Math.sin(a)*e.size});}g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.closePath();g.fillPath();g.lineStyle(2,0xffd700,.8);g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.closePath();g.strokePath();}
       else{g.fillCircle(0,0,e.size);g.lineStyle(1.5,0xffffff,.2);g.strokeCircle(0,0,e.size);}
-      myEnemies.push(e); return e;
+      myEnemies.push(e);return e;
     }
 
     function emitB(s,x,y,col){const g=s.add.graphics().setPosition(x,y).setDepth(80);g.lineStyle(2.5,col,.85);g.strokeCircle(0,0,5);s.tweens.add({targets:g,scaleX:5,scaleY:5,alpha:0,duration:350,onComplete:()=>g.destroy()});}
     function showFloat(s,txt,x,y,col){if(!s)return;const t=s.add.text(x,y,txt,{fontSize:'12px',color:col,fontFamily:'monospace',fontStyle:'bold',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(200);s.tweens.add({targets:t,y:y-36,alpha:0,duration:1500,onComplete:()=>t.destroy()});}
     function showFloat2(s,txt,x,y,col){if(!s)return;const t=s.add.text(x,y,txt,{fontSize:'16px',color:col||'#fff',fontFamily:'monospace',fontStyle:'bold',stroke:'#000',strokeThickness:4}).setOrigin(0.5).setDepth(200);s.tweens.add({targets:t,y:y-50,alpha:0,duration:2000,onComplete:()=>t.destroy()});}
 
-    // ── UPDATE ───────────────────────────────────────────────
     function update(time,delta){
       if(gameOver)return;
       const dt=delta/1000;
 
-      // Attaquants en vol (simulation locale pour révéler le brouillard adverse)
+      // Attaquants en vol → révéler le brouillard adverse
       for(let i=myAtkInFlight.length-1;i>=0;i--){
-        const a=myAtkInFlight[i]; if(a.done)continue;
-        a.dist+=a.spd*dt;
-        revealFog(a.dist,pd.total);
+        const a=myAtkInFlight[i];if(a.done)continue;
+        a.dist+=a.spd*dt;revealFog(a.dist);
         if(a.dist>=pd.total){a.done=true;myAtkInFlight.splice(i,1);}
       }
 
       // Ennemis
       for(let i=myEnemies.length-1;i>=0;i--){
-        const e=myEnemies[i]; if(e.dead)continue;
-        if(e.slowTimer>0)e.slowTimer-=dt; else e.slowFactor=1;
+        const e=myEnemies[i];if(e.dead)continue;
+        if(e.slowTimer>0)e.slowTimer-=dt;else e.slowFactor=1;
         e.distTraveled+=e.spd*e.slowFactor*dt;
-        const pos=posOnPath(pd,e.distTraveled);
-        e.x=pos.x; e.y=pos.y;
+        const pos=posOnPath(pd,e.distTraveled);e.x=pos.x;e.y=pos.y;
         if(pos.done){
           e.dead=true;
           const loss=e.boss?4:e.armor>0.3?2:1;
-          myLives=Math.max(0,myLives-loss);
-          updateHUD(); saveState();
-          if(sc)sc.cameras.main.shake(250,.01);
+          myLives=Math.max(0,myLives-loss);updateHUD();saveState();
           e.g.destroy();e.hpBar.destroy();myEnemies.splice(i,1);
           if(myLives<=0){vsSend('gameover',{});triggerLoss();return;}
           continue;
         }
-        e.g.setPosition(e.x,e.y); e.hpBar.setPosition(e.x,e.y);
+        e.g.setPosition(e.x,e.y);e.hpBar.setPosition(e.x,e.y);
         const bw=e.boss?34:20;
         e.hpBar.clear();e.hpBar.fillStyle(0x000000,.7);e.hpBar.fillRect(-bw/2,-e.size-12,bw,3.5);
         const pct=Math.max(0,e.hp/e.maxHp);
@@ -1604,46 +1715,45 @@
 
       // Tours tirent
       myTowers.forEach(tower=>{
-        if(time-tower.lastFire<tower.cfg.rate)return;
-        let cands=myEnemies.filter(e=>!e.dead&&Math.hypot(tower.x-e.x,tower.y-e.y)<=tower.cfg.range);
+        if(time-tower.lastFire<effRate(tower.cfg))return;
+        let cands=myEnemies.filter(e=>!e.dead&&Math.hypot(tower.x-e.x,tower.y-e.y)<=effR(tower.cfg));
+        if(!defMods.detectStealth&&tower.type!=='laser')cands=cands.filter(e=>!e.stealth);
         if(tower.cfg.minRange)cands=cands.filter(e=>Math.hypot(tower.x-e.x,tower.y-e.y)>=tower.cfg.minRange);
         if(!cands.length)return;
         cands.sort((a,b)=>b.distTraveled-a.distTraveled);
-        const tgt=cands[0]; tower.lastFire=time;
-        fireBullet(this,tower,tgt,tower.cfg.dmg*(1-tgt.armor));
+        const tgt=cands[0];tower.lastFire=time;
+        if(tower.cfg.chain){
+          let tgts=[tgt];let last=tgt;
+          for(let k=1;k<(tower.cfg.chain||3);k++){const n=myEnemies.find(e=>!e.dead&&e!==last&&!tgts.includes(e)&&Math.hypot(last.x-e.x,last.y-e.y)<70);if(n){tgts.push(n);last=n;}else break;}
+          tgts.forEach((t,idx)=>fireBullet(sc,tower,t,effD(tower.cfg)*Math.pow(.75,idx)));
+        } else fireBullet(sc,tower,tgt,effD(tower.cfg)*(1-tgt.armor));
       });
 
-      // Projectiles
       for(let i=myBullets.length-1;i>=0;i--){
-        const b=myBullets[i];
-        if(!b.target||b.target.dead){b.g.destroy();myBullets.splice(i,1);continue;}
+        const b=myBullets[i];if(!b.target||b.target.dead){b.g.destroy();myBullets.splice(i,1);continue;}
         const dx=b.target.x-b.g.x,dy=b.target.y-b.g.y,dist=Math.hypot(dx,dy);
         if(dist<8){
-          b.target.hp-=b.dmg; b.tower.totalDmg+=b.dmg;
-          if(b.tower.cfg.slow){b.target.slowTimer=1.8;b.target.slowFactor=b.tower.cfg.slow||0.5;}
-          if(b.target.hp<=0){killEnemy(b.target,b.tower);}
+          b.target.hp-=b.dmg;b.tower.totalDmg+=b.dmg;
+          if(tower&&tower.cfg&&tower.cfg.slow){b.target.slowTimer=1.8;b.target.slowFactor=b.tower.cfg.slow||0.5;}
+          if(b.target.hp<=0){
+            b.target.dead=true;myGoldDef+=b.target.reward+(defMods.goldBonus||0);myGoldAtk+=Math.round(b.target.reward*.4);myKills++;updateHUD();
+            if(b.tower.cfg.splash>0){const sr=b.tower.cfg.splash*(1+defMods.splashMult||0);myEnemies.forEach(ne=>{if(!ne.dead&&ne!==b.target&&Math.hypot(ne.x-b.target.x,ne.y-b.target.y)<sr){ne.hp-=b.dmg*.5;if(ne.hp<=0){ne.dead=true;myEnemies=myEnemies.filter(x=>x!==ne);if(ne.g)ne.g.destroy();if(ne.hpBar)ne.hpBar.destroy();}}});}
+            emitB(sc,b.target.x,b.target.y,b.tower.cfg.col);
+            if(b.target.g)b.target.g.destroy();if(b.target.hpBar)b.target.hpBar.destroy();
+            myEnemies=myEnemies.filter(e=>e!==b.target);
+          }
           b.g.destroy();myBullets.splice(i,1);
-        }else{const sp=240/60;b.g.x+=dx/dist*sp;b.g.y+=dy/dist*sp;}
+        }else{b.g.x+=dx/dist*(240/60);b.g.y+=dy/dist*(240/60);}
       }
     }
 
     function fireBullet(s,tower,target,dmg){
-      const g=(sc||s).add.graphics().setDepth(40);g.fillStyle(tower.cfg.col,1);g.fillCircle(0,0,tower.cfg.splash?5:2.5);g.setPosition(tower.x,tower.y);
+      if(!s)return;
+      const g=s.add.graphics().setDepth(40);g.fillStyle(tower.cfg.col,1);g.fillCircle(0,0,tower.cfg.splash?5:2.5);g.setPosition(tower.x,tower.y);
       myBullets.push({g,target,tower,dmg});
     }
 
-    function killEnemy(e,tower){
-      if(e.dead)return; e.dead=true;
-      myGoldDef+=e.reward; myKills++;
-      updateHUD();
-      // Or attaque : tuer un ennemi rapporte de l'or pour les attaquants
-      myGoldAtk=Math.min(9999,myGoldAtk+Math.round(e.reward*.5));
-      if(sc)emitB(sc,e.x,e.y,e.colNum);
-      e.g.destroy();e.hpBar.destroy();
-      myEnemies=myEnemies.filter(x=>x!==e);
-    }
-
-    // ── FIN DE PARTIE ────────────────────────────────────────
+    // ── Fin de partie ─────────────────────────────────────────
     if(_ctx&&_ctx.onReceive){
       _ctx.onReceive((type,data)=>{
         if(type!=='td:gameover')return;
@@ -1653,33 +1763,34 @@
     }
 
     function triggerLoss(){
-      if(gameOver)return; gameOver=true;
-      setVSSession(null);
+      if(gameOver)return;gameOver=true;setVSSession(null);
       const ov=document.createElement('div');
       ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,.92);z-index:600;font-family:monospace';
       ov.innerHTML=`<div style="font-size:40px">💀</div><div style="font-size:24px;font-weight:900;color:#ef4444">DÉFAITE</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.4)">${myKills} kills · Vague ${waveIdx}</div>
-        <button id="vs-back" style="margin-top:8px;background:#1a1a2e;border:1px solid rgba(255,255,255,.15);color:#fff;font-weight:700;padding:11px 24px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:13px">⟵ Menu</button>`;
+        <div style="font-size:11px;color:rgba(255,255,255,.4)">Vague ${waveIdx} · ${myKills} kills</div>
+        <button id="vs-menu" style="margin-top:8px;background:#0f1020;border:1px solid rgba(255,255,255,.15);color:#fff;font-weight:700;padding:11px 24px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:13px">⟵ Menu</button>
+        <button id="vs-retry" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);color:#ef4444;font-weight:700;padding:9px 20px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:12px">↺ Rejouer VS</button>`;
       container.appendChild(ov);
-      ov.querySelector('#vs-back').onclick=()=>{ov.remove();_destroyGame();container.innerHTML='';renderModeSelect(container);};
+      ov.querySelector('#vs-menu').onclick=()=>{ov.remove();_destroyGame();container.innerHTML='';renderModeSelect(container);};
+      ov.querySelector('#vs-retry').onclick=()=>{ov.remove();_destroyGame();const ns={...sess,myLives:30,opponentLives:30,myGoldDef:200,myGoldAtk:80,waveIdx:0,fogReveal:[],nextWaveAttackers:[{type:'grunt',count:3,hpMult:1,spdMult:1}],defUpgrades:{},status:'active'};setVSSession(ns);_startVSGame(container,ns);};
     }
     function triggerWin(){
-      if(gameOver)return; gameOver=true;
-      setVSSession(null);
+      if(gameOver)return;gameOver=true;setVSSession(null);
       saveScore({name:_myName(),score:myScore,wave:waveIdx,kills:myKills,ts:Date.now(),mode:'vs',victory:true});
       const ov=document.createElement('div');
       ov.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,.92);z-index:600;font-family:monospace';
       ov.innerHTML=`<div style="font-size:40px">🏆</div><div style="font-size:24px;font-weight:900;color:#ffd700">VICTOIRE !</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.4)">${myKills} kills · Vague ${waveIdx}</div>
-        <button id="vs-back" style="margin-top:8px;background:linear-gradient(135deg,#fbbf24,#d97706);border:none;color:#000;font-weight:700;padding:11px 24px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:13px">⟵ Menu</button>`;
+        <div style="font-size:11px;color:rgba(255,255,255,.4)">Vague ${waveIdx} · ${myKills} kills</div>
+        <button id="vs-menu" style="margin-top:8px;background:linear-gradient(135deg,#fbbf24,#d97706);border:none;color:#000;font-weight:800;padding:11px 24px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:13px">⟵ Menu</button>
+        <button id="vs-retry" style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);color:#fbbf24;font-weight:700;padding:9px 20px;border-radius:10px;cursor:pointer;font-family:monospace;font-size:12px">↺ Rejouer VS</button>`;
       container.appendChild(ov);
-      ov.querySelector('#vs-back').onclick=()=>{ov.remove();_destroyGame();container.innerHTML='';renderModeSelect(container);};
+      ov.querySelector('#vs-menu').onclick=()=>{ov.remove();_destroyGame();container.innerHTML='';renderModeSelect(container);};
+      ov.querySelector('#vs-retry').onclick=()=>{ov.remove();_destroyGame();const ns={...sess,myLives:30,opponentLives:30,myGoldDef:200,myGoldAtk:80,waveIdx:0,fogReveal:[],nextWaveAttackers:[{type:'grunt',count:3,hpMult:1,spdMult:1}],defUpgrades:{},status:'active'};setVSSession(ns);_startVSGame(container,ns);};
     }
 
     _game=new Phaser.Game({type:Phaser.AUTO,width:W,height:H,parent:container,backgroundColor:'#07080e',scene:{preload:()=>{},create,update},scale:{mode:Phaser.Scale.NONE}});
   }
 
-  // ── peerSection : bouton Défier dans la fiche contact ──────────────────────
   function peerSection(container, ctx){
     container.innerHTML='';
     const myUUID=_myUUID();
