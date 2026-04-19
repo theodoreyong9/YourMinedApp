@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "social.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "a15e25a94e96c78ec3e8efca06bf750f1af5bd347aa72365d5f54316b1e81bd6",
+  "signature": "rtemYWWIWPt+NZqUJYHC3PMZIN94ljGK46nYpt2Y5f655jCJDmagHxCO7pWY4virOMIY55La7BVHskfaGNwMAw==",
+  "nonce": "0f4257d6-2c55-4907-be0a-b085203a2b2f",
+  "timestamp": 1776620130,
+  "score": 0.9318319435209197,
+  "laps": 7888082,
+  "burnSlot": 448770336
+}
