@@ -220,11 +220,13 @@
 
     const gameZone=document.createElement('div');
     gameZone.style.cssText='flex:1;overflow:hidden;min-height:0;position:relative';
-
-    const overlay=document.createElement('div');
-    overlay.style.cssText='position:absolute;inset:0;z-index:200;display:none;flex-direction:column;background:#07080e;overflow-y:auto;padding:14px;box-sizing:border-box';
-    gameZone.appendChild(overlay);
     container.appendChild(gameZone);
+
+    // Overlay scores/guide au niveau du container (pas gameZone, survit aux changements de jeu)
+    const overlay=document.createElement('div');
+    overlay.style.cssText='position:absolute;inset:0;z-index:300;display:none;flex-direction:column;background:#07080e;overflow-y:auto;padding:14px;box-sizing:border-box';
+    container.style.position='relative';
+    container.appendChild(overlay);
 
     const tabBar=document.createElement('div');
     tabBar.style.cssText='display:flex;border-top:1px solid rgba(255,255,255,.07);flex-shrink:0;background:#040508';
@@ -1105,7 +1107,7 @@
         if(def){
           const count=a.count||1;
           for(let i=0;i<count;i++)
-            myAtkInFlight.push({dist:i*300, spd:def.spd*(a.spdMult||1), done:false});
+            myAtkInFlight.push({dist:0, spd:def.spd*(a.spdMult||1), done:false});
         }
       });
       // Envoyer avec délai > GAP=3s pour éviter le rate limiter
@@ -1444,8 +1446,14 @@
       hudTexts.myGDef=s.add.text(W/2,3,'💰 '+myGoldDef,{fontSize:'11px',color:'#60a5fa',fontFamily:'monospace'}).setOrigin(0.5,0).setDepth(91);
       hudTexts.myGAtk=s.add.text(W/2,17,'⚔️ '+myGoldAtk,{fontSize:'10px',color:'#f59e0b',fontFamily:'monospace'}).setOrigin(0.5,0).setDepth(91);
       hudTexts.wave=s.add.text(W-6,3,'Vague '+waveIdx,{fontSize:'10px',color:'rgba(255,255,255,.35)',fontFamily:'monospace'}).setOrigin(1,0).setDepth(91);
-      const back=s.add.text(W-6,17,'✕',{fontSize:'10px',color:'rgba(255,255,255,.3)',fontFamily:'monospace'}).setOrigin(1,0).setDepth(91).setInteractive();
-      back.on('pointerdown',()=>{saveState();removeShopOv();removeSpyOv();_destroyGame();container.innerHTML='';renderModeSelect(container);});
+      const back=s.add.text(W-6,17,'✕ Quitter',{fontSize:'9px',color:'rgba(255,255,255,.3)',fontFamily:'monospace'}).setOrigin(1,0).setDepth(91).setInteractive();
+      back.on('pointerdown',()=>{
+        // Confirmer avant de quitter
+        if(!confirm('Quitter la partie VS ? (vous perdrez la partie)'))return;
+        setVSSession(null); // effacer session pour ne pas proposer de reprendre
+        saveState=()=>{}; // désactiver les sauvegardes futures
+        removeShopOv();removeSpyOv();_destroyGame();container.innerHTML='';renderModeSelect(container);
+      });
       // Bouton espion HTML
       const spyBtn=document.createElement('button');
       spyBtn.style.cssText='position:absolute;left:50%;top:'+TOP_H+'px;transform:translateX(-50%);padding:3px 12px;background:rgba(0,0,0,.8);border:1px solid rgba(239,68,68,.4);color:rgba(239,68,68,.8);border-radius:0 0 8px 8px;cursor:pointer;font-family:monospace;font-size:9px;font-weight:700;z-index:95;letter-spacing:1px';
@@ -1518,91 +1526,86 @@
       if(!spyOverlay)return;
       const canvas=spyOverlay.querySelector('#spy-c');if(!canvas)return;
       const cw=container.offsetWidth,ch=container.offsetHeight-TOP_H-20-BAR_H;
+      if(ch<=0||cw<=0)return;
       canvas.width=cw;canvas.height=ch;
       const ctx=canvas.getContext('2d');
 
-      // Tours adverses depuis broadcastData (heartbeat 5s)
+      // Tours adverses depuis broadcastData heartbeat
       const liveProf=window.YM_Social?._nearUsers?.get(sess.opponentUUID)?.profile;
-      const allOpTowers=(liveProf&&liveProf.td_towers)||_knownOpTowers;
-      if(allOpTowers.length>_knownOpTowers.length)_knownOpTowers=allOpTowers;
+      const fresh=(liveProf&&liveProf.td_towers)||[];
+      if(fresh.length)_knownOpTowers=fresh;
 
-      // Fond
+      // Offset Y : pathPts.y inclut TOP_H, le canvas espion commence à TOP_H+20
+      const yOff=TOP_H+20;
+
+      // Fond + grille
       ctx.fillStyle='#07080e';ctx.fillRect(0,0,cw,ch);
-      ctx.strokeStyle='rgba(255,255,255,0.02)';ctx.lineWidth=0.5;
+      ctx.strokeStyle='rgba(255,255,255,0.025)';ctx.lineWidth=0.5;
       for(let x=0;x<cw;x+=36){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,ch);ctx.stroke();}
       for(let y=0;y<ch;y+=36){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cw,y);ctx.stroke();}
 
-      // Chemin (toujours visible)
-      const yOff=TOP_H+20;
+      // Chemin toujours visible
       ctx.strokeStyle='rgba(30,20,40,1)';ctx.lineWidth=40;
-      ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-yOff;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
-      ctx.strokeStyle='rgba(239,68,68,0.35)';ctx.lineWidth=2;
-      ctx.beginPath();pathPts.forEach((p,i)=>{const py=p.y-yOff;i?ctx.lineTo(p.x,py):ctx.moveTo(p.x,py);});ctx.stroke();
+      ctx.beginPath();pathPts.forEach((p,i)=>{i?ctx.lineTo(p.x,p.y-yOff):ctx.moveTo(p.x,p.y-yOff);});ctx.stroke();
+      ctx.strokeStyle='rgba(239,68,68,0.4)';ctx.lineWidth=2;
+      ctx.beginPath();pathPts.forEach((p,i)=>{i?ctx.lineTo(p.x,p.y-yOff):ctx.moveTo(p.x,p.y-yOff);});ctx.stroke();
 
-      // Afficher TOUTES les tours dans les zones révélées
-      // Une tour est révélée si elle est dans un segment traversé par mes attaquants
-      _knownOpTowers.forEach(t=>{
-        const ty=t.y-yOff;
-        // Trouver dans quel segment ce point tombe (basé sur distance parcourue)
-        // On cherche la position la plus proche sur le chemin
-        let closest=0,minD=Infinity;
-        pathPts.forEach((p)=>{const d=Math.hypot(p.x-t.x,p.y-(t.y));if(d<minD){minD=d;closest=p;}});
-        // Calculer le segment
-        let distT=0;
+      // Pour chaque tour, trouver son segment sur le chemin
+      // = trouver le point le plus proche sur le chemin et calculer la distance cumulée
+      function towerSeg(tx,ty){
+        let bestDist=Infinity,bestCumDist=0,cumDist=0;
         for(let i=0;i<pathPts.length-1;i++){
-          const sl=pd.segLengths[i];
           const a=pathPts[i],b=pathPts[i+1];
           const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;
-          const proj=l2?Math.max(0,Math.min(1,((t.x-a.x)*dx+(t.y-a.y)*dy)/l2)):0;
-          const px=a.x+proj*dx,py2=a.y+proj*dy;
-          if(Math.hypot(t.x-px,t.y-py2)<40){distT+=proj*sl;break;}
-          distT+=sl;
+          const t2=l2?Math.max(0,Math.min(1,((tx-a.x)*dx+(ty-a.y)*dy)/l2)):0;
+          const d=Math.hypot(tx-a.x-t2*dx,ty-a.y-t2*dy);
+          if(d<bestDist){bestDist=d;bestCumDist=cumDist+t2*pd.segLengths[i];}
+          cumDist+=pd.segLengths[i];
         }
-        const seg=Math.min(FOG-1,Math.floor((distT/pd.total)*FOG));
+        return Math.min(FOG-1,Math.floor((bestCumDist/pd.total)*FOG));
+      }
 
-        if(fogRevealedSegs.has(seg)){
-          // Tour visible dans cette zone
-          const cfg=TOWER_DEFS[t.type];if(!cfg)return;
-          const col='#'+cfg.col.toString(16).padStart(6,'0');
-          ctx.beginPath();ctx.arc(t.x,ty,17,0,Math.PI*2);
-          ctx.fillStyle='rgba(8,11,26,0.9)';ctx.fill();
-          ctx.strokeStyle=col;ctx.lineWidth=t.level>=1?2.5:1.8;ctx.stroke();
-          ctx.font='12px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-          ctx.fillText(cfg.emoji,t.x,ty);
-          if(t.level>0){ctx.font='7px monospace';ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText('N'+(t.level+1),t.x+16,ty-13);}
-        } else {
-          // Tour dans brouillard : juste un point flou
-          ctx.beginPath();ctx.arc(t.x,ty,5,0,Math.PI*2);
-          ctx.fillStyle='rgba(100,100,100,0.15)';ctx.fill();
-        }
-      });
-
-      // Brouillard sur les zones non révélées
+      // Brouillard en premier (fond), puis tours par-dessus
       const segH=ch/FOG;
       for(let seg=0;seg<FOG;seg++){
         if(!fogRevealedSegs.has(seg)){
-          ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,seg*segH,cw,segH);
+          ctx.fillStyle='rgba(0,0,0,0.82)';ctx.fillRect(0,seg*segH,cw,segH);
         }
       }
 
-      // Légende
+      // Tours : visibles dans zones révélées, silhouette dans zones non révélées
+      _knownOpTowers.forEach(t=>{
+        const ty=t.y-yOff;
+        const seg=towerSeg(t.x,t.y);
+        const cfg=TOWER_DEFS[t.type];if(!cfg)return;
+        if(fogRevealedSegs.has(seg)){
+          // Tour révélée : afficher complètement
+          const col='#'+cfg.col.toString(16).padStart(6,'0');
+          ctx.beginPath();ctx.arc(t.x,ty,17,0,Math.PI*2);
+          ctx.fillStyle='rgba(8,11,26,0.95)';ctx.fill();
+          ctx.strokeStyle=col;ctx.lineWidth=t.level>=1?2.5:1.8;ctx.stroke();
+          ctx.font='13px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(cfg.emoji,t.x,ty);
+          if(t.level>0){ctx.font='7px monospace';ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillText('Niv'+(t.level+1),t.x+18,ty-14);}
+        }
+        // Dans le brouillard : rien (on ne sait pas qu'elle est là)
+      });
+
       const revealed=fogRevealedSegs.size;
       ctx.font='9px monospace';ctx.fillStyle='rgba(255,255,255,.35)';ctx.textAlign='left';ctx.textBaseline='bottom';
-      ctx.fillText(revealed===0?'Envoyez des attaquants pour révéler!':`${Math.round(revealed/FOG*100)}% révélé · ${_knownOpTowers.filter(t=>{
-        let d=0;for(let i=0;i<pathPts.length-1;i++){const sl=pd.segLengths[i];const a=pathPts[i],b=pathPts[i+1];const l2=(b.x-a.x)**2+(b.y-a.y)**2;const p=l2?Math.max(0,Math.min(1,((t.x-a.x)*(b.x-a.x)+(t.y-a.y)*(b.y-a.y))/l2)):0;if(Math.hypot(t.x-a.x-p*(b.x-a.x),t.y-a.y-p*(b.y-a.y))<40){d+=p*sl;break;}d+=sl;}
-        return fogRevealedSegs.has(Math.min(FOG-1,Math.floor((d/pd.total)*FOG)));
-      }).length} tours vues`,6,ch-5);
+      ctx.fillText(revealed===0?'Envoyez des attaquants pour révéler le terrain!':`${Math.round(revealed/FOG*100)}% révélé`,6,ch-5);
     }
 
     // Révéler fog quand mes attaquants avancent (simulé localement)
     const myAtkInFlight=[];
+    // Révéler fog : un segment est révélé quand un attaquant l'a DÉPASSÉ (pas traversé)
+    // = quand dist > fin du segment
     function revealFog(dist){
-      const seg=Math.min(FOG-1,Math.floor((dist/pd.total)*FOG));
-      if(!fogRevealedSegs.has(seg)){
-        fogRevealedSegs.add(seg);
-        if(spyMode)drawSpyCanvas();
-        const s=getVSSession();if(s){s.fogReveal=[...fogRevealedSegs];setVSSession(s);}
-      }
+      // On révèle tous les segments déjà franchis
+      const progress=Math.min(1, dist/pd.total);
+      const maxSeg=Math.floor(progress*FOG);
+      for(let s=0;s<maxSeg;s++) fogRevealedSegs.add(s);
+      if(maxSeg>0&&spyMode)drawSpyCanvas();
     }
 
     // ── Tours ────────────────────────────────────────────────
@@ -1734,10 +1737,10 @@
         const dx=b.target.x-b.g.x,dy=b.target.y-b.g.y,dist=Math.hypot(dx,dy);
         if(dist<8){
           b.target.hp-=b.dmg;b.tower.totalDmg+=b.dmg;
-          if(tower&&tower.cfg&&tower.cfg.slow){b.target.slowTimer=1.8;b.target.slowFactor=b.tower.cfg.slow||0.5;}
+          if(b.tower.cfg&&b.tower.cfg.slow){b.target.slowTimer=1.8;b.target.slowFactor=b.tower.cfg.slow||0.5;}
           if(b.target.hp<=0){
             b.target.dead=true;myGoldDef+=b.target.reward+(defMods.goldBonus||0);myGoldAtk+=Math.round(b.target.reward*.4);myKills++;updateHUD();
-            if(b.tower.cfg.splash>0){const sr=b.tower.cfg.splash*(1+defMods.splashMult||0);myEnemies.forEach(ne=>{if(!ne.dead&&ne!==b.target&&Math.hypot(ne.x-b.target.x,ne.y-b.target.y)<sr){ne.hp-=b.dmg*.5;if(ne.hp<=0){ne.dead=true;myEnemies=myEnemies.filter(x=>x!==ne);if(ne.g)ne.g.destroy();if(ne.hpBar)ne.hpBar.destroy();}}});}
+            if(b.tower.cfg.splash>0){const sr=b.tower.cfg.splash;myEnemies.forEach(ne=>{if(!ne.dead&&ne!==b.target&&Math.hypot(ne.x-b.target.x,ne.y-b.target.y)<sr){ne.hp-=b.dmg*.5;if(ne.hp<=0){ne.dead=true;if(ne.g)ne.g.destroy();if(ne.hpBar)ne.hpBar.destroy();myEnemies=myEnemies.filter(x=>x!==ne);}}}); }
             emitB(sc,b.target.x,b.target.y,b.tower.cfg.col);
             if(b.target.g)b.target.g.destroy();if(b.target.hpBar)b.target.hpBar.destroy();
             myEnemies=myEnemies.filter(e=>e!==b.target);
