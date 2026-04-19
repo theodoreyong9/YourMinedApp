@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "radio.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "0cb65a87adf70555fbc07ea82c7b9fe3dc0e6c8606164b0001f3305f486b01d0",
+  "signature": "Qp8fCkykRg5ZuMbgaEE4rARD9Af6NXixUmybAt8ccjK4sgvYdnlOQtuwTznDQIM6zYLh7rs0GTYfU6cpJWyMBg==",
+  "nonce": "b29e0d6b-b1cd-4fa7-8eda-f54276727dc8",
+  "timestamp": 1776595503,
+  "score": 0.9234175991193021,
+  "laps": 7823098,
+  "burnSlot": 448770336
+}
