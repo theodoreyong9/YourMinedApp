@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "dropsharing.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "a86c568f0151e16314ed95b3482712d8654731aa7358f9dd000a26ab17efec75",
+  "signature": "S4JHMl/6MqIdfUAveGRZEhDOrzoV9ipnWuYuxyRM4q20NDGxYX4ooiqEdd5Fz74fOXQAnRKgnG2zOXet4qKdAA==",
+  "nonce": "ae0a6180-4efd-4ea9-8809-aafb6ac04171",
+  "timestamp": 1776619834,
+  "score": 0.9317316852041966,
+  "laps": 7887308,
+  "burnSlot": 448770336
+}
