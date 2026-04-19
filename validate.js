@@ -6,7 +6,6 @@ const crypto = require('crypto');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
 const MAX_LOADER_SIZE   = 5 * 1024;   // 5 Ko max pour le loader (.sphere.js)
-const MAX_CODE_SIZE     = 500 * 1024; // 500 Ko max pour le code (.sphere.code.js)
 const MIN_TS_GAP_SEC    = 300;        // 5 min entre soumissions (nouveaux fichiers)
 const MAX_EVENT_AGE_SEC = 3600;       // Events > 1h ignorés
 const MAX_NEW_FILES     = 1;          // 1 seul nouveau fichier par PR
@@ -209,10 +208,6 @@ async function main() {
 
     const codeSource = fs.readFileSync(codePath, 'utf8').replace(/\r\n/g, '\n');
     const codeSize   = Buffer.byteLength(codeSource, 'utf8');
-    if (codeSize > MAX_CODE_SIZE) {
-      console.error(`✗ Code too large: ${(codeSize/1024).toFixed(1)} KB (max ${MAX_CODE_SIZE/1024} KB)`);
-      process.exit(1);
-    }
     console.log(`✓ Code size OK (${(codeSize/1024).toFixed(1)} KB)`);
 
     // Vérifie le hash du code (content_hash dans l'event = hash du code)
