@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "meshai.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "462ee38b1da6ffdf1cb0ea920ce3569822a3541ea0b87fc8c2e65c792a51a59d",
+  "signature": "EZ3SEMPM/PA/F+sbtBjjELr1qgkKN5GhT/QKf6yxcwdR9uhcwxYxkLDy+/vjDkg4NChrPycWSr1U8JX1LNh/AA==",
+  "nonce": "f0163736-863d-487e-827a-4e29df56b6c7",
+  "timestamp": 1776619935,
+  "score": 0.931770544907805,
+  "laps": 7887608,
+  "burnSlot": 448770336
+}
