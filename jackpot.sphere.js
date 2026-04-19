@@ -1,4 +1,4 @@
-/* jackpot.sphere.js — Néobank Jackpot v5
+/* jackpot.sphere.js — Néobank Jackpot v4
  * Plugin YourMine — caisse commune, dons multi-devises, carte Mastercard virtuelle
  * Appels Striga directs depuis le navigateur (HMAC calculé côté client)
  * Logique jackpot via Worker Cloudflare
@@ -703,7 +703,7 @@
     if (!user) {
       body.appendChild(mkNotice('Crée ton compte pour accéder au wallet et à la carte Mastercard virtuelle.', 'info'));
       const form = document.createElement('div'); form.className = 'jk-card';
-      [['jk-fn','Prénom','Jean'],['jk-ln','Nom','Dupont'],['jk-dob','Date de naissance (AAAA-MM-JJ)','1990-01-15'],['jk-nat','Nationalité (FR, DE…)','FR'],['jk-email','Email','jean@example.com'],['jk-tel','Téléphone (ex: 0612345678 ou +33612345678)','+33612345678'],['jk-addr','Adresse','12 rue de la Paix'],['jk-city','Ville','Paris'],['jk-postal','Code postal','75001'],['jk-country','Pays','FR']].forEach(function(arr) {
+      [['jk-fn','Prénom','Jean'],['jk-ln','Nom','Dupont'],['jk-dob','Date de naissance (AAAA-MM-JJ)','1990-01-15'],['jk-nat','Nationalité (FR, DE…)','FR'],['jk-email','Email','jean@example.com'],['jk-cc','Indicatif pays (+33, +1…)','+33'],['jk-tel','Numéro (sans indicatif)','612345678'],['jk-addr','Adresse','12 rue de la Paix'],['jk-city','Ville','Paris'],['jk-postal','Code postal','75001'],['jk-country','Pays','FR']].forEach(function(arr) {
         const id = arr[0], label = arr[1], ph = arr[2];
         const lbl = document.createElement('label'); lbl.className = 'jk-label'; lbl.textContent = label; form.appendChild(lbl);
         const inp = document.createElement('input'); inp.className = 'jk-inp'; inp.id = id; inp.placeholder = ph;
@@ -726,21 +726,7 @@
             day:   parseInt(dob[2], 10) || 1,
           },
           email:       v('jk-email').trim().toLowerCase(),
-          mobile: (function() {
-            var tel = v('jk-tel').replace(/[\s\-\(\)]/g, '');
-            // Striga attend countryCode avec le + et number sans indicatif
-            // Ex: +33612345678 → countryCode='+33', number='612345678'
-            var cc = '+33', num = tel.replace(/^\+/, '');
-            if (tel.startsWith('+')) {
-              var match = tel.match(/^(\+\d{1,3})(\d+)$/);
-              if (match) { cc = match[1]; num = match[2]; }
-            } else if (tel.startsWith('33') && tel.length >= 11) { cc = '+33'; num = tel.slice(2); }
-            else if (tel.startsWith('44') && tel.length >= 11)   { cc = '+44'; num = tel.slice(2); }
-            else if (tel.startsWith('1')  && tel.length === 11)  { cc = '+1';  num = tel.slice(1); }
-            else if (tel.startsWith('49') && tel.length >= 11)   { cc = '+49'; num = tel.slice(2); }
-            else if (tel.startsWith('41') && tel.length >= 11)   { cc = '+41'; num = tel.slice(2); }
-            return { countryCode: cc, number: num };
-          })(),
+          mobile: { countryCode: v('jk-cc').trim().startsWith('+') ? v('jk-cc').trim() : '+' + v('jk-cc').trim(), number: v('jk-tel').replace(/[\s\-\(\)]/g, '') },
           nationality: v('jk-nat').toUpperCase().slice(0, 2),
           address: {
             addressLine1: v('jk-addr').trim(),
