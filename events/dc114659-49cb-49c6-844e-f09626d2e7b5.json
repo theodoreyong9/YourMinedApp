@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "call.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "2c791da40d959da150314b4760bbaa9e0f0750e0da7e56dfff620dbd325194f2",
+  "signature": "YfrlvEDp9iHY1ckf0od/b3e8AMBcqpZSGTLqPwQECHh8JmADX25WHSUAqgt3lC6JhWcYaCDl08XJaj/lDhq7Dg==",
+  "nonce": "dc114659-49cb-49c6-844e-f09626d2e7b5",
+  "timestamp": 1776619789,
+  "score": 0.9317162708933461,
+  "laps": 7887189,
+  "burnSlot": 448770336
+}
