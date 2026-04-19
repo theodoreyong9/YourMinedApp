@@ -80,11 +80,15 @@ async function main() {
   try { filesJson = safeParseJson(fs.readFileSync('files.json', 'utf8')); } catch(e) {}
 
   for (const { filename, isUpdate, score, laps, burnSlot, timestamp } of files) {
+    // Build codeUrl so liste.js can load the code directly from the user's fork
+    const baseName = filename.replace(/\.sphere\.js$/, '');
+    const codeUrl = 'https://raw.githubusercontent.com/' + ghActor + '/' + BASE_REPO.split('/')[1] + '/main/' + baseName + '.sphere.code.js';
     const entry = {
       filename,
       author:         walletPubkey,
       ghAuthor:       ghActor,
       last_committer: ghActor,
+      codeUrl,
       score:     parseFloat((score    || 0).toFixed(6)),
       laps:      parseFloat((laps     || 0).toFixed(6)),
       burnSlot:  burnSlot  || 0,
