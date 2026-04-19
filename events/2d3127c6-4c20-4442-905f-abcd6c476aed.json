@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "poker.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "e4cdc4efe0231b0fbf90e65f889abf34f679fac1c7451f35a62fa9e0ee1d9095",
+  "signature": "xuBereVPwXvrY5cv2VX/eDkx6U180N0BqKIc6F9q6ZgdyyVa3fg2OzFdx0ysEMu4l7DcXOGSgD1cWT2y1i7fDg==",
+  "nonce": "2d3127c6-4c20-4442-905f-abcd6c476aed",
+  "timestamp": 1776620089,
+  "score": 0.931821839927981,
+  "laps": 7888004,
+  "burnSlot": 448770336
+}
