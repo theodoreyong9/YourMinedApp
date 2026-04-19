@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "anonmessenger.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "303cac83162c1ac2283b170bc6cfb3368fae7472d740cc24ba258da023e8f318",
+  "signature": "xHQnt3fKxKUHTZwbX97SY22stMUtnscuzDcAVceV5SVNnjiFBrFL1q5SWTL3XKF3UO3rCUuWrsgYqRrZIMukDw==",
+  "nonce": "1a96f742-d0a1-4e6d-a22e-3349ee6262a7",
+  "timestamp": 1776619580,
+  "score": 0.9316442513759238,
+  "laps": 7886633,
+  "burnSlot": 448770336
+}
