@@ -1,5 +1,5 @@
 /* jshint esversion:11, browser:true */
-// towerdefense.sphere.js — Tower Defense v8
+// towerdefense.sphere.js — Tower Defense v9
 // Solo : base v6 qui marchait (vagues auto, shop HTML inter-vagues, icônes 2 rangées en bas)
 // VS   : 2 terminaux, invitation profil/YM_Social, brouillard de guerre, switch vue
 // Sync VS : seulement les événements (spawn attaquants, vies perdues) via YM_Social.sendGameMsg
