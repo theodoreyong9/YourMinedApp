@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "towerdefense.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "85a7f42833418c0b771b1742974c8e2a733ada3ad440e514c92fb383a41b8b6d",
+  "signature": "607ObEp/HWhI9qQSt80dUf5qJ0QCfSFmiGimE+Nk9TF0uiSRr7t8aGjdzuoM7/8zkGKpuX9HO8+zOKo/TgEbAw==",
+  "nonce": "8bf69ca1-3970-429e-836f-585bba0cbca0",
+  "timestamp": 1776705800,
+  "score": 0.0013803531318640828,
+  "laps": 171383,
+  "burnSlot": 456713132
+}
