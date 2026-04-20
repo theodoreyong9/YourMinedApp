@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "video.sphere.js",
+  "wallet": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+  "content_hash": "e45da227f6ce9a3e24ba02ea835976a5d801c4f1ca313b15c51c97426af5edc2",
+  "signature": "xTAxKmDUE+KJwq+TOOPI/Ii05W9Qn3YIxHtWcUpBgV62nziDebr9YqbvmwzHuzHGbZ5ubGYovGOyb1KwYQ90CA==",
+  "nonce": "34b9a3b9-a3fb-47f9-b95f-730bee88679b",
+  "timestamp": 1776661646,
+  "score": 0.00039472933444697296,
+  "laps": 54914,
+  "burnSlot": 456713132
+}
