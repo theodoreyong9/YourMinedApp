@@ -1311,18 +1311,19 @@
         addDiv.appendChild(addBtn);
         body.appendChild(addDiv);
       }
+    }
 
-      function tryLaunchNextWave(){
-        if(!_myShopReady||!_shopReadyReceived)return;
-        removeShopOv();
-        shopIsOpen=false;
-        if(sess.role==='host'){
-          const startAt=Date.now()+2000;
-          vsSend('wave',{waveIdx,startAt});
-          setTimeout(()=>launchWave(sc,waveIdx),2000);
-        }
-        // Le guest attend td:wave
+    // tryLaunchNextWave au niveau renderVSGame — accessible depuis onReceive ET showInterWaveShop
+    function tryLaunchNextWave(){
+      if(!_myShopReady||!_shopReadyReceived)return;
+      removeShopOv();
+      shopIsOpen=false;
+      if(sess.role==='host'){
+        const startAt=Date.now()+2000;
+        vsSend('wave',{waveIdx,startAt});
+        setTimeout(()=>launchWave(sc,waveIdx),2000);
       }
+      // Le guest attend td:wave
     }
 
     // ── Vagues ───────────────────────────────────────────────
@@ -1510,8 +1511,9 @@
       spyMode=true;
       if(hudTexts.spyBtn){hudTexts.spyBtn.textContent='🔙 MON TERRAIN';hudTexts.spyBtn.style.color='#60a5fa';hudTexts.spyBtn.style.borderColor='rgba(96,165,250,.4)';}
       spyOverlay=document.createElement('div');
-      spyOverlay.style.cssText=`position:absolute;left:0;top:${TOP_H+20}px;right:0;bottom:${BAR_H}px;z-index:80;background:#07080e;overflow:hidden`;
-      spyOverlay.innerHTML='<canvas id="spy-c" style="position:absolute;inset:0"></canvas><div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-family:monospace;font-size:9px;color:rgba(239,68,68,.5);letter-spacing:2px">TERRAIN ADVERSE</div>';
+      // Positionner exactement sur la zone de jeu (entre HUD et barre du bas)
+      spyOverlay.style.cssText=`position:absolute;left:0;right:0;top:${TOP_H+20}px;bottom:${BAR_H}px;z-index:80;background:#07080e;overflow:hidden`;
+      spyOverlay.innerHTML='<canvas id="spy-c" style="position:absolute;top:0;left:0"></canvas><div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-family:monospace;font-size:9px;color:rgba(239,68,68,.5);letter-spacing:2px">TERRAIN ADVERSE</div>';
       container.appendChild(spyOverlay);
       drawSpyCanvas();
     }
@@ -1525,9 +1527,12 @@
     function drawSpyCanvas(){
       if(!spyOverlay)return;
       const canvas=spyOverlay.querySelector('#spy-c');if(!canvas)return;
-      const cw=container.offsetWidth,ch=container.offsetHeight-TOP_H-20-BAR_H;
+      // Utiliser exactement les dimensions du jeu Phaser (W et H capturés au lancement)
+      // pour que pathPts correspondent exactement aux coordonnées affichées
+      const cw=W, ch=H-TOP_H-20-BAR_H;
       if(ch<=0||cw<=0)return;
-      canvas.width=cw;canvas.height=ch;
+      canvas.width=cw; canvas.height=ch;
+      canvas.style.width=cw+'px'; canvas.style.height=ch+'px';
       const ctx=canvas.getContext('2d');
 
       // Tours adverses depuis broadcastData heartbeat
