@@ -369,7 +369,7 @@
   // ── Sphere registration ────────────────────────────────────────────────────
   window.YM_S['tictactoe.sphere.js'] = {
     name: 'Tic Tac Toe',
-    icon: '✕',
+    icon: '🎮',
     category: 'Games',
     description: 'Joue au Tic Tac Toe contre un contact — invite, accepte, joue !',
     emit:    [MSG.INVITE, MSG.ACCEPT, MSG.DECLINE, MSG.MOVE, MSG.REMATCH, MSG.CANCEL],
