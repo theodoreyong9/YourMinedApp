@@ -378,6 +378,7 @@
             pendingInvite = { fromId: peerId, fromName: data.name };
             ctx.setNotification(1);
             ctx.toast('📩 ' + (data.name || peerId) + ' t\'invite à jouer !', 'info');
+            ctx.openPanel(c => { renderRoot = c; render(c); });
             if (renderRoot) render(renderRoot);
             break;
 
