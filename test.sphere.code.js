@@ -371,6 +371,28 @@
 
     activate(ctx) {
       ctx_ref = ctx;
+
+      // ── Polling fallback: check storage for pending invites ──────────────
+      // In case P2P message was missed, sender also writes to a shared key
+      // and receiver polls for it every 2s
+      const _pollInterval = setInterval(() => {
+        try {
+          const raw = localStorage.getItem('ttt:invite:' + (ctx.loadProfile && ctx.loadProfile()?.uuid));
+          if (!raw) return;
+          const inv = JSON.parse(raw);
+          // Only process if fresh (< 30s) and not already handled
+          if (!inv || Date.now() - inv.ts > 30000) { localStorage.removeItem('ttt:invite:' + ctx.loadProfile()?.uuid); return; }
+          if (!game && !pendingInvite) {
+            pendingInvite = { fromId: inv.fromId, fromName: inv.fromName };
+            ctx.setNotification(1);
+            ctx.toast('📩 ' + (inv.fromName || inv.fromId) + ' t\'invite à jouer !', 'info');
+            localStorage.removeItem('ttt:invite:' + ctx.loadProfile()?.uuid);
+            document.querySelectorAll('[id^="peer-sphere-"]').forEach(el => { if (el._tttRefresh) el._tttRefresh(); });
+            if (renderRoot) render(renderRoot);
+          }
+        } catch(e) {}
+      }, 2000);
+
       ctx.onReceive((type, data, peerId) => {
         switch (type) {
           case MSG.INVITE:
@@ -431,7 +453,7 @@
       });
     },
 
-    deactivate() { ctx_ref = null; renderRoot = null; resetGame(); },
+    deactivate() { ctx_ref = null; renderRoot = null; resetGame(); clearInterval(_pollInterval); },
 
     // Called by profile.js when viewing a contact's profile or contact list
     peerSection(container, pCtx) {
@@ -495,7 +517,16 @@
           btn.style.cssText = 'width:100%;font-size:12px';
           btn.textContent = '🎮 Inviter à jouer';
           btn.onclick = () => {
-            ctx_ref.send(MSG.INVITE, { name: getMyName() }, uuid);
+            const myName = getMyName();
+            ctx_ref.send(MSG.INVITE, { name: myName }, uuid);
+            // Fallback: write invite to localStorage so opponent's polling catches it
+            try {
+              localStorage.setItem('ttt:invite:' + uuid, JSON.stringify({
+                fromId: ctx_ref.loadProfile()?.uuid || 'unknown',
+                fromName: myName,
+                ts: Date.now()
+              }));
+            } catch(e) {}
             ctx_ref.toast('Invitation envoyée !', 'success');
             game = { board: Array(9).fill(null), myMark: 'X', opponentId: uuid, myTurn: true, result: null, winLine: null, waiting: true };
             ctx_ref.openPanel(c => { renderRoot = c; render(c); });
