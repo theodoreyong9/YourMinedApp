@@ -367,7 +367,7 @@
   }
 
   // ── Sphere registration ────────────────────────────────────────────────────
-  window.YM_S['tictactoe.sphere.js'] = {
+  window.YM_S['test.sphere.js'] = {
     name: 'Tic Tac Toe',
     icon: '🎮',
     category: 'Games',
