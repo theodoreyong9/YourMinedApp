@@ -147,10 +147,11 @@
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
     "last_committer": "Keanuji",
-    "score": 0.001766,
-    "laps": 214456,
-    "timestamp": 1776722123,
-    "merged_at": 1776722145,
-    "burnSlot": 456713132
+    "score": 0.014931,
+    "laps": 1493819,
+    "timestamp": 1777206882,
+    "merged_at": 1777206905,
+    "burnSlot": 456713132,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.code.js"
   }
 ]
