@@ -378,7 +378,10 @@
             pendingInvite = { fromId: peerId, fromName: data.name };
             ctx.setNotification(1);
             ctx.toast('📩 ' + (data.name || peerId) + ' t\'invite à jouer !', 'info');
-            ctx.openPanel(c => { renderRoot = c; render(c); });
+            // Refresh peerSection if the contact's profile is open
+            document.querySelectorAll('[id^="peer-sphere-"]').forEach(el => {
+              if (el._tttRefresh) el._tttRefresh();
+            });
             if (renderRoot) render(renderRoot);
             break;
 
@@ -429,6 +432,85 @@
     },
 
     deactivate() { ctx_ref = null; renderRoot = null; resetGame(); },
+
+    // Called by profile.js when viewing a contact's profile or contact list
+    peerSection(container, pCtx) {
+      const uuid = pCtx.uuid;
+
+      function renderPeer() {
+        container.innerHTML = '';
+        container.style.cssText = 'padding: 4px 0';
+
+        // Case 1: pending invite FROM this peer
+        if (pendingInvite && pendingInvite.fromId === uuid) {
+          const banner = document.createElement('div');
+          banner.style.cssText = 'background:color-mix(in srgb,var(--gold) 15%,var(--bg) 85%);border:1.5px solid var(--gold);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px';
+          banner.innerHTML = '<p style="margin:0;font-size:13px;font-weight:600;color:var(--text)">📩 Invitation à jouer !</p>';
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex;gap:8px';
+
+          const accept = document.createElement('button');
+          accept.className = 'ym-btn ym-btn-accent';
+          accept.style.cssText = 'flex:1;font-size:12px';
+          accept.textContent = '✓ Accepter';
+          accept.onclick = () => {
+            game = { board: Array(9).fill(null), myMark: 'O', opponentId: uuid, myTurn: false, result: null, winLine: null };
+            ctx_ref.send(MSG.ACCEPT, { name: getMyName() }, uuid);
+            pendingInvite = null;
+            ctx_ref.setNotification(0);
+            // Open the game panel
+            ctx_ref.openPanel(c => { renderRoot = c; render(c); });
+            renderPeer();
+          };
+
+          const decline = document.createElement('button');
+          decline.className = 'ym-btn ym-btn-ghost';
+          decline.style.cssText = 'flex:1;font-size:12px';
+          decline.textContent = '✗ Refuser';
+          decline.onclick = () => {
+            ctx_ref.send(MSG.DECLINE, {}, uuid);
+            pendingInvite = null;
+            ctx_ref.setNotification(0);
+            renderPeer();
+          };
+
+          row.appendChild(accept);
+          row.appendChild(decline);
+          banner.appendChild(row);
+          container.appendChild(banner);
+
+        // Case 2: active game with this peer
+        } else if (game && game.opponentId === uuid) {
+          const btn = document.createElement('button');
+          btn.className = 'ym-btn ym-btn-ghost';
+          btn.style.cssText = 'width:100%;font-size:12px';
+          btn.textContent = '🎮 Voir la partie en cours';
+          btn.onclick = () => ctx_ref.openPanel(c => { renderRoot = c; render(c); });
+          container.appendChild(btn);
+
+        // Case 3: no game — invite button
+        } else if (!game) {
+          const btn = document.createElement('button');
+          btn.className = 'ym-btn ym-btn-ghost';
+          btn.style.cssText = 'width:100%;font-size:12px';
+          btn.textContent = '🎮 Inviter à jouer';
+          btn.onclick = () => {
+            ctx_ref.send(MSG.INVITE, { name: getMyName() }, uuid);
+            ctx_ref.toast('Invitation envoyée !', 'success');
+            game = { board: Array(9).fill(null), myMark: 'X', opponentId: uuid, myTurn: true, result: null, winLine: null, waiting: true };
+            ctx_ref.openPanel(c => { renderRoot = c; render(c); });
+            renderPeer();
+          };
+          container.appendChild(btn);
+        }
+      }
+
+      renderPeer();
+
+      // Re-render this section when state changes (invite received while profile open)
+      const _orig = render;
+      container._tttRefresh = () => renderPeer();
+    },
     renderPanel(container) { renderRoot = container; render(container); },
   };
 
