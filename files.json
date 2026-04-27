@@ -9,7 +9,7 @@
     "timestamp": 1776619284,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/activity.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/activity.sphere.js"
   },
   {
     "filename": "anonmessenger.sphere.js",
@@ -21,7 +21,7 @@
     "timestamp": 1776619580,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/anonmessenger.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/anonmessenger.sphere.js"
   },
   {
     "filename": "call.sphere.js",
@@ -33,7 +33,7 @@
     "timestamp": 1776619789,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/call.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/call.sphere.js"
   },
   {
     "filename": "dropsharing.sphere.js",
@@ -45,7 +45,7 @@
     "timestamp": 1776619834,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/dropsharing.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/dropsharing.sphere.js"
   },
   {
     "filename": "messenger.sphere.js",
@@ -57,7 +57,7 @@
     "timestamp": 1776620048,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/messenger.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/messenger.sphere.js"
   },
   {
     "filename": "poker.sphere.js",
@@ -69,7 +69,7 @@
     "timestamp": 1776620089,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/poker.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/poker.sphere.js"
   },
   {
     "filename": "radio.sphere.js",
@@ -81,6 +81,7 @@
     "timestamp": 1776595503,
     "merged_at": 1776595526,
     "burnSlot": 448770336
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/radio.sphere.js"
   },
   {
     "filename": "jackpot.sphere.js",
@@ -104,7 +105,7 @@
     "timestamp": 1776705800,
     "merged_at": 1776705823,
     "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/towerdefense.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/towerdefense.sphere.js"
   },
   {
     "filename": "meshai.sphere.js",
@@ -116,7 +117,7 @@
     "timestamp": 1776619935,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/meshai.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/meshai.sphere.js"
   },
   {
     "filename": "social.sphere.js",
@@ -128,7 +129,7 @@
     "timestamp": 1776620130,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/social.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/social.sphere.js"
   },
   {
     "filename": "video.sphere.js",
@@ -140,7 +141,7 @@
     "timestamp": 1777111030,
     "merged_at": 1777111062,
     "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/video.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/video.sphere.js"
   },
   {
     "filename": "test.sphere.js",
@@ -152,6 +153,6 @@
     "timestamp": 1777207088,
     "merged_at": 1777207109,
     "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.code.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.js"
   }
 ]
