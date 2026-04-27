@@ -9,6 +9,7 @@
     "timestamp": 1776619284,
     "merged_at": 1776620204,
     "burnSlot": 448770336,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/activity.sphere.js"
   },
   {
     "filename": "anonmessenger.sphere.js",
@@ -79,7 +80,7 @@
     "laps": 7823098,
     "timestamp": 1776595503,
     "merged_at": 1776595526,
-    "burnSlot": 448770336
+    "burnSlot": 448770336,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/radio.sphere.js"
   },
   {
