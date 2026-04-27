@@ -144,13 +144,13 @@
   },
   {
     "filename": "test.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+    "author": "Bs5M5gYwkgJ1v6LUeWubVykZBMFocxcy42bhe3VR2uoF",
     "ghAuthor": "Keanuji",
     "last_committer": "Keanuji",
-    "score": 0.014937,
-    "laps": 1494363,
-    "timestamp": 1777207088,
-    "merged_at": 1777207109,
+    "score": 0,
+    "laps": 458483007,
+    "timestamp": 1777311383,
+    "merged_at": 1777311409,
     "burnSlot": 456713132,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.js"
   }
