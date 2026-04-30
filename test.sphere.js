@@ -538,7 +538,7 @@
 
       renderPeer();
 
-      // Re-render this section when state changes (invite received while profile open)
+      // 2Re-render this section when state changes (invite received while profile open)
       const _orig = render;
       container._tttRefresh = () => renderPeer();
     },
