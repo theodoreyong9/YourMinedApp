@@ -1,0 +1,12 @@
+{
+  "action": "create",
+  "filename": "test.sphere.js",
+  "wallet": "BA8vndU8yyHyY6uZ1koW552nhYWu3taviAbeq9y9Dnkd",
+  "content_hash": "fb8ad62ba70e86b74033868918eef8b6f2428bbdc42d9e14b8fee84d0925cc61",
+  "signature": "z8eYGcds2M9EkgPq94yRWyY2gnoIY9afWhxN1/wlCjDMgW0BXSqrnSsjWlKDpTdn7TYgs6pGpFglgfcmYtNMCQ==",
+  "nonce": "3cde4d00-0f6c-4150-8fa5-2b2911ae60fa",
+  "timestamp": 1777537889,
+  "score": 0,
+  "laps": 459080839,
+  "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.js"
+}
