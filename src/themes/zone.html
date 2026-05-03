@@ -1,543 +1,462 @@
 <!--
-  YourMine — NEURAL//GRID Theme v2
-  Full layout overhaul. Cyberpunk maximalist.
-  Background terminal window, HUD overlay, vertical sidebar,
-  floating status bars, scanlines, data rain, everything.
+  YourMine — NEURAL//GRID v3
+  Chaque panel = identité visuelle unique
+  Spheres=cyan, Profile=magenta, Build=vert, Mine=or, Sphere detail=rouge
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Share+Tech+Mono&family=Syncopate:wght@400;700&display=block" rel="stylesheet">
 
 <style>
+/* ══════════════════════════════════════════════
+   BASE VARIABLES
+══════════════════════════════════════════════ */
 :root {
   color-scheme: dark;
   --bg: #04010a;
   --text: #e0d0ff;
   --text2: rgba(224,208,255,.5);
   --text3: rgba(224,208,255,.22);
-  --v: #b026ff;        /* violet primaire */
-  --v2: #6d00cc;       /* violet foncé */
-  --mg: #ff00cc;       /* magenta */
-  --cy: #00f5ff;       /* cyan */
-  --gn: #00ff9d;       /* vert néon */
-  --rd: #ff2d6b;       /* rouge */
-  --safe-b: env(safe-area-inset-bottom, 0px);
-  --dock-h: 0px;       /* supprimé — on a la sidebar */
-  --font-d: 'Orbitron', sans-serif;
-  --font-m: 'Share Tech Mono', monospace;
-  --font-s: 'Syncopate', sans-serif;
+  /* palette globale */
+  --v:  #b026ff; --v2: #6d00cc;
+  --mg: #ff00cc;
+  --cy: #00f5ff;
+  --gn: #00ff9d;
+  --rd: #ff2d6b;
+  --am: #ffb800;
+  --safe-b: env(safe-area-inset-bottom,0px);
+  --dock-h: 0px;
+  --font-d: 'Orbitron',sans-serif;
+  --font-m: 'Share Tech Mono',monospace;
+  --font-s: 'Syncopate',sans-serif;
   --sidebar-w: 68px;
-  --glass: rgba(4,1,10,.92);
-  --border-v: 1px solid rgba(176,38,255,.3);
-  --neon: 0 0 8px rgba(176,38,255,.7), 0 0 24px rgba(176,38,255,.25);
-  --neon-cy: 0 0 8px rgba(0,245,255,.6), 0 0 20px rgba(0,245,255,.2);
-  --neon-mg: 0 0 8px rgba(255,0,204,.6), 0 0 20px rgba(255,0,204,.2);
+  --neon:    0 0 8px rgba(176,38,255,.7),0 0 24px rgba(176,38,255,.25);
+  --neon-cy: 0 0 8px rgba(0,245,255,.7),0 0 24px rgba(0,245,255,.25);
+  --neon-mg: 0 0 8px rgba(255,0,204,.7),0 0 24px rgba(255,0,204,.25);
+  --neon-gn: 0 0 8px rgba(0,255,157,.6),0 0 20px rgba(0,255,157,.2);
+  --neon-am: 0 0 8px rgba(255,184,0,.6),0 0 20px rgba(255,184,0,.2);
+  --neon-rd: 0 0 8px rgba(255,45,107,.6),0 0 20px rgba(255,45,107,.2);
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent }
-html { height: 100%; overflow: hidden; background: var(--bg) }
-body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--font-m); padding-top: env(safe-area-inset-top, 0px) }
-body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 9999; pointer-events: none }
-* { scrollbar-width: thin; scrollbar-color: rgba(176,38,255,.3) transparent }
-::-webkit-scrollbar { width: 2px } ::-webkit-scrollbar-thumb { background: rgba(176,38,255,.3) }
+/* ── COULEURS PAR PANEL ──────────────────────
+   Chaque panel déclare ses propres vars locales
+   via un attribut data-panel-color appliqué dynamiquement
+   via les sélecteurs d'id ci-dessous.
+────────────────────────────────────────────── */
+#panel-spheres      { --pc: 0,245,255;    --pc-hex: #00f5ff;  --pc-bg: rgba(0,245,255,.04);   --pc-border: rgba(0,245,255,.3);   --pc-border-top: rgba(0,245,255,.7);   --pc-glow: var(--neon-cy) }
+#panel-profile      { --pc: 255,0,204;    --pc-hex: #ff00cc;  --pc-bg: rgba(255,0,204,.04);   --pc-border: rgba(255,0,204,.3);   --pc-border-top: rgba(255,0,204,.7);   --pc-glow: var(--neon-mg) }
+#panel-build        { --pc: 0,255,157;    --pc-hex: #00ff9d;  --pc-bg: rgba(0,255,157,.04);   --pc-border: rgba(0,255,157,.28);  --pc-border-top: rgba(0,255,157,.7);   --pc-glow: var(--neon-gn) }
+#panel-mine         { --pc: 255,184,0;    --pc-hex: #ffb800;  --pc-bg: rgba(255,184,0,.04);   --pc-border: rgba(255,184,0,.28);  --pc-border-top: rgba(255,184,0,.7);   --pc-glow: var(--neon-am) }
+#panel-sphere       { --pc: 255,45,107;   --pc-hex: #ff2d6b;  --pc-bg: rgba(255,45,107,.04);  --pc-border: rgba(255,45,107,.28); --pc-border-top: rgba(255,45,107,.6);  --pc-glow: var(--neon-rd) }
+#panel-profile-view { --pc: 176,38,255;   --pc-hex: #b026ff;  --pc-bg: rgba(176,38,255,.05);  --pc-border: rgba(176,38,255,.3);  --pc-border-top: rgba(176,38,255,.7);  --pc-glow: var(--neon) }
 
-/* ═══════════════════════════════════════
-   COUCHE 0 — FOND ANIMÉ + DATA RAIN
-═══════════════════════════════════════ */
-#ym-wp { position: fixed; inset: 0; z-index: 0; background-size: cover; background-position: center; background-repeat: no-repeat }
+*, *::before, *::after { box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent }
+html { height:100%;overflow:hidden;background:var(--bg) }
+body { height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-m);padding-top:env(safe-area-inset-top,0px) }
+body::before { content:"";position:fixed;top:0;left:0;width:100%;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:9999;pointer-events:none }
+* { scrollbar-width:thin;scrollbar-color:rgba(176,38,255,.3) transparent }
+::-webkit-scrollbar { width:2px } ::-webkit-scrollbar-thumb { background:rgba(176,38,255,.3) }
 
+/* ══════════════════════════════════════════════
+   FOND GLOBAL
+══════════════════════════════════════════════ */
+#ym-wp { position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat }
 #ym-bg {
-  position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden;
+  position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;
   background:
-    radial-gradient(ellipse 80% 60% at 75% 20%, rgba(176,38,255,.12) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 80% at 20% 80%, rgba(109,0,204,.1) 0%, transparent 65%),
-    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(0,245,255,.04) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 60% at 75% 20%,rgba(176,38,255,.12) 0%,transparent 65%),
+    radial-gradient(ellipse 60% 80% at 20% 80%,rgba(109,0,204,.1) 0%,transparent 65%),
     var(--bg)
 }
-
-/* Grille hexagonale */
 #ym-bg::before {
-  content: '';
-  position: absolute; inset: 0;
+  content:'';position:absolute;inset:0;
   background-image:
-    linear-gradient(rgba(176,38,255,.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(176,38,255,.06) 1px, transparent 1px),
-    linear-gradient(rgba(0,245,255,.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,245,255,.025) 1px, transparent 1px);
-  background-size: 60px 60px, 60px 60px, 12px 12px, 12px 12px;
-  animation: gridDrift 30s linear infinite
+    linear-gradient(rgba(176,38,255,.05) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(176,38,255,.05) 1px,transparent 1px);
+  background-size:60px 60px;animation:gridDrift 30s linear infinite
 }
-@keyframes gridDrift { 0% { background-position: 0 0, 0 0, 0 0, 0 0 } 100% { background-position: 60px 60px, 60px 60px, 12px 12px, 12px 12px } }
+#ym-bg::after { content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.07) 3px,rgba(0,0,0,.07) 4px);animation:scanMove 10s linear infinite }
+@keyframes gridDrift { 100%{background-position:60px 60px} }
+@keyframes scanMove  { 100%{background-position:0 -100px} }
+body.has-wallpaper #ym-bg { background:transparent }
 
-/* Scanlines */
-#ym-bg::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,.08) 3px, rgba(0,0,0,.08) 4px);
-  pointer-events: none; z-index: 2;
-  animation: scanMove 10s linear infinite
-}
-@keyframes scanMove { 0% { background-position: 0 0 } 100% { background-position: 0 -100px } }
-
-/* ═══════════════════════════════════════
-   COUCHE 1 — TERMINAL FENÊTRE FOND
-═══════════════════════════════════════ */
+/* ══════════════════════════════════════════════
+   TERMINAL FOND
+══════════════════════════════════════════════ */
 #bg-terminal {
-  position: fixed;
-  right: 80px; bottom: 60px;
-  width: min(520px, 46vw);
-  height: min(340px, 38vh);
-  z-index: 3;
-  background: rgba(4,1,10,.7);
-  border: 1px solid rgba(176,38,255,.2);
-  border-top: 2px solid rgba(176,38,255,.5);
-  pointer-events: none;
-  overflow: hidden;
-  opacity: .55;
-  backdrop-filter: blur(4px);
-  clip-path: polygon(10px 0%, 100% 0%, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0% 100%, 0% 10px);
+  position:fixed;right:80px;bottom:60px;
+  width:min(520px,46vw);height:min(340px,38vh);
+  z-index:3;background:rgba(4,1,10,.7);
+  border:1px solid rgba(0,245,255,.15);border-top:2px solid rgba(0,245,255,.4);
+  pointer-events:none;overflow:hidden;opacity:.5;backdrop-filter:blur(4px);
+  clip-path:polygon(10px 0%,100% 0%,100% calc(100% - 10px),calc(100% - 10px) 100%,0% 100%,0% 10px)
 }
-#bg-terminal::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 28px;
-  background: rgba(176,38,255,.08);
-  border-bottom: 1px solid rgba(176,38,255,.2);
-  z-index: 2
-}
-.term-bar {
-  position: absolute; top: 0; left: 0; right: 0; height: 28px;
-  display: flex; align-items: center; padding: 0 12px; gap: 8px; z-index: 3
-}
-.term-dot { width: 8px; height: 8px; border-radius: 0; clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%) }
-.term-dot:nth-child(1) { background: var(--rd); box-shadow: 0 0 4px var(--rd) }
-.term-dot:nth-child(2) { background: var(--v); box-shadow: 0 0 4px var(--v) }
-.term-dot:nth-child(3) { background: var(--gn); box-shadow: 0 0 4px var(--gn) }
-.term-title { font-family: var(--font-m); font-size: 9px; color: rgba(176,38,255,.6); letter-spacing: 3px; margin-left: 8px }
-#term-output {
-  position: absolute; top: 28px; left: 0; right: 0; bottom: 0;
-  padding: 10px 14px; overflow: hidden;
-  font-family: var(--font-m); font-size: 10px; line-height: 1.7;
-  color: rgba(0,245,255,.6);
-}
-.term-line { display: flex; gap: 8px; animation: termFadeIn .3s ease }
-.term-line .term-prompt { color: rgba(176,38,255,.7); white-space: nowrap }
-.term-line .term-cmd { color: rgba(0,245,255,.65) }
-.term-line .term-out { color: rgba(0,255,157,.5) }
-.term-line .term-err { color: rgba(255,45,107,.6) }
-.term-cursor { display: inline-block; width: 7px; height: 11px; background: var(--cy); animation: blink .9s step-end infinite; vertical-align: middle }
-@keyframes termFadeIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
-@keyframes blink { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
+.term-bar { position:absolute;top:0;left:0;right:0;height:26px;display:flex;align-items:center;padding:0 12px;gap:7px;z-index:3;background:rgba(0,245,255,.04);border-bottom:1px solid rgba(0,245,255,.15) }
+.term-dot { width:7px;height:7px;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%) }
+.term-dot:nth-child(1){background:var(--rd);box-shadow:0 0 4px var(--rd)}
+.term-dot:nth-child(2){background:var(--am);box-shadow:0 0 4px var(--am)}
+.term-dot:nth-child(3){background:var(--gn);box-shadow:0 0 4px var(--gn)}
+.term-title { font-family:var(--font-m);font-size:9px;color:rgba(0,245,255,.5);letter-spacing:2px;margin-left:6px }
+#term-output { position:absolute;top:26px;left:0;right:0;bottom:0;padding:8px 12px;overflow:hidden;font-family:var(--font-m);font-size:10px;line-height:1.75;color:rgba(0,245,255,.55) }
+.term-line { display:flex;gap:6px;animation:termIn .25s ease }
+.term-prompt { color:rgba(0,255,157,.6);white-space:nowrap }
+.term-cmd    { color:rgba(0,245,255,.65) }
+.term-out    { color:rgba(0,255,157,.45) }
+.term-err    { color:rgba(255,45,107,.6) }
+@keyframes termIn { from{opacity:0;transform:translateY(3px)} to{opacity:1;transform:none} }
 
-/* ═══════════════════════════════════════
-   COUCHE 2 — HUD CORNERS
-═══════════════════════════════════════ */
-.hud-corner {
-  position: fixed; z-index: 4; pointer-events: none;
-  width: 80px; height: 80px;
-}
-.hud-corner svg { width: 100%; height: 100%; }
-#hud-tl { top: calc(env(safe-area-inset-top,0px) + 8px); left: calc(var(--sidebar-w) + 8px) }
-#hud-tr { top: calc(env(safe-area-inset-top,0px) + 8px); right: 12px }
-#hud-bl { bottom: 12px; left: calc(var(--sidebar-w) + 8px) }
-#hud-br { bottom: 12px; right: 12px }
+/* ══════════════════════════════════════════════
+   HUD
+══════════════════════════════════════════════ */
+.hud-corner{position:fixed;z-index:4;pointer-events:none;width:80px;height:80px}
+.hud-corner svg{width:100%;height:100%}
+#hud-tl{top:calc(env(safe-area-inset-top,0px) + 8px);left:calc(var(--sidebar-w) + 8px)}
+#hud-tr{top:calc(env(safe-area-inset-top,0px) + 8px);right:12px}
+#hud-bl{bottom:12px;left:calc(var(--sidebar-w) + 8px)}
+#hud-br{bottom:12px;right:12px}
+#hud-top{position:fixed;top:calc(env(safe-area-inset-top,0px) + 10px);left:calc(var(--sidebar-w) + 70px);right:80px;height:22px;z-index:5;pointer-events:none;display:flex;align-items:center;gap:16px}
+.hud-chip{font-family:var(--font-m);font-size:8px;letter-spacing:2px;color:rgba(0,245,255,.5);display:flex;align-items:center;gap:5px}
+.hud-chip::before{content:'';width:4px;height:4px;background:var(--cy);box-shadow:var(--neon-cy);animation:chipPulse 2s ease-in-out infinite}
+.hud-chip.mg::before{background:var(--mg);box-shadow:var(--neon-mg)}
+.hud-chip.gn::before{background:var(--gn)}
+@keyframes chipPulse{0%,100%{opacity:.5}50%{opacity:1}}
+#hud-bottom{position:fixed;bottom:14px;left:calc(var(--sidebar-w) + 70px);right:80px;height:20px;z-index:5;pointer-events:none;display:flex;align-items:center;gap:12px;border-top:1px solid rgba(176,38,255,.07);padding-top:6px}
+.hud-bar-wrap{display:flex;align-items:center;gap:6px;flex:1}
+.hud-bar-label{font-family:var(--font-m);font-size:7px;color:var(--text3);letter-spacing:2px;white-space:nowrap}
+.hud-bar{flex:1;height:2px;background:rgba(176,38,255,.08);overflow:hidden}
+.hud-bar-fill{height:100%;background:linear-gradient(90deg,var(--v),var(--mg));box-shadow:var(--neon);animation:barPulse 3s ease-in-out infinite}
+@keyframes barPulse{0%,100%{opacity:.7}50%{opacity:1}}
 
-/* Status bar top */
-#hud-top {
-  position: fixed; top: calc(env(safe-area-inset-top,0px) + 10px);
-  left: calc(var(--sidebar-w) + 70px); right: 80px;
-  height: 22px; z-index: 5; pointer-events: none;
-  display: flex; align-items: center; gap: 16px;
-}
-.hud-chip {
-  font-family: var(--font-m); font-size: 8px; letter-spacing: 2px;
-  color: rgba(0,245,255,.5); display: flex; align-items: center; gap: 5px;
-}
-.hud-chip::before { content: ''; width: 4px; height: 4px; background: var(--cy); border-radius: 0; box-shadow: var(--neon-cy); animation: chipPulse 2s ease-in-out infinite }
-@keyframes chipPulse { 0%,100% { opacity: .5 } 50% { opacity: 1 } }
-.hud-chip.mg::before { background: var(--mg); box-shadow: var(--neon-mg) }
-.hud-chip.gn::before { background: var(--gn) }
+/* ══════════════════════════════════════════════
+   DESKTOP
+══════════════════════════════════════════════ */
+#desktop{position:fixed;top:0;left:var(--sidebar-w);right:0;bottom:0;z-index:10;overflow:hidden;touch-action:pan-y}
+#desktop-slider{display:flex;height:100%;transition:transform .4s cubic-bezier(.4,0,.2,1);will-change:transform}
+:root{--cols:4;--rows:5}
+.desktop-page{flex:0 0 100%;width:100%;height:100dvh;display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);padding:50px 20px 40px 16px;gap:8px;overflow:hidden;position:relative}
+@media(hover:hover) and (pointer:fine){:root{--cols:7;--rows:4}}
+.cell-hl{position:absolute;border-radius:0;pointer-events:none;z-index:3;background:radial-gradient(circle,rgba(176,38,255,.2),rgba(176,38,255,.03));transition:all .1s}
 
-/* Status bar bottom */
-#hud-bottom {
-  position: fixed; bottom: 14px;
-  left: calc(var(--sidebar-w) + 70px); right: 80px;
-  height: 20px; z-index: 5; pointer-events: none;
-  display: flex; align-items: center; gap: 12px;
-  border-top: 1px solid rgba(176,38,255,.08);
-  padding-top: 6px;
-}
-.hud-bar-wrap { display: flex; align-items: center; gap: 6px; flex: 1 }
-.hud-bar-label { font-family: var(--font-m); font-size: 7px; color: var(--text3); letter-spacing: 2px; white-space: nowrap }
-.hud-bar { flex: 1; height: 2px; background: rgba(176,38,255,.1); position: relative; overflow: hidden }
-.hud-bar-fill { height: 100%; background: linear-gradient(90deg, var(--v), var(--mg)); box-shadow: var(--neon); animation: barScan 3s ease-in-out infinite }
-@keyframes barScan { 0%,100% { opacity: .7 } 50% { opacity: 1 } }
+/* ICÔNES */
+.icon-body{width:58px;height:58px;background:rgba(4,1,10,.85);position:relative;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;clip-path:polygon(29px 0%,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0% calc(100% - 14px),0% 14px,14px 0%);transition:transform .22s cubic-bezier(.34,1.56,.64,1),filter .22s;will-change:transform;isolation:isolate;overflow:hidden}
+.icon-body::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(176,38,255,.18) 0%,transparent 50%,rgba(0,245,255,.08) 100%);z-index:0}
+.icon-body>*{position:relative;z-index:1}
+.icon-body img{width:32px;height:32px;object-fit:contain;display:block;filter:drop-shadow(0 0 5px rgba(176,38,255,.5));position:relative;z-index:1}
+@media(hover:hover) and (pointer:fine){.icon-body:hover{transform:translateY(-5px) scale(1.1);filter:drop-shadow(0 0 10px rgba(176,38,255,.7)) drop-shadow(0 0 25px rgba(176,38,255,.3))}}
+.icon-wrap:active .icon-body{transform:scale(.8);transition-duration:.08s}
+.icon-label{font-size:8px;color:rgba(224,208,255,.7);text-align:center;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-m);order:-1;letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 8px rgba(176,38,255,.7)}
+.icon-notif{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:0;background:var(--mg);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-weight:700;z-index:10;font-family:var(--font-m);clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%);box-shadow:var(--neon-mg)}
+.icon-del{position:absolute;top:-6px;left:-6px;width:22px;height:22px;border-radius:0;background:var(--rd);color:#fff;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;z-index:10;cursor:pointer;line-height:1;pointer-events:all;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%);box-shadow:0 0 8px rgba(255,45,107,.5)}
+body.edit-mode .icon-del{display:flex}
+.icon-del-hidden{display:none!important}
+body.edit-mode .icon-body{animation:wob .4s ease-in-out infinite}
+@keyframes wob{0%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}100%{transform:rotate(-2deg)}}
+.folder-body{background:rgba(176,38,255,.08);clip-path:polygon(29px 0%,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0% calc(100% - 14px),0% 14px,14px 0%)}
+.folder-grid{position:absolute;inset:12px;display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:2px;overflow:hidden}
+.folder-grid .fi{font-size:12px;display:flex;align-items:center;justify-content:center}
+.folder-grid .fi img{width:14px;height:14px;object-fit:contain}
+#drag-ghost{position:fixed;pointer-events:none;z-index:9800;opacity:.7;transform:scale(1.2) rotate(4deg);display:none;filter:drop-shadow(0 0 12px rgba(176,38,255,.8))}
 
-/* ═══════════════════════════════════════
-   DESKTOP — Décalé à gauche pour sidebar
-═══════════════════════════════════════ */
-#desktop {
-  position: fixed;
-  top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
-  z-index: 10; overflow: hidden; touch-action: pan-y
-}
-#desktop-slider { display: flex; height: 100%; transition: transform .4s cubic-bezier(.4,0,.2,1); will-change: transform }
-.desktop-page {
-  flex: 0 0 100%;
-  width: 100%;
-  height: 100dvh;
-  display: grid;
-  grid-template-columns: repeat(var(--cols), 1fr);
-  grid-template-rows: repeat(var(--rows), 1fr);
-  padding: 50px 20px 40px 16px;
-  gap: 8px; overflow: hidden; position: relative
-}
-:root { --cols: 4; --rows: 5 }
-@media(hover:hover) and (pointer:fine) { :root { --cols: 7; --rows: 4 } }
+/* ══════════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════════ */
+#nav-bar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);z-index:400;display:flex;flex-direction:column;align-items:center;background:rgba(4,1,10,.97);border-right:1px solid rgba(176,38,255,.18);padding:env(safe-area-inset-top,0px) 0 var(--safe-b);overflow:hidden}
+#nav-bar::before{content:'';position:absolute;top:0;right:-1px;bottom:0;width:1px;background:linear-gradient(180deg,transparent,rgba(176,38,255,.7) 25%,rgba(255,0,204,.9) 50%,rgba(176,38,255,.7) 75%,transparent);box-shadow:var(--neon)}
+#nav-logo{width:100%;padding:14px 0 12px;display:flex;flex-direction:column;align-items:center;gap:4px;border-bottom:1px solid rgba(176,38,255,.1);flex-shrink:0}
+#nav-logo-text{font-family:var(--font-s);font-size:7px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--v);text-shadow:var(--neon);writing-mode:vertical-rl;transform:rotate(180deg);line-height:1}
+#nav-logo-line{width:1px;height:18px;background:linear-gradient(180deg,var(--v),var(--mg));box-shadow:var(--neon)}
+#page-dots{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;z-index:1}
+.pdot{width:3px;height:3px;background:rgba(176,38,255,.2);transition:all .35s cubic-bezier(.4,0,.2,1)}
+.pdot.active{width:3px;height:20px;background:linear-gradient(180deg,var(--v),var(--mg));box-shadow:var(--neon)}
+#dock{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;flex:1;padding:0 0 16px;gap:4px;width:100%}
+.dbtn{display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;width:48px;height:44px;transition:background .18s,transform .2s cubic-bezier(.34,1.56,.64,1),color .18s,box-shadow .18s;color:rgba(224,208,255,.25);font-size:20px;font-family:var(--font-m);position:relative;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation;clip-path:polygon(4px 0%,100% 0%,100% calc(100% - 4px),calc(100% - 4px) 100%,0% 100%,0% 4px)}
+@media(hover:none) and (pointer:coarse){.dbtn:hover,.dbtn:focus{color:rgba(224,208,255,.25)!important;background:none!important}}
+@media(hover:hover) and (pointer:fine){.dbtn:hover{color:rgba(224,208,255,.8);transform:scale(1.1);background:rgba(176,38,255,.1);box-shadow:var(--neon)}}
+.dbtn:active{transform:scale(.84);background:rgba(176,38,255,.12)}
+.dbtn.active{color:var(--v)}
+.dbtn.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:2px;height:24px;background:linear-gradient(180deg,var(--v),var(--mg));box-shadow:var(--neon)}
+#btn-back{font-size:28px;color:rgba(176,38,255,.5)}
 
-.cell-hl { position: absolute; border-radius: 0; pointer-events: none; z-index: 3; background: radial-gradient(circle, rgba(176,38,255,.2), rgba(176,38,255,.03)); transition: all .1s }
+/* ══════════════════════════════════════════════
+   OVERLAY
+══════════════════════════════════════════════ */
+.ym-overlay{position:fixed;top:0;left:var(--sidebar-w);right:0;bottom:0;background:rgba(4,1,10,.72);z-index:300;opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.ym-overlay.open{opacity:1;pointer-events:all}
 
-/* ═══════════════════════════════════════
-   ICONS — Hexagone + inner glow
-═══════════════════════════════════════ */
-.icon-body {
-  width: 58px; height: 58px;
-  background: rgba(4,1,10,.85);
-  border: none;
-  position: relative;
-  display: flex; align-items: center; justify-content: center; font-size: 26px;
-  flex-shrink: 0;
-  clip-path: polygon(29px 0%, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0% calc(100% - 14px), 0% 14px, 14px 0%);
-  transition: transform .22s cubic-bezier(.34,1.56,.64,1), filter .22s;
-  will-change: transform; isolation: isolate;
-  overflow: hidden;
-}
-.icon-body::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(176,38,255,.18) 0%, transparent 50%, rgba(0,245,255,.08) 100%);
-  z-index: 0
-}
-.icon-body::after {
-  content: '';
-  position: absolute; inset: 1px;
-  background: transparent;
-  clip-path: inherit;
-  border: 1px solid rgba(176,38,255,.3);
-  pointer-events: none; z-index: 2
-}
-.icon-body > * { position: relative; z-index: 1 }
-.icon-body img { width: 32px; height: 32px; object-fit: contain; display: block; filter: drop-shadow(0 0 5px rgba(176,38,255,.5)); position: relative; z-index: 1 }
-@media(hover:hover) and (pointer:fine) {
-  .icon-body:hover { transform: translateY(-5px) scale(1.1); filter: drop-shadow(0 0 10px rgba(176,38,255,.7)) drop-shadow(0 0 25px rgba(176,38,255,.3)) }
-}
-.icon-wrap:active .icon-body { transform: scale(.8); transition-duration: .08s }
-.icon-label {
-  font-size: 8px; font-weight: 400; color: rgba(224,208,255,.7);
-  text-align: center; max-width: 72px; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
-  font-family: var(--font-m); order: -1; letter-spacing: 2px; text-transform: uppercase;
-  text-shadow: 0 0 8px rgba(176,38,255,.7)
-}
-.icon-notif {
-  position: absolute; top: -4px; right: -4px;
-  min-width: 18px; height: 18px; border-radius: 0;
-  background: var(--mg); color: #fff; font-size: 9px;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0 4px; font-weight: 700; z-index: 10;
-  font-family: var(--font-m);
-  clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
-  box-shadow: var(--neon-mg)
-}
-.icon-del {
-  position: absolute; top: -6px; left: -6px; width: 22px; height: 22px;
-  border-radius: 0; background: var(--rd); color: #fff; font-size: 12px;
-  font-weight: 700; display: none; align-items: center; justify-content: center;
-  z-index: 10; cursor: pointer; line-height: 1; pointer-events: all;
-  clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%);
-  box-shadow: 0 0 8px rgba(255,45,107,.5)
-}
-body.edit-mode .icon-del { display: flex }
-.icon-del-hidden { display: none !important }
-body.edit-mode .icon-body { animation: wob .4s ease-in-out infinite }
-@keyframes wob { 0% { transform: rotate(-2deg) } 50% { transform: rotate(2deg) } 100% { transform: rotate(-2deg) } }
-
-.folder-body { background: rgba(176,38,255,.08); clip-path: polygon(29px 0%, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0% calc(100% - 14px), 0% 14px, 14px 0%) }
-.folder-grid { position: absolute; inset: 12px; display: grid; grid-template-columns: repeat(2,1fr); grid-template-rows: repeat(2,1fr); gap: 2px; overflow: hidden }
-.folder-grid .fi { font-size: 12px; display: flex; align-items: center; justify-content: center }
-.folder-grid .fi img { width: 14px; height: 14px; object-fit: contain }
-#drag-ghost { position: fixed; pointer-events: none; z-index: 9800; opacity: .7; transform: scale(1.2) rotate(4deg); display: none; filter: drop-shadow(0 0 12px rgba(176,38,255,.8)) }
-
-/* ═══════════════════════════════════════
-   SIDEBAR — Remplace le dock horizontal
-═══════════════════════════════════════ */
-#nav-bar {
-  position: fixed; left: 0; top: 0; bottom: 0;
-  width: var(--sidebar-w);
-  z-index: 400;
-  display: flex; flex-direction: column; align-items: center;
-  background: rgba(4,1,10,.96);
-  border-right: 1px solid rgba(176,38,255,.2);
-  padding: env(safe-area-inset-top, 0px) 0 var(--safe-b);
-  overflow: hidden;
-}
-#nav-bar::before {
-  content: '';
-  position: absolute; top: 0; right: -1px; bottom: 0; width: 1px;
-  background: linear-gradient(180deg, transparent 0%, rgba(176,38,255,.7) 25%, rgba(255,0,204,.9) 50%, rgba(176,38,255,.7) 75%, transparent 100%);
-  box-shadow: var(--neon);
-}
-/* Logo en haut de sidebar */
-#nav-logo {
-  width: 100%; padding: 16px 0 14px;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  border-bottom: 1px solid rgba(176,38,255,.12); flex-shrink: 0;
-}
-#nav-logo-text {
-  font-family: var(--font-s); font-size: 7px; font-weight: 700;
-  letter-spacing: 3px; text-transform: uppercase;
-  color: var(--v); text-shadow: var(--neon); writing-mode: vertical-rl;
-  transform: rotate(180deg); line-height: 1
-}
-#nav-logo-line { width: 1px; height: 20px; background: linear-gradient(180deg, var(--v), var(--mg)); box-shadow: var(--neon) }
-/* Page dots — vertical */
-#page-dots {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  display: flex; flex-direction: column; gap: 6px; align-items: center;
-  pointer-events: none; z-index: 1
-}
-.pdot { width: 3px; height: 3px; border-radius: 0; background: rgba(176,38,255,.2); transition: all .35s cubic-bezier(.4,0,.2,1) }
-.pdot.active { width: 3px; height: 20px; background: linear-gradient(180deg, var(--v), var(--mg)); box-shadow: var(--neon) }
-#dock {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: flex-end; flex: 1; padding: 0 0 16px; gap: 4px; width: 100%
-}
-.dbtn {
-  display: flex; align-items: center; justify-content: center;
-  background: none; border: none; cursor: pointer;
-  width: 48px; height: 44px;
-  border-radius: 0;
-  transition: background .18s, transform .2s cubic-bezier(.34,1.56,.64,1), color .18s, box-shadow .18s;
-  color: rgba(224,208,255,.25);
-  font-size: 20px; font-family: var(--font-m); position: relative;
-  -webkit-tap-highlight-color: transparent; user-select: none; touch-action: manipulation;
-  clip-path: polygon(4px 0%, 100% 0%, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0% 100%, 0% 4px)
-}
-@media(hover:none) and (pointer:coarse) { .dbtn:hover, .dbtn:focus { color: rgba(224,208,255,.25) !important; background: none !important } }
-@media(hover:hover) and (pointer:fine) { .dbtn:hover { color: rgba(224,208,255,.8); transform: scale(1.1); background: rgba(176,38,255,.1); box-shadow: var(--neon) } }
-.dbtn:active { transform: scale(.84); background: rgba(176,38,255,.12) }
-.dbtn.active { color: var(--v) }
-.dbtn.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 2px; height: 24px; background: linear-gradient(180deg, var(--v), var(--mg)); box-shadow: var(--neon) }
-#btn-back { font-size: 28px; color: rgba(176,38,255,.5) }
-
-/* ═══════════════════════════════════════
-   OVERLAY + PANELS
-═══════════════════════════════════════ */
-.ym-overlay { position: fixed; top: 0; left: var(--sidebar-w); right: 0; bottom: 0; background: rgba(4,1,10,.7); z-index: 300; opacity: 0; pointer-events: none; transition: opacity .3s; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px) }
-.ym-overlay.open { opacity: 1; pointer-events: all }
-
+/* ══════════════════════════════════════════════
+   PANELS — BASE + SURCHARGES PAR ID
+══════════════════════════════════════════════ */
 .ym-panel {
-  position: fixed; top: 0; left: var(--sidebar-w); right: 0; bottom: 0;
-  background: rgba(4,1,10,.96);
-  backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
-  z-index: 301; transform: translateX(-100%);
-  transition: transform .4s cubic-bezier(.32,.72,0,1);
-  display: flex; flex-direction: column; overflow: hidden;
-  border-right: 1px solid rgba(176,38,255,.25);
+  position:fixed;top:0;left:var(--sidebar-w);right:0;bottom:0;
+  z-index:301;transform:translateX(-100%);
+  transition:transform .4s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;overflow:hidden;
+  /* chaque panel écrase ces valeurs via --pc* */
+  background: rgba(4,1,10,.97);
+  border-right:1px solid var(--pc-border,rgba(176,38,255,.25));
 }
-/* Les panels glissent maintenant de gauche, pas du bas */
-.ym-panel.open { transform: translateX(0) }
-.ym-panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; z-index: 2; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(176,38,255,.8) 25%, rgba(255,0,204,.9) 50%, rgba(0,245,255,.6) 75%, transparent); box-shadow: 0 0 12px rgba(176,38,255,.4) }
-.ym-panel::after { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, transparent, rgba(176,38,255,.6) 30%, rgba(255,0,204,.8) 50%, rgba(176,38,255,.6) 70%, transparent); pointer-events: none }
+.ym-panel.open{transform:translateX(0)}
 
-.panel-handle { width: 36px; height: 3px; background: linear-gradient(90deg, var(--v), var(--mg)); margin: 14px auto 2px; flex-shrink: 0; cursor: grab; box-shadow: var(--neon) }
-.panel-head { display: flex; align-items: center; padding: 8px 24px 14px; gap: 12px; border-bottom: 1px solid rgba(176,38,255,.1); flex-shrink: 0; min-height: 50px; background: rgba(176,38,255,.02); position: relative; z-index: 2 }
-.panel-head h2 { font-family: var(--font-d); font-size: 7px; font-weight: 700; letter-spacing: 7px; text-transform: uppercase; background: linear-gradient(90deg, var(--v), var(--mg), var(--cy)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; background-size: 200%; animation: titleshift 5s ease-in-out infinite }
-@keyframes titleshift { 0%,100% { background-position: 0% } 50% { background-position: 100% } }
-.panel-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; -webkit-overflow-scrolling: touch; min-height: 0 }
-#panel-sphere-body { display: flex; flex-direction: column; padding: 0 }
-
-/* ═══════════════════════════════════════
-   FORM ELEMENTS
-═══════════════════════════════════════ */
-.ym-input {
-  width: 100%; background: rgba(176,38,255,.04);
-  border: 1px solid rgba(176,38,255,.18);
-  border-top: 1px solid rgba(176,38,255,.35);
-  border-radius: 0; padding: 11px 14px; color: var(--text);
-  font-family: var(--font-m); font-size: 12px; outline: none;
-  transition: border-color .2s, box-shadow .2s;
-  clip-path: polygon(5px 0%, 100% 0%, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0% 100%, 0% 5px)
+/* Barre de lumière haut — couleur propre au panel */
+.ym-panel::before {
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(var(--pc,176,38,255),.8) 25%,rgba(var(--pc,176,38,255),1) 50%,rgba(var(--pc,176,38,255),.8) 75%,transparent);
+  box-shadow:0 0 14px rgba(var(--pc,176,38,255),.5)
 }
-.ym-input:focus { background: rgba(176,38,255,.07); border-color: rgba(176,38,255,.6); box-shadow: 0 0 0 2px rgba(176,38,255,.08), var(--neon) }
-.ym-input::placeholder { color: var(--text3) }
-textarea.ym-input { resize: vertical; font-size: 11px }
-
-.ym-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 10px 18px; border-radius: 0;
-  font-family: var(--font-d); font-size: 9px; font-weight: 600;
-  cursor: pointer; transition: all .2s; border: 1px solid transparent;
-  letter-spacing: 2px; text-transform: uppercase;
-  clip-path: polygon(6px 0%, 100% 0%, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0% 100%, 0% 6px)
+/* Barre de lumière gauche */
+.ym-panel::after {
+  content:'';position:absolute;top:0;left:0;bottom:0;width:2px;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(var(--pc,176,38,255),.6) 30%,rgba(var(--pc,176,38,255),.8) 50%,rgba(var(--pc,176,38,255),.6) 70%,transparent)
 }
-.ym-btn-accent { background: linear-gradient(135deg, var(--v), rgba(176,38,255,.7)); color: #fff; border-color: rgba(176,38,255,.5); box-shadow: var(--neon) }
-.ym-btn-accent:hover { box-shadow: 0 0 20px rgba(176,38,255,.9), 0 0 40px rgba(176,38,255,.3); transform: translateY(-1px) }
-.ym-btn-ghost { background: rgba(176,38,255,.05); border-color: rgba(176,38,255,.2); color: var(--text2) }
-.ym-btn-ghost:hover { border-color: rgba(176,38,255,.5); color: var(--v); background: rgba(176,38,255,.1); box-shadow: 0 0 8px rgba(176,38,255,.3) }
-.ym-btn-danger { background: transparent; border-color: rgba(255,45,107,.35); color: var(--rd) }
-.ym-btn:disabled { opacity: .25; cursor: not-allowed }
 
-/* ═══════════════════════════════════════
-   CARDS / MISC
-═══════════════════════════════════════ */
-.ym-card { background: rgba(176,38,255,.03); border: 1px solid rgba(176,38,255,.1); border-top: 1px solid rgba(176,38,255,.28); border-radius: 0; padding: 16px; margin-bottom: 10px; clip-path: polygon(8px 0%, 100% 0%, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0% 100%, 0% 8px) }
-.ym-card-title { font-family: var(--font-d); font-size: 7px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: rgba(176,38,255,.6); margin-bottom: 12px }
-.ym-stat-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(176,38,255,.06) }
-.ym-stat-row:last-child { border-bottom: none }
-.ym-stat-label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 1.5px; font-family: var(--font-m) }
-.ym-stat-value { font-family: var(--font-m); font-size: 13px; color: var(--text) }
-.ym-stat-value.gold { color: var(--v); text-shadow: var(--neon) }
-.ym-stat-value.cyan { color: var(--cy); text-shadow: var(--neon-cy) }
-.ym-stat-value.green { color: var(--gn); text-shadow: 0 0 8px rgba(0,255,157,.5) }
-.ym-notice { padding: 10px 14px; border-radius: 0; font-size: 11px; display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; line-height: 1.5; clip-path: polygon(5px 0%, 100% 0%, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0% 100%, 0% 5px) }
-.ym-notice.info { background: rgba(0,245,255,.05); border: 1px solid rgba(0,245,255,.2); color: var(--cy) }
-.ym-notice.success { background: rgba(0,255,157,.04); border: 1px solid rgba(0,255,157,.18); color: var(--gn) }
-.ym-notice.error { background: rgba(255,45,107,.05); border: 1px solid rgba(255,45,107,.2); color: var(--rd) }
-.ym-notice.warn { background: rgba(176,38,255,.05); border: 1px solid rgba(176,38,255,.2); color: var(--v) }
-.ym-separator { height: 1px; background: linear-gradient(90deg, transparent, rgba(176,38,255,.35), rgba(255,0,204,.4), rgba(176,38,255,.35), transparent); margin: 12px 0 }
+/* Fond pattern unique par panel */
+#panel-spheres      { background:radial-gradient(ellipse 120% 60% at 110% -10%,rgba(0,245,255,.06) 0%,transparent 60%),rgba(2,8,14,.97) }
+#panel-profile      { background:repeating-linear-gradient(-45deg,transparent,transparent 24px,rgba(255,0,204,.015) 24px,rgba(255,0,204,.015) 25px),rgba(12,2,10,.97) }
+#panel-build        { background:repeating-linear-gradient(0deg,transparent,transparent 19px,rgba(0,255,157,.015) 19px,rgba(0,255,157,.015) 20px),radial-gradient(ellipse 80% 80% at 50% 110%,rgba(0,255,157,.05) 0%,transparent 60%),rgba(2,10,6,.97) }
+#panel-mine         { background:radial-gradient(ellipse 100% 100% at -10% 110%,rgba(255,184,0,.07) 0%,transparent 55%),rgba(10,7,2,.97) }
+#panel-sphere       { background:repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(255,45,107,.015) 39px,rgba(255,45,107,.015) 40px),rgba(12,2,4,.97) }
+#panel-profile-view { background:radial-gradient(ellipse 80% 80% at 50% -10%,rgba(176,38,255,.07) 0%,transparent 60%),rgba(6,2,12,.97) }
 
-/* Tabs */
-.ym-tabs { display: flex; flex-shrink: 0; background: rgba(4,1,10,.98); border-top: 1px solid rgba(176,38,255,.15) }
-.ym-tab { flex: 1; padding: 14px 4px 12px; text-align: center; font-size: 8px; font-family: var(--font-d); letter-spacing: 2px; text-transform: uppercase; color: rgba(224,208,255,.25); cursor: pointer; transition: color .18s, background .18s; position: relative; border-top: 2px solid transparent }
-.ym-tab.active { color: var(--v); background: rgba(176,38,255,.05); border-top-color: var(--v); text-shadow: var(--neon) }
-.ym-tab:hover:not(.active) { color: rgba(224,208,255,.5) }
-.ym-tab-badge { position: absolute; top: 4px; right: 10px; min-width: 14px; height: 14px; border-radius: 0; background: var(--v); color: #fff; font-size: 8px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 3px; font-family: var(--font-m); pointer-events: none; clip-path: polygon(3px 0%, 100% 0%, calc(100% - 3px) 100%, 0% 100%) }
+/* Scrollbar couleur panel */
+#panel-spheres      * { scrollbar-color:rgba(0,245,255,.3) transparent }
+#panel-profile      * { scrollbar-color:rgba(255,0,204,.3) transparent }
+#panel-build        * { scrollbar-color:rgba(0,255,157,.3) transparent }
+#panel-mine         * { scrollbar-color:rgba(255,184,0,.3) transparent }
+#panel-sphere       * { scrollbar-color:rgba(255,45,107,.3) transparent }
+
+/* Handle couleur panel */
+.panel-handle{width:36px;height:3px;margin:14px auto 2px;flex-shrink:0;cursor:grab;background:linear-gradient(90deg,rgba(var(--pc,176,38,255),.5),rgba(var(--pc,176,38,255),1));box-shadow:0 0 8px rgba(var(--pc,176,38,255),.5)}
+
+/* Header couleur panel */
+.panel-head {
+  display:flex;align-items:center;padding:8px 24px 14px;gap:12px;
+  border-bottom:1px solid rgba(var(--pc,176,38,255),.12);
+  flex-shrink:0;min-height:54px;position:relative;z-index:2;
+  background:rgba(var(--pc,176,38,255),.04)
+}
+
+/* Titre avec couleur propre */
+.panel-head h2 {
+  font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:7px;text-transform:uppercase;
+  color:rgba(var(--pc,176,38,255),1);
+  text-shadow:0 0 12px rgba(var(--pc,176,38,255),.7),0 0 30px rgba(var(--pc,176,38,255),.3);
+  /* pas d'animation gradient ici — couleur franche */
+  -webkit-text-fill-color:unset;background:none
+}
+
+/* Numéro de panel en coin — différenciateur visuel fort */
+.panel-head::after {
+  content:attr(data-panel-num);
+  position:absolute;right:16px;top:50%;transform:translateY(-50%);
+  font-family:var(--font-d);font-size:28px;font-weight:900;
+  color:rgba(var(--pc,176,38,255),.06);
+  letter-spacing:-2px;pointer-events:none;user-select:none
+}
+
+.panel-body{flex:1;overflow:hidden;display:flex;flex-direction:column;-webkit-overflow-scrolling:touch;min-height:0}
+#panel-sphere-body{display:flex;flex-direction:column;padding:0}
+
+/* Boutons accent = couleur du panel */
+.ym-panel .ym-btn-accent {
+  background:rgba(var(--pc,176,38,255),.15);
+  border-color:rgba(var(--pc,176,38,255),.5);
+  color:rgba(var(--pc,176,38,255),1);
+  box-shadow:0 0 8px rgba(var(--pc,176,38,255),.3)
+}
+.ym-panel .ym-btn-accent:hover {
+  background:rgba(var(--pc,176,38,255),.25);
+  box-shadow:0 0 16px rgba(var(--pc,176,38,255),.6),0 0 32px rgba(var(--pc,176,38,255),.2)
+}
+.ym-panel .ym-btn-ghost {
+  border-color:rgba(var(--pc,176,38,255),.2);
+  color:rgba(var(--pc,176,38,255),.65)
+}
+.ym-panel .ym-btn-ghost:hover {
+  border-color:rgba(var(--pc,176,38,255),.5);
+  color:rgba(var(--pc,176,38,255),1);
+  background:rgba(var(--pc,176,38,255),.08)
+}
+
+/* Inputs = bordure couleur panel */
+.ym-panel .ym-input {
+  border-color:rgba(var(--pc,176,38,255),.18);
+  border-top-color:rgba(var(--pc,176,38,255),.4)
+}
+.ym-panel .ym-input:focus {
+  border-color:rgba(var(--pc,176,38,255),.6);
+  box-shadow:0 0 0 2px rgba(var(--pc,176,38,255),.08),0 0 8px rgba(var(--pc,176,38,255),.4)
+}
+
+/* Cards = teinte panel */
+.ym-panel .ym-card {
+  background:rgba(var(--pc,176,38,255),.03);
+  border-color:rgba(var(--pc,176,38,255),.1);
+  border-top-color:rgba(var(--pc,176,38,255),.3)
+}
+.ym-panel .ym-card-title { color:rgba(var(--pc,176,38,255),.6) }
+.ym-panel .ym-stat-row { border-bottom-color:rgba(var(--pc,176,38,255),.06) }
+
+/* Separateur couleur panel */
+.ym-panel .ym-separator {
+  background:linear-gradient(90deg,transparent,rgba(var(--pc,176,38,255),.4),rgba(var(--pc,176,38,255),.6),rgba(var(--pc,176,38,255),.4),transparent)
+}
 
 /* Pills */
-.pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 0; font-size: 9px; font-family: var(--font-m); background: rgba(176,38,255,.04); border: 1px solid rgba(176,38,255,.14); color: var(--text3); margin: 2px; letter-spacing: 1px; clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%) }
-.pill.active { background: rgba(176,38,255,.1); border-color: rgba(176,38,255,.38); color: var(--v); box-shadow: 0 0 5px rgba(176,38,255,.2) }
+.ym-panel .pill { border-color:rgba(var(--pc,176,38,255),.15);color:rgba(var(--pc,176,38,255),.5) }
+.ym-panel .pill.active { background:rgba(var(--pc,176,38,255),.1);border-color:rgba(var(--pc,176,38,255),.4);color:rgba(var(--pc,176,38,255),1) }
 
-/* Profile */
-.profile-avatar { width: 72px; height: 72px; border-radius: 0; background: rgba(176,38,255,.08); border: 1px solid rgba(176,38,255,.4); display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 12px; cursor: pointer; overflow: hidden; clip-path: polygon(29px 0%, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0% calc(100% - 14px), 0% 14px, 14px 0%); box-shadow: var(--neon) }
-.profile-avatar img { width: 100%; height: 100%; object-fit: cover }
-.uuid-display { font-family: var(--font-m); font-size: 9px; color: var(--text3); word-break: break-all; cursor: pointer; padding: 6px 10px; background: rgba(176,38,255,.03); border: 1px solid rgba(176,38,255,.1); margin-bottom: 10px; letter-spacing: .5px; clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%) }
-.formula-section { background: rgba(176,38,255,.03); border: 1px solid rgba(176,38,255,.1); border-top: 1px solid rgba(176,38,255,.28); padding: 14px; margin-bottom: 10px; clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%) }
-.formula-title { font-family: var(--font-d); font-size: 7px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: rgba(176,38,255,.7); margin-bottom: 10px }
-.formula-big { font-family: var(--font-m); font-size: 16px; color: var(--v); text-align: center; padding: 14px 8px; background: rgba(176,38,255,.05); margin: 8px 0; line-height: 1.6; text-shadow: var(--neon); border: 1px solid rgba(176,38,255,.12) }
-.formula-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px }
-.formula-var { background: rgba(176,38,255,.03); padding: 7px 8px; font-size: 10px; color: var(--text2); line-height: 1.4; border: 1px solid rgba(176,38,255,.07) }
-.formula-var b { color: var(--v); font-family: var(--font-m) }
+/* Tabs (panel mine) */
+.ym-tabs { background:rgba(4,1,10,.98);border-top:1px solid rgba(var(--pc,176,38,255),.15) }
+.ym-tab  { color:rgba(var(--pc,176,38,255),.3);border-top:2px solid transparent }
+.ym-tab.active { color:rgba(var(--pc,176,38,255),1);background:rgba(var(--pc,176,38,255),.05);border-top-color:rgba(var(--pc,176,38,255),1);text-shadow:0 0 8px rgba(var(--pc,176,38,255),.7) }
 
-/* Wallpaper */
-body.has-wallpaper #ym-wp { animation: wpPan 120s linear infinite alternate }
-@keyframes wpPan { 0% { background-position: 0% center } 100% { background-position: 100% center } }
-body.has-wallpaper #ym-bg { background: transparent }
+/* Stat values teintées */
+.ym-panel .ym-stat-value.gold { color:rgba(var(--pc,176,38,255),1);text-shadow:0 0 8px rgba(var(--pc,176,38,255),.5) }
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════════════════
+   COMPOSANTS GLOBAUX (hors panel)
+══════════════════════════════════════════════ */
+.ym-input{width:100%;background:rgba(176,38,255,.04);border:1px solid rgba(176,38,255,.18);border-top:1px solid rgba(176,38,255,.35);border-radius:0;padding:11px 14px;color:var(--text);font-family:var(--font-m);font-size:12px;outline:none;transition:border-color .2s,box-shadow .2s;clip-path:polygon(5px 0%,100% 0%,100% calc(100% - 5px),calc(100% - 5px) 100%,0% 100%,0% 5px)}
+.ym-input:focus{border-color:rgba(176,38,255,.6);box-shadow:0 0 0 2px rgba(176,38,255,.08),var(--neon)}
+.ym-input::placeholder{color:var(--text3)}
+textarea.ym-input{resize:vertical;font-size:11px}
+
+.ym-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:0;font-family:var(--font-d);font-size:9px;font-weight:600;cursor:pointer;transition:all .2s;border:1px solid transparent;letter-spacing:2px;text-transform:uppercase;clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0% 100%,0% 6px)}
+.ym-btn-accent{background:linear-gradient(135deg,var(--v),rgba(176,38,255,.7));color:#fff;border-color:rgba(176,38,255,.5);box-shadow:var(--neon)}
+.ym-btn-accent:hover{box-shadow:0 0 20px rgba(176,38,255,.9),0 0 40px rgba(176,38,255,.3);transform:translateY(-1px)}
+.ym-btn-ghost{background:rgba(176,38,255,.05);border-color:rgba(176,38,255,.2);color:var(--text2)}
+.ym-btn-ghost:hover{border-color:rgba(176,38,255,.5);color:var(--v);background:rgba(176,38,255,.1)}
+.ym-btn-danger{background:transparent;border-color:rgba(255,45,107,.35);color:var(--rd)}
+.ym-btn:disabled{opacity:.25;cursor:not-allowed}
+
+.ym-card{background:rgba(176,38,255,.03);border:1px solid rgba(176,38,255,.1);border-top:1px solid rgba(176,38,255,.28);border-radius:0;padding:16px;margin-bottom:10px;clip-path:polygon(8px 0%,100% 0%,100% calc(100% - 8px),calc(100% - 8px) 100%,0% 100%,0% 8px)}
+.ym-card-title{font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(176,38,255,.6);margin-bottom:12px}
+.ym-stat-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(176,38,255,.06)}
+.ym-stat-row:last-child{border-bottom:none}
+.ym-stat-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)}
+.ym-stat-value{font-family:var(--font-m);font-size:13px;color:var(--text)}
+.ym-stat-value.gold{color:var(--v);text-shadow:var(--neon)}
+.ym-stat-value.cyan{color:var(--cy);text-shadow:var(--neon-cy)}
+.ym-stat-value.green{color:var(--gn);text-shadow:var(--neon-gn)}
+
+.ym-notice{padding:10px 14px;border-radius:0;font-size:11px;display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;line-height:1.5;clip-path:polygon(5px 0%,100% 0%,100% calc(100% - 5px),calc(100% - 5px) 100%,0% 100%,0% 5px)}
+.ym-notice.info{background:rgba(0,245,255,.05);border:1px solid rgba(0,245,255,.2);color:var(--cy)}
+.ym-notice.success{background:rgba(0,255,157,.04);border:1px solid rgba(0,255,157,.18);color:var(--gn)}
+.ym-notice.error{background:rgba(255,45,107,.05);border:1px solid rgba(255,45,107,.2);color:var(--rd)}
+.ym-notice.warn{background:rgba(176,38,255,.05);border:1px solid rgba(176,38,255,.2);color:var(--v)}
+
+.ym-separator{height:1px;background:linear-gradient(90deg,transparent,rgba(176,38,255,.35),rgba(255,0,204,.4),rgba(176,38,255,.35),transparent);margin:12px 0}
+
+.ym-tabs{display:flex;flex-shrink:0;background:rgba(4,1,10,.98);border-top:1px solid rgba(176,38,255,.15)}
+.ym-tab{flex:1;padding:14px 4px 12px;text-align:center;font-size:8px;font-family:var(--font-d);letter-spacing:2px;text-transform:uppercase;color:rgba(224,208,255,.25);cursor:pointer;transition:color .18s,background .18s;position:relative;border-top:2px solid transparent}
+.ym-tab.active{color:var(--v);background:rgba(176,38,255,.05);border-top-color:var(--v);text-shadow:var(--neon)}
+.ym-tab-badge{position:absolute;top:4px;right:10px;min-width:14px;height:14px;border-radius:0;background:var(--v);color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px;font-family:var(--font-m);pointer-events:none;clip-path:polygon(3px 0%,100% 0%,calc(100% - 3px) 100%,0% 100%)}
+
+.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:0;font-size:9px;font-family:var(--font-m);background:rgba(176,38,255,.04);border:1px solid rgba(176,38,255,.14);color:var(--text3);margin:2px;letter-spacing:1px;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)}
+.pill.active{background:rgba(176,38,255,.1);border-color:rgba(176,38,255,.38);color:var(--v)}
+
+.profile-avatar{width:72px;height:72px;background:rgba(176,38,255,.08);border:1px solid rgba(176,38,255,.4);display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 12px;cursor:pointer;overflow:hidden;clip-path:polygon(29px 0%,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0% calc(100% - 14px),0% 14px,14px 0%);box-shadow:var(--neon)}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.uuid-display{font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all;cursor:pointer;padding:6px 10px;background:rgba(176,38,255,.03);border:1px solid rgba(176,38,255,.1);margin-bottom:10px;letter-spacing:.5px;clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)}
+.formula-section{background:rgba(176,38,255,.03);border:1px solid rgba(176,38,255,.1);border-top:1px solid rgba(176,38,255,.28);padding:14px;margin-bottom:10px;clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)}
+.formula-title{font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:rgba(176,38,255,.7);margin-bottom:10px}
+.formula-big{font-family:var(--font-m);font-size:16px;color:var(--v);text-align:center;padding:14px 8px;background:rgba(176,38,255,.05);margin:8px 0;line-height:1.6;text-shadow:var(--neon);border:1px solid rgba(176,38,255,.12)}
+.formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.formula-var{background:rgba(176,38,255,.03);padding:7px 8px;font-size:10px;color:var(--text2);line-height:1.4;border:1px solid rgba(176,38,255,.07)}
+.formula-var b{color:var(--v);font-family:var(--font-m)}
+
+body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
+@keyframes wpPan{0%{background-position:0% center}100%{background-position:100% center}}
+body.has-wallpaper #ym-bg{background:transparent}
+
+/* ══════════════════════════════════════════════
    PANEL SWITCHER
-═══════════════════════════════════════ */
-#panel-switcher { position: fixed; top: 0; left: var(--sidebar-w); right: 0; bottom: 0; background: rgba(4,1,10,.96); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); z-index: 298; transform: translateX(-100%); transition: transform .4s cubic-bezier(.32,.72,0,1); display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid rgba(176,38,255,.25) }
-#panel-switcher::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; z-index: 2; background: linear-gradient(90deg, transparent, rgba(176,38,255,.8) 25%, rgba(255,0,204,.9) 50%, rgba(0,245,255,.6) 75%, transparent); box-shadow: 0 0 10px rgba(176,38,255,.4) }
-#panel-switcher.open { transform: translateX(0); z-index: 303 }
-#switcher-grid { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: min-content; gap: 6px; align-content: end }
-.sw-card { height: 160px; border-radius: 0; background: rgba(4,1,10,.98); border: 1px solid rgba(176,38,255,.12); border-top: 1px solid rgba(176,38,255,.3); cursor: pointer; overflow: hidden; position: relative; touch-action: pan-y; box-shadow: 0 2px 10px rgba(0,0,0,.6); clip-path: polygon(8px 0%, 100% 0%, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0% 100%, 0% 8px) }
-@media(hover:hover) and (pointer:fine) { .sw-card { height: 130px } .sw-card:hover { border-color: rgba(176,38,255,.45); box-shadow: var(--neon) } }
-.icon-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; padding: 4px; position: relative; touch-action: none; user-select: none; -webkit-user-select: none; width: fit-content; height: fit-content; place-self: center; transform: translateZ(0) }
-#panel-folder .panel-body { user-select: none; -webkit-user-select: none }
-#panel-folder input, #panel-folder textarea { user-select: text; -webkit-user-select: text }
-.sw-preview { position: absolute; top: 0; left: 0; right: 0; bottom: 30px; overflow: hidden; background: rgba(4,1,10,.9); pointer-events: none }
-.sw-preview::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, rgba(4,1,10,.98)); z-index: 3 }
-.sw-clone-wrap { position: absolute; top: 0; left: 0; transform-origin: top left; pointer-events: none; overflow: hidden }
-.sw-label { position: absolute; bottom: 0; left: 0; right: 0; height: 30px; display: flex; align-items: center; padding: 0 10px; background: rgba(2,0,8,.98); font-family: var(--font-d); font-size: 7px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(176,38,255,.85); border-top: 1px solid rgba(176,38,255,.12) }
+══════════════════════════════════════════════ */
+#panel-switcher{position:fixed;top:0;left:var(--sidebar-w);right:0;bottom:0;background:rgba(4,1,10,.96);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);z-index:298;transform:translateX(-100%);transition:transform .4s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(176,38,255,.25)}
+#panel-switcher::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(176,38,255,.8) 25%,rgba(255,0,204,.9) 50%,rgba(0,245,255,.6) 75%,transparent);box-shadow:0 0 10px rgba(176,38,255,.4)}
+#panel-switcher.open{transform:translateX(0);z-index:303}
+#switcher-grid{flex:1;min-height:0;overflow-y:auto;padding:8px;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:min-content;gap:6px;align-content:end}
+.sw-card{height:160px;border-radius:0;background:rgba(4,1,10,.98);border:1px solid rgba(176,38,255,.12);border-top:1px solid rgba(176,38,255,.3);cursor:pointer;overflow:hidden;position:relative;touch-action:pan-y;clip-path:polygon(8px 0%,100% 0%,100% calc(100% - 8px),calc(100% - 8px) 100%,0% 100%,0% 8px)}
+@media(hover:hover) and (pointer:fine){.sw-card{height:130px}.sw-card:hover{border-color:rgba(176,38,255,.45);box-shadow:var(--neon)}}
+.icon-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:4px;position:relative;touch-action:none;user-select:none;-webkit-user-select:none;width:fit-content;height:fit-content;place-self:center;transform:translateZ(0)}
+#panel-folder .panel-body{user-select:none;-webkit-user-select:none}
+#panel-folder input,#panel-folder textarea{user-select:text;-webkit-user-select:text}
+.sw-preview{position:absolute;top:0;left:0;right:0;bottom:30px;overflow:hidden;background:rgba(4,1,10,.9);pointer-events:none}
+.sw-preview::after{content:'';position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,rgba(4,1,10,.98));z-index:3}
+.sw-clone-wrap{position:absolute;top:0;left:0;transform-origin:top left;pointer-events:none;overflow:hidden}
+.sw-label{position:absolute;bottom:0;left:0;right:0;height:30px;display:flex;align-items:center;padding:0 10px;background:rgba(2,0,8,.98);font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(176,38,255,.85);border-top:1px solid rgba(176,38,255,.12)}
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════════════════
    DIALOGS
-═══════════════════════════════════════ */
-.dlg { position: fixed; inset: 0; background: rgba(4,1,10,.75); z-index: 500; display: none; align-items: center; justify-content: center; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px) }
-.dlg.open { display: flex }
-.dlg-box { background: rgba(4,1,10,.97); border: 1px solid rgba(176,38,255,.2); border-top: 1px solid rgba(176,38,255,.55); border-radius: 0; padding: 26px; width: min(320px, 92vw); display: flex; flex-direction: column; gap: 14px; clip-path: polygon(14px 0%, 100% 0%, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0% 100%, 0% 14px); box-shadow: var(--neon), 0 28px 70px rgba(0,0,0,.9) }
-.dlg-title { font-family: var(--font-d); font-size: 8px; font-weight: 700; letter-spacing: 5px; color: var(--v); text-align: center; text-transform: uppercase; text-shadow: var(--neon) }
+══════════════════════════════════════════════ */
+.dlg{position:fixed;inset:0;background:rgba(4,1,10,.75);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.dlg.open{display:flex}
+.dlg-box{background:rgba(4,1,10,.97);border:1px solid rgba(176,38,255,.2);border-top:1px solid rgba(176,38,255,.55);padding:26px;width:min(320px,92vw);display:flex;flex-direction:column;gap:14px;clip-path:polygon(14px 0%,100% 0%,100% calc(100% - 14px),calc(100% - 14px) 100%,0% 100%,0% 14px);box-shadow:var(--neon),0 28px 70px rgba(0,0,0,.9)}
+.dlg-title{font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:5px;color:var(--v);text-align:center;text-transform:uppercase;text-shadow:var(--neon)}
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════════════════
    TOASTS
-═══════════════════════════════════════ */
-#toasts { position: fixed; top: 20px; left: calc(var(--sidebar-w) + 16px); z-index: 700; display: flex; flex-direction: column; gap: 6px; min-width: 240px; max-width: 360px; pointer-events: none }
-.toast { background: rgba(4,1,10,.96); border: 1px solid rgba(176,38,255,.2); border-top: 1px solid rgba(176,38,255,.5); border-radius: 0; padding: 11px 16px; font-size: 12px; font-family: var(--font-m); animation: tin .24s cubic-bezier(.34,1.56,.64,1); display: flex; align-items: center; gap: 10px; clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%) }
-.toast.success { border-top-color: rgba(0,255,157,.7); color: var(--gn) }
-.toast.error { border-top-color: rgba(255,45,107,.7); color: var(--rd) }
-.toast.info { border-top-color: rgba(0,245,255,.7); color: var(--cy) }
-.toast.warn { border-top-color: rgba(176,38,255,.8); color: var(--v) }
-@keyframes tin { from { opacity: 0; transform: translateX(-16px) scale(.94) } to { opacity: 1; transform: none } }
+══════════════════════════════════════════════ */
+#toasts{position:fixed;top:20px;left:calc(var(--sidebar-w) + 16px);z-index:700;display:flex;flex-direction:column;gap:6px;min-width:240px;max-width:360px;pointer-events:none}
+.toast{background:rgba(4,1,10,.96);border:1px solid rgba(176,38,255,.2);border-top:1px solid rgba(176,38,255,.5);padding:11px 16px;font-size:12px;font-family:var(--font-m);animation:tin .24s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:10px;clip-path:polygon(6px 0%,100% 0%,calc(100% - 6px) 100%,0% 100%)}
+.toast.success{border-top-color:rgba(0,255,157,.7);color:var(--gn)}
+.toast.error{border-top-color:rgba(255,45,107,.7);color:var(--rd)}
+.toast.info{border-top-color:rgba(0,245,255,.7);color:var(--cy)}
+.toast.warn{border-top-color:rgba(176,38,255,.8);color:var(--v)}
+@keyframes tin{from{opacity:0;transform:translateX(-16px) scale(.94)}to{opacity:1;transform:none}}
 
-/* ═══════════════════════════════════════
-   SIGN DIALOG
-═══════════════════════════════════════ */
-#ym-sign-dlg { position: fixed; inset: 0; background: rgba(4,1,10,.82); z-index: 9000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(16px) }
-#ym-sign-dlg.open { display: flex }
-#ym-sign-box { background: rgba(4,1,10,.97); border: 1px solid rgba(255,45,107,.28); border-top: 1px solid rgba(255,45,107,.65); border-radius: 0; padding: 24px; width: min(320px,92vw); display: flex; flex-direction: column; gap: 14px; clip-path: polygon(14px 0%, 100% 0%, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0% 100%, 0% 14px); box-shadow: 0 0 14px rgba(255,45,107,.2), 0 28px 70px rgba(0,0,0,.95) }
+/* ══════════════════════════════════════════════
+   SIGN DLG
+══════════════════════════════════════════════ */
+#ym-sign-dlg{position:fixed;inset:0;background:rgba(4,1,10,.82);z-index:9000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(16px)}
+#ym-sign-dlg.open{display:flex}
+#ym-sign-box{background:rgba(4,1,10,.97);border:1px solid rgba(255,45,107,.28);border-top:1px solid rgba(255,45,107,.65);padding:24px;width:min(320px,92vw);display:flex;flex-direction:column;gap:14px;clip-path:polygon(14px 0%,100% 0%,100% calc(100% - 14px),calc(100% - 14px) 100%,0% 100%,0% 14px);box-shadow:0 0 14px rgba(255,45,107,.2),0 28px 70px rgba(0,0,0,.95)}
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════════════════
    LOADER
-═══════════════════════════════════════ */
-#ym-loader { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; transition: opacity .5s }
-#ym-loader.hidden { opacity: 0; pointer-events: none }
-.ldr-logo { font-family: var(--font-d); font-size: 18px; font-weight: 900; letter-spacing: 14px; background: linear-gradient(90deg, var(--v), rgba(255,0,204,.9), var(--cy)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; background-size: 200%; animation: titleshift 2s ease-in-out infinite; filter: drop-shadow(0 0 16px rgba(176,38,255,.6)) }
-.ldr-bar { width: 200px; height: 1px; background: rgba(176,38,255,.1); position: relative; overflow: visible }
-.ldr-bar::before, .ldr-bar::after { content: ''; position: absolute; top: -1px; width: 4px; height: 3px; background: var(--v); box-shadow: var(--neon) }
-.ldr-bar::before { left: 0 }
-.ldr-bar::after { right: 0 }
-.ldr-fill { height: 100%; background: linear-gradient(90deg, var(--v), var(--mg)); animation: ldr 1.2s ease infinite; box-shadow: var(--neon) }
-@keyframes ldr { 0% { width: 0; margin-left: 0 } 50% { width: 70%; margin-left: 15% } 100% { width: 0; margin-left: 100% } }
-.ldr-sub { font-family: var(--font-m); font-size: 8px; color: rgba(176,38,255,.4); letter-spacing: 5px; text-transform: uppercase }
-.ldr-grid { display: grid; grid-template-columns: repeat(5, 8px); gap: 4px }
-.ldr-cell { width: 8px; height: 8px; background: rgba(176,38,255,.08); clip-path: polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%); animation: cellBlink 1.5s ease-in-out infinite }
-.ldr-cell:nth-child(1) { animation-delay: 0s }
-.ldr-cell:nth-child(2) { animation-delay: .1s }
-.ldr-cell:nth-child(3) { animation-delay: .2s }
-.ldr-cell:nth-child(4) { animation-delay: .3s }
-.ldr-cell:nth-child(5) { animation-delay: .4s }
-@keyframes cellBlink { 0%,100% { background: rgba(176,38,255,.08) } 50% { background: var(--v); box-shadow: var(--neon) } }
+══════════════════════════════════════════════ */
+#ym-loader{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;transition:opacity .5s}
+#ym-loader.hidden{opacity:0;pointer-events:none}
+.ldr-logo{font-family:var(--font-d);font-size:18px;font-weight:900;letter-spacing:14px;background:linear-gradient(90deg,var(--v),rgba(255,0,204,.9),var(--cy));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200%;animation:ldrtitle 2s ease-in-out infinite;filter:drop-shadow(0 0 16px rgba(176,38,255,.6))}
+@keyframes ldrtitle{0%,100%{background-position:0%}50%{background-position:100%}}
+.ldr-bar{width:200px;height:1px;background:rgba(176,38,255,.1);position:relative;overflow:visible}
+.ldr-fill{height:100%;background:linear-gradient(90deg,var(--v),var(--mg));animation:ldr 1.2s ease infinite;box-shadow:var(--neon)}
+@keyframes ldr{0%{width:0;margin-left:0}50%{width:70%;margin-left:15%}100%{width:0;margin-left:100%}}
+.ldr-sub{font-family:var(--font-m);font-size:8px;color:rgba(176,38,255,.4);letter-spacing:5px;text-transform:uppercase}
+.ldr-grid{display:grid;grid-template-columns:repeat(5,8px);gap:4px}
+.ldr-cell{width:8px;height:8px;background:rgba(176,38,255,.08);clip-path:polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%);animation:cellBlink 1.5s ease-in-out infinite}
+.ldr-cell:nth-child(1){animation-delay:0s}.ldr-cell:nth-child(2){animation-delay:.1s}.ldr-cell:nth-child(3){animation-delay:.2s}.ldr-cell:nth-child(4){animation-delay:.3s}.ldr-cell:nth-child(5){animation-delay:.4s}
+@keyframes cellBlink{0%,100%{background:rgba(176,38,255,.08)}50%{background:var(--v);box-shadow:var(--neon)}}
 
-/* ═══════════════════════════════════════
-   PWA BUTTON
-═══════════════════════════════════════ */
-#pwa-install-btn { position: fixed; bottom: 20px; right: 20px; z-index: 206; display: none; align-items: center; gap: 8px; background: rgba(4,1,10,.92); border: 1px solid rgba(176,38,255,.4); color: var(--v); font-family: var(--font-d); font-size: 7px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; padding: 11px 18px; border-radius: 0; cursor: pointer; backdrop-filter: blur(20px); transition: all .22s; white-space: nowrap; clip-path: polygon(6px 0%, 100% 0%, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0% 100%, 0% 6px); box-shadow: var(--neon) }
-@media all and (display-mode: standalone) { #pwa-install-btn { display: none !important } }
+#pwa-install-btn{position:fixed;bottom:20px;right:20px;z-index:206;display:none;align-items:center;gap:8px;background:rgba(4,1,10,.92);border:1px solid rgba(176,38,255,.4);color:var(--v);font-family:var(--font-d);font-size:7px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:11px 18px;cursor:pointer;backdrop-filter:blur(20px);transition:all .22s;white-space:nowrap;clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0% 100%,0% 6px);box-shadow:var(--neon)}
+@media all and (display-mode:standalone){#pwa-install-btn{display:none!important}}
 </style>
 
-<!-- ═══════════════════════════════════════
+<!-- ══════════════════════════════════════════════
      DOM
-═══════════════════════════════════════ -->
-
+══════════════════════════════════════════════ -->
 <div id="ym-wp"></div>
 <div id="ym-bg"></div>
 
-<!-- FENÊTRE TERMINAL EN ARRIÈRE-PLAN -->
 <div id="bg-terminal">
   <div class="term-bar">
-    <div class="term-dot"></div>
-    <div class="term-dot"></div>
-    <div class="term-dot"></div>
+    <div class="term-dot"></div><div class="term-dot"></div><div class="term-dot"></div>
     <span class="term-title">NEURAL//GRID — MESH DAEMON v4.2.1</span>
   </div>
   <div id="term-output"></div>
 </div>
 
-<!-- HUD CORNERS -->
 <svg class="hud-corner" id="hud-tl" viewBox="0 0 80 80" fill="none"><path d="M40 2 L2 2 L2 40" stroke="rgba(176,38,255,.6)" stroke-width="1.5" fill="none"/><path d="M2 2 L14 14" stroke="rgba(0,245,255,.4)" stroke-width=".8"/><circle cx="2" cy="2" r="3" fill="rgba(176,38,255,.8)"/></svg>
 <svg class="hud-corner" id="hud-tr" viewBox="0 0 80 80" fill="none"><path d="M40 2 L78 2 L78 40" stroke="rgba(176,38,255,.6)" stroke-width="1.5" fill="none"/><path d="M78 2 L66 14" stroke="rgba(0,245,255,.4)" stroke-width=".8"/><circle cx="78" cy="2" r="3" fill="rgba(0,245,255,.8)"/></svg>
 <svg class="hud-corner" id="hud-bl" viewBox="0 0 80 80" fill="none"><path d="M40 78 L2 78 L2 40" stroke="rgba(176,38,255,.4)" stroke-width="1" fill="none"/><circle cx="2" cy="78" r="2" fill="rgba(176,38,255,.5)"/></svg>
 <svg class="hud-corner" id="hud-br" viewBox="0 0 80 80" fill="none"><path d="M40 78 L78 78 L78 40" stroke="rgba(0,245,255,.3)" stroke-width="1" fill="none"/><circle cx="78" cy="78" r="2" fill="rgba(0,245,255,.4)"/></svg>
 
-<!-- HUD STATUS TOP -->
 <div id="hud-top">
   <div class="hud-chip">MESH_OK</div>
   <div class="hud-chip mg">CHAIN_LIVE</div>
   <div class="hud-chip gn">SYNC_100%</div>
   <div class="hud-chip">NODE_12</div>
 </div>
-
-<!-- HUD STATUS BOTTOM -->
 <div id="hud-bottom">
   <div class="hud-bar-wrap"><span class="hud-bar-label">CPU</span><div class="hud-bar"><div class="hud-bar-fill" style="width:42%"></div></div></div>
   <div class="hud-bar-wrap"><span class="hud-bar-label">NET</span><div class="hud-bar"><div class="hud-bar-fill" style="width:78%;animation-delay:.5s"></div></div></div>
@@ -546,9 +465,7 @@ body.has-wallpaper #ym-bg { background: transparent }
 
 <div id="ym-loader">
   <div class="ldr-logo">YOURMINE</div>
-  <div class="ldr-grid">
-    <div class="ldr-cell"></div><div class="ldr-cell"></div><div class="ldr-cell"></div><div class="ldr-cell"></div><div class="ldr-cell"></div>
-  </div>
+  <div class="ldr-grid"><div class="ldr-cell"></div><div class="ldr-cell"></div><div class="ldr-cell"></div><div class="ldr-cell"></div><div class="ldr-cell"></div></div>
   <div class="ldr-bar"><div class="ldr-fill"></div></div>
   <div class="ldr-sub">INITIALIZING NEURAL MESH</div>
 </div>
@@ -558,7 +475,6 @@ body.has-wallpaper #ym-bg { background: transparent }
 <div id="drag-ghost"></div>
 <div id="page-dots"></div>
 
-<!-- SIDEBAR (remplace le dock bas) -->
 <div id="nav-bar">
   <div id="nav-logo">
     <div id="nav-logo-line"></div>
@@ -581,118 +497,88 @@ body.has-wallpaper #ym-bg { background: transparent }
 </div>
 
 <!-- DIALOGS -->
-<div class="dlg" id="folder-dlg">
-  <div class="dlg-box">
-    <div class="dlg-title">Create Folder</div>
-    <input class="ym-input" id="folder-name-input" placeholder="Folder name">
-    <div style="display:flex;gap:8px">
-      <button class="ym-btn ym-btn-ghost" style="flex:1" id="folder-cancel">Cancel</button>
-      <button class="ym-btn ym-btn-accent" style="flex:1" id="folder-confirm">Create</button>
-    </div>
-  </div>
-</div>
+<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Create Folder</div><input class="ym-input" id="folder-name-input" placeholder="Folder name"><div style="display:flex;gap:8px"><button class="ym-btn ym-btn-ghost" style="flex:1" id="folder-cancel">Cancel</button><button class="ym-btn ym-btn-accent" style="flex:1" id="folder-confirm">Create</button></div></div></div>
 
-<div class="dlg" id="bg-dlg">
-  <div class="dlg-box" style="width:min(420px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
-    <div class="dlg-title" id="bg-dlg-title">Background</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;margin-top:8px">
-      <button class="ym-btn ym-btn-ghost" id="bg-wp" style="flex:1;font-size:10px">&#128193; Upload</button>
-      <button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:10px;color:var(--text3)">&#10005; Remove</button>
-    </div>
-    <div style="font-size:8px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:3px;font-family:var(--font-m)">Wallpapers</div>
-    <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;padding-bottom:4px"></div>
-    <button class="ym-btn ym-btn-ghost" id="bg-spheres" style="width:100%;font-size:10px;margin-top:10px;color:var(--cy);border-color:rgba(0,245,255,.2)">&#11835; Browse Spheres</button>
-    <div style="margin-top:14px;border-top:1px solid rgba(176,38,255,.1);padding-top:12px">
-      <div style="font-size:8px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:3px;font-family:var(--font-m)">Theme</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <select id="theme-select" class="ym-input" style="flex:1;font-size:11px;padding:9px 10px;cursor:pointer;appearance:auto">
-          <option value="">Loading…</option>
-        </select>
-        <button id="theme-apply-btn" class="ym-btn ym-btn-accent" style="padding:9px 14px;font-size:9px;white-space:nowrap;flex-shrink:0">Apply</button>
-      </div>
-    </div>
-    <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
+<div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(420px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
+  <div class="dlg-title" id="bg-dlg-title">Background</div>
+  <div style="display:flex;gap:8px;margin-bottom:8px;margin-top:8px">
+    <button class="ym-btn ym-btn-ghost" id="bg-wp" style="flex:1;font-size:10px">&#128193; Upload</button>
+    <button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:10px;color:var(--text3)">&#10005; Remove</button>
   </div>
-</div>
+  <div style="font-size:8px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:3px;font-family:var(--font-m)">Wallpapers</div>
+  <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;padding-bottom:4px"></div>
+  <button class="ym-btn ym-btn-ghost" id="bg-spheres" style="width:100%;font-size:10px;margin-top:10px;color:var(--cy);border-color:rgba(0,245,255,.2)">&#11835; Browse Spheres</button>
+  <div style="margin-top:14px;border-top:1px solid rgba(176,38,255,.1);padding-top:12px">
+    <div style="font-size:8px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:3px;font-family:var(--font-m)">Theme</div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select id="theme-select" class="ym-input" style="flex:1;font-size:11px;padding:9px 10px;cursor:pointer;appearance:auto"><option value="">Loading…</option></select>
+      <button id="theme-apply-btn" class="ym-btn ym-btn-accent" style="padding:9px 14px;font-size:9px;white-space:nowrap;flex-shrink:0">Apply</button>
+    </div>
+  </div>
+  <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
+</div></div>
 
 <script>
 (function(){
-  var THEME_KEY='ym_theme_url', THEME_CACHE='ym_theme_cache';
-  var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-  var DEF_THEME=GH_RAW+'themes/default.html', INDEX_URL=GH_RAW+'themes/index.json';
-  function activeUrl(){return localStorage.getItem(THEME_KEY)||DEF_THEME}
-  function fileToLabel(n){return n.replace(/\.html$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()})}
-  function applyTheme(url){if(url===activeUrl()){window.YM_toast&&window.YM_toast('Already using this theme','info');return}localStorage.setItem(THEME_KEY,url);localStorage.removeItem(THEME_CACHE);window.YM_toast&&window.YM_toast('Theme changed — reloading…','success',1600);setTimeout(function(){location.reload()},1600)}
-  function populateSelect(files){var sel=document.getElementById('theme-select');if(!sel)return;var current=activeUrl();sel.innerHTML='';files.forEach(function(f){var url=GH_RAW+'themes/'+f;var opt=document.createElement('option');opt.value=url;opt.textContent=fileToLabel(f);if(url===current)opt.selected=true;sel.appendChild(opt)});if(!sel.querySelector('option[selected]')&&current!==DEF_THEME){var opt=document.createElement('option');opt.value=current;opt.textContent='— Custom —';opt.selected=true;sel.insertBefore(opt,sel.firstChild)}}
-  function loadThemeList(){var sel=document.getElementById('theme-select');fetch(INDEX_URL).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()}).then(function(text){var files;try{files=JSON.parse(text)}catch(e){throw new Error('index.json invalid')}if(!Array.isArray(files)||!files.length)files=['default.html'];populateSelect(files)}).catch(function(e){if(sel)sel.innerHTML='<option value="">⚠ '+e.message+'</option>';populateSelect(['default.html'])})}
-  document.getElementById('theme-apply-btn').addEventListener('click',function(){var sel=document.getElementById('theme-select');if(sel&&sel.value)applyTheme(sel.value)});
-  loadThemeList();
+  var K='ym_theme_url',C='ym_theme_cache',G='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/',D=G+'themes/default.html',I=G+'themes/index.json';
+  function au(){return localStorage.getItem(K)||D}
+  function fl(n){return n.replace(/\.html$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase()})}
+  function at(url){if(url===au()){window.YM_toast&&window.YM_toast('Already using this theme','info');return}localStorage.setItem(K,url);localStorage.removeItem(C);window.YM_toast&&window.YM_toast('Theme changed — reloading…','success',1600);setTimeout(function(){location.reload()},1600)}
+  function ps(files){var s=document.getElementById('theme-select');if(!s)return;var cur=au();s.innerHTML='';files.forEach(function(f){var u=G+'themes/'+f;var o=document.createElement('option');o.value=u;o.textContent=fl(f);if(u===cur)o.selected=true;s.appendChild(o)});if(!s.querySelector('option[selected]')&&cur!==D){var o=document.createElement('option');o.value=cur;o.textContent='— Custom —';o.selected=true;s.insertBefore(o,s.firstChild)}}
+  fetch(I).then(function(r){if(!r.ok)throw 0;return r.text()}).then(function(t){var f;try{f=JSON.parse(t)}catch(e){f=['default.html']}if(!Array.isArray(f)||!f.length)f=['default.html'];ps(f)}).catch(function(){ps(['default.html'])});
+  document.getElementById('theme-apply-btn').addEventListener('click',function(){var s=document.getElementById('theme-select');if(s&&s.value)at(s.value)});
 })();
 
-/* ── Terminal background animé ── */
+/* ── Terminal animé ── */
 (function(){
-  var out = document.getElementById('term-output');
-  if(!out) return;
-  var lines = [
-    {type:'cmd', prompt:'mesh@node-12:~$', text:'./mine-daemon --attach mainnet'},
-    {type:'out', text:'[OK] Daemon attached to mainnet'},
-    {type:'out', text:'[OK] Peer discovery: 12 nodes'},
-    {type:'cmd', prompt:'mesh@node-12:~$', text:'ym-cli wallet status'},
-    {type:'out', text:'Wallet: 0xb026ff…4a2c | ACTIVE'},
-    {type:'out', text:'Balance: 4,820.00 YM | Staked: 1,200 YM'},
-    {type:'cmd', prompt:'mesh@node-12:~$', text:'ym-cli sphere list --active'},
-    {type:'out', text:'[1] neural-hub     v2.4  LIVE'},
-    {type:'out', text:'[2] data-vault     v1.9  LIVE'},
-    {type:'out', text:'[3] cipher-gate    v3.1  STANDBY'},
-    {type:'cmd', prompt:'mesh@node-12:~$', text:'watch -n 2 ym-cli mine status'},
-    {type:'out', text:'Hashrate: 4.2 MH/s | Temp: 62°C'},
-    {type:'out', text:'Block #2,847,190 | Diff: 18.4T'},
-    {type:'out', text:'Est reward: 0.42 YM / 10min'},
-    {type:'cmd', prompt:'mesh@node-12:~$', text:'ym-cli net peers --verbose'},
-    {type:'out', text:'172.16.0.4:8080  SYNC  lat=12ms'},
-    {type:'out', text:'10.0.0.7:8080    SYNC  lat=8ms'},
-    {type:'err', text:'192.168.1.22:8080 TIMEOUT lat=∞'},
-    {type:'cmd', prompt:'mesh@node-12:~$', text:'./run-forge --sphere cipher-gate'},
-    {type:'out', text:'[FORGE] Compiling sphere v3.2…'},
-    {type:'out', text:'[FORGE] Bytecode: 14.2 KB | Gas est: 82,000'},
-    {type:'cmd', prompt:'mesh@node-12:~$', text:'_'},
-  ];
-  var displayed = [];
-  var maxLines = 14;
-  function addLine(line){
-    var el = document.createElement('div');
-    el.className = 'term-line';
-    if(line.type === 'cmd'){
-      el.innerHTML = '<span class="term-prompt">' + line.prompt + '</span><span class="term-cmd">&nbsp;' + line.text + '</span>';
-    } else if(line.type === 'out'){
-      el.innerHTML = '<span class="term-out">' + line.text + '</span>';
-    } else if(line.type === 'err'){
-      el.innerHTML = '<span class="term-err">ERR ' + line.text + '</span>';
-    }
-    out.appendChild(el);
-    displayed.push(el);
-    if(displayed.length > maxLines){ var old = displayed.shift(); old.remove(); }
-    out.scrollTop = out.scrollHeight;
-  }
-  var idx = 0;
-  function next(){
-    if(idx < lines.length){ addLine(lines[idx++]); }
-    else { idx = 0; }
-    setTimeout(next, idx % 3 === 0 ? 1200 : 400);
-  }
+  var out=document.getElementById('term-output');if(!out)return;
+  var lines=[{t:'cmd',p:'mesh@node-12:~$',x:'./mine-daemon --attach mainnet'},{t:'out',x:'[OK] Daemon attached to mainnet'},{t:'out',x:'[OK] Peer discovery: 12 nodes'},{t:'cmd',p:'mesh@node-12:~$',x:'ym-cli wallet status'},{t:'out',x:'Wallet: 0xb026ff…4a2c | ACTIVE'},{t:'out',x:'Balance: 4,820.00 YM | Staked: 1,200 YM'},{t:'cmd',p:'mesh@node-12:~$',x:'ym-cli sphere list --active'},{t:'out',x:'[1] neural-hub     v2.4  LIVE'},{t:'out',x:'[2] data-vault     v1.9  LIVE'},{t:'err',x:'[3] cipher-gate    v3.1  TIMEOUT'},{t:'cmd',p:'mesh@node-12:~$',x:'watch -n 2 ym-cli mine status'},{t:'out',x:'Hashrate: 4.2 MH/s | Temp: 62°C'},{t:'out',x:'Block #2,847,190 | Diff: 18.4T'},{t:'cmd',p:'mesh@node-12:~$',x:'ym-cli net peers --verbose'},{t:'out',x:'172.16.0.4:8080  SYNC  lat=12ms'},{t:'err',x:'192.168.1.22:8080 TIMEOUT lat=∞'},{t:'cmd',p:'mesh@node-12:~$',x:'./run-forge --sphere cipher-gate'}];
+  var d=[],m=13,i=0;
+  function add(l){var e=document.createElement('div');e.className='term-line';if(l.t==='cmd')e.innerHTML='<span class="term-prompt">'+l.p+'</span><span class="term-cmd"> '+l.x+'</span>';else if(l.t==='out')e.innerHTML='<span class="term-out">'+l.x+'</span>';else e.innerHTML='<span class="term-err">ERR '+l.x+'</span>';out.appendChild(e);d.push(e);if(d.length>m){d.shift().remove()}out.scrollTop=out.scrollHeight}
+  function next(){if(i<lines.length){add(lines[i++]);}else{i=0;}setTimeout(next,i%3===0?1100:380)}
   next();
 })();
+
+/* ── Ajouter data-panel-num aux headers ── */
+document.addEventListener('DOMContentLoaded',function(){
+  var nums={'panel-spheres':'01','panel-profile':'02','panel-build':'03','panel-mine':'04','panel-sphere':'05','panel-profile-view':'06'};
+  Object.keys(nums).forEach(function(id){
+    var h=document.querySelector('#'+id+' .panel-head');
+    if(h) h.setAttribute('data-panel-num',nums[id]);
+  });
+});
 </script>
 
 <div class="ym-overlay" id="panel-overlay"></div>
 
+<!-- PANEL SPHERES — CYAN -->
 <div class="ym-panel" id="panel-spheres">
   <div class="panel-handle"></div>
-  <div class="panel-head"><h2>Spheres</h2><button class="ym-btn ym-btn-ghost" id="spheres-build-btn" style="margin-left:auto;padding:4px 10px;font-size:9px">&#9000; Build</button></div>
+  <div class="panel-head">
+    <h2>Spheres</h2>
+    <button class="ym-btn ym-btn-ghost" id="spheres-build-btn" style="margin-left:auto;padding:4px 10px;font-size:9px">&#9000; Build</button>
+  </div>
   <div class="panel-body" id="panel-spheres-body">Loading...</div>
 </div>
-<div class="ym-panel" id="panel-profile"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn ym-btn-ghost" style="margin-left:auto;padding:4px 8px;font-size:14px;min-height:unset">&#128279;</button></div><div class="panel-body" id="panel-profile-body"></div></div>
-<div class="ym-panel" id="panel-build"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body">Loading...</div></div>
+
+<!-- PANEL PROFILE — MAGENTA -->
+<div class="ym-panel" id="panel-profile">
+  <div class="panel-handle"></div>
+  <div class="panel-head">
+    <h2>Profile</h2>
+    <button id="profile-share-btn" class="ym-btn ym-btn-ghost" style="margin-left:auto;padding:4px 8px;font-size:14px;min-height:unset">&#128279;</button>
+  </div>
+  <div class="panel-body" id="panel-profile-body"></div>
+</div>
+
+<!-- PANEL BUILD — VERT -->
+<div class="ym-panel" id="panel-build">
+  <div class="panel-handle"></div>
+  <div class="panel-head"><h2>Build</h2></div>
+  <div class="panel-body" id="panel-build-body">Loading...</div>
+</div>
+
+<!-- PANEL MINE — OR -->
 <div class="ym-panel" id="panel-mine">
   <div class="panel-handle"></div>
   <div class="panel-head"><h2>YourMine</h2></div>
@@ -708,21 +594,31 @@ body.has-wallpaper #ym-bg { background: transparent }
     <div class="ym-tab" data-mine-tab="liste">&#9633; Apps</div>
   </div>
 </div>
-<div class="ym-panel" id="panel-sphere"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
-<div class="ym-panel" id="panel-profile-view"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
 
-<div id="ym-sign-dlg">
-  <div id="ym-sign-box">
-    <div style="font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:4px;color:var(--rd);text-align:center;text-transform:uppercase;text-shadow:0 0 8px rgba(255,45,107,.5)">Warning — Signature Request</div>
-    <div id="ym-sign-sphere" style="font-size:11px;color:var(--text2);text-align:center;font-family:var(--font-m)"></div>
-    <div id="ym-sign-detail" style="font-size:10px;font-family:var(--font-m);color:var(--text3);background:rgba(176,38,255,.03);border:1px solid rgba(176,38,255,.1);padding:10px;max-height:80px;overflow-y:auto;word-break:break-all;line-height:1.6"></div>
-    <div style="font-size:10px;color:var(--text3);text-align:center;font-family:var(--font-m)">A sphere is requesting your wallet signature.<br>Only confirm if you trust this sphere.</div>
-    <div style="display:flex;gap:10px">
-      <button id="ym-sign-reject" class="ym-btn ym-btn-danger" style="flex:1">Reject</button>
-      <button id="ym-sign-confirm" class="ym-btn ym-btn-accent" style="flex:1">Sign</button>
-    </div>
-  </div>
+<!-- PANEL SPHERE DETAIL — ROUGE -->
+<div class="ym-panel" id="panel-sphere">
+  <div class="panel-handle"></div>
+  <div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div>
+  <div class="panel-body" id="panel-sphere-body"></div>
 </div>
+
+<!-- PANEL PROFILE VIEW — VIOLET -->
+<div class="ym-panel" id="panel-profile-view">
+  <div class="panel-handle"></div>
+  <div class="panel-head"><h2 id="profile-view-title">Profile</h2></div>
+  <div class="panel-body" id="panel-profile-view-body"></div>
+</div>
+
+<div id="ym-sign-dlg"><div id="ym-sign-box">
+  <div style="font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:4px;color:var(--rd);text-align:center;text-transform:uppercase;text-shadow:0 0 8px rgba(255,45,107,.5)">Warning — Signature Request</div>
+  <div id="ym-sign-sphere" style="font-size:11px;color:var(--text2);text-align:center;font-family:var(--font-m)"></div>
+  <div id="ym-sign-detail" style="font-size:10px;font-family:var(--font-m);color:var(--text3);background:rgba(176,38,255,.03);border:1px solid rgba(176,38,255,.1);padding:10px;max-height:80px;overflow-y:auto;word-break:break-all;line-height:1.6"></div>
+  <div style="font-size:10px;color:var(--text3);text-align:center;font-family:var(--font-m)">A sphere is requesting your wallet signature.<br>Only confirm if you trust this sphere.</div>
+  <div style="display:flex;gap:10px">
+    <button id="ym-sign-reject" class="ym-btn ym-btn-danger" style="flex:1">Reject</button>
+    <button id="ym-sign-confirm" class="ym-btn ym-btn-accent" style="flex:1">Sign</button>
+  </div>
+</div></div>
 
 <div id="panel-switcher">
   <div class="panel-handle" id="switcher-handle"></div>
