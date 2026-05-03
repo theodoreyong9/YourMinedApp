@@ -312,17 +312,8 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
     if(sel && sel.value) applyTheme(sel.value);
   });
 
-  // Init au premier affichage du dialog background (lazy, une seule fois)
-  var dlg = document.getElementById('bg-dlg');
-  if(dlg){
-    var _loaded = false;
-    new MutationObserver(function(){
-      if(dlg.classList.contains('open') && !_loaded){
-        _loaded = true;
-        loadThemeList();
-      }
-    }).observe(dlg, { attributes:true, attributeFilter:['class'] });
-  }
+  // Charge la liste immédiatement — pas d'observer
+  loadThemeList();
 })();
 </script>
 <div class="ym-overlay" id="panel-overlay"></div>
