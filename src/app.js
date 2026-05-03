@@ -827,6 +827,22 @@
    * LOADERS
    * ═══════════════════════════════════════════════════════════ */
   function loadScript(src) {
+    // URLs GitHub (raw ou jsDelivr) → fetch + blob pour bypasser tout cache HTTP.
+    // URLs locales → <script src> classique.
+    if (src.startsWith('https://')) {
+      const url = src + (src.includes('?') ? '&' : '?') + '_=' + Date.now();
+      return fetch(url)
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + src); return r.text(); })
+        .then(code => new Promise((res, rej) => {
+          const blob    = new Blob([code], { type: 'text/javascript' });
+          const blobUrl = URL.createObjectURL(blob);
+          const s = document.createElement('script');
+          s.src     = blobUrl;
+          s.onload  = () => { URL.revokeObjectURL(blobUrl); res(); };
+          s.onerror = () => { URL.revokeObjectURL(blobUrl); rej(new Error('exec failed: ' + src)); };
+          document.head.appendChild(s);
+        }));
+    }
     return new Promise((res, rej) => {
       const s = document.createElement('script');
       s.src = src; s.onload = res; s.onerror = rej;
@@ -907,14 +923,14 @@
    * INIT
    * ═══════════════════════════════════════════════════════════ */
 
-  // jsDelivr base URL — change @main par @{sha} en prod pour éviter le cache 24h
-  const GH_BASE = 'https://cdn.jsdelivr.net/gh/theodoreyong9/YourMinedApp@main/src/';
+  // GitHub raw — cache-bust automatique via fetch+blob dans loadScript()
+  const GH_BASE = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
 
   async function init() {
     OC();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
-    // Charge les modules depuis GitHub via jsDelivr
+    // Charge les modules depuis GitHub raw (cache-bust via fetch+blob)
     for (const m of ['mine.js', 'liste.js', 'build.js', 'profile.js']) {
       try { await loadScript(GH_BASE + m); }
       catch (e) { console.warn('[YM]', m, e.message); }
