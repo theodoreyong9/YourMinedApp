@@ -216,8 +216,120 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   <div style="font-size:10px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-m)">Free wallpapers</div>
   <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;padding-bottom:4px"></div>
   <button class="ym-btn ym-btn-ghost" id="bg-spheres" style="width:100%;font-size:12px;margin-top:10px;color:var(--cyan);border-color:rgba(8,224,248,.2)">&#11835; Browse Spheres</button>
+
+  <!-- ── Sélecteur de thème ──────────────────────────────────── -->
+  <div id="theme-picker-section" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.06);padding-top:12px">
+    <div style="font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-m)">🎨 Theme</div>
+
+    <!-- Thème actif -->
+    <div id="theme-current" style="font-family:var(--font-m);font-size:9px;color:var(--text3);padding:5px 8px;background:rgba(255,255,255,.03);border-radius:6px;border:1px solid rgba(255,255,255,.06);margin-bottom:8px;word-break:break-all;line-height:1.5"></div>
+
+    <!-- Input URL thème custom -->
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input id="theme-url-input" class="ym-input" placeholder="GitHub raw URL of your theme .html"
+        style="font-size:11px;padding:8px 10px;flex:1">
+      <button id="theme-apply-btn" class="ym-btn ym-btn-accent" style="padding:8px 12px;font-size:11px;white-space:nowrap">Apply</button>
+    </div>
+
+    <!-- Thèmes prédéfinis (fichiers dans src/themes/ du repo) -->
+    <div style="font-size:9px;color:var(--text3);margin-bottom:5px;font-family:var(--font-m);letter-spacing:.5px">BUILT-IN</div>
+    <div id="theme-presets" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div>
+
+    <!-- Bouton reset thème par défaut -->
+    <button id="theme-reset-btn" class="ym-btn ym-btn-ghost" style="width:100%;font-size:11px;color:var(--text3)">↺ Reset to default theme</button>
+  </div>
+
   <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
 </div></div>
+
+<!-- ── Script theme picker (s'auto-initialise au premier affichage du dialog) ── -->
+<script>
+(function(){
+  var THEME_KEY     = 'ym_theme_url';
+  var THEME_CACHE   = 'ym_theme_cache';
+  var GH_RAW        = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+  var DEFAULT_THEME = GH_RAW + 'themes/default.html';
+
+  // Thèmes built-in listés dans src/themes/
+  var BUILT_IN = [
+    { label: 'Default',  url: GH_RAW + 'themes/default.html'  },
+    // Ajoute tes thèmes ici au fur et à mesure :
+    // { label: 'Neon',  url: GH_RAW + 'themes/neon.html' },
+    // { label: 'Light', url: GH_RAW + 'themes/light.html' },
+  ];
+
+  function activeUrl(){
+    return localStorage.getItem(THEME_KEY) || DEFAULT_THEME;
+  }
+
+  function renderCurrent(){
+    var el = document.getElementById('theme-current');
+    if(!el) return;
+    var url = activeUrl();
+    var isDefault = url === DEFAULT_THEME;
+    el.textContent = isDefault ? '✦ Default theme' : url;
+  }
+
+  function renderPresets(){
+    var container = document.getElementById('theme-presets');
+    if(!container || container.children.length) return; // déjà rendu
+    var current = activeUrl();
+    BUILT_IN.forEach(function(t){
+      var btn = document.createElement('button');
+      btn.className = 'ym-btn ym-btn-ghost';
+      btn.style.cssText = 'font-size:10px;padding:5px 10px;' +
+        (t.url === current ? 'color:var(--gold);border-color:rgba(240,168,48,.4)' : '');
+      btn.textContent = t.label;
+      btn.addEventListener('click', function(){ applyTheme(t.url, t.label); });
+      container.appendChild(btn);
+    });
+  }
+
+  function applyTheme(url, label){
+    if(url === activeUrl()){ window.YM_toast && window.YM_toast('Already using this theme','info'); return; }
+    localStorage.setItem(THEME_KEY, url);
+    localStorage.removeItem(THEME_CACHE); // invalide le cache pour forcer le rechargement
+    window.YM_toast && window.YM_toast('Theme changed — reloading…', 'success', 1800);
+    setTimeout(function(){ location.reload(); }, 1800);
+  }
+
+  // Bouton Apply (URL custom)
+  document.getElementById('theme-apply-btn').addEventListener('click', function(){
+    var url = (document.getElementById('theme-url-input').value || '').trim();
+    if(!url){ window.YM_toast && window.YM_toast('Enter a GitHub raw URL','warn'); return; }
+    if(!url.startsWith('https://')){ window.YM_toast && window.YM_toast('URL must start with https://','warn'); return; }
+    applyTheme(url, 'Custom theme');
+  });
+
+  // Enter dans l'input
+  document.getElementById('theme-url-input').addEventListener('keydown', function(e){
+    if(e.key === 'Enter') document.getElementById('theme-apply-btn').click();
+  });
+
+  // Reset
+  document.getElementById('theme-reset-btn').addEventListener('click', function(){
+    localStorage.removeItem(THEME_KEY);
+    localStorage.removeItem(THEME_CACHE);
+    window.YM_toast && window.YM_toast('Resetting to default theme…', 'info', 1800);
+    setTimeout(function(){ location.reload(); }, 1800);
+  });
+
+  // Init au premier affichage du dialog background
+  var dlg = document.getElementById('bg-dlg');
+  if(dlg){
+    var _themeInited = false;
+    var obs = new MutationObserver(function(){
+      if(dlg.classList.contains('open') && !_themeInited){
+        _themeInited = true;
+        renderCurrent();
+        renderPresets();
+        obs.disconnect();
+      }
+    });
+    obs.observe(dlg, { attributes: true, attributeFilter: ['class'] });
+  }
+})();
+</script>
 <div class="ym-overlay" id="panel-overlay"></div>
 <div class="ym-panel" id="panel-spheres">
   <div class="panel-handle"></div>
