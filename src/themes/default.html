@@ -285,17 +285,23 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 
   function loadThemeList(){
     var sel = document.getElementById('theme-select');
-    // Fetch raw avec cache-bust — raw.githubusercontent.com n'a pas de rate limit
-    var url = INDEX_URL + '?_=' + Date.now();
-    fetch(url)
-      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-      .then(function(files){
+    // Pas de cache-bust sur le JSON — raw.githubusercontent.com gère ça nativement
+    fetch(INDEX_URL)
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP '+r.status+' — '+INDEX_URL);
+        return r.text(); // text() d'abord pour pouvoir logger si c'est pas du JSON
+      })
+      .then(function(text){
+        var files;
+        try { files = JSON.parse(text); }
+        catch(e){ throw new Error('index.json is not valid JSON: '+text.slice(0,120)); }
         if(!Array.isArray(files) || !files.length) files = ['default.html'];
         populateSelect(files);
       })
       .catch(function(e){
-        console.warn('[YM theme] index.json load failed:', e.message);
-        // Fallback : affiche juste le défaut
+        console.error('[YM theme]', e.message);
+        // Affiche l'erreur dans le select pour debug
+        if(sel) sel.innerHTML = '<option value="">⚠ '+e.message+'</option>';
         populateSelect(['default.html']);
       });
   }
