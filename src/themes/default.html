@@ -231,24 +231,25 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
 </div></div>
 
-<!-- ── Theme picker : peuplé via l'API GitHub contents ─────────── -->
+<!-- ── Theme picker : liste lue depuis src/themes/index.json (raw, sans rate limit) ── -->
 <script>
 (function(){
   var THEME_KEY   = 'ym_theme_url';
   var THEME_CACHE = 'ym_theme_cache';
   var GH_RAW      = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-  var GH_API      = 'https://api.github.com/repos/theodoreyong9/YourMinedApp/contents/src/themes';
   var DEF_THEME   = GH_RAW + 'themes/default.html';
+  // index.json = simple tableau de noms de fichiers, ex: ["default.html","neon.html"]
+  // → à maintenir à la main dans src/themes/ quand tu ajoutes un thème
+  var INDEX_URL   = GH_RAW + 'themes/index.json';
 
   function activeUrl(){
     return localStorage.getItem(THEME_KEY) || DEF_THEME;
   }
 
   function fileToLabel(name){
-    // "default.html" → "Default",  "neon-dark.html" → "Neon Dark"
     return name.replace(/\.html$/i,'')
                .replace(/[-_]/g,' ')
-               .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+               .replace(/\b\w/g,function(c){ return c.toUpperCase(); });
   }
 
   function applyTheme(url){
@@ -274,40 +275,28 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       if(url === current) opt.selected = true;
       sel.appendChild(opt);
     });
-    // Si le thème actif n'est pas dans la liste (URL custom), on l'ajoute
-    if(!sel.value){
+    // Thème actif absent de la liste (URL entièrement custom) → option temporaire
+    if(!sel.querySelector('option[selected]') && current !== DEF_THEME){
       var opt = document.createElement('option');
-      opt.value = current;
-      opt.textContent = '— Custom —';
-      opt.selected = true;
+      opt.value = current; opt.textContent = '— Custom —'; opt.selected = true;
       sel.insertBefore(opt, sel.firstChild);
     }
   }
 
   function loadThemeList(){
     var sel = document.getElementById('theme-select');
-    // Appel API GitHub : liste les fichiers .html dans src/themes/
-    fetch(GH_API + '?_=' + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(items){
-        var files = items
-          .filter(function(f){ return f.type==='file' && /\.html$/i.test(f.name); })
-          .map(function(f){ return f.name; })
-          .sort();
-        if(!files.length) files = ['default.html']; // fallback minimal
+    // Fetch raw avec cache-bust — raw.githubusercontent.com n'a pas de rate limit
+    var url = INDEX_URL + '?_=' + Date.now();
+    fetch(url)
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(files){
+        if(!Array.isArray(files) || !files.length) files = ['default.html'];
         populateSelect(files);
       })
-      .catch(function(){
-        // API inaccessible → fallback avec le thème actif seulement
-        if(sel) sel.innerHTML = '<option value="'+DEF_THEME+'">Default</option>';
-        var cur = activeUrl();
-        if(cur !== DEF_THEME){
-          var o = document.createElement('option');
-          o.value = cur; o.textContent = '— Custom —'; o.selected = true;
-          sel && sel.insertBefore(o, sel.firstChild);
-        } else if(sel){
-          sel.value = DEF_THEME;
-        }
+      .catch(function(e){
+        console.warn('[YM theme] index.json load failed:', e.message);
+        // Fallback : affiche juste le défaut
+        populateSelect(['default.html']);
       });
   }
 
@@ -317,7 +306,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
     if(sel && sel.value) applyTheme(sel.value);
   });
 
-  // Init au premier affichage du dialog background
+  // Init au premier affichage du dialog background (lazy, une seule fois)
   var dlg = document.getElementById('bg-dlg');
   if(dlg){
     var _loaded = false;
