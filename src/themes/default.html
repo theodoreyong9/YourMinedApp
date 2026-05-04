@@ -258,52 +258,55 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
                .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
   }
 
-  // Met à jour le lien </> vers le source GitHub du thème sélectionné
-  function updateCodeBtn(selectEl){
-    var codeBtn = document.getElementById('theme-code-btn');
-    if(!codeBtn || !selectEl) return;
-    var val = selectEl.value;
-    if(!val){ codeBtn.href = '#'; return; }
-    // Extrait le nom de fichier depuis l'URL raw
-    var filename = val.split('/').pop();
-    codeBtn.href = GH_BLOB + filename;
+  function updateCodeBtn(url){
+    var btn = document.getElementById('theme-code-btn');
+    if(!btn) return;
+    if(!url || url === '#'){ btn.style.opacity = '.3'; btn.href = '#'; return; }
+    btn.style.opacity = '1';
+    btn.href = GH_BLOB + url.split('/').pop();
   }
 
   function applyTheme(url, label){
     if(!url) return;
-    if(url === activeUrl()){
-      window.YM_toast && window.YM_toast('Already using ' + (label||'this theme'), 'info'); return;
-    }
+    // Silencieux si déjà actif — pas de toast, pas de reload inutile
+    if(url === activeUrl()) return;
     localStorage.setItem(THEME_KEY, url);
     localStorage.removeItem(THEME_CACHE);
-    window.YM_toast && window.YM_toast('Theme → ' + (label||fileToLabel(url.split('/').pop())) + ' — reloading…', 'success', 1600);
-    setTimeout(function(){ location.reload(); }, 1600);
+    window.YM_toast && window.YM_toast('✦ ' + label + ' — reloading…', 'success', 1500);
+    setTimeout(function(){ location.reload(); }, 1500);
   }
 
   function populateSelect(files){
     var sel = document.getElementById('theme-select');
     if(!sel) return;
     var current = activeUrl();
+    var currentFile = current.split('/').pop();
     sel.innerHTML = '';
+
+    var foundCurrent = false;
     files.forEach(function(f){
       var url = GH_RAW + 'themes/' + f;
       var opt = document.createElement('option');
       opt.value = url;
       opt.textContent = fileToLabel(f);
-      opt.style.background = '#13131f';
-      if(url === current) opt.selected = true;
+      opt.style.background = '#0e0e1a';
+      if(f === currentFile){ opt.selected = true; foundCurrent = true; }
       sel.appendChild(opt);
     });
-    // Thème custom non présent dans la liste → ajoute avec son vrai nom
-    if(!sel.querySelector('option[selected]')){
+
+    // Thème custom absent de la liste → ajoute avec son vrai nom de fichier
+    if(!foundCurrent){
       var opt = document.createElement('option');
       opt.value = current;
-      opt.textContent = fileToLabel(current.split('/').pop());
-      opt.style.background = '#13131f';
+      opt.textContent = fileToLabel(currentFile);
+      opt.style.background = '#0e0e1a';
       opt.selected = true;
       sel.insertBefore(opt, sel.firstChild);
     }
-    updateCodeBtn(sel);
+
+    // Retire le focus pour éviter le surlignage au chargement
+    sel.blur();
+    updateCodeBtn(sel.value);
   }
 
   function loadThemeList(){
@@ -323,28 +326,29 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       });
   }
 
-  // Mise à jour lien code quand on change la sélection
+  // Mise à jour bouton code quand on change le select
   document.getElementById('theme-select').addEventListener('change', function(){
-    updateCodeBtn(this);
+    updateCodeBtn(this.value);
   });
 
-  // Bouton Apply — utilise le label affiché dans l'option sélectionnée
+  // Apply
   document.getElementById('theme-apply-btn').addEventListener('click', function(){
     var sel = document.getElementById('theme-select');
     if(!sel || !sel.value) return;
-    var label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '';
+    var label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : fileToLabel(sel.value.split('/').pop());
     applyTheme(sel.value, label);
   });
 
-  // Bouton Use (URL custom)
+  // URL custom (github.com/blob ou raw)
   document.getElementById('theme-custom-btn').addEventListener('click', function(){
     var inp = document.getElementById('theme-custom-input');
     var url = (inp ? inp.value : '').trim();
-    if(!url){ window.YM_toast && window.YM_toast('Enter a raw URL', 'warn'); return; }
-    // Accepte github.com/user/repo/blob/... → convertit en raw
+    if(!url){ window.YM_toast && window.YM_toast('Enter a URL', 'warn'); return; }
     url = url.replace('https://github.com/', 'https://raw.githubusercontent.com/')
              .replace('/blob/', '/');
-    applyTheme(url, fileToLabel(url.split('/').pop()));
+    var label = fileToLabel(url.split('/').pop());
+    applyTheme(url, label);
+    if(inp) inp.value = '';
   });
 
   document.getElementById('theme-custom-input').addEventListener('keydown', function(e){
