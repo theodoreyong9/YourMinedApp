@@ -1,1032 +1,910 @@
-/**
- * app.js — YourMine core logic
- * GitHub: theodoreyong9/YourMinedApp/src/app.js
- *
- * Dépend de :
- *   - window.YM_toast, window.YM_escHtml  (injectés par index.html avant chargement)
- *   - desk.js chargé avant app.js
- */
+// ============================================================
+// YOURMINE — DESK.JS v2
+// ============================================================
+/* jshint esversion:11 */
+'use strict';
 
-;(function () {
-  'use strict';
+const DK='ym_desktop_v1', WK='ym_wallpaper', PGSK='ym_pages';
+const isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+const GRID=()=>isPC()?{cols:8,rows:5}:{cols:4,rows:6};
 
-  /* ── Raccourcis ───────────────────────────────────────────── */
-  const toast = (...a) => window.YM_toast(...a);
-  const esc   = (...a) => window.YM_escHtml(...a);
+function LD(){return JSON.parse(localStorage.getItem(DK)||'[]');}
+function SD(d){localStorage.setItem(DK,JSON.stringify(d));}
+function getPgCount(){return Math.max(1,parseInt(localStorage.getItem(PGSK)||'1'));}
+function setPgCount(n){localStorage.setItem(PGSK,String(Math.max(1,n)));}
+function toast(msg,type){if(window.YM_toast)window.YM_toast(msg,type);}
 
-  /* ── LocalStorage helpers ─────────────────────────────────── */
-  const PK = 'ym_profile_v1';
-  const AK = 'ym_activity_v1';
+let curPg=0,editMode=false,isDragging=false,_lastDragEnd=0;
+const folderStack=[];
+function enterEdit(){editMode=true;document.body.classList.add('edit-mode');}
+function exitEdit(){editMode=false;document.body.classList.remove('edit-mode');}
 
-  function gid() {
-    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
-      (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+function isImageURL(s){
+  if(!s)return false;
+  return s.startsWith('http')||s.startsWith('//')||s.startsWith('data:')||s.startsWith('/')||/\.(png|jpg|jpeg|svg|webp|gif)$/i.test(s);
+}
+function renderIconContent(icon){
+  if(isImageURL(icon)){
+    const img=document.createElement('img');
+    img.src=icon;img.alt='';
+    img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:8px;display:block';
+    return img;
   }
+  const span=document.createElement('span');span.textContent=icon||'⬡';return span;
+}
+function deepCopyFolderItems(items){
+  if(!items)return undefined;
+  return JSON.parse(JSON.stringify(items));
+}
 
-  function LP() { try { return JSON.parse(localStorage.getItem(PK) || 'null'); } catch { return null; } }
-  function SP(d) {
-    const p = Object.assign({}, LP() || {}, d);
-    localStorage.setItem(PK, JSON.stringify(p));
-    window.dispatchEvent(new CustomEvent('ym:profile-updated', { detail: p }));
-    return p;
+function rmEl(id){
+  const el=document.getElementById(id);
+  if(el)el.classList.remove('open');
+}
+
+function applyWP(){
+  const wp=localStorage.getItem(WK),el=document.getElementById('ym-wp');if(!el)return;
+  if(wp){
+    el.style.backgroundImage="url('"+wp+"')";
+    // backgroundSize/Position/Repeat gérés par CSS (pour permettre l'animation)
+    document.body.classList.add('has-wallpaper');
+  }else{
+    el.style.backgroundImage='';
+    document.body.classList.remove('has-wallpaper');
   }
-  function OC() {
-    let p = LP();
-    if (!p || !p.uuid) p = SP({ uuid: gid(), name: '', bio: '', avatar: '', spheres: [], created: Date.now() });
-    return p;
-  }
-  function log(t, d) {
-    const l = JSON.parse(localStorage.getItem(AK) || '[]');
-    l.unshift({ t, d, ts: Date.now() });
-    if (l.length > 200) l.length = 200;
-    localStorage.setItem(AK, JSON.stringify(l));
-  }
-
-  /* ── Rate-limiting P2P ────────────────────────────────────── */
-  const p2pS = new Map(), p2pR = new Map(), GAP = 3000;
-  function cS(id) { const n = Date.now(); if (n - (p2pS.get(id) || 0) < GAP) return false; p2pS.set(id, n); return true; }
-  function cR(id) { const n = Date.now(); if (n - (p2pR.get(id) || 0) < GAP) return false; p2pR.set(id, n); return true; }
-
-  /* ── Références DOM ───────────────────────────────────────── */
-  const overlay = document.getElementById('panel-overlay');
-  const sw      = document.getElementById('panel-switcher');
-
-  /* ── État panels ──────────────────────────────────────────── */
-  let _panel    = null;
-  let _prevPanel = null;
-  const navStack     = [];
-  const _openPanels  = new Map();
-  const _openSpheres = new Map();
-
-  const PANEL_META = {
-    'panel-spheres':      { label: 'Spheres' },
-    'panel-profile':      { label: 'Profile' },
-    'panel-build':        { label: 'Build'   },
-    'panel-mine':         { label: 'YourMine'},
-    'panel-profile-view': { label: 'Profile' },
-  };
-
-  /* ═══════════════════════════════════════════════════════════
-   * ONGLETS YOURMINE
-   * ═══════════════════════════════════════════════════════════ */
-  function renderFormulaTab() {
-    const el = document.getElementById('panel-mine-formula');
-    if (!el) return;
-    el.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0';
-    el.innerHTML = `
-<a href="#" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:20px;text-decoration:none;border-bottom:1px solid rgba(240,168,48,.15);background:linear-gradient(160deg,#06060e 0%,rgba(240,168,48,.06) 100%)">
-  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 80% 10%,rgba(240,168,48,.22) 0%,transparent 65%);pointer-events:none"></div>
-  <div style="position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:72px;opacity:.08;font-family:var(--font-m);line-height:1">⟐</div>
-  <div>
-    <div style="font-family:var(--font-m);font-size:9px;letter-spacing:3px;color:rgba(240,168,48,.5);text-transform:uppercase;margin-bottom:6px">YM Token</div>
-    <div style="font-family:var(--font-d);font-size:26px;font-weight:700;color:var(--gold);line-height:1.1">Proof of Will<br>as Currency</div>
-  </div>
-</a>
-<a href="#" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:20px;text-decoration:none;border-bottom:1px solid rgba(8,224,248,.12);background:linear-gradient(160deg,#06060e 0%,rgba(8,224,248,.05) 100%)">
-  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 20% 90%,rgba(8,224,248,.15) 0%,transparent 65%);pointer-events:none"></div>
-  <div style="position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:72px;opacity:.07;font-family:var(--font-m);line-height:1">◈</div>
-  <div>
-    <div style="font-family:var(--font-m);font-size:9px;letter-spacing:3px;color:rgba(8,224,248,.5);text-transform:uppercase;margin-bottom:6px">Identity Theory</div>
-    <div style="font-family:var(--font-d);font-size:26px;font-weight:700;color:var(--cyan);line-height:1.1">Your Wallet<br>is Your Identity</div>
-  </div>
-</a>
-<a href="#" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:20px;text-decoration:none;background:linear-gradient(160deg,#06060e 0%,rgba(34,217,138,.05) 100%)">
-  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 60% 20%,rgba(34,217,138,.12) 0%,transparent 65%);pointer-events:none"></div>
-  <div style="position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:72px;opacity:.07;font-family:var(--font-m);line-height:1">∿</div>
-  <div>
-    <div style="font-family:var(--font-m);font-size:9px;letter-spacing:3px;color:rgba(34,217,138,.5);text-transform:uppercase;margin-bottom:6px">Value Viscoelasticity</div>
-    <div style="font-family:var(--font-d);font-size:26px;font-weight:700;color:var(--green);line-height:1.1">Time Shapes<br>Your Reward</div>
-  </div>
-</a>`;
-  }
-
-  function setupMineTabs() {
-    const bar = document.getElementById('mine-tabs-bar');
-    if (!bar || bar._init) return;
-    bar._init = true;
-    bar.querySelectorAll('.ym-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
-        bar.querySelectorAll('.ym-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
-        switchMineTab(tab.dataset.mineTab);
-      });
-    });
-  }
-
-  function switchMineTab(tab) {
-    const w = document.getElementById('panel-mine-wallet');
-    const b = document.getElementById('panel-mine-build');
-    const f = document.getElementById('panel-mine-formula');
-    const l = document.getElementById('panel-mine-liste');
-    [w, b, f, l].forEach(el => { if (el) el.style.display = 'none'; });
-
-    if (tab === 'wallet' && w) {
-      w.style.display = 'flex';
-      if (window.YM_Mine) window.YM_Mine.render(w);
-    }
-    if (tab === 'build' && b) {
-      b.style.display = 'flex';
-      b.innerHTML = '';
-      if (window.YM_Build) window.YM_Build.render(b);
-    }
-    if (tab === 'formula' && f) {
-      f.style.display = 'flex';
-      renderFormulaTab();
-    }
-    if (tab === 'liste' && l) {
-      l.style.display = 'flex';
-      if (window.YM_Liste) {
-        if (!l.children.length) window.YM_Liste.render(l);
-      } else {
-        l.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:12px">Loading…</div>';
-      }
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-   * SWITCHER
-   * ═══════════════════════════════════════════════════════════ */
-
-
-  function _buildClonePreview(sourceEl) {
-    const preview = document.createElement('div');
-    preview.className = 'sw-preview';
-    const wrap  = document.createElement('div');
-    wrap.className = 'sw-clone-wrap';
-    const clone = sourceEl.cloneNode(true);
-    clone.removeAttribute('id');
-    clone.style.cssText = 'position:relative;transform:none;transition:none;border-radius:0;pointer-events:none;overflow:hidden;';
-    clone.querySelectorAll('*').forEach(el => {
-      el.style.animation = 'none'; el.style.transition = 'none'; el.style.pointerEvents = 'none';
-      el.removeAttribute('id');
-    });
-    clone.querySelectorAll('button,input,textarea,select,canvas,video,audio,script,.panel-handle').forEach(el => el.remove());
-    if (sourceEl._needsRemoval) sourceEl.remove();
-    wrap.appendChild(clone);
-    preview.appendChild(wrap);
-    setTimeout(() => { requestAnimationFrame(() => {
-      const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
-      const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
-      const cw = preview.offsetWidth;
-      if (pw > 0 && cw > 0) {
-        const sc = cw / pw;
-        clone.style.width  = pw + 'px';
-        clone.style.height = ph + 'px';
-        wrap.style.transform = 'scale(' + sc + ')';
-        wrap.style.width  = pw + 'px';
-        wrap.style.height = ph + 'px';
-      }
-    }); }, 0);
-    return preview;
-  }
-
-  function _buildFakePanel(snapshot, panelW, panelH) {
-    const fake = document.createElement('div');
-    fake.className = 'ym-panel';
-    fake.style.cssText = 'position:fixed;left:-19999px;top:0;width:' + panelW + 'px;height:' + panelH + 'px;transform:none;visibility:hidden;pointer-events:none;border-radius:30px 30px 0 0;';
-    fake.innerHTML = snapshot;
-    fake._needsRemoval = true;
-    fake._snapshotWidth  = panelW;
-    fake._snapshotHeight = panelH;
-    document.body.appendChild(fake);
-    return fake;
-  }
-
-  function _makeCard(label, getSourceEl, onTap, onDismiss) {
-    const card = document.createElement('div');
-    card.className = 'sw-card';
-
-    const previewSlot = document.createElement('div');
-    previewSlot.className = 'sw-preview';
-    card.appendChild(previewSlot);
-
-    const lbl = document.createElement('div');
-    lbl.className = 'sw-label';
-    lbl.textContent = label;
-    card.appendChild(lbl);
-
-    setTimeout(() => {
-      const sourceEl = getSourceEl();
-      if (!sourceEl) return;
-      const preview = _buildClonePreview(sourceEl);
-      card.replaceChild(preview, previewSlot);
-    }, 0);
-
-    const SWIPE_THRESH = 48;
-    const TAP_THRESH   = 12;
-    let _tx = 0, _ty = 0, _tActive = false;
-
-    card.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1) return;
-      _tx = e.touches[0].clientX; _ty = e.touches[0].clientY; _tActive = true;
-    }, { passive: true });
-
-    card.addEventListener('touchend', e => {
-      if (!_tActive) return; _tActive = false;
-      const t = e.changedTouches[0];
-      const dx = t.clientX - _tx, dy = t.clientY - _ty;
-      const adx = Math.abs(dx), ady = Math.abs(dy);
-      if (adx > SWIPE_THRESH && adx > ady * 1.5) {
-        card.style.transition = 'transform .2s,opacity .2s';
-        card.style.transform  = 'translateX(' + (dx > 0 ? 120 : -120) + '%)';
-        card.style.opacity    = '0';
-        setTimeout(onDismiss, 200);
-      } else if (adx < TAP_THRESH && ady < TAP_THRESH) {
-        _blockOverlayUntil = Date.now() + 500;
-        onTap();
-      }
-    }, { passive: true });
-
-    let _mx = 0, _my = 0, _mDown = false, _mMoved = false;
-    card.addEventListener('mousedown', e => { _mx = e.clientX; _my = e.clientY; _mDown = true; _mMoved = false; });
-    card.addEventListener('mousemove', e => {
-      if (!_mDown) return;
-      if (Math.abs(e.clientX - _mx) > 6 || Math.abs(e.clientY - _my) > 6) _mMoved = true;
-      if (_mMoved) {
-        card.style.transform = 'translateX(' + (e.clientX - _mx) + 'px)';
-        card.style.opacity   = String(Math.max(0, 1 - Math.abs(e.clientX - _mx) / SWIPE_THRESH));
-      }
-    });
-    card.addEventListener('mouseup', e => {
-      if (!_mDown) return; _mDown = false;
-      const dx = e.clientX - _mx, adx = Math.abs(dx), ady = Math.abs(e.clientY - _my);
-      if (adx > SWIPE_THRESH && adx > ady * 1.5) {
-        card.style.transition = 'transform .2s,opacity .2s';
-        card.style.transform  = 'translateX(' + (dx > 0 ? 120 : -120) + '%)';
-        card.style.opacity    = '0';
-        setTimeout(onDismiss, 200);
-      } else if (!_mMoved) {
-        card.style.transform = ''; card.style.opacity = ''; onTap();
-      } else {
-        card.style.transition = 'transform .15s,opacity .15s';
-        card.style.transform  = ''; card.style.opacity = '';
-        setTimeout(() => { card.style.transition = ''; }, 160);
-      }
-      _mMoved = false;
-    });
-    card.addEventListener('mouseleave', () => {
-      if (!_mDown) return; _mDown = false; _mMoved = false;
-      card.style.transition = 'transform .15s,opacity .15s';
-      card.style.transform  = ''; card.style.opacity = '';
-      setTimeout(() => { card.style.transition = ''; }, 160);
-    });
-
-    return card;
-  }
-
-  function _afterDismiss() {
-    if (_openPanels.size + _openSpheres.size === 0) closeSwitcher();
-    else _buildSwitcherRows();
-  }
-
-  function _buildSwitcherRows() {
-    const grid = document.getElementById('switcher-grid');
-    if (!grid) return;
-    grid.innerHTML = '';
-
-    const items = [];
-    _openPanels.forEach(({ label, snapshot, panelW, panelH }, id) => {
-      const isFolder = id.startsWith('__folder__');
-      items.push({
-        id, label, snapshot, panelW, panelH,
-        onTap: isFolder ? () => closeSwitcher() : () => { closeSwitcher(); openPanel(id); },
-        getEl:  isFolder
-          ? () => { if (snapshot) return _buildFakePanel(snapshot, panelW || window.innerWidth, panelH || window.innerHeight); return document.getElementById('panel-folder'); }
-          : () => document.getElementById(id),
-        onDel: () => { _openPanels.delete(id); _afterDismiss(); },
-      });
-    });
-    _openSpheres.forEach(({ label, snapshot, panelW, panelH }, id) => {
-      items.push({
-        id, label, snapshot, panelW, panelH,
-        onTap:  () => { closeSwitcher(); openSpherePanel(id); },
-        getEl:  () => { if (snapshot) return _buildFakePanel(snapshot, panelW, panelH); return document.getElementById('panel-sphere'); },
-        onDel:  () => { _openSpheres.delete(id); _afterDismiss(); },
-      });
-    });
-
-    if (!items.length) { closeSwitcher(); return; }
-    if (items.length % 2 === 1) grid.appendChild(document.createElement('div'));
-    items.forEach(item => grid.appendChild(_makeCard(item.label, item.getEl, item.onTap, item.onDel)));
-  }
-
-  function renderSwitcherCards() { _buildSwitcherRows(); }
-
-  function closeSwitcher() {
-    sw.classList.remove('open');
-    const grid = document.getElementById('switcher-grid');
-    if (grid) grid.innerHTML = '';
-  }
-
-  function openSwitcher() {
-    if (sw.classList.contains('open')) { closeSwitcher(); return; }
-    if (_panel) {
-      const el = document.getElementById(_panel);
-      if (el) el.classList.remove('open');
-      overlay.classList.remove('open');
-      _panel = null; updateActiveDbtn(null);
-    }
-    const fp = document.getElementById('panel-folder');
-    if (fp && fp.classList.contains('open')) {
-      const fs = window._deskFolderStack;
-      if (fs && fs.length) {
-        const topIc = fs[fs.length - 1].ic;
-        if (topIc) {
-          _openPanels.set('__folder__' + topIc.id, {
-            label: topIc.label || 'Folder',
-            snapshot: fp.innerHTML,
-            panelW: fp.offsetWidth  || window.innerWidth,
-            panelH: fp.offsetHeight || window.innerHeight,
-          });
-        }
-      }
-      fp.style.transition = 'none';
-      fp.classList.remove('open');
-      requestAnimationFrame(() => { fp.style.transition = ''; });
-      if (window._deskFolderStack) window._deskFolderStack.length = 0;
-    }
-    if (_openPanels.size + _openSpheres.size === 0) {
-      openPanel('panel-spheres');
-      if (window.YM_Liste) window.YM_Liste.render();
-      return;
-    }
-    renderSwitcherCards();
-    sw.classList.add('open');
-  }
-
-  /* Switcher handle drag-to-close */
-  (() => {
-    const h = document.getElementById('switcher-handle');
-    let sy = 0;
-    if (h) {
-      h.addEventListener('pointerdown', e => { sy = e.clientY; });
-      h.addEventListener('pointerup',   e => { if (e.clientY - sy > 30) closeSwitcher(); });
-    }
-  })();
-
-
-  // Expose pour window.YM et autres modules
-  window.YM_Switcher = { open: openSwitcher, close: closeSwitcher, render: renderSwitcherCards };
-  /* ═══════════════════════════════════════════════════════════
-   * PANELS
-   * ═══════════════════════════════════════════════════════════ */
-  let _blockOverlayUntil = 0;
-
-  function updateActiveDbtn(panelId) {
-    document.getElementById('nav-bar').addEventListener('contextmenu', e => e.preventDefault());
-    document.querySelectorAll('.dbtn').forEach(b => {
-      b.addEventListener('contextmenu', e => e.preventDefault());
-      b.classList.remove('active');
-    });
-    if (!panelId) return;
-    const map = { 'panel-profile': 'btn-profile', 'panel-mine': 'btn-figure' };
-    const btnId = map[panelId];
-    if (btnId) { const btn = document.getElementById(btnId); if (btn) btn.classList.add('active'); }
-  }
-
-  function openPanel(id) {
-    sw.classList.remove('open');
-
-    const isProfileOverlay = (id === 'panel-profile' || id === 'panel-profile-view' || id === 'panel-mine') && _panel === 'panel-sphere';
-    if (isProfileOverlay) {
-      _prevPanel = 'panel-sphere';
-      const p = document.getElementById(id); if (!p) return;
-      const fp = document.getElementById('panel-folder');
-      if (fp && fp.classList.contains('open')) {
-        fp.style.transition = 'none'; fp.classList.remove('open');
-        requestAnimationFrame(() => { fp.style.transition = ''; });
-        if (window._deskFolderStack) window._deskFolderStack.length = 0;
-      }
-      p.style.zIndex = '302';
-      _panel = id; p.classList.add('open');
-      const meta = PANEL_META[id] || { label: id.replace('panel-', '') };
-      _openPanels.set(id, { label: meta.label });
-      updateActiveDbtn(id);
-      if (id === 'panel-build'   && window.YM_Build)   window.YM_Build.render();
-      if (id === 'panel-profile' && window.YM_Profile) window.YM_Profile.render();
-      if (id === 'panel-mine') _initMinePanel();
-      pushNav({ type: 'panel', id });
-      return;
-    }
-
-    if (_panel && _panel !== id) {
-      const el = document.getElementById(_panel);
-      if (el) { el.classList.remove('open'); el.style.zIndex = ''; }
-      _panel = null; _prevPanel = null;
-    }
-    const p = document.getElementById(id); if (!p) return;
-
-    const fp = document.getElementById('panel-folder');
-    if (fp && fp.classList.contains('open')) {
-      fp.style.transition = 'none'; fp.classList.remove('open');
-      requestAnimationFrame(() => { fp.style.transition = ''; });
-      if (window._deskFolderStack) window._deskFolderStack.length = 0;
-    }
-    if (id !== 'panel-sphere') {
-      const sp = document.getElementById('panel-sphere');
-      if (sp && sp.classList.contains('open') && _prevPanel !== 'panel-sphere') {
-        sp.classList.remove('open'); sp.style.zIndex = '';
-      }
-    }
-    if (id === 'panel-profile' || id === 'panel-mine' || id === 'panel-profile-view') {
-      p.style.zIndex = '302';
-    } else {
-      p.style.zIndex = '';
-    }
-
-    _panel = id;
-    overlay.classList.add('open');
-    p.classList.add('open');
-    if (id !== 'panel-sphere' && id !== 'panel-spheres') {
-      const meta = PANEL_META[id] || { label: id.replace('panel-', '') };
-      _openPanels.set(id, { label: meta.label });
-    }
-    updateActiveDbtn(id);
-    if (id === 'panel-build'   && window.YM_Build)   window.YM_Build.render();
-    if (id === 'panel-profile' && window.YM_Profile) window.YM_Profile.render();
-    if (id === 'panel-mine') _initMinePanel();
-    pushNav({ type: 'panel', id });
-  }
-
-  function _initMinePanel() {
-    setTimeout(() => {
-      if (window.YM_Mine) window.YM_Mine.render(document.getElementById('panel-mine-wallet'));
-      setupMineTabs();
-      const bar    = document.getElementById('mine-tabs-bar');
-      const active = bar && bar.querySelector('.ym-tab.active');
-      if (active) switchMineTab(active.dataset.mineTab || 'wallet');
-    }, 0);
-  }
-
-  function reducePanel() {
-    if (!_panel) return;
-    const el = document.getElementById(_panel);
-    if (el) { el.classList.remove('open'); el.style.zIndex = ''; }
-    if (_prevPanel) {
-      const prev = document.getElementById(_prevPanel);
-      if (prev && prev.classList.contains('open')) {
-        _panel = _prevPanel; _prevPanel = null; updateActiveDbtn(_panel); return;
-      }
-      _prevPanel = null;
-    }
-    document.querySelectorAll('.ym-panel').forEach(p => { p.style.zIndex = ''; });
-    overlay.classList.remove('open');
-    _panel = null; updateActiveDbtn(null);
-  }
-
-  /* Panel handle/head close gestures */
-  document.querySelectorAll('.ym-panel').forEach(panel => {
-    const head   = panel.querySelector('.panel-head');
-    const handle = panel.querySelector('.panel-handle');
-    let sy = 0;
-    if (handle) {
-      handle.addEventListener('pointerdown', e => { sy = e.clientY; });
-      handle.addEventListener('pointerup',   e => { if (_panel && (e.clientY - sy > 40 || Math.abs(e.clientY - sy) < 8)) reducePanel(); });
-    }
-    if (head) head.addEventListener('click', e => {
-      if (!e.target.closest('button') && !e.target.closest('input') && _panel) reducePanel();
-    });
-  });
-
-  overlay.addEventListener('click', () => {
-    if (Date.now() < _blockOverlayUntil) return;
-    reducePanel();
-  });
-
-  document.getElementById('nav-bar').addEventListener('click', e => {
-    if (e.target.closest('.dbtn')) return;
-    if (sw && sw.classList.contains('open')) { closeSwitcher(); return; }
-    const fp = document.getElementById('panel-folder');
-    if (fp && fp.classList.contains('open') && window.YM_closeFolderPanel) { window.YM_closeFolderPanel(); return; }
-    if (_panel) reducePanel();
-  });
-
-  /* ═══════════════════════════════════════════════════════════
-   * NAVIGATION HISTORY
-   * ═══════════════════════════════════════════════════════════ */
-  history.replaceState({ t: 'root', stack: [] }, '', '#');
-
-  window.addEventListener('popstate', e => {
-    const state = e.state || { t: 'root', stack: [] };
-    navStack.length = 0;
-    (state.stack || []).forEach(s => navStack.push(s));
-    document.querySelectorAll('.ym-panel.open').forEach(p => p.classList.remove('open'));
-    overlay.classList.remove('open');
-    _panel = null; updateActiveDbtn(null);
-    if (state.t === 'root') return;
-    const lastPanel = navStack.slice().reverse().find(s => s.type === 'panel');
-    if (lastPanel) {
-      const p = document.getElementById(lastPanel.id);
-      if (p) { p.classList.add('open'); overlay.classList.add('open'); _panel = lastPanel.id; updateActiveDbtn(lastPanel.id); }
-    }
-    if (lastPanel && lastPanel.id === 'panel-sphere') {
-      const entry = navStack.slice().reverse().find(s => s.type === 'panel' && s.id === 'panel-sphere');
-      if (entry && entry.sphereId && window.YM_sphereRegistry) {
-        const s = window.YM_sphereRegistry.get(entry.sphereId);
-        if (s) {
-          document.getElementById('sphere-panel-title').textContent = s.name || entry.sphereId.replace('.sphere.js', '');
-          const body = document.getElementById('panel-sphere-body');
-          if (body) { body.innerHTML = ''; if (typeof s.renderPanel === 'function') s.renderPanel(body); }
-        }
-      }
-    }
-  });
-
-  function pushNav(entry) {
-    navStack.push(entry);
-    const stack = navStack.map(s => { const o = {}; Object.keys(s).forEach(k => { if (k !== 'restore') o[k] = s[k]; }); return o; });
-    history.pushState({ t: entry.type, stack }, '', '#' + (entry.id || entry.panelId) + (entry.tabId ? '/' + entry.tabId : ''));
-  }
-
-  function checkURLRoute() {
-    // Parse le pathname complet : peut contenir theme ET sphere combinés
-    // Exemples :
-    //   /neon.theme                → active le thème neon
-    //   /social.sphere             → ouvre la sphere social
-    //   /neon.theme/social.sphere  → active neon ET ouvre social
-    const parts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
-
-    const GH_RAW    = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-    const DEF_THEME = GH_RAW + 'themes/default.html';
-
-    let themeSegment  = null;
-    let sphereSegment = null;
-
-    parts.forEach(function(seg) {
-      const tm = seg.match(/^([\w-]+)\.theme$/i);
-      if (tm) themeSegment = tm[1];
-      const sm = seg.match(/^([\w-]+)\.sphere(\.js)?$/i);
-      if (sm) sphereSegment = sm[1] + '.sphere.js';
-    });
-
-    // Applique le thème si différent de l'actif (reload)
-    if (themeSegment) {
-      const url = GH_RAW + 'themes/' + themeSegment + '.html';
-      const cur = localStorage.getItem('ym_theme_url') || DEF_THEME;
-      if (url !== cur) {
-        localStorage.setItem('ym_theme_url', url);
-        localStorage.removeItem('ym_theme_cache');
-        // Conserve le segment sphere dans l'URL après reload
-        if (sphereSegment) {
-          const base = sphereSegment.replace('.sphere.js', '.sphere');
-          history.replaceState(null, '', '/' + base);
-        } else {
-          history.replaceState(null, '', '/');
-        }
-        location.reload();
-        return;
-      }
-    }
-
-    // Ouvre la sphere si présente
-    if (sphereSegment) {
-      const n = sphereSegment;
-      setTimeout(async () => {
-        if (window.YM_sphereRegistry && !window.YM_sphereRegistry.has(n)) {
-          try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(n); } catch (ex) {}
-        }
-        openSpherePanel(n);
-      }, 1400);
-    }
-  }
-  window.addEventListener('hashchange', checkURLRoute);
-  setTimeout(checkURLRoute, 100);
-
-  function togglePanel(id, onOpen) {
-    if (_panel === id) reducePanel();
-    else { openPanel(id); if (onOpen) onOpen(); }
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-   * BOUTONS DOCK
-   * ═══════════════════════════════════════════════════════════ */
-  document.getElementById('btn-back').addEventListener('click', () => {
-    if (sw.classList.contains('open')) { closeSwitcher(); return; }
-    if (_panel && (_openPanels.size + _openSpheres.size > 0)) {
-      reducePanel();
-      requestAnimationFrame(() => { renderSwitcherCards(); sw.classList.add('open'); });
-      return;
-    }
-    if (_panel) { reducePanel(); return; }
-    if (_openPanels.size + _openSpheres.size > 0) { renderSwitcherCards(); sw.classList.add('open'); return; }
-    openPanel('panel-spheres');
-    if (window.YM_Liste) window.YM_Liste.render();
-  });
-
-  document.getElementById('btn-profile').addEventListener('click', () =>
-    togglePanel('panel-profile', () => { if (window.YM_Profile) window.YM_Profile.render(); }));
-
-  const psbtn = document.getElementById('profile-share-btn');
-  if (psbtn) psbtn.addEventListener('click', () => { if (window.YM_Profile) window.YM_Profile.showShare(); });
-
-  document.getElementById('btn-figure').addEventListener('click', () => togglePanel('panel-mine'));
-
-  const buildBtn = document.getElementById('spheres-build-btn');
-  if (buildBtn) buildBtn.addEventListener('click', () => {
-    reducePanel(); openPanel('panel-mine');
-    setTimeout(() => {
-      setupMineTabs();
-      const bar = document.getElementById('mine-tabs-bar');
-      if (bar) {
-        bar.querySelectorAll('.ym-tab').forEach(t => t.classList.remove('active'));
-        const bt = bar.querySelector('[data-mine-tab="build"]');
-        if (bt) bt.classList.add('active');
-        switchMineTab('build');
-      }
-    }, 50);
-  });
-
-  const bgSphBtn = document.getElementById('bg-spheres');
-  if (bgSphBtn) bgSphBtn.addEventListener('click', () => {
-    document.getElementById('bg-dlg').classList.remove('open');
-    openPanel('panel-spheres');
-    if (window.YM_Liste) window.YM_Liste.render();
-  });
-
-  /* ═══════════════════════════════════════════════════════════
-   * SPHERE REGISTRY + ACTIVATION
-   * ═══════════════════════════════════════════════════════════ */
-  window.YM_sphereRegistry = new Map();
-
-  function mkCtx(name) {
-    const _l = [];
-    const _toastTs = [], _sendTs = [];
-    const _TOAST_MAX = 3, _TOAST_WIN = 5000;
-    const _SEND_MAX  = 10, _SEND_WIN  = 1000;
-
-    function _rateOk(arr, max, win) {
-      const now = Date.now();
-      while (arr.length && now - arr[0] > win) arr.shift();
-      if (arr.length >= max) return false;
-      arr.push(now); return true;
-    }
-
-    return {
-      addHeaderBtn: () => {}, addPill: () => {}, addFigureTab: () => {}, addTabBadge: () => {},
-      saveProfile: SP, loadProfile: LP, updateFigureCount() {},
-      send(type, data, pid) {
-        if (!window.YM_P2P) return false;
-        if (!_rateOk(_sendTs, _SEND_MAX, _SEND_WIN)) return false;
-        try {
-          if (pid) { if (!cS(pid)) return false; window.YM_P2P.sendTo(pid, { sphere: name, type, data }); }
-          else       window.YM_P2P.broadcast({ sphere: name, type, data });
-          return true;
-        } catch { return false; }
-      },
-      onReceive(cb) {
-        const h = e => { try { if (e.detail.msg.sphere === name) cb(e.detail.msg.type, e.detail.msg.data, e.detail.peerId); } catch (e2) { console.warn('[YM ctx] onReceive:', name, e2.message); } };
-        window.addEventListener('ym:p2p-data', h); _l.push(h);
-      },
-      storage: {
-        get(k)    { try { return JSON.parse(localStorage.getItem('ym_s|' + name + '|' + k)); } catch { return null; } },
-        set(k, v) { try { localStorage.setItem('ym_s|' + name + '|' + k, JSON.stringify(v)); } catch {} },
-        del(k)    { localStorage.removeItem('ym_s|' + name + '|' + k); },
-      },
-      setNotification(n) { if (window.YM_Desk) window.YM_Desk.setNotif(name, n); },
-      openPanel(fn) {
-        if (fn) { document.getElementById('panel-sphere-body').innerHTML = ''; fn(document.getElementById('panel-sphere-body')); }
-        openPanel('panel-sphere');
-      },
-      toast(msg, type) { if (_rateOk(_toastTs, _TOAST_MAX, _TOAST_WIN)) toast(msg, type); },
-      setTabBadge(container, tabId, count) {
-        const tab = container && container.querySelector('.ym-tab[data-tab="' + tabId + '"]'); if (!tab) return;
-        let badge = tab.querySelector('.ym-tab-badge');
-        if (count > 0) { if (!badge) { badge = document.createElement('span'); badge.className = 'ym-tab-badge'; tab.appendChild(badge); } badge.textContent = count; }
-        else if (badge) badge.remove();
-      },
-      _cleanup() { _l.forEach(h => window.removeEventListener('ym:p2p-data', h)); _l.length = 0; },
+}
+function pickWP(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=()=>{
+    const file=inp.files[0];if(!file)return;
+    const processFile=(dataUrl)=>{
+      try{localStorage.setItem(WK,dataUrl);}catch(e){toast('Image too large','error');return;}
+      applyWP();toast('Wallpaper updated','success');
     };
+    if(file.size>2*1024*1024){
+      const img=new Image(),url=URL.createObjectURL(file);
+      img.onload=()=>{
+        URL.revokeObjectURL(url);
+        const c=document.createElement('canvas');
+        const sc=Math.min(1,1200/Math.max(img.width,img.height));
+        c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        processFile(c.toDataURL('image/jpeg',0.82));
+      };
+      img.src=url;
+    }else{
+      const r=new FileReader();
+      r.onload=(e)=>processFile(e.target.result);
+      r.readAsDataURL(file);
+    }
+  };inp.click();
+}
+
+function findIconParent(id,items){
+  for(const ic of items){
+    if(ic.id===id)return{parent:items,item:ic};
+    if(ic.folder&&ic.folderItems){
+      const f=findIconParent(id,ic.folderItems);
+      if(f)return f;
+    }
   }
+  return null;
+}
+function findEmptyIn(items,page){
+  page=page||0;const g=GRID();
+  const used=new Set(items.filter(i=>i.page===page).map(i=>i.col+','+i.row));
+  for(let r=g.rows-1;r>=0;r--)for(let c=g.cols-1;c>=0;c--)if(!used.has(c+','+r))return{col:c,row:r};
+  return null;
+}
+function findEmptyInFolder(folderItems){
+  const g=GRID();
+  const used=new Set(folderItems.filter(i=>i.page===0).map(i=>i.col+','+i.row));
+  const maxRow=folderItems.length>0?Math.max(...folderItems.map(i=>i.row||0)):0;
+  for(let r=0;r<=maxRow+1;r++)for(let c=0;c<g.cols;c++)if(!used.has(c+','+r))return{col:c,row:r};
+  return{col:0,row:maxRow+1};
+}
 
-  let _sA = false;
-  const _ACT_TIMEOUT    = 8000;
-  const MANDATORY_SPHERES = ['social.sphere.js'];
-
-  async function activateSphere(name, obj) {
-    if (window.YM_sphereRegistry.has(name)) return;
-    const ctx = mkCtx(name);
-    obj._ctx = ctx;
-    window.YM_sphereRegistry.set(name, obj);
-    if (window.YM_Desk) window.YM_Desk.addIcon(name, obj.icon || '⬡', obj.name || name.replace('.sphere.js', ''));
-    else setTimeout(() => { if (window.YM_Desk) window.YM_Desk.addIcon(name, obj.icon || '⬡', obj.name || name.replace('.sphere.js', '')); }, 500);
-
-    if (typeof obj.activate === 'function') {
-      _sA = true;
-      try {
-        const timeoutP = new Promise((_, rej) => setTimeout(() => rej(new Error('activation timeout')), _ACT_TIMEOUT));
-        const activateP = (() => { try { const r = obj.activate(ctx); return r && r.then ? r : Promise.resolve(); } catch (e) { return Promise.reject(e); } })();
-        await Promise.race([activateP, timeoutP]);
-        _sA = false;
-      } catch (e) {
-        _sA = false;
-        console.warn('[YM] activate failed:', name, e.message);
-        toast((obj.name || name) + ' failed to load: ' + e.message, 'error');
-        try { if (typeof obj.deactivate === 'function') obj.deactivate(); } catch {}
-        ctx._cleanup();
-        window.YM_sphereRegistry.delete(name);
-        if (window.YM_Desk) window.YM_Desk.removeIcon(name);
-        return;
-      }
-    }
-    const p = OC();
-    if (!p.spheres.includes(name)) { p.spheres.push(name); SP({ spheres: p.spheres }); }
-    log('activate', { sphere: name });
-    window.dispatchEvent(new CustomEvent('ym:sphere-activated', { detail: { name } }));
+function addIcon(id,icon,label,page){
+  page=page!==undefined?page:curPg;
+  const d=LD();if(findIconParent(id,d))return;
+  let pg=page;
+  while(!findEmptyIn(d,pg)){pg++;if(pg>=getPgCount()){setPgCount(pg+1);buildSlider();}}
+  const pos=findEmptyIn(d,pg);
+  d.push({id,icon,label,page:pg,col:pos.col,row:pos.row,notif:0});SD(d);renderDesk();
+}
+function removeIcon(id){
+  const d=LD();
+  function removeFrom(items){
+    const idx=items.findIndex(i=>i.id===id);
+    if(idx>=0){items.splice(idx,1);return true;}
+    for(const ic of items){if(ic.folder&&ic.folderItems&&removeFrom(ic.folderItems))return true;}
+    return false;
   }
-
-  function deactivateSphere(name) {
-    if (MANDATORY_SPHERES.includes(name)) { toast('Social sphere is mandatory', 'warn'); return; }
-    const s = window.YM_sphereRegistry.get(name);
-    if (s) {
-      if (s.deactivate) {
-        try { const r = s.deactivate(); if (r && r.then) r.catch(e => console.warn('[YM] deactivate:', name, e.message)); }
-        catch (e) { console.warn('[YM] deactivate:', name, e.message); }
-      }
-      if (s._ctx) s._ctx._cleanup();
-    }
-    window.YM_sphereRegistry.delete(name);
-    if (window.YM_Desk) window.YM_Desk.removeIcon(name);
-    const p = OC();
-    p.spheres = (p.spheres || []).filter(x => x !== name);
-    SP({ spheres: p.spheres });
-    if (window.YM_Liste) window.YM_Liste._setInactive(name);
-    _openSpheres.delete(name);
-    log('deactivate', { sphere: name });
-    window.dispatchEvent(new CustomEvent('ym:sphere-deactivated', { detail: { name } }));
-    if (window.YM_Desk) window.YM_Desk.autoCleanPages();
+  removeFrom(d);SD(d);renderDesk();setTimeout(autoCleanPages,50);
+}
+// Calcule la somme des notifs de tous les descendants d'un folder
+function sumFolderNotifs(items){
+  let s=0;
+  for(const it of (items||[])){
+    if(it.folder)s+=sumFolderNotifs(it.folderItems);
+    else s+=(it.notif||0);
   }
-
-  async function openSpherePanel(id) {
-    if (window.YM_Desk) window.YM_Desk.setNotif(id, 0);
-    let s = window.YM_sphereRegistry.get(id);
-    if (!s) { try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(id); } catch {} s = window.YM_sphereRegistry.get(id); }
-    if (!s) { toast('Sphere not found', 'error'); return; }
-
-    document.getElementById('sphere-panel-title').textContent = s.name || id.replace('.sphere.js', '');
-
-    let settingsBtn = document.getElementById('sphere-panel-settings');
-    if (!settingsBtn) {
-      settingsBtn = document.createElement('button');
-      settingsBtn.id        = 'sphere-panel-settings';
-      settingsBtn.className = 'ym-btn ym-btn-ghost';
-      settingsBtn.style.cssText = 'padding:4px 8px;font-size:13px;min-height:unset';
-      settingsBtn.textContent = '⚙';
-      document.querySelector('#panel-sphere .panel-head').appendChild(settingsBtn);
+  return s;
+}
+// Met à jour le badge visible d'une icône (icône simple ou folder)
+function _updateBadgeEl(id,n){
+  const wrap=document.querySelector('[data-id="'+id+'"]');if(!wrap)return;
+  const body=wrap.querySelector('.icon-body');if(!body)return;
+  let el=body.querySelector('.icon-notif');
+  if(n>0){
+    if(!el){el=document.createElement('div');el.className='icon-notif';body.appendChild(el);}
+    el.textContent=n;el.style.display='flex';
+  }else if(el){
+    el.style.display='none';
+  }
+}
+// Remonte l'arbre pour rafraîchir les badges des folders parents
+function _refreshParentFolderBadges(d){
+  for(const ic of d){
+    if(ic.folder){
+      const total=sumFolderNotifs(ic.folderItems);
+      _updateBadgeEl(ic.id,total);
+      // Récursif si dossiers imbriqués
+      if(ic.folderItems)_refreshParentFolderBadges(ic.folderItems);
     }
-    settingsBtn.onclick = () => { openPanel('panel-profile'); if (window.YM_Profile) window.YM_Profile.renderFor(id); };
-    settingsBtn.style.display = s.profileSection ? '' : 'none';
+  }
+}
+function setNotif(id,n){
+  const d=LD(),found=findIconParent(id,d);
+  if(found){found.item.notif=n;SD(d);}
+  // Met à jour l'icône directe
+  _updateBadgeEl(id,n);
+  // Recalcule les badges de tous les folders (parents inclus)
+  _refreshParentFolderBadges(LD());
+}
 
-    const body = document.getElementById('panel-sphere-body');
-    body.innerHTML = '';
-    if (typeof s.renderPanel === 'function') {
-      try { s.renderPanel(body); }
-      catch (e) {
-        console.error('[YM] renderPanel crash:', id, e);
-        body.innerHTML = '<div class="ym-notice error" style="margin:16px">⚠️ ' + esc(s.name || id) + ' encountered an error.<br><small style="color:var(--text3)">' + esc(e.message) + '</small></div>';
-      }
-    } else {
-      body.innerHTML = '<div class="ym-notice info">' + esc(s.description || 'No content.') + '</div>';
-    }
+// ── WIDGET PAGE REGISTRY ──────────────────────────────────────
+const _widgetPages=new Map();
 
-    const panelEl = document.getElementById('panel-sphere');
-    _openSpheres.set(id, {
-      label:   s.name || id.replace('.sphere.js', ''),
-      snapshot: panelEl ? panelEl.innerHTML : '',
-      panelW:   panelEl ? panelEl.offsetWidth  || window.innerWidth  : window.innerWidth,
-      panelH:   panelEl ? panelEl.offsetHeight || window.innerHeight : window.innerHeight,
+// FIX: garantit que le slider a bien la page du widget au redémarrage
+function registerWidgetPage(widgetId,page){
+  _widgetPages.set(widgetId,page);
+  if(page>=getPgCount()){
+    setPgCount(page+1);
+    buildSlider();
+    goPage(curPg,false);
+  }
+}
+function unregisterWidget(widgetId){_widgetPages.delete(widgetId);}
+function isPageOccupiedByWidget(page){
+  for(const p of _widgetPages.values()){if(p===page)return true;}
+  return false;
+}
+
+// FIX: expose la hauteur de la zone sûre pour les widgets qui font leur propre drag
+function getDeskSafeBottom(){
+  const nb=document.getElementById('nav-bar');
+  if(nb)return window.innerHeight-nb.getBoundingClientRect().top;
+  return isPC()?0:76;
+}
+
+function buildSlider(){
+  const slider=document.getElementById('desktop-slider'),n=getPgCount();
+  const unit=isPC()?'calc(100vw - 64px)':'100vw';
+  slider.innerHTML='';slider.style.width='calc('+n+' * '+unit+')';
+  for(let i=0;i<n;i++){
+    const pg=document.createElement('div');pg.className='desktop-page';pg.id='page-'+i;pg.dataset.page=i;
+    slider.appendChild(pg);
+  }
+  updateDots();renderDesk();
+}
+function updateDots(){
+  const dots=document.getElementById('page-dots'),n=getPgCount();
+  if(!dots)return;dots.innerHTML='';
+  for(let i=0;i<n;i++){const d=document.createElement('div');d.className='pdot'+(i===curPg?' active':'');dots.appendChild(d);}
+}
+function goPage(n,anim){
+  anim=anim!==false;curPg=Math.max(0,Math.min(getPgCount()-1,n));
+  const s=document.getElementById('desktop-slider');
+  if(!anim){s.style.transition='none';requestAnimationFrame(()=>{s.style.transition='';});}
+  const unit=isPC()?'calc(100vw - 64px)':'100vw';
+  s.style.transform='translateX(calc('+(-curPg)+' * '+unit+'))';
+  updateDots();window.dispatchEvent(new CustomEvent('ym:page-change',{detail:{page:curPg}}));
+}
+function autoCleanPages(){
+  const icons=LD();
+  let n=getPgCount();
+  while(n>1){
+    const p=n-1;
+    if(icons.some(i=>i.page===p))break;
+    if(isPageOccupiedByWidget(p))break;
+    n--;
+  }
+  if(n!==getPgCount()){setPgCount(n);if(curPg>=n)curPg=n-1;buildSlider();goPage(curPg,false);}
+}
+
+function iconsForPage(arr,p){return arr.filter(i=>i.page===p);}
+function renderPageInto(el,icons,isFolder){
+  el.innerHTML='';const g=GRID();
+  for(const ic of icons){
+    // FIX: clamp col ET row dans les bornes strictes de la grille
+    const col=Math.max(0,Math.min(g.cols-1,ic.col));
+    const row=Math.max(0,Math.min(g.rows-1,ic.row||0));
+    const w=mkIcon(ic,isFolder);w.style.gridColumn=col+1;w.style.gridRow=row+1;el.appendChild(w);
+  }
+}
+function renderDesk(){
+  const n=getPgCount(),icons=LD();
+  for(let p=0;p<n;p++){const el=document.getElementById('page-'+p);if(!el)continue;renderPageInto(el,iconsForPage(icons,p),false);}
+  if(folderStack.length){
+    const top=folderStack[folderStack.length-1];
+    const found=findIconParent(top.ic.id,LD());
+    if(found){top.ic=found.item;renderFolderPanel(top.ic);}
+  }
+}
+
+// ── FOLDER PANEL ──────────────────────────────────────────────
+function openFolderPanel(ic){
+  if(folderStack.length>0&&folderStack[folderStack.length-1].ic.id===ic.id)return;
+  let panel=document.getElementById('panel-folder');
+  if(!panel){
+    panel=document.createElement('div');panel.id='panel-folder';panel.className='ym-panel';
+    panel.style.cssText='z-index:299;backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,8,15,.95)';
+    panel.innerHTML=
+      '<div class="panel-handle"></div>'+
+      '<div class="panel-head" id="folder-panel-head"><div id="folder-panel-breadcrumb" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;min-width:0;padding:0 4px"></div></div>'+
+      '<div id="folder-drop-zone" style="display:none;flex-shrink:0;padding:8px 16px;border-bottom:2px dashed rgba(232,160,32,.4);font-size:11px;color:var(--gold);text-align:center;background:rgba(232,160,32,.06)">↓ Drop here to eject from folder</div>'+
+      '<div class="panel-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column"><div id="folder-content" style="flex:1;overflow-y:auto;overflow-x:hidden;"><div id="folder-page-0" class="desktop-page" data-page="0" style="height:auto;min-height:100%;background:transparent;"></div></div></div>';
+    document.body.appendChild(panel);
+    let sy=0;
+    panel.querySelector('.panel-handle').addEventListener('pointerdown',e=>{sy=e.clientY;});
+    panel.querySelector('.panel-handle').addEventListener('pointerup',e=>{if(e.clientY-sy>40)closeFolderPanel();});
+    panel.querySelector('#folder-panel-head').addEventListener('click',e=>{
+      if(!e.target.closest('#folder-panel-breadcrumb')&&!e.target.closest('button'))closeFolderPanel();
     });
-
-    openPanel('panel-sphere');
-    log('open', { sphere: id });
+    panel.querySelector('.panel-body').addEventListener('pointerup',e=>{if(editMode&&!e.target.closest('.icon-wrap'))exitEdit();});
   }
-
-  function openProfilePanel(profile) {
-    const dn = profile.name || (profile.uuid ? profile.uuid.slice(0, 8) + '…' : '') || 'Profile';
-    document.getElementById('profile-view-title').textContent = dn;
-    const body = document.getElementById('panel-profile-view-body');
-    body.innerHTML = '';
-    if (window._renderProfileView) window._renderProfileView(body, profile);
-    openPanel('panel-profile-view');
-    log('open', { profile: profile.uuid });
+  const spherePanel=document.getElementById('panel-sphere');
+  if(spherePanel&&spherePanel.classList.contains('open')){
+    spherePanel.classList.remove('open');
+    rmEl('panel-overlay');
   }
+  history.pushState({folderOpen:true},'');
+  folderStack.push({ic});renderFolderPanel(ic);
+  panel.style.background='rgba(8,8,15,'+Math.min(0.92+folderStack.length*0.02,0.97)+')';
+  panel.classList.add('open');
+}
+function closeFolderPanel(){
+  const panel=document.getElementById('panel-folder');
+  if(folderStack.length>1){folderStack.pop();renderFolderPanel(folderStack[folderStack.length-1].ic);return;}
+  folderStack.length=0;if(panel)panel.classList.remove('open');
+  rmEl('panel-overlay');
+}
+window.addEventListener('popstate',e=>{
+  if(!folderStack.length)return;
+  e.stopImmediatePropagation();
+  if(folderStack.length>1){folderStack.pop();renderFolderPanel(folderStack[folderStack.length-1].ic);}
+  else{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');}
+},true);
 
-  /* ═══════════════════════════════════════════════════════════
-   * SÉCURITÉ fetch / localStorage
-   * ═══════════════════════════════════════════════════════════ */
-  const _f   = window.fetch.bind(window);
-  window.fetch = function (i, o) { return _f(i, o); };
-  Object.defineProperty(window, 'fetch', { configurable: false, writable: false, value: window.fetch });
-
-  const _lsS = localStorage.setItem.bind(localStorage);
-  const _lsR = localStorage.removeItem.bind(localStorage);
-  localStorage.setItem    = function (k, v) { if (window._ym_sl && k === PK) { console.warn('[YM] blocked'); return; } return _lsS(k, v); };
-  localStorage.removeItem = function (k)    { if (window._ym_sl && k === PK) { console.warn('[YM] blocked'); return; } return _lsR(k); };
-
-  /* ═══════════════════════════════════════════════════════════
-   * P2P (Trystero)
-   * ═══════════════════════════════════════════════════════════ */
-  const YM_RELAYS = ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
-
-  async function initP2P() {
-    window.addEventListener('error', e => { if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) e.stopImmediatePropagation(); }, true);
-    const _w = console.warn, _e = console.error;
-    console.warn  = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('Trystero') || arguments[0].includes('wss://'))) return; _w.apply(console, arguments); };
-    console.error = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('WebSocket') || arguments[0].includes('wss://'))) return; _e.apply(console, arguments); };
-
-    for (const cdn of ['https://cdn.jsdelivr.net/npm/trystero@0.21.0/+esm', 'https://esm.run/trystero@0.21.0']) {
-      try {
-        const { joinRoom } = await import(cdn);
-        const room = joinRoom({ appId: 'yourmine-v1', relayUrls: YM_RELAYS }, 'ym-main');
-        const [send, recv] = room.makeAction('ym');
-        recv((data, pid) => {
-          if ((data && data.type === 'social:presence') || cR(pid))
-            window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
-        });
-        room.onPeerJoin(id => {
-          window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
-          setTimeout(() => send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }, [id]), 200);
-        });
-        room.onPeerLeave(id => {
-          p2pS.delete(id); p2pR.delete(id);
-          window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
-        });
-        window.YM_P2P = {
-          broadcast(d) { send(d); },
-          sendTo(id, d) { if (cS(id)) send(d, [id]); },
-          room,
+function renderFolderPanel(ic){
+  const items=ic.folderItems||[];
+  const pg=document.getElementById('folder-page-0');if(!pg)return;
+  const g=GRID();
+  pg.style.cssText='background:transparent;display:grid;grid-template-columns:repeat('+g.cols+',1fr);grid-auto-rows:1fr;min-height:100%;padding:6px 12px 10px;gap:6px;position:relative;';
+  renderPageInto(pg,iconsForPage(items,0),true);
+  const bc=document.getElementById('folder-panel-breadcrumb');
+  if(bc){
+    bc.innerHTML='';
+    folderStack.forEach((entry,i)=>{
+      if(i>0){const sep=document.createElement('span');sep.textContent='›';sep.style.cssText='color:var(--text3);font-size:14px';bc.appendChild(sep);}
+      const lbl=document.createElement('span');
+      lbl.textContent=entry.ic.label||'Folder';
+      lbl.style.cssText='font-size:12px;color:'+(i===folderStack.length-1?'var(--text)':'var(--text3)')+';cursor:pointer;padding:2px 4px;border-radius:4px';
+      if(i<folderStack.length-1){
+        const capturedI=i;
+        lbl.addEventListener('click',()=>{while(folderStack.length>capturedI+1)folderStack.pop();renderFolderPanel(folderStack[folderStack.length-1].ic);});
+      }
+      if(i===folderStack.length-1){
+        lbl.style.fontWeight='600';
+        let renameT=null;
+        const startRename=(ev)=>{
+          if(ev)ev.stopPropagation();
+          lbl.contentEditable='true';lbl.style.background='rgba(232,160,32,.18)';lbl.style.outline='1px solid var(--gold)';lbl.focus();
+          const sel=window.getSelection(),range=document.createRange();range.selectNodeContents(lbl);sel.removeAllRanges();sel.addRange(range);
         };
-        setTimeout(() => send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
-        setInterval(() => { if (!document.hidden) send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
-        document.addEventListener('visibilitychange', () => {
-          if (!document.hidden) {
-            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
-            window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: '_self_' } }));
-          }
+        const saveRename=()=>{
+          lbl.contentEditable='false';lbl.style.background='';lbl.style.outline='';
+          const name=lbl.textContent.trim()||'Folder';lbl.textContent=name;entry.ic.label=name;
+          const d=LD(),found=findIconParent(entry.ic.id,d);if(found){found.item.label=name;SD(d);}renderDesk();
+        };
+        lbl.addEventListener('dblclick',e=>{e.stopPropagation();startRename(e);});
+        lbl.addEventListener('pointerdown',e=>{e.stopPropagation();renameT=setTimeout(()=>{renameT=null;startRename(e);},650);},{passive:false});
+        lbl.addEventListener('pointerup',()=>{clearTimeout(renameT);renameT=null;},{passive:true});
+        lbl.addEventListener('pointercancel',()=>{clearTimeout(renameT);renameT=null;},{passive:true});
+        lbl.addEventListener('blur',saveRename);
+        lbl.addEventListener('keydown',e=>{
+          if(e.key==='Enter'){e.preventDefault();lbl.blur();}
+          if(e.key==='Escape'){lbl.textContent=entry.ic.label||'Folder';lbl.contentEditable='false';lbl.style.background='';lbl.style.outline='';}
         });
-        return;
-      } catch (e) { _w('[YM] P2P:', cdn, e.message); }
-    }
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-   * LOADERS
-   * ═══════════════════════════════════════════════════════════ */
-  function loadScript(src) {
-    // URLs GitHub (raw ou jsDelivr) → fetch + blob pour bypasser tout cache HTTP.
-    // URLs locales → <script src> classique.
-    if (src.startsWith('https://')) {
-      const url = src + (src.includes('?') ? '&' : '?') + '_=' + Date.now();
-      return fetch(url)
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + src); return r.text(); })
-        .then(code => new Promise((res, rej) => {
-          const blob    = new Blob([code], { type: 'text/javascript' });
-          const blobUrl = URL.createObjectURL(blob);
-          const s = document.createElement('script');
-          s.src     = blobUrl;
-          s.onload  = () => { URL.revokeObjectURL(blobUrl); res(); };
-          s.onerror = () => { URL.revokeObjectURL(blobUrl); rej(new Error('exec failed: ' + src)); };
-          document.head.appendChild(s);
-        }));
-    }
-    return new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = src; s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
+      }
+      bc.appendChild(lbl);
     });
   }
-
-  async function loadSphereURL(url, name) {
-    if (_sA) { console.warn('[YM] blocked nested load'); return null; }
-    const r = await _f(url);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const _p  = { YM: window.YM, YM_Desk: window.YM_Desk, YM_sphereRegistry: window.YM_sphereRegistry, YM_P2P: window.YM_P2P, fetch: window.fetch };
-    const _ps = Object.assign({}, window.YM_S);
-    window._ym_sl = name;
-    const blob    = new Blob([await r.text()], { type: 'text/javascript' });
-    const blobUrl = URL.createObjectURL(blob);
-    await new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = blobUrl;
-      s.onload  = () => { URL.revokeObjectURL(blobUrl); res(); };
-      s.onerror = () => { URL.revokeObjectURL(blobUrl); rej(new Error('Script load failed: ' + name)); };
-      document.head.appendChild(s);
-    });
-    Object.entries(_p).forEach(([k, v]) => { if (window[k] !== v) window[k] = v; });
-    if (window.YM_S) Object.keys(window.YM_S).forEach(k => { if (k !== name && _ps && _ps[k] && window.YM_S[k] !== _ps[k]) window.YM_S[k] = _ps[k]; });
-    window._ym_sl = null;
-    return window.YM_S ? window.YM_S[name] : null;
+  const dz=document.getElementById('folder-drop-zone');
+  if(dz){
+    dz.style.display=editMode?'block':'none';
+    if(!dz._obs){
+      dz._obs=new MutationObserver(()=>{dz.style.display=document.body.classList.contains('edit-mode')?'block':'none';});
+      dz._obs.observe(document.body,{attributes:true,attributeFilter:['class']});
+    }
   }
+}
 
-  /* ═══════════════════════════════════════════════════════════
-   * window.YM — API publique exposée aux spheres
-   * ═══════════════════════════════════════════════════════════ */
-  window.YM = {
-    toast, openPanel, closePanel: reducePanel, openSwitcher, closeSwitcher,
-    openSpherePanel, openProfilePanel, activateSphere, deactivateSphere,
-    addIconToDesktop:    (id, icon, label) => { if (window.YM_Desk) window.YM_Desk.addIcon(id, icon, label); },
-    removeIconFromDesktop: id => { if (window.YM_Desk) window.YM_Desk.removeIcon(id); },
-    activateSphereByName(n) {
-      const id = n.endsWith('.sphere.js') ? n : n + '.sphere.js';
-      if (window.YM_sphereRegistry && window.YM_sphereRegistry.has(id)) openSpherePanel(id);
-      else toast('Not active: ' + n, 'warn');
-    },
-    getProfile: LP, saveProfile: SP, createCtx: mkCtx, loadSphereFromURL: loadSphereURL,
-    p2p:            () => window.YM_P2P,
-    setIconNotif:   (id, n) => { if (window.YM_Desk) window.YM_Desk.setNotif(id, n); },
+function addToFolder(icSrc,folderIc,fromFolder){
+  const d=LD();
+  // Lire les données fraîches depuis le storage pour avoir le bon notif
+  const freshSrcFound=findIconParent(icSrc.id,d);
+  const freshNotif=freshSrcFound?freshSrcFound.item.notif:(icSrc.notif||0);
+  const folderFound=findIconParent(folderIc.id,d);if(!folderFound)return;
+  const fi=folderFound.item.folderItems||[];
+  const pos=findEmptyInFolder(fi);
+  fi.push({
+    id:icSrc.id,icon:icSrc.icon,label:icSrc.label,page:0,col:pos.col,row:pos.row,
+    notif:freshNotif,folder:icSrc.folder||false,
+    folderItems:deepCopyFolderItems(icSrc.folderItems)
+  });
+  folderFound.item.folderItems=fi;
+  if(fromFolder){
+    const topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
+    if(topIc){
+      const topFound=findIconParent(topIc.id,d);
+      if(topFound)topFound.item.folderItems=topFound.item.folderItems.filter(x=>x.id!==icSrc.id);
+    }
+  }else{
+    const idx=d.findIndex(x=>x.id===icSrc.id);if(idx>=0)d.splice(idx,1);
+  }
+  SD(d);renderDesk();if(fromFolder)refreshFolderPanel();
+}
+
+function deactivateAll(items){
+  for(const it of items){
+    if(it.folder)deactivateAll(it.folderItems||[]);
+    else if(window.YM)window.YM.deactivateSphere(it.id);
+  }
+}
+function flatIcons(items,max){
+  const out=[];
+  for(const it of items){
+    if(out.length>=max)break;
+    if(it.folder)out.push(...flatIcons(it.folderItems||[],max-out.length));
+    else out.push(it);
+  }
+  return out;
+}
+
+function mkIcon(ic,isFolder){
+  const w=document.createElement('div');w.className='icon-wrap';w.dataset.id=ic.id;
+  const MANDATORY=['social.sphere.js'];
+  const del=document.createElement('div');del.className='icon-del';del.innerHTML='&times;';
+  // Masque définitivement le bouton supprimer pour les spheres obligatoires
+  if(MANDATORY.includes(ic.id))del.className='icon-del icon-del-hidden';
+  del.addEventListener('pointerdown',e=>{e.stopImmediatePropagation();e.stopPropagation();});
+  del.addEventListener('click',e=>{
+    e.stopPropagation();e.preventDefault();
+    if(ic.folder){deactivateAll(ic.folderItems||[]);removeIcon(ic.id);}
+    else if(window.YM)window.YM.deactivateSphere(ic.id);
+  });
+  if(ic.folder){
+    const body=document.createElement('div');body.className='icon-body folder-body';body.appendChild(del);
+    const grid=document.createElement('div');grid.className='folder-grid';
+    for(const it of flatIcons(ic.folderItems||[],4)){
+      const m=document.createElement('div');m.className='fi';
+      if(isImageURL(it.icon)){
+        const img=document.createElement('img');img.src=it.icon;img.style.cssText='width:16px;height:16px;object-fit:contain;border-radius:3px';
+        m.appendChild(img);
+      }else m.textContent=it.icon||'*';
+      grid.appendChild(m);
+    }
+    body.appendChild(grid);
+    // Badge folder = somme des notifs enfants
+    const folderNotifTotal=sumFolderNotifs(ic.folderItems);
+    if(folderNotifTotal>0){
+      const fn=document.createElement('div');fn.className='icon-notif';fn.textContent=folderNotifTotal;body.appendChild(fn);
+    }
+    w.appendChild(body);
+    const lbl=document.createElement('div');lbl.className='icon-label';lbl.textContent=ic.label;w.appendChild(lbl);
+    w.addEventListener('click',()=>{if(!editMode&&!isDragging)openFolderPanel(ic);});
+  }else{
+    const body=document.createElement('div');body.className='icon-body';body.appendChild(del);
+    body.appendChild(renderIconContent(ic.icon));
+    w.appendChild(body);
+    const lbl=document.createElement('div');lbl.className='icon-label';lbl.textContent=ic.label;w.appendChild(lbl);
+    if(ic.notif){const n=document.createElement('div');n.className='icon-notif';n.textContent=ic.notif;body.appendChild(n);}
+    w.addEventListener('click',()=>{if(!editMode&&!isDragging&&window.YM)window.YM.openSpherePanel(ic.id);});
+  }
+  setupDrag(w,ic,isFolder);return w;
+}
+
+let _hl=null,_hlPg=-1;
+function showHL(col,row,pgEl,pg){
+  if(_hlPg!==pg)removeHL();
+  if(!_hl){_hl=document.createElement('div');_hl.className='cell-hl';pgEl.appendChild(_hl);}
+  _hlPg=pg;const g=GRID(),cw=pgEl.clientWidth/g.cols,ch=pgEl.clientHeight/g.rows,size=Math.min(cw,ch)-8;
+  Object.assign(_hl.style,{left:col*cw+(cw-size)/2+'px',top:row*ch+(ch-size)/2+'px',width:size+'px',height:size+'px'});
+}
+function removeHL(){if(_hl){_hl.remove();_hl=null;_hlPg=-1;}}
+
+// FIX: clamp col ET row dans les bornes strictes de la grille
+function getCellFromPt(x,y,pgEl){
+  const g=GRID(),r=pgEl.getBoundingClientRect();
+  return{
+    col:Math.min(g.cols-1,Math.max(0,Math.floor((x-r.left)/(r.width/g.cols)))),
+    row:Math.min(g.rows-1,Math.max(0,Math.floor((y-r.top)/(r.height/g.rows))))
   };
+}
 
-  /* ═══════════════════════════════════════════════════════════
-   * SIGN WALLET CONFIRMATION
-   * ═══════════════════════════════════════════════════════════ */
-  function _wrapSignWithConfirmation() {
-    if (!window.YM_Mine_sign || window.YM_Mine_sign._wrapped) return;
-    const _orig = window.YM_Mine_sign;
-    window.YM_Mine_sign = async function (message, callerSphereId) {
-      let parsed = {}; try { parsed = JSON.parse(message); } catch {}
-      const sphereName = callerSphereId
-        ? (window.YM_sphereRegistry.get(callerSphereId) || {}).name || callerSphereId
-        : 'Unknown sphere';
-      return new Promise((resolve, reject) => {
-        const dlg       = document.getElementById('ym-sign-dlg');
-        const sphereEl  = document.getElementById('ym-sign-sphere');
-        const detailEl  = document.getElementById('ym-sign-detail');
-        const confirmBtn = document.getElementById('ym-sign-confirm');
-        const rejectBtn  = document.getElementById('ym-sign-reject');
-        if (!dlg) { _orig(message).then(resolve).catch(reject); return; }
-        sphereEl.textContent = '"' + sphereName + '" wants to sign:';
-        detailEl.textContent = JSON.stringify(parsed, null, 2) || message;
-        dlg.classList.add('open');
-        function cleanup() { dlg.classList.remove('open'); confirmBtn.onclick = null; rejectBtn.onclick = null; }
-        confirmBtn.onclick = () => { cleanup(); _orig(message).then(resolve).catch(reject); };
-        rejectBtn.onclick  = () => { cleanup(); reject(new Error('User rejected signature')); };
-      });
-    };
-    window.YM_Mine_sign._wrapped = true;
-  }
-
-  /* ═══════════════════════════════════════════════════════════
-   * INIT
-   * ═══════════════════════════════════════════════════════════ */
-
-  // GitHub raw — cache-bust automatique via fetch+blob dans loadScript()
-  const GH_BASE = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-
-  async function init() {
-    OC();
-    if (window.YM_Desk) window.YM_Desk.deskInit();
-
-    // Charge les modules depuis GitHub raw (cache-bust via fetch+blob)
-    for (const m of ['mine.js', 'liste.js', 'build.js', 'profile.js']) {
-      try { await loadScript(GH_BASE + m); }
-      catch (e) { console.warn('[YM]', m, e.message); }
+function cascadeNext(c,r,goRight,cols){
+  if(goRight){c++;if(c>=cols){c=0;r++;}}else{c--;if(c<0){c=cols-1;r--;}}
+  if(r<0)return null;return{col:c,row:r};
+}
+function computeLiveLayout(srcData,ic,col,row,pg){
+  const d=srcData.map(x=>Object.assign({},x,{folderItems:x.folderItems?x.folderItems.slice():undefined}));
+  const me=d.find(x=>x.id===ic.id);
+  const existing=d.find(x=>x.page===pg&&x.col===col&&x.row===row&&x.id!==ic.id);
+  if(!existing){if(me){me.col=col;me.row=row;me.page=pg;}return d;}
+  if(existing.folder){if(me){me.col=col;me.row=row;me.page=pg;}return d;}
+  const g=GRID();
+  let goRight=true;
+  if(me){const dcol=col-me.col,drow=row-me.row;if(dcol>0||(dcol===0&&drow>0))goRight=false;}
+  const meOrig=me?{col:me.col,row:me.row}:null;
+  if(me){me.col=-1;me.row=-1;}
+  const nextCell=(c,r)=>cascadeNext(c,r,goRight,g.cols);
+  const cellOcc=(c,r)=>d.find(x=>x.page===pg&&x.col===c&&x.row===r);
+  const chain=[existing];
+  let cur={col:existing.col,row:existing.row},next=nextCell(cur.col,cur.row);
+  while(next){const occ=cellOcc(next.col,next.row);if(!occ)break;chain.push(occ);cur=next;next=nextCell(cur.col,cur.row);}
+  if(!next){if(me&&meOrig){me.col=meOrig.col;me.row=meOrig.row;}return srcData;}
+  let freeCell=next;
+  for(let ci=chain.length-1;ci>=0;ci--){const ic2=chain[ci],tmp={col:ic2.col,row:ic2.row};ic2.col=freeCell.col;ic2.row=freeCell.row;freeCell=tmp;}
+  if(me){me.col=freeCell.col;me.row=freeCell.row;me.page=pg;}
+  return d;
+}
+function renderDeskFromData(data,skipId){
+  const g=GRID(),n=getPgCount();
+  for(let p=0;p<n;p++){
+    const el=document.getElementById('page-'+p);if(!el)continue;
+    for(const ic of iconsForPage(data,p)){
+      if(ic.id===skipId)continue;
+      const col=Math.max(0,Math.min(g.cols-1,ic.col)),row=Math.max(0,Math.min(g.rows-1,ic.row||0));
+      const w=el.querySelector('[data-id="'+ic.id+'"]');
+      if(w){w.style.gridColumn=col+1;w.style.gridRow=row+1;}
     }
+  }
+}
+function renderDeskFromDataCtx(data,skipId,isFolder){
+  if(isFolder){
+    const pg=document.getElementById('folder-page-0');if(!pg)return;
+    const g=GRID();
+    for(const ic of data){
+      if(ic.id===skipId)continue;
+      const col=Math.max(0,Math.min(g.cols-1,ic.col)),row=Math.max(0,Math.min(g.rows-1,ic.row||0));
+      const w=pg.querySelector('[data-id="'+ic.id+'"]');
+      if(w){w.style.gridColumn=col+1;w.style.gridRow=row+1;}
+    }
+  }else renderDeskFromData(data,skipId);
+}
 
-    _wrapSignWithConfirmation();
-    setTimeout(_wrapSignWithConfirmation, 2000);
-    window.addEventListener('ym:wallet-unlocked', _wrapSignWithConfirmation);
+const ghost=document.getElementById('drag-ghost');
+let _edgeT=null,_liveLayout=null,_livePrevCell=null,_folderT=null,_folderPending=false,_baseLayout=null;
 
-    try { if (window.YM_Liste && window.YM_Liste.fetchSphereList) await window.YM_Liste.fetchSphereList(); } catch {}
-
-    const p = LP();
-    if (p && p.spheres && p.spheres.length) {
-      for (const sname of p.spheres) {
-        if (!window.YM_sphereRegistry || !window.YM_sphereRegistry.has(sname)) {
-          try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(sname); }
-          catch (e) { console.warn('[YM] restore:', sname, e.message); }
-        }
+function setupDrag(wrap,ic,isFolder){
+  let sx=0,sy=0,pDown=false,longT=null,dragStarted=false,hasMoved=false;
+  wrap.addEventListener('pointerdown',e=>{
+    if(e.button>0||e.target.classList.contains('icon-del'))return;
+    pDown=true;dragStarted=false;hasMoved=false;sx=e.clientX;sy=e.clientY;
+    // Longpress → edit/delete mode SEULEMENT si on ne bouge pas
+    longT=setTimeout(()=>{longT=null;if(!hasMoved)enterEdit();},440);
+  });
+  wrap.addEventListener('pointermove',e=>{
+    if(!pDown||e.buttons===0)return;
+    const dx=e.clientX-sx,dy=e.clientY-sy,dist=Math.hypot(dx,dy);
+    if(dist<5)return;
+    // Si mouvement détecté : annule le longpress (pas de mode delete au drag)
+    if(!hasMoved){hasMoved=true;clearTimeout(longT);longT=null;}
+    if(!isPC()&&!dragStarted&&Math.abs(dx)>Math.abs(dy)*1.4&&dist>12){pDown=false;return;}
+    if(!dragStarted&&dist>8){
+      dragStarted=true;isDragging=true;
+      _baseLayout=isFolder ?
+        (folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic&&folderStack[folderStack.length-1].ic.folderItems||[]).map(x=>Object.assign({},x)) :
+        LD();
+      _liveLayout=null;_livePrevCell=null;_folderT=null;_folderPending=false;
+      try{wrap.setPointerCapture(e.pointerId);}catch(ex){}
+      const gContent=isImageURL(ic.icon) ?
+        '<img src="'+ic.icon+'" style="width:36px;height:36px;object-fit:contain;border-radius:8px">' :
+        '<span style="font-size:25px">'+ic.icon+'</span>';
+      ghost.innerHTML='<div class="icon-body" style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center">'+gContent+'</div>';
+      ghost.style.display='block';wrap.style.opacity='0';
+    }
+    if(!dragStarted)return;
+    ghost.style.left=e.clientX-26+'px';ghost.style.top=e.clientY-33+'px';
+    if(!isFolder){
+      const vw=window.innerWidth,ew=vw*0.14;
+      if(e.clientX<ew&&curPg>0){
+        if(!_edgeT)_edgeT=setTimeout(()=>{_edgeT=null;goPage(curPg-1,true);},550);
+      }else if(e.clientX>vw-ew-(isPC()?64:0)){
+        if(!_edgeT)_edgeT=setTimeout(()=>{
+          _edgeT=null;
+          if(curPg>=getPgCount()-1){
+            const nn=getPgCount()+1;setPgCount(nn);
+            const slider=document.getElementById('desktop-slider');
+            const unit=isPC()?'calc(100vw - 64px)':'100vw';
+            slider.style.width='calc('+nn+' * '+unit+')';
+            const newpg=document.createElement('div');newpg.className='desktop-page';newpg.id='page-'+(nn-1);newpg.dataset.page=nn-1;
+            slider.appendChild(newpg);updateDots();
+          }
+          goPage(curPg+1,true);
+        },1000);
+      }else{clearTimeout(_edgeT);_edgeT=null;}
+    }
+    const activePg=isFolder?0:curPg;
+    const pgEl=document.getElementById(isFolder?'folder-page-0':'page-'+curPg);if(!pgEl)return;
+    const c=getCellFromPt(e.clientX,e.clientY,pgEl);
+    showHL(c.col,c.row,pgEl,activePg);
+    const base=_baseLayout||[];
+    const existing=base.find(x=>x.page===activePg&&x.col===c.col&&x.row===c.row&&x.id!==ic.id);
+    const pgRect=pgEl.getBoundingClientRect();const g=GRID();
+    const cellW=pgRect.width/g.cols,cellH=pgRect.height/g.rows;
+    const relX=(e.clientX-(pgRect.left+c.col*cellW))/cellW,relY=(e.clientY-(pgRect.top+c.row*cellH))/cellH;
+    const atCenter=relX>0.3&&relX<0.7&&relY>0.3&&relY<0.7;
+    const cellKey=c.col+','+c.row+','+activePg;
+    if(cellKey!==_livePrevCell){
+      _livePrevCell=cellKey;clearTimeout(_folderT);_folderT=null;_folderPending=false;
+      renderDeskFromDataCtx(_baseLayout,ic.id,isFolder);_liveLayout=null;
+      if(existing&&!existing.folder&&!ic.folder){
+        _folderT=setTimeout(()=>{_folderT=null;if(!_folderPending){_liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,activePg);renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);}},500);
+      }else{
+        _liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,activePg);
+        renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);
+      }
+    }else if(existing&&!existing.folder&&!ic.folder&&!_liveLayout){
+      if(atCenter&&_folderT){clearTimeout(_folderT);_folderT=null;_folderPending=true;}
+      else if(!atCenter&&_folderPending){
+        _folderPending=false;
+        _folderT=setTimeout(()=>{_folderT=null;_liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,activePg);renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);},300);
       }
     }
+  },{passive:true});
 
-    const _socId = 'social.sphere.js';
-    if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
-      try { await window.YM_Liste.activateSphereByName(_socId); }
-      catch (e) { console.warn('[YM] social:', e.message); }
-    }
-
-    initP2P();
-
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
-
-    /* Masque le loader dès que les fontes sont prêtes */
-    const hideLdr = () => { const l = document.getElementById('ym-loader'); if (l) l.classList.add('hidden'); };
-    const t0 = performance.now();
-    document.fonts.ready.then(() => {
-      const elapsed = performance.now() - t0;
-      setTimeout(hideLdr, Math.max(0, 400 - elapsed));
-    }).catch(() => setTimeout(hideLdr, 400));
-
-    /* PWA install prompt */
-    if (!window.matchMedia('(display-mode:standalone)').matches) {
-      let _prompt = null;
-      const btn = document.getElementById('pwa-install-btn');
-      window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _prompt = e; btn.style.display = 'flex'; });
-      btn.addEventListener('click', async () => {
-        if (!_prompt) return;
-        btn.style.opacity = '.6'; btn.style.pointerEvents = 'none';
-        try { _prompt.prompt(); const result = await _prompt.userChoice; if (result.outcome === 'accepted') { btn.style.display = 'none'; _prompt = null; } } catch {}
-        btn.style.opacity = ''; btn.style.pointerEvents = '';
+  wrap.addEventListener('pointerup',e=>{
+    clearTimeout(longT);longT=null;clearTimeout(_edgeT);_edgeT=null;clearTimeout(_folderT);_folderT=null;
+    if(!pDown)return;pDown=false;
+    if(dragStarted){
+      dragStarted=false;ghost.style.display='none';removeHL();wrap.style.opacity='';
+      const cx=e.clientX,cy=e.clientY;
+      requestAnimationFrame(()=>{
+        const activePg=isFolder?0:curPg;
+        if(isFolder){
+          const folderPanel=document.getElementById('panel-folder');
+          const fpRect=folderPanel&&folderPanel.getBoundingClientRect();
+          const dropZone=document.getElementById('folder-drop-zone');
+          const dzRect=dropZone&&dropZone.getBoundingClientRect();
+          const onDZ=dzRect&&cx>=dzRect.left&&cx<=dzRect.right&&cy>=dzRect.top&&cy<=dzRect.bottom;
+          const outside=!fpRect||(cx<fpRect.left||cx>fpRect.right||cy<fpRect.top||cy>fpRect.bottom);
+          if(outside||onDZ){ejectFromFolder(ic);return;}
+        }
+        const pgEl=document.getElementById(isFolder?'folder-page-0':'page-'+curPg);
+        if(pgEl){
+          const c2=getCellFromPt(cx,cy,pgEl);
+          const base=_baseLayout||[];
+          const freshD=LD();
+          const existingFresh=freshD.find(x=>x.page===activePg&&x.col===c2.col&&x.row===c2.row&&x.id!==ic.id);
+          let existing2=null;
+          if(isFolder){
+            const topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
+            const topFound=topIc?findIconParent(topIc.id,freshD):null;
+            if(topFound){existing2=(topFound.item.folderItems||[]).find(x=>x.page===0&&x.col===c2.col&&x.row===c2.row&&x.id!==ic.id)||null;}
+          }else{
+            existing2=existingFresh;
+          }
+          if(existing2&&existing2.folder){
+            _liveLayout=null;_baseLayout=null;_livePrevCell=null;
+            addToFolder(ic,existing2,isFolder);
+          }else if(existing2&&!existing2.folder&&!ic.folder&&!_liveLayout){
+            if(isFolder)saveFolderItems(_baseLayout);else SD(_baseLayout);
+            _liveLayout=null;_baseLayout=null;_livePrevCell=null;
+            createFolder(ic,existing2,isFolder);
+          }else{
+            if(_liveLayout){if(isFolder)saveFolderItems(_liveLayout);else SD(_liveLayout);}
+            else{
+              const me=base.find(x=>x.id===ic.id);
+              if(me){me.col=c2.col;me.row=c2.row;if(!isFolder)me.page=curPg;if(isFolder)saveFolderItems(base);else SD(base);}
+            }
+            _liveLayout=null;_baseLayout=null;_livePrevCell=null;
+            if(isFolder)refreshFolderPanel();else{renderDesk();autoCleanPages();}
+          }
+        }else{
+          _liveLayout=null;_baseLayout=null;_livePrevCell=null;
+          if(isFolder)refreshFolderPanel();else{renderDesk();autoCleanPages();}
+        }
       });
-      window.matchMedia('(display-mode:standalone)').addEventListener('change', e => { if (e.matches) btn.style.display = 'none'; });
-      window.addEventListener('appinstalled', () => { btn.style.display = 'none'; _prompt = null; });
+    }
+    setTimeout(()=>{isDragging=false;_lastDragEnd=Date.now();},80);
+  });
+  wrap.addEventListener('pointercancel',()=>{
+    clearTimeout(longT);longT=null;clearTimeout(_edgeT);_edgeT=null;clearTimeout(_folderT);_folderT=null;
+    pDown=false;dragStarted=false;isDragging=false;_folderPending=false;
+    ghost.style.display='none';removeHL();wrap.style.opacity='';
+    if(_baseLayout){
+      if(isFolder)saveFolderItems(_baseLayout);else SD(_baseLayout);
+      _baseLayout=null;_liveLayout=null;_livePrevCell=null;
+      if(isFolder)refreshFolderPanel();else{renderDesk();autoCleanPages();}
+    }
+  });
+}
+
+function ejectFromFolder(ic){
+  if(!folderStack.length)return;
+  const d=LD();
+  const topIc=folderStack[folderStack.length-1].ic;
+  const found=findIconParent(topIc.id,d);
+  if(!found){_liveLayout=null;_baseLayout=null;_livePrevCell=null;return;}
+
+  const newFI=(found.item.folderItems||[]).filter(x=>x.id!==ic.id);
+  const inSubFolder=folderStack.length>1;
+
+  if(newFI.length===0){
+    // Dossier vide → supprime-le
+    const idx=found.parent.findIndex(x=>x.id===topIc.id);
+    if(idx>=0)found.parent.splice(idx,1);
+    SD(d);
+    if(inSubFolder){
+      folderStack.pop();
+      const parentEntry=folderStack[folderStack.length-1];
+      const pFound=findIconParent(parentEntry.ic.id,LD());
+      if(pFound){parentEntry.ic=pFound.item;renderFolderPanel(pFound.item);}
+    }else{
+      folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');
+    }
+    toast('Folder removed','info');
+  }else if(newFI.length===1){
+    // 1 item restant → dissolution du dossier
+    const solo=newFI[0];
+    const idx=found.parent.findIndex(x=>x.id===topIc.id);
+    if(idx>=0)found.parent.splice(idx,1);
+    // Le solo reprend la position du dossier dissous
+    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,
+      page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,
+      notif:solo.notif||0,folder:solo.folder||false,
+      folderItems:deepCopyFolderItems(solo.folderItems)});
+    SD(d);
+    toast('Folder dissolved','info');
+    if(inSubFolder){
+      folderStack.pop();
+      const parentEntry=folderStack[folderStack.length-1];
+      const pFound=findIconParent(parentEntry.ic.id,LD());
+      if(pFound){parentEntry.ic=pFound.item;renderFolderPanel(pFound.item);}
+    }else{
+      folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');
+    }
+  }else{
+    // Plusieurs items → met à jour normalement
+    found.item.folderItems=newFI;topIc.folderItems=newFI;SD(d);
+  }
+
+  _liveLayout=null;_baseLayout=null;_livePrevCell=null;
+
+  // L'icône éjectée va dans le dossier PARENT si on est dans un sous-dossier,
+  // sinon elle va sur le bureau
+  const d2=LD();
+  if(!findIconParent(ic.id,d2)){
+    if(inSubFolder&&folderStack.length>0){
+      // Place dans le dossier parent courant
+      const parentEntry=folderStack[folderStack.length-1];
+      const parentFound=findIconParent(parentEntry.ic.id,d2);
+      if(parentFound){
+        const pFI=parentFound.item.folderItems||[];
+        const pos=findEmptyInFolder(pFI);
+        pFI.push({id:ic.id,icon:ic.icon,label:ic.label,page:0,col:pos.col,row:pos.row,
+          notif:ic.notif||0,folder:ic.folder||false,
+          folderItems:deepCopyFolderItems(ic.folderItems)});
+        parentFound.item.folderItems=pFI;
+        parentEntry.ic=parentFound.item;
+        SD(d2);
+      }
+    }else{
+      // Place sur le bureau
+      const empty=findEmptyIn(d2,curPg);
+      d2.push({id:ic.id,icon:ic.icon,label:ic.label,page:curPg,
+        col:empty?empty.col:0,row:empty?empty.row:0,
+        notif:ic.notif||0,folder:ic.folder||false,
+        folderItems:deepCopyFolderItems(ic.folderItems)});
+      SD(d2);
     }
   }
+
+  renderDesk();
+  if(folderStack.length)refreshFolderPanel();
+}
+
+function saveFolderItems(newItems){
+  if(!folderStack.length)return;
+  const topIc=folderStack[folderStack.length-1].ic;
+  const d=LD(),found=findIconParent(topIc.id,d);if(!found)return;
+  const idx=found.parent.findIndex(x=>x.id===topIc.id);
+  const closeFolder=()=>{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');};
+  if(!newItems||newItems.length===0){
+    if(idx>=0)found.parent.splice(idx,1);SD(d);closeFolder();renderDesk();toast('Folder removed','info');return;
+  }
+  if(newItems.length===1&&folderStack.length===1){
+    const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);
+    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,notif:solo.notif||0,folder:solo.folder||false,folderItems:deepCopyFolderItems(solo.folderItems)});
+    SD(d);closeFolder();renderDesk();toast('Folder dissolved','info');return;
+  }
+  if(newItems.length===1&&folderStack.length>1){
+    const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);
+    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,notif:solo.notif||0,folder:solo.folder||false,folderItems:deepCopyFolderItems(solo.folderItems)});
+    SD(d);folderStack.pop();
+    const pFound=findIconParent(folderStack[folderStack.length-1].ic.id,LD());
+    if(pFound){folderStack[folderStack.length-1].ic=pFound.item;renderFolderPanel(pFound.item);}
+    toast('Folder dissolved','info');return;
+  }
+  found.item.folderItems=newItems;topIc.folderItems=newItems;SD(d);
+}
+function refreshFolderPanel(){
+  if(!folderStack.length)return;
+  const top=folderStack[folderStack.length-1];
+  const found=findIconParent(top.ic.id,LD());
+  if(found){top.ic=found.item;renderFolderPanel(top.ic);}
+  else{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');renderDesk();}
+}
+function createFolder(src,tgt,isFolder){
+  // Lire les notifs fraîches depuis le storage
+  const freshD=LD();
+  const freshSrc=findIconParent(src.id,freshD);
+  const freshTgt=findIconParent(tgt.id,freshD);
+  const srcNotif=freshSrc?freshSrc.item.notif:(src.notif||0);
+  const tgtNotif=freshTgt?freshTgt.item.notif:(tgt.notif||0);
+  const newFolder={id:'f_'+Date.now(),icon:'📁',label:'Folder',page:tgt.page,col:tgt.col,row:tgt.row,notif:0,folder:true,
+    folderItems:[
+      {id:tgt.id,icon:tgt.icon,label:tgt.label,page:0,col:0,row:0,notif:tgtNotif,folder:tgt.folder||false,folderItems:deepCopyFolderItems(tgt.folderItems)},
+      {id:src.id,icon:src.icon,label:src.label,page:0,col:1,row:0,notif:srcNotif,folder:src.folder||false,folderItems:deepCopyFolderItems(src.folderItems)}
+    ]};
+  if(isFolder){
+    const d=LD(),topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
+    const found=topIc?findIconParent(topIc.id,d):null;
+    if(found){
+      const items=found.item.folderItems||[];
+      const ti=items.findIndex(i=>i.id===tgt.id);if(ti>=0)items[ti]=newFolder;
+      const si=items.findIndex(i=>i.id===src.id);if(si>=0)items.splice(si,1);
+      found.item.folderItems=items;topIc.folderItems=items;SD(d);refreshFolderPanel();
+    }
+  }else{
+    let d=LD();
+    const ti=d.findIndex(i=>i.id===tgt.id);if(ti>=0)d[ti]=newFolder;
+    d=d.filter(i=>i.id!==src.id);SD(d);renderDesk();
+  }
+}
+
+const deskEl=document.getElementById('desktop');
+let bgLT=null,bgSX=0,bgSY=0,bgMoved=false,_bgActive=false;
+const isInteractive=t=>!!(t.closest('.icon-wrap')||t.closest('.page-plus'));
+const isRealPage=p=>p>=0&&p<getPgCount();
+const pageOf=el=>{const pg=el&&el.closest&&el.closest('.desktop-page');return parseInt(pg&&pg.dataset&&pg.dataset.page||curPg)||0;};
+
+(()=>{
+  let sx=0,sy=0,active=false,lt=null,startT=0;
+  deskEl.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    const t=e.touches[0];sx=t.clientX;sy=t.clientY;active=true;startT=Date.now();clearTimeout(lt);lt=null;
+    if(isInteractive(t.target))return;
+    const pg=pageOf(t.target);if(!isRealPage(pg))return;
+    lt=setTimeout(()=>{lt=null;active=false;showBgDlg(pg);},1000);
+  },{passive:true});
+  deskEl.addEventListener('touchmove',e=>{
+    if(!active)return;const dx=e.touches[0].clientX-sx,dy=e.touches[0].clientY-sy;
+    if(Math.abs(dx)>20||Math.abs(dy)>8){clearTimeout(lt);lt=null;}
+  },{passive:true});
+  deskEl.addEventListener('touchend',e=>{
+    clearTimeout(lt);lt=null;if(!active)return;active=false;
+    if(isDragging||Date.now()-_lastDragEnd<300)return;
+    if(isInteractive(e.target))return;
+    const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
+    const elapsed=Date.now()-startT,vx=Math.abs(dx)/elapsed,vy=Math.abs(dy)/elapsed;
+    if(Math.abs(dy)>50&&Math.abs(dy)>Math.abs(dx)*1.5&&vy>0.2){if(dy<0&&window.YM)window.YM.openSwitcher();return;}
+    if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.5&&vx>0.2){if(editMode){exitEdit();return;}goPage(dx<0?curPg+1:curPg-1,true);}
+  },{passive:true});
+})();
+
+deskEl.addEventListener('pointerdown',e=>{
+  _bgActive=false;if(isInteractive(e.target))return;
+  bgSX=e.clientX;bgSY=e.clientY;bgMoved=false;_bgActive=true;
+  const pg=pageOf(e.target);if(!isRealPage(pg)){_bgActive=false;return;}
+  bgLT=setTimeout(()=>{bgLT=null;if(!bgMoved)showBgDlg(pg);},1000);
+},{passive:true});
+deskEl.addEventListener('pointermove',e=>{
+  if(bgLT&&(Math.abs(e.clientX-bgSX)>20||Math.abs(e.clientY-bgSY)>8)){bgMoved=true;clearTimeout(bgLT);bgLT=null;}
+},{passive:true});
+deskEl.addEventListener('pointerup',e=>{
+  clearTimeout(bgLT);bgLT=null;
+  if(editMode&&!isDragging&&!e.target.closest('.icon-wrap')){exitEdit();return;}
+  if(e.pointerType==='mouse'&&_bgActive){
+    const dx=e.clientX-bgSX,dy=e.clientY-bgSY;_bgActive=false;
+    if(!isDragging&&Date.now()-_lastDragEnd>200){
+      if(Math.abs(dy)>60&&Math.abs(dy)>Math.abs(dx)*1.5&&dy<0&&window.YM)window.YM.openSwitcher();
+      else if(Math.abs(dx)>55&&Math.abs(dx)>Math.abs(dy)*1.1)goPage(dx<0?curPg+1:curPg-1,true);
+    }
+  }else _bgActive=false;
+},{passive:true});
+deskEl.addEventListener('dblclick',e=>{if(navigator.maxTouchPoints>0||isInteractive(e.target))return;showBgDlg(pageOf(e.target));});
+
+function showBgDlg(p){
+  if(!isRealPage(p))return;
+  document.getElementById('bg-dlg-title').textContent='Background';
+  const del=document.getElementById('bg-del');if(del)del.style.display='none';
+  document.getElementById('bg-wp').onclick=()=>{document.getElementById('bg-dlg').classList.remove('open');pickWP();};
+  document.getElementById('bg-remove').onclick=()=>{localStorage.removeItem(WK);applyWP();document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper removed','info');};
+  const bgSph=document.getElementById('bg-spheres');
+  if(bgSph)bgSph.onclick=()=>{document.getElementById('bg-dlg').classList.remove('open');if(window.YM){window.YM.openPanel('panel-spheres');if(window.YM_Liste)window.YM_Liste.render();}};
+  const PRESETS=[
+    {label:'Night City',url:'https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=1400&q=80'},
+    {label:'Tokyo Night',url:'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1400&q=80'},
+    {label:'Aurora',url:'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1400&q=80'},
+    {label:'Mountains',url:'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1400&q=80'},
+    {label:'Galaxy',url:'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1400&q=80'},
+    {label:'Nebula',url:'https://images.unsplash.com/photo-1543722530-d2c3201371e7?w=1400&q=80'},
+    {label:'Dark Gradient',url:'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1400&q=80'},
+    {label:'Lava Flow',url:'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=1400&q=80'},
+    {label:'City Aerial',url:'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1400&q=80'},
+    {label:'Geometric',url:'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1400&q=80'},
+    {label:'Milky Way',url:'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1400&q=80'},
+  ];
+  const grid=document.getElementById('bg-presets');
+  if(grid&&!grid.children.length){
+    PRESETS.forEach(pr=>{
+      const btn=document.createElement('button');
+      btn.style.cssText='border:none;cursor:pointer;border-radius:6px;overflow:hidden;padding:0;aspect-ratio:16/9;background:#111;transition:transform .15s';
+      btn.innerHTML='<img src="'+pr.url+'&w=200" alt="'+pr.label+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">';
+      btn.title=pr.label;
+      btn.addEventListener('mouseenter',()=>{btn.style.transform='scale(1.04)';});
+      btn.addEventListener('mouseleave',()=>{btn.style.transform='';});
+      btn.addEventListener('click',()=>{
+        toast('Loading…','info');
+        const img=new Image();img.crossOrigin='anonymous';
+        img.onload=()=>{
+          const c=document.createElement('canvas');c.width=1200;c.height=750;
+          c.getContext('2d').drawImage(img,0,0,1200,750);
+          try{localStorage.setItem(WK,c.toDataURL('image/jpeg',0.85));}catch(err){localStorage.setItem(WK,pr.url);}
+          applyWP();document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper: '+pr.label,'success');
+        };
+        img.onerror=()=>{
+          localStorage.setItem(WK,pr.url);applyWP();
+          document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper set','success');
+        };
+        img.src=pr.url;
+      });
+      grid.appendChild(btn);
+    });
+  }
+  document.getElementById('bg-dlg').classList.add('open');
+}
+document.getElementById('bg-dlg').addEventListener('click',e=>{if(e.target===document.getElementById('bg-dlg'))document.getElementById('bg-dlg').classList.remove('open');});
+
+function deskInit(){
+  applyWP();
+  const icons=LD();
+  const maxPage=icons.length?Math.max(...icons.map(i=>i.page)):0;
+  setPgCount(maxPage+1);buildSlider();goPage(0,false);
+}
+window.YM_Desk={addIcon,removeIcon,setNotif,renderDesk,goPage,getPgCount,buildSlider,autoCleanPages,enterEdit,exitEdit,
+  registerWidgetPage,unregisterWidget,
+  get safeBottom(){return getDeskSafeBottom();},
+  get curPg(){return curPg;},
+  get isDragging(){return isDragging;},
+  get editMode(){return editMode;},
+  goPageOrCreate(n){if(n>=getPgCount()){setPgCount(n+1);buildSlider();}goPage(n,true);},
+  deskInit};
+window.YM_closeFolderPanel=closeFolderPanel;
+Object.defineProperty(window,'_deskFolderStack',{get:()=>folderStack,configurable:true});
+Object.defineProperty(window,'_deskCurPage',{get:()=>curPg,configurable:true});
+Object.defineProperty(window,'_deskPageCount',{get:()=>getPgCount(),configurable:true});
