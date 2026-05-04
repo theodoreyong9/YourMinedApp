@@ -539,32 +539,55 @@
   }
 
   function checkURLRoute() {
-    const raw = location.pathname.replace(/^\//, '') || location.hash.replace(/^#/, '');
+    // Parse le pathname complet : peut contenir theme ET sphere combinés
+    // Exemples :
+    //   /neon.theme                → active le thème neon
+    //   /social.sphere             → ouvre la sphere social
+    //   /neon.theme/social.sphere  → active neon ET ouvre social
+    const parts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
 
-    // Deep-link thème : yourminedapp.web.app/neon.theme
-    // → active src/themes/neon.html depuis GitHub
-    const tm = raw.match(/^([\w-]+)\.theme$/i);
-    if (tm) {
-      const GH_RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-      const url = GH_RAW + 'themes/' + tm[1] + '.html';
-      const cur = localStorage.getItem('ym_theme_url') || (GH_RAW + 'themes/default.html');
+    const GH_RAW    = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+    const DEF_THEME = GH_RAW + 'themes/default.html';
+
+    let themeSegment  = null;
+    let sphereSegment = null;
+
+    parts.forEach(function(seg) {
+      const tm = seg.match(/^([\w-]+)\.theme$/i);
+      if (tm) themeSegment = tm[1];
+      const sm = seg.match(/^([\w-]+)\.sphere(\.js)?$/i);
+      if (sm) sphereSegment = sm[1] + '.sphere.js';
+    });
+
+    // Applique le thème si différent de l'actif (reload)
+    if (themeSegment) {
+      const url = GH_RAW + 'themes/' + themeSegment + '.html';
+      const cur = localStorage.getItem('ym_theme_url') || DEF_THEME;
       if (url !== cur) {
         localStorage.setItem('ym_theme_url', url);
         localStorage.removeItem('ym_theme_cache');
+        // Conserve le segment sphere dans l'URL après reload
+        if (sphereSegment) {
+          const base = sphereSegment.replace('.sphere.js', '.sphere');
+          history.replaceState(null, '', '/' + base);
+        } else {
+          history.replaceState(null, '', '/');
+        }
         location.reload();
+        return;
       }
-      return;
     }
 
-    // Deep-link sphere : yourminedapp.web.app/social.sphere
-    const m = raw.match(/^([\w-]+)\.sphere(\.js)?$/i);
-    if (m) setTimeout(async () => {
-      const n = m[1] + '.sphere.js';
-      if (window.YM_sphereRegistry && !window.YM_sphereRegistry.has(n)) {
-        try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(n); } catch (ex) {}
-      }
-      openSpherePanel(n);
-    }, 1400);
+    // Ouvre la sphere si présente
+    if (sphereSegment) {
+      const n = sphereSegment;
+      setTimeout(async () => {
+        if (window.YM_sphereRegistry && !window.YM_sphereRegistry.has(n)) {
+          try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(n); } catch (ex) {}
+        }
+        openSpherePanel(n);
+      }, 1400);
+    }
   }
   window.addEventListener('hashchange', checkURLRoute);
   setTimeout(checkURLRoute, 100);
