@@ -156,7 +156,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 #panel-switcher::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 #panel-switcher.open{transform:translateY(0);z-index:303}
 @media(hover:hover) and (pointer:fine){#panel-switcher{right:72px;bottom:0}}
-#switcher-grid{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 8px 16px;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:160px;gap:6px;align-content:start}
+#switcher-grid{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:min-content;gap:6px;align-content:end}
 .sw-card{height:160px;border-radius:12px;background:rgba(8,8,20,.98);border:1px solid rgba(255,255,255,.1);cursor:pointer;overflow:hidden;position:relative;touch-action:pan-y;box-shadow:0 2px 10px rgba(0,0,0,.5);isolation:isolate}
 @media(hover:hover) and (pointer:fine){.sw-card{height:130px}.sw-card:hover{border-color:rgba(240,168,48,.3)}}
 .icon-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:4px;border-radius:12px;position:relative;touch-action:none;-webkit-user-select:none;user-select:none;width:fit-content;height:fit-content;place-self:center;transform:translateZ(0)}
@@ -212,17 +212,12 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 
   <!-- ── Theme picker — EN HAUT ─────────────────────────────── -->
   <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)">
-    <div style="font-size:9px;color:var(--text3);margin-bottom:7px;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)">🎨 Theme</div>
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <select id="theme-select" style="flex:1;font-size:12px;padding:8px 10px;cursor:pointer;background:rgba(255,255,255,.06);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:10px;font-family:var(--font-b);outline:none;appearance:auto;-webkit-appearance:auto;color-scheme:dark;">
-        <option style="background:#13131f" value="">Loading…</option>
-      </select>
-      <a id="theme-code-btn" href="#" target="_blank" rel="noopener" title="View source on GitHub"
-        style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text3);font-size:13px;text-decoration:none;font-family:var(--font-m);">&lt;/&gt;</a>
-      <button id="theme-apply-btn" class="ym-btn ym-btn-accent" style="padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0">Apply</button>
-    </div>
+    <div style="font-size:9px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)">🎨 Theme</div>
+    <!-- Liste des thèmes : boutons radio visuels, pas de select → zéro surlignage -->
+    <div id="theme-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+    <!-- URL custom -->
     <div style="display:flex;gap:6px">
-      <input id="theme-custom-input" class="ym-input" placeholder="Custom theme raw URL…" style="font-size:11px;padding:7px 10px;flex:1">
+      <input id="theme-custom-input" class="ym-input" placeholder="Custom theme URL (GitHub blob or raw)…" style="font-size:11px;padding:7px 10px;flex:1">
       <button id="theme-custom-btn" class="ym-btn ym-btn-ghost" style="padding:7px 12px;font-size:11px;flex-shrink:0">Use</button>
     </div>
   </div>
@@ -248,6 +243,9 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   var DEF_THEME   = GH_RAW + 'themes/default.html';
   var INDEX_URL   = GH_RAW + 'themes/index.json';
 
+  var _selectedUrl   = null;
+  var _selectedLabel = null;
+
   function activeUrl(){
     return localStorage.getItem(THEME_KEY) || DEF_THEME;
   }
@@ -258,55 +256,81 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
                .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
   }
 
-  function updateCodeBtn(url){
-    var btn = document.getElementById('theme-code-btn');
-    if(!btn) return;
-    if(!url || url === '#'){ btn.style.opacity = '.3'; btn.href = '#'; return; }
-    btn.style.opacity = '1';
-    btn.href = GH_BLOB + url.split('/').pop();
-  }
-
   function applyTheme(url, label){
-    if(!url) return;
-    // Silencieux si déjà actif — pas de toast, pas de reload inutile
-    if(url === activeUrl()) return;
+    if(!url || url === activeUrl()) return;
     localStorage.setItem(THEME_KEY, url);
     localStorage.removeItem(THEME_CACHE);
     window.YM_toast && window.YM_toast('✦ ' + label + ' — reloading…', 'success', 1500);
     setTimeout(function(){ location.reload(); }, 1500);
   }
 
-  function populateSelect(files){
-    var sel = document.getElementById('theme-select');
-    if(!sel) return;
+  // Construit la liste de boutons radio visuels — aucun élément natif focusable
+  function buildList(files){
+    var container = document.getElementById('theme-list');
+    if(!container) return;
+    container.innerHTML = '';
     var current = activeUrl();
     var currentFile = current.split('/').pop();
-    sel.innerHTML = '';
 
-    var foundCurrent = false;
-    files.forEach(function(f){
-      var url = GH_RAW + 'themes/' + f;
-      var opt = document.createElement('option');
-      opt.value = url;
-      opt.textContent = fileToLabel(f);
-      opt.style.background = '#0e0e1a';
-      if(f === currentFile){ opt.selected = true; foundCurrent = true; }
-      sel.appendChild(opt);
-    });
-
-    // Thème custom absent de la liste → ajoute avec son vrai nom de fichier
-    if(!foundCurrent){
-      var opt = document.createElement('option');
-      opt.value = current;
-      opt.textContent = fileToLabel(currentFile);
-      opt.style.background = '#0e0e1a';
-      opt.selected = true;
-      sel.insertBefore(opt, sel.firstChild);
+    // Si thème custom absent de la liste, l'ajoute en tête
+    var allFiles = files.slice();
+    if(allFiles.indexOf(currentFile) === -1){
+      allFiles.unshift(currentFile);
     }
 
-    // Retire le focus pour éviter le surlignage au chargement
-    sel.blur();
-    updateCodeBtn(sel.value);
+    allFiles.forEach(function(f){
+      var url   = f.startsWith('http') ? f : (GH_RAW + 'themes/' + f);
+      var label = fileToLabel(f.split('/').pop());
+      var isActive = (f === currentFile) || (url === current);
+
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s;' +
+        (isActive ? 'background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3)' : 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)');
+
+      // Dot indicateur
+      var dot = document.createElement('div');
+      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;' +
+        (isActive ? 'background:var(--gold)' : 'background:rgba(255,255,255,.15)');
+
+      // Nom
+      var name = document.createElement('span');
+      name.style.cssText = 'flex:1;font-size:12px;font-family:var(--font-b);' +
+        (isActive ? 'color:var(--gold);font-weight:600' : 'color:var(--text2)');
+      name.textContent = label;
+
+      // Bouton code </>
+      var codeBtn = document.createElement('a');
+      codeBtn.href = GH_BLOB + f.split('/').pop();
+      codeBtn.target = '_blank';
+      codeBtn.rel = 'noopener';
+      codeBtn.title = 'View source';
+      codeBtn.style.cssText = 'font-size:10px;font-family:var(--font-m);color:var(--text3);text-decoration:none;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);flex-shrink:0;transition:color .15s';
+      codeBtn.textContent = '</>';
+      codeBtn.addEventListener('mouseenter', function(){ this.style.color='var(--gold)'; });
+      codeBtn.addEventListener('mouseleave', function(){ this.style.color='var(--text3)'; });
+      // Empêche le click sur le lien de déclencher applyTheme
+      codeBtn.addEventListener('click', function(e){ e.stopPropagation(); });
+
+      row.appendChild(dot);
+      row.appendChild(name);
+      row.appendChild(codeBtn);
+
+      // Click sur la ligne → applique le thème
+      row.addEventListener('click', function(){
+        if(url === activeUrl()) return; // déjà actif, rien
+        applyTheme(url, label);
+      });
+
+      // Hover
+      row.addEventListener('mouseenter', function(){
+        if(url !== activeUrl()) this.style.background = 'rgba(255,255,255,.06)';
+      });
+      row.addEventListener('mouseleave', function(){
+        this.style.background = isActive ? 'rgba(240,168,48,.1)' : 'rgba(255,255,255,.03)';
+      });
+
+      container.appendChild(row);
+    });
   }
 
   function loadThemeList(){
@@ -318,32 +342,20 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       .then(function(text){
         var files = JSON.parse(text);
         if(!Array.isArray(files) || !files.length) files = ['default.html'];
-        populateSelect(files);
+        buildList(files);
       })
       .catch(function(e){
         console.error('[YM theme]', e.message);
-        populateSelect(['default.html']);
+        buildList(['default.html']);
       });
   }
 
-  // Mise à jour bouton code quand on change le select
-  document.getElementById('theme-select').addEventListener('change', function(){
-    updateCodeBtn(this.value);
-  });
-
-  // Apply
-  document.getElementById('theme-apply-btn').addEventListener('click', function(){
-    var sel = document.getElementById('theme-select');
-    if(!sel || !sel.value) return;
-    var label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : fileToLabel(sel.value.split('/').pop());
-    applyTheme(sel.value, label);
-  });
-
-  // URL custom (github.com/blob ou raw)
+  // URL custom
   document.getElementById('theme-custom-btn').addEventListener('click', function(){
     var inp = document.getElementById('theme-custom-input');
     var url = (inp ? inp.value : '').trim();
     if(!url){ window.YM_toast && window.YM_toast('Enter a URL', 'warn'); return; }
+    // Convertit github.com/blob → raw
     url = url.replace('https://github.com/', 'https://raw.githubusercontent.com/')
              .replace('/blob/', '/');
     var label = fileToLabel(url.split('/').pop());
