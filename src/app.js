@@ -505,11 +505,6 @@
   }
 
   function checkURLRoute() {
-    // Parse le pathname complet : peut contenir theme ET sphere combinés
-    // Exemples :
-    //   /neon.theme                → active le thème neon
-    //   /social.sphere             → ouvre la sphere social
-    //   /neon.theme/social.sphere  → active neon ET ouvre social
     const parts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
 
     const GH_RAW    = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
@@ -525,14 +520,12 @@
       if (sm) sphereSegment = sm[1] + '.sphere.js';
     });
 
-    // Applique le thème si différent de l'actif (reload)
     if (themeSegment) {
       const url = GH_RAW + 'themes/' + themeSegment + '.html';
       const cur = localStorage.getItem('ym_theme_url') || DEF_THEME;
       if (url !== cur) {
         localStorage.setItem('ym_theme_url', url);
         localStorage.removeItem('ym_theme_cache');
-        // Conserve le segment sphere dans l'URL après reload
         if (sphereSegment) {
           const base = sphereSegment.replace('.sphere.js', '.sphere');
           history.replaceState(null, '', '/' + base);
@@ -544,7 +537,6 @@
       }
     }
 
-    // Ouvre la sphere si présente
     if (sphereSegment) {
       const n = sphereSegment;
       setTimeout(async () => {
@@ -838,8 +830,6 @@
    * LOADERS
    * ═══════════════════════════════════════════════════════════ */
   function loadScript(src) {
-    // URLs GitHub (raw ou jsDelivr) → fetch + blob pour bypasser tout cache HTTP.
-    // URLs locales → <script src> classique.
     if (src.startsWith('https://')) {
       const url = src + (src.includes('?') ? '&' : '?') + '_=' + Date.now();
       return fetch(url)
@@ -934,14 +924,12 @@
    * INIT
    * ═══════════════════════════════════════════════════════════ */
 
-  // GitHub raw — cache-bust automatique via fetch+blob dans loadScript()
   const GH_BASE = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
 
   async function init() {
     OC();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
-    // Charge les modules depuis GitHub raw (cache-bust via fetch+blob)
     for (const m of ['mine.js', 'liste.js', 'build.js', 'profile.js']) {
       try { await loadScript(GH_BASE + m); }
       catch (e) { console.warn('[YM]', m, e.message); }
@@ -981,19 +969,57 @@
       setTimeout(hideLdr, Math.max(0, 400 - elapsed));
     }).catch(() => setTimeout(hideLdr, 400));
 
-    /* PWA install prompt */
-    if (!window.matchMedia('(display-mode:standalone)').matches) {
+    /* ── PWA install prompt ──────────────────────────────────
+     * On n'affiche le bouton que si :
+     *   1. L'app n'est PAS déjà en mode standalone (installée)
+     *   2. Le navigateur déclenche beforeinstallprompt
+     * Le bouton est rendu visible UNIQUEMENT via cet event ;
+     * il ne faut pas le cacher via display:none depuis le CSS
+     * car l'event peut arriver après le rendu initial.
+     * ────────────────────────────────────────────────────── */
+    const isStandalone = () =>
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+
+    if (!isStandalone()) {
       let _prompt = null;
       const btn = document.getElementById('pwa-install-btn');
-      window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _prompt = e; btn.style.display = 'flex'; });
-      btn.addEventListener('click', async () => {
-        if (!_prompt) return;
-        btn.style.opacity = '.6'; btn.style.pointerEvents = 'none';
-        try { _prompt.prompt(); const result = await _prompt.userChoice; if (result.outcome === 'accepted') { btn.style.display = 'none'; _prompt = null; } } catch {}
-        btn.style.opacity = ''; btn.style.pointerEvents = '';
-      });
-      window.matchMedia('(display-mode:standalone)').addEventListener('change', e => { if (e.matches) btn.style.display = 'none'; });
-      window.addEventListener('appinstalled', () => { btn.style.display = 'none'; _prompt = null; });
+
+      if (btn) {
+        // S'assure que le bouton part bien caché (au cas où le CSS initial le montre)
+        btn.style.display = 'none';
+
+        window.addEventListener('beforeinstallprompt', e => {
+          e.preventDefault();
+          _prompt = e;
+          btn.style.display = 'flex';
+        });
+
+        btn.addEventListener('click', async () => {
+          if (!_prompt) return;
+          btn.style.opacity = '.6';
+          btn.style.pointerEvents = 'none';
+          try {
+            _prompt.prompt();
+            const result = await _prompt.userChoice;
+            if (result.outcome === 'accepted') {
+              btn.style.display = 'none';
+              _prompt = null;
+            }
+          } catch {}
+          btn.style.opacity = '';
+          btn.style.pointerEvents = '';
+        });
+
+        window.matchMedia('(display-mode: standalone)').addEventListener('change', e => {
+          if (e.matches) btn.style.display = 'none';
+        });
+
+        window.addEventListener('appinstalled', () => {
+          btn.style.display = 'none';
+          _prompt = null;
+        });
+      }
     }
   }
 
