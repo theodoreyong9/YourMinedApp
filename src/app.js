@@ -66,6 +66,40 @@
     'panel-profile-view': { label: 'Profile' },
   };
 
+  /* ═══════════════════════════════════════════════════════════
+   * ONGLETS YOURMINE
+   * ═══════════════════════════════════════════════════════════ */
+  function renderFormulaTab() {
+    const el = document.getElementById('panel-mine-formula');
+    if (!el) return;
+    el.style.cssText = 'flex:1;display:flex;flex-direction:column;overflow:hidden;padding:0';
+    el.innerHTML = `
+<a href="#" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:20px;text-decoration:none;border-bottom:1px solid rgba(240,168,48,.15);background:linear-gradient(160deg,#06060e 0%,rgba(240,168,48,.06) 100%)">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 80% 10%,rgba(240,168,48,.22) 0%,transparent 65%);pointer-events:none"></div>
+  <div style="position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:72px;opacity:.08;font-family:var(--font-m);line-height:1">⟐</div>
+  <div>
+    <div style="font-family:var(--font-m);font-size:9px;letter-spacing:3px;color:rgba(240,168,48,.5);text-transform:uppercase;margin-bottom:6px">YM Token</div>
+    <div style="font-family:var(--font-d);font-size:26px;font-weight:700;color:var(--gold);line-height:1.1">Proof of Will<br>as Currency</div>
+  </div>
+</a>
+<a href="#" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:20px;text-decoration:none;border-bottom:1px solid rgba(8,224,248,.12);background:linear-gradient(160deg,#06060e 0%,rgba(8,224,248,.05) 100%)">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 20% 90%,rgba(8,224,248,.15) 0%,transparent 65%);pointer-events:none"></div>
+  <div style="position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:72px;opacity:.07;font-family:var(--font-m);line-height:1">◈</div>
+  <div>
+    <div style="font-family:var(--font-m);font-size:9px;letter-spacing:3px;color:rgba(8,224,248,.5);text-transform:uppercase;margin-bottom:6px">Identity Theory</div>
+    <div style="font-family:var(--font-d);font-size:26px;font-weight:700;color:var(--cyan);line-height:1.1">Your Wallet<br>is Your Identity</div>
+  </div>
+</a>
+<a href="#" style="flex:1;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:20px;text-decoration:none;background:linear-gradient(160deg,#06060e 0%,rgba(34,217,138,.05) 100%)">
+  <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 60% 20%,rgba(34,217,138,.12) 0%,transparent 65%);pointer-events:none"></div>
+  <div style="position:absolute;top:50%;right:20px;transform:translateY(-50%);font-size:72px;opacity:.07;font-family:var(--font-m);line-height:1">∿</div>
+  <div>
+    <div style="font-family:var(--font-m);font-size:9px;letter-spacing:3px;color:rgba(34,217,138,.5);text-transform:uppercase;margin-bottom:6px">Value Viscoelasticity</div>
+    <div style="font-family:var(--font-d);font-size:26px;font-weight:700;color:var(--green);line-height:1.1">Time Shapes<br>Your Reward</div>
+  </div>
+</a>`;
+  }
+
   function setupMineTabs() {
     const bar = document.getElementById('mine-tabs-bar');
     if (!bar || bar._init) return;
@@ -112,6 +146,8 @@
   /* ═══════════════════════════════════════════════════════════
    * SWITCHER
    * ═══════════════════════════════════════════════════════════ */
+
+
   function _buildClonePreview(sourceEl) {
     const preview = document.createElement('div');
     preview.className = 'sw-preview';
@@ -328,6 +364,9 @@
     }
   })();
 
+
+  // Expose pour window.YM et autres modules
+  window.YM_Switcher = { open: openSwitcher, close: closeSwitcher, render: renderSwitcherCards };
   /* ═══════════════════════════════════════════════════════════
    * PANELS
    * ═══════════════════════════════════════════════════════════ */
@@ -500,7 +539,24 @@
   }
 
   function checkURLRoute() {
-    const raw = location.pathname.replace(/^\//, '') || location.hash.replace('#', '').replace(/^panel-[\w-]+\/?/, '');
+    const raw = location.pathname.replace(/^\//, '') || location.hash.replace(/^#/, '');
+
+    // Deep-link thème : yourminedapp.web.app/neon.theme
+    // → active src/themes/neon.html depuis GitHub
+    const tm = raw.match(/^([\w-]+)\.theme$/i);
+    if (tm) {
+      const GH_RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+      const url = GH_RAW + 'themes/' + tm[1] + '.html';
+      const cur = localStorage.getItem('ym_theme_url') || (GH_RAW + 'themes/default.html');
+      if (url !== cur) {
+        localStorage.setItem('ym_theme_url', url);
+        localStorage.removeItem('ym_theme_cache');
+        location.reload();
+      }
+      return;
+    }
+
+    // Deep-link sphere : yourminedapp.web.app/social.sphere
     const m = raw.match(/^([\w-]+)\.sphere(\.js)?$/i);
     if (m) setTimeout(async () => {
       const n = m[1] + '.sphere.js';
