@@ -1,18 +1,6 @@
 <!--
   YourMine — Default Theme
   GitHub: theodoreyong9/YourMinedApp/src/themes/default.html
-
-  Ce fichier est un fragment HTML (pas un document complet).
-  Il est injecté dans le <body> par index.html au boot via fetch + DOMParser.
-
-  Contient :
-    • Les <link> Google Fonts
-    • Le bloc <style> complet (variables CSS + tous les composants)
-    • Tout le DOM applicatif (desktop, panels, dialogs, nav, loader…)
-
-  Ne contient PAS :
-    • <html>, <head>, <meta>, <title>  → restent dans index.html
-    • Les <script> (helpers, desk.js, app.js) → restent dans index.html
 -->
 
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
@@ -68,8 +56,9 @@ body.edit-mode .icon-body{animation:wob .44s ease-in-out infinite}
 .folder-body{background:linear-gradient(145deg,rgba(240,168,48,.07),rgba(255,255,255,.04));border-radius:10px 14px 8px 12px;transform:skewX(-8deg)}
 .folder-grid{position:absolute;inset:10px;display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:2px;overflow:hidden;border-radius:8px}
 .folder-grid .fi{font-size:13px;display:flex;align-items:center;justify-content:center}
-.folder-grid .fi img{width:16px;height:16px;object-fit:contain;border-radius:3px}
+.folder-grid .fi .fi__img{width:16px;height:16px;object-fit:contain;border-radius:3px}
 #drag-ghost{position:fixed;pointer-events:none;z-index:9800;opacity:.68;transform:scale(1.18) rotate(5deg);display:none}
+.drag-ghost__body{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 #nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy)}
 #nav-bar::after{content:'';position:absolute;bottom:calc(-1 * var(--safe-b));left:0;right:0;height:var(--safe-b);background:var(--glass-heavy)}
 body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
@@ -94,8 +83,45 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
   #dock{flex-direction:column;padding:10px 0;justify-content:center;gap:6px;flex:1}
   .dbtn{font-size:22px;min-width:56px;min-height:46px;padding:10px 0;flex-direction:column;border-radius:12px}
 }
-#pwa-install-btn{position:fixed;bottom:calc(var(--dock-h) + var(--safe-b) + 28px);left:50%;transform:translateX(-50%);z-index:206;display:none;align-items:center;gap:8px;background:var(--glass-heavy);border:1px solid rgba(240,168,48,.3);color:var(--gold);font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:11px 18px;border-radius:14px;cursor:pointer;backdrop-filter:var(--blur-mid);transition:all .22s;white-space:nowrap}
+
+/* ── PWA install button ───────────────────────────────────────
+ * Toujours caché par défaut ; app.js le rend visible uniquement
+ * quand beforeinstallprompt se déclenche.
+ * z-index 500 pour passer au-dessus des panels (z-index 301–303)
+ * mais sous les dialogs (z-index 500+).
+ * ─────────────────────────────────────────────────────────── */
+#pwa-install-btn{
+  position:fixed;
+  bottom:calc(var(--dock-h) + var(--safe-b) + 28px);
+  left:50%;
+  transform:translateX(-50%);
+  z-index:450;
+  display:none;           /* caché par défaut, app.js met display:flex */
+  align-items:center;
+  gap:8px;
+  background:var(--glass-heavy);
+  border:1px solid rgba(240,168,48,.3);
+  color:var(--gold);
+  font-family:var(--font-d);
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  padding:11px 18px;
+  border-radius:14px;
+  cursor:pointer;
+  backdrop-filter:var(--blur-mid);
+  -webkit-backdrop-filter:var(--blur-mid);
+  transition:all .22s;
+  white-space:nowrap;
+  pointer-events:all;
+}
+@media(hover:hover) and (pointer:fine){
+  /* En mode desktop la barre nav est à droite, on recentre sur la zone desktop */
+  #pwa-install-btn{right:calc(72px + 50%);left:auto;transform:translateX(50%);bottom:28px}
+}
 @media all and (display-mode:standalone){#pwa-install-btn{display:none!important}}
+
 .ym-overlay{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));background:rgba(0,0,0,.55);z-index:300;opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .ym-overlay.open{opacity:1;pointer-events:all}
 @media(hover:hover) and (pointer:fine){.ym-overlay{right:72px;bottom:0;backdrop-filter:none;-webkit-backdrop-filter:none}}
@@ -103,6 +129,27 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
 .ym-panel.open{transform:translateY(0)}
 .ym-panel::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 @media(hover:hover) and (pointer:fine){.ym-panel{right:72px;bottom:0}}
+
+/* ── Folder panel spécifique ─────────────────────────────────── */
+.ym-panel--folder{z-index:299;backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,8,15,.95)}
+/* Profondeur visuelle via data-depth */
+.ym-panel--folder[data-depth="2"]{background:rgba(8,8,15,.96)}
+.ym-panel--folder[data-depth="3"]{background:rgba(8,8,15,.97)}
+.folder-breadcrumb{display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;min-width:0;padding:0 4px}
+.folder-breadcrumb__sep{color:var(--text3);font-size:14px}
+.folder-breadcrumb__item{font-size:12px;color:var(--text3);cursor:pointer;padding:2px 4px;border-radius:4px}
+.folder-breadcrumb__item--active{font-size:12px;color:var(--text);font-weight:600;cursor:default}
+.folder-breadcrumb__item--editing{background:rgba(232,160,32,.18);outline:1px solid var(--gold)}
+.folder-drop-zone{flex-shrink:0;padding:8px 16px;border-bottom:2px dashed rgba(232,160,32,.4);font-size:11px;color:var(--gold);text-align:center;background:rgba(232,160,32,.06)}
+.folder-drop-zone--hidden{display:none}
+.folder-panel-body{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.folder-content{flex:1;overflow-y:auto;overflow-x:hidden}
+.folder-desktop-page{height:auto;min-height:100%;background:transparent;padding:6px 12px 10px;gap:6px;display:grid;grid-template-columns:repeat(var(--cols),1fr)}
+
+/* ── Background preset button ────────────────────────────────── */
+.bg-preset-btn{border:none;cursor:pointer;border-radius:6px;overflow:hidden;padding:0;aspect-ratio:16/9;background:#111;transition:transform .15s}
+.bg-preset-img{width:100%;height:100%;object-fit:cover;display:block}
+
 .panel-handle{width:44px;height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(240,168,48,.3),rgba(8,224,248,.22));margin:14px auto 2px;flex-shrink:0;cursor:grab;position:relative;z-index:3}
 .panel-head{display:flex;align-items:center;padding:8px 24px 14px;gap:12px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;min-height:50px;background:rgba(255,255,255,.016);position:relative;z-index:2;cursor:pointer}
 .panel-head h2{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:6px;text-transform:uppercase;background:linear-gradient(90deg,var(--gold) 0%,rgba(255,255,255,.8) 50%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200% 100%;animation:titleshift 6s ease-in-out infinite;cursor:default}
@@ -149,7 +196,6 @@ textarea.ym-input{resize:vertical;font-family:var(--font-m);font-size:12px}
 .formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .formula-var{background:rgba(255,255,255,.03);border-radius:6px;padding:7px 8px;font-size:11px;color:var(--text2);line-height:1.4}
 .formula-var b{color:var(--gold);font-family:var(--font-m)}
-#ym-wp{position:fixed;inset:0;z-index:0;background-size:cover;background-repeat:no-repeat;background-position:center center}
 body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 @keyframes wpPan{0%{background-position:0% center}100%{background-position:100% center}}
 #panel-switcher{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);z-index:298;transform:translateY(100%);transition:transform .4s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;border-radius:30px 30px 0 0;overflow:hidden}
@@ -210,12 +256,10 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 <div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(420px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
   <div class="dlg-title" id="bg-dlg-title">Background</div>
 
-  <!-- ── Theme picker — EN HAUT ─────────────────────────────── -->
+  <!-- ── Theme picker ───────────────────────────────────────── -->
   <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)">
     <div style="font-size:9px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)">🎨 Theme</div>
-    <!-- Liste des thèmes : boutons radio visuels, pas de select → zéro surlignage -->
     <div id="theme-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
-    <!-- URL custom -->
     <div style="display:flex;gap:6px">
       <input id="theme-custom-input" class="ym-input" placeholder="Custom theme URL (GitHub blob or raw)…" style="font-size:11px;padding:7px 10px;flex:1">
       <button id="theme-custom-btn" class="ym-btn ym-btn-ghost" style="padding:7px 12px;font-size:11px;flex-shrink:0">Use</button>
@@ -243,9 +287,6 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   var DEF_THEME   = GH_RAW + 'themes/default.html';
   var INDEX_URL   = GH_RAW + 'themes/index.json';
 
-  var _selectedUrl   = null;
-  var _selectedLabel = null;
-
   function activeUrl(){
     return localStorage.getItem(THEME_KEY) || DEF_THEME;
   }
@@ -264,7 +305,6 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
     setTimeout(function(){ location.reload(); }, 1500);
   }
 
-  // Construit la liste de boutons radio visuels — aucun élément natif focusable
   function buildList(files){
     var container = document.getElementById('theme-list');
     if(!container) return;
@@ -272,7 +312,6 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
     var current = activeUrl();
     var currentFile = current.split('/').pop();
 
-    // Si thème custom absent de la liste, l'ajoute en tête
     var allFiles = files.slice();
     if(allFiles.indexOf(currentFile) === -1){
       allFiles.unshift(currentFile);
@@ -287,18 +326,15 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s;' +
         (isActive ? 'background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3)' : 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)');
 
-      // Dot indicateur
       var dot = document.createElement('div');
       dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;' +
         (isActive ? 'background:var(--gold)' : 'background:rgba(255,255,255,.15)');
 
-      // Nom
       var name = document.createElement('span');
       name.style.cssText = 'flex:1;font-size:12px;font-family:var(--font-b);' +
         (isActive ? 'color:var(--gold);font-weight:600' : 'color:var(--text2)');
       name.textContent = label;
 
-      // Bouton code </>
       var codeBtn = document.createElement('a');
       codeBtn.href = GH_BLOB + f.split('/').pop();
       codeBtn.target = '_blank';
@@ -308,20 +344,17 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       codeBtn.textContent = '</>';
       codeBtn.addEventListener('mouseenter', function(){ this.style.color='var(--gold)'; });
       codeBtn.addEventListener('mouseleave', function(){ this.style.color='var(--text3)'; });
-      // Empêche le click sur le lien de déclencher applyTheme
       codeBtn.addEventListener('click', function(e){ e.stopPropagation(); });
 
       row.appendChild(dot);
       row.appendChild(name);
       row.appendChild(codeBtn);
 
-      // Click sur la ligne → applique le thème
       row.addEventListener('click', function(){
-        if(url === activeUrl()) return; // déjà actif, rien
+        if(url === activeUrl()) return;
         applyTheme(url, label);
       });
 
-      // Hover
       row.addEventListener('mouseenter', function(){
         if(url !== activeUrl()) this.style.background = 'rgba(255,255,255,.06)';
       });
@@ -350,12 +383,10 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       });
   }
 
-  // URL custom
   document.getElementById('theme-custom-btn').addEventListener('click', function(){
     var inp = document.getElementById('theme-custom-input');
     var url = (inp ? inp.value : '').trim();
     if(!url){ window.YM_toast && window.YM_toast('Enter a URL', 'warn'); return; }
-    // Convertit github.com/blob → raw
     url = url.replace('https://github.com/', 'https://raw.githubusercontent.com/')
              .replace('/blob/', '/');
     var label = fileToLabel(url.split('/').pop());
@@ -370,6 +401,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   loadThemeList();
 })();
 </script>
+
 <div class="ym-overlay" id="panel-overlay"></div>
 <div class="ym-panel" id="panel-spheres">
   <div class="panel-handle"></div>
@@ -400,4 +432,6 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   <div class="panel-handle" id="switcher-handle"></div>
   <div id="switcher-grid"></div>
 </div>
+
+<!-- PWA install button — caché par CSS, rendu visible par app.js via beforeinstallprompt -->
 <button id="pwa-install-btn"><span>&#8595;</span> INSTALL APP</button>
