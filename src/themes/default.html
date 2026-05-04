@@ -156,7 +156,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 #panel-switcher::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 #panel-switcher.open{transform:translateY(0);z-index:303}
 @media(hover:hover) and (pointer:fine){#panel-switcher{right:72px;bottom:0}}
-#switcher-grid{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:min-content;gap:6px;align-content:end}
+#switcher-grid{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 8px 16px;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:160px;gap:6px;align-content:start}
 .sw-card{height:160px;border-radius:12px;background:rgba(8,8,20,.98);border:1px solid rgba(255,255,255,.1);cursor:pointer;overflow:hidden;position:relative;touch-action:pan-y;box-shadow:0 2px 10px rgba(0,0,0,.5);isolation:isolate}
 @media(hover:hover) and (pointer:fine){.sw-card{height:130px}.sw-card:hover{border-color:rgba(240,168,48,.3)}}
 .icon-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:4px;border-radius:12px;position:relative;touch-action:none;-webkit-user-select:none;user-select:none;width:fit-content;height:fit-content;place-self:center;transform:translateZ(0)}
@@ -209,37 +209,43 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 <div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Create Folder</div><input class="ym-input" id="folder-name-input" placeholder="Folder name"><div style="display:flex;gap:8px"><button class="ym-btn ym-btn-ghost" style="flex:1" id="folder-cancel">Cancel</button><button class="ym-btn ym-btn-accent" style="flex:1" id="folder-confirm">Create</button></div></div></div>
 <div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(420px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
   <div class="dlg-title" id="bg-dlg-title">Background</div>
-  <div style="display:flex;gap:8px;margin-bottom:8px;margin-top:8px">
+
+  <!-- ── Theme picker — EN HAUT ─────────────────────────────── -->
+  <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)">
+    <div style="font-size:9px;color:var(--text3);margin-bottom:7px;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)">🎨 Theme</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <select id="theme-select" style="flex:1;font-size:12px;padding:8px 10px;cursor:pointer;background:rgba(255,255,255,.06);color:var(--text);border:1px solid rgba(255,255,255,.1);border-radius:10px;font-family:var(--font-b);outline:none;appearance:auto;-webkit-appearance:auto;color-scheme:dark;">
+        <option style="background:#13131f" value="">Loading…</option>
+      </select>
+      <a id="theme-code-btn" href="#" target="_blank" rel="noopener" title="View source on GitHub"
+        style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text3);font-size:13px;text-decoration:none;font-family:var(--font-m);">&lt;/&gt;</a>
+      <button id="theme-apply-btn" class="ym-btn ym-btn-accent" style="padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0">Apply</button>
+    </div>
+    <div style="display:flex;gap:6px">
+      <input id="theme-custom-input" class="ym-input" placeholder="Custom theme raw URL…" style="font-size:11px;padding:7px 10px;flex:1">
+      <button id="theme-custom-btn" class="ym-btn ym-btn-ghost" style="padding:7px 12px;font-size:11px;flex-shrink:0">Use</button>
+    </div>
+  </div>
+
+  <!-- ── Wallpaper ──────────────────────────────────────────── -->
+  <div style="display:flex;gap:8px;margin-bottom:8px">
     <button class="ym-btn ym-btn-ghost" id="bg-wp" style="flex:1;font-size:12px">&#128193; Upload</button>
     <button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:12px;color:var(--text3)">&#10005; Remove</button>
   </div>
   <div style="font-size:10px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-m)">Free wallpapers</div>
   <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;padding-bottom:4px"></div>
   <button class="ym-btn ym-btn-ghost" id="bg-spheres" style="width:100%;font-size:12px;margin-top:10px;color:var(--cyan);border-color:rgba(8,224,248,.2)">&#11835; Browse Spheres</button>
-
-  <!-- ── Sélecteur de thème ──────────────────────────────────── -->
-  <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.06);padding-top:12px">
-    <div style="font-size:10px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-m)">🎨 Theme</div>
-    <div style="display:flex;gap:6px;align-items:center">
-      <select id="theme-select" class="ym-input" style="flex:1;font-size:12px;padding:9px 10px;cursor:pointer;appearance:auto">
-        <option value="">Loading themes…</option>
-      </select>
-      <button id="theme-apply-btn" class="ym-btn ym-btn-accent" style="padding:9px 14px;font-size:12px;white-space:nowrap;flex-shrink:0">Apply</button>
-    </div>
-  </div>
-
   <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
 </div></div>
 
-<!-- ── Theme picker : liste lue depuis src/themes/index.json (raw, sans rate limit) ── -->
+<!-- ── Theme picker script ────────────────────────────────────── -->
 <script>
 (function(){
   var THEME_KEY   = 'ym_theme_url';
   var THEME_CACHE = 'ym_theme_cache';
   var GH_RAW      = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+  var GH_BLOB     = 'https://github.com/theodoreyong9/YourMinedApp/blob/main/src/themes/';
   var DEF_THEME   = GH_RAW + 'themes/default.html';
-  // index.json = simple tableau de noms de fichiers, ex: ["default.html","neon.html"]
-  // → à maintenir à la main dans src/themes/ quand tu ajoutes un thème
   var INDEX_URL   = GH_RAW + 'themes/index.json';
 
   function activeUrl(){
@@ -249,16 +255,28 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   function fileToLabel(name){
     return name.replace(/\.html$/i,'')
                .replace(/[-_]/g,' ')
-               .replace(/\b\w/g,function(c){ return c.toUpperCase(); });
+               .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
   }
 
-  function applyTheme(url){
+  // Met à jour le lien </> vers le source GitHub du thème sélectionné
+  function updateCodeBtn(selectEl){
+    var codeBtn = document.getElementById('theme-code-btn');
+    if(!codeBtn || !selectEl) return;
+    var val = selectEl.value;
+    if(!val){ codeBtn.href = '#'; return; }
+    // Extrait le nom de fichier depuis l'URL raw
+    var filename = val.split('/').pop();
+    codeBtn.href = GH_BLOB + filename;
+  }
+
+  function applyTheme(url, label){
+    if(!url) return;
     if(url === activeUrl()){
-      window.YM_toast && window.YM_toast('Already using this theme','info'); return;
+      window.YM_toast && window.YM_toast('Already using ' + (label||'this theme'), 'info'); return;
     }
     localStorage.setItem(THEME_KEY, url);
     localStorage.removeItem(THEME_CACHE);
-    window.YM_toast && window.YM_toast('Theme changed — reloading…','success',1600);
+    window.YM_toast && window.YM_toast('Theme → ' + (label||fileToLabel(url.split('/').pop())) + ' — reloading…', 'success', 1600);
     setTimeout(function(){ location.reload(); }, 1600);
   }
 
@@ -272,47 +290,67 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       var opt = document.createElement('option');
       opt.value = url;
       opt.textContent = fileToLabel(f);
+      opt.style.background = '#13131f';
       if(url === current) opt.selected = true;
       sel.appendChild(opt);
     });
-    // Thème actif absent de la liste (URL entièrement custom) → option temporaire
-    if(!sel.querySelector('option[selected]') && current !== DEF_THEME){
+    // Thème custom non présent dans la liste → ajoute avec son vrai nom
+    if(!sel.querySelector('option[selected]')){
       var opt = document.createElement('option');
-      opt.value = current; opt.textContent = '— Custom —'; opt.selected = true;
+      opt.value = current;
+      opt.textContent = fileToLabel(current.split('/').pop());
+      opt.style.background = '#13131f';
+      opt.selected = true;
       sel.insertBefore(opt, sel.firstChild);
     }
+    updateCodeBtn(sel);
   }
 
   function loadThemeList(){
-    var sel = document.getElementById('theme-select');
-    // Pas de cache-bust sur le JSON — raw.githubusercontent.com gère ça nativement
     fetch(INDEX_URL)
       .then(function(r){
-        if(!r.ok) throw new Error('HTTP '+r.status+' — '+INDEX_URL);
-        return r.text(); // text() d'abord pour pouvoir logger si c'est pas du JSON
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
       })
       .then(function(text){
-        var files;
-        try { files = JSON.parse(text); }
-        catch(e){ throw new Error('index.json is not valid JSON: '+text.slice(0,120)); }
+        var files = JSON.parse(text);
         if(!Array.isArray(files) || !files.length) files = ['default.html'];
         populateSelect(files);
       })
       .catch(function(e){
         console.error('[YM theme]', e.message);
-        // Affiche l'erreur dans le select pour debug
-        if(sel) sel.innerHTML = '<option value="">⚠ '+e.message+'</option>';
         populateSelect(['default.html']);
       });
   }
 
-  // Bouton Apply
-  document.getElementById('theme-apply-btn').addEventListener('click', function(){
-    var sel = document.getElementById('theme-select');
-    if(sel && sel.value) applyTheme(sel.value);
+  // Mise à jour lien code quand on change la sélection
+  document.getElementById('theme-select').addEventListener('change', function(){
+    updateCodeBtn(this);
   });
 
-  // Charge la liste immédiatement — pas d'observer
+  // Bouton Apply — utilise le label affiché dans l'option sélectionnée
+  document.getElementById('theme-apply-btn').addEventListener('click', function(){
+    var sel = document.getElementById('theme-select');
+    if(!sel || !sel.value) return;
+    var label = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '';
+    applyTheme(sel.value, label);
+  });
+
+  // Bouton Use (URL custom)
+  document.getElementById('theme-custom-btn').addEventListener('click', function(){
+    var inp = document.getElementById('theme-custom-input');
+    var url = (inp ? inp.value : '').trim();
+    if(!url){ window.YM_toast && window.YM_toast('Enter a raw URL', 'warn'); return; }
+    // Accepte github.com/user/repo/blob/... → convertit en raw
+    url = url.replace('https://github.com/', 'https://raw.githubusercontent.com/')
+             .replace('/blob/', '/');
+    applyTheme(url, fileToLabel(url.split('/').pop()));
+  });
+
+  document.getElementById('theme-custom-input').addEventListener('keydown', function(e){
+    if(e.key === 'Enter') document.getElementById('theme-custom-btn').click();
+  });
+
   loadThemeList();
 })();
 </script>
