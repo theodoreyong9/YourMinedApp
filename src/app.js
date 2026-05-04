@@ -1030,3 +1030,8 @@
       window.addEventListener('appinstalled', () => { btn.style.display = 'none'; _prompt = null; });
     }
   }
+
+  /* Lance tout */
+  init();
+
+})();
