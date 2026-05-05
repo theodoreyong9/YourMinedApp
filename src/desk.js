@@ -46,7 +46,6 @@ function applyWP(){
   const wp=localStorage.getItem(WK),el=document.getElementById('ym-wp');if(!el)return;
   if(wp){
     el.style.backgroundImage="url('"+wp+"')";
-    // backgroundSize/Position/Repeat gérés par CSS (pour permettre l'animation)
     document.body.classList.add('has-wallpaper');
   }else{
     el.style.backgroundImage='';
@@ -122,7 +121,6 @@ function removeIcon(id){
   }
   removeFrom(d);SD(d);renderDesk();setTimeout(autoCleanPages,50);
 }
-// Calcule la somme des notifs de tous les descendants d'un folder
 function sumFolderNotifs(items){
   let s=0;
   for(const it of (items||[])){
@@ -131,7 +129,6 @@ function sumFolderNotifs(items){
   }
   return s;
 }
-// Met à jour le badge visible d'une icône (icône simple ou folder)
 function _updateBadgeEl(id,n){
   const wrap=document.querySelector('[data-id="'+id+'"]');if(!wrap)return;
   const body=wrap.querySelector('.icon-body');if(!body)return;
@@ -143,13 +140,11 @@ function _updateBadgeEl(id,n){
     el.style.display='none';
   }
 }
-// Remonte l'arbre pour rafraîchir les badges des folders parents
 function _refreshParentFolderBadges(d){
   for(const ic of d){
     if(ic.folder){
       const total=sumFolderNotifs(ic.folderItems);
       _updateBadgeEl(ic.id,total);
-      // Récursif si dossiers imbriqués
       if(ic.folderItems)_refreshParentFolderBadges(ic.folderItems);
     }
   }
@@ -157,16 +152,13 @@ function _refreshParentFolderBadges(d){
 function setNotif(id,n){
   const d=LD(),found=findIconParent(id,d);
   if(found){found.item.notif=n;SD(d);}
-  // Met à jour l'icône directe
   _updateBadgeEl(id,n);
-  // Recalcule les badges de tous les folders (parents inclus)
   _refreshParentFolderBadges(LD());
 }
 
 // ── WIDGET PAGE REGISTRY ──────────────────────────────────────
 const _widgetPages=new Map();
 
-// FIX: garantit que le slider a bien la page du widget au redémarrage
 function registerWidgetPage(widgetId,page){
   _widgetPages.set(widgetId,page);
   if(page>=getPgCount()){
@@ -181,7 +173,6 @@ function isPageOccupiedByWidget(page){
   return false;
 }
 
-// FIX: expose la hauteur de la zone sûre pour les widgets qui font leur propre drag
 function getDeskSafeBottom(){
   const nb=document.getElementById('nav-bar');
   if(nb)return window.innerHeight-nb.getBoundingClientRect().top;
@@ -227,7 +218,6 @@ function iconsForPage(arr,p){return arr.filter(i=>i.page===p);}
 function renderPageInto(el,icons,isFolder){
   el.innerHTML='';const g=GRID();
   for(const ic of icons){
-    // FIX: clamp col ET row dans les bornes strictes de la grille
     const col=Math.max(0,Math.min(g.cols-1,ic.col));
     const row=Math.max(0,Math.min(g.rows-1,ic.row||0));
     const w=mkIcon(ic,isFolder);w.style.gridColumn=col+1;w.style.gridRow=row+1;el.appendChild(w);
@@ -246,16 +236,28 @@ function renderDesk(){
 // ── FOLDER PANEL ──────────────────────────────────────────────
 function openFolderPanel(ic){
   if(folderStack.length>0&&folderStack[folderStack.length-1].ic.id===ic.id)return;
+
+  // Récupère ou crée le panel depuis le DOM (défini dans default.html)
   let panel=document.getElementById('panel-folder');
   if(!panel){
-    panel=document.createElement('div');panel.id='panel-folder';panel.className='ym-panel';
-    panel.style.cssText='z-index:299;backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,8,15,.95)';
+    panel=document.createElement('div');
+    panel.id='panel-folder';
+    panel.className='ym-panel ym-panel--folder';
     panel.innerHTML=
       '<div class="panel-handle"></div>'+
-      '<div class="panel-head" id="folder-panel-head"><div id="folder-panel-breadcrumb" style="display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;min-width:0;padding:0 4px"></div></div>'+
-      '<div id="folder-drop-zone" style="display:none;flex-shrink:0;padding:8px 16px;border-bottom:2px dashed rgba(232,160,32,.4);font-size:11px;color:var(--gold);text-align:center;background:rgba(232,160,32,.06)">↓ Drop here to eject from folder</div>'+
-      '<div class="panel-body" style="padding:0;overflow:hidden;display:flex;flex-direction:column"><div id="folder-content" style="flex:1;overflow-y:auto;overflow-x:hidden;"><div id="folder-page-0" class="desktop-page" data-page="0" style="height:auto;min-height:100%;background:transparent;"></div></div></div>';
+      '<div class="panel-head" id="folder-panel-head">'+
+        '<div id="folder-panel-breadcrumb" class="folder-breadcrumb"></div>'+
+      '</div>'+
+      '<div id="folder-drop-zone" class="folder-drop-zone folder-drop-zone--hidden">'+
+        '↓ Drop here to eject from folder'+
+      '</div>'+
+      '<div class="panel-body folder-panel-body">'+
+        '<div id="folder-content" class="folder-content">'+
+          '<div id="folder-page-0" class="desktop-page folder-desktop-page" data-page="0"></div>'+
+        '</div>'+
+      '</div>';
     document.body.appendChild(panel);
+
     let sy=0;
     panel.querySelector('.panel-handle').addEventListener('pointerdown',e=>{sy=e.clientY;});
     panel.querySelector('.panel-handle').addEventListener('pointerup',e=>{if(e.clientY-sy>40)closeFolderPanel();});
@@ -264,6 +266,7 @@ function openFolderPanel(ic){
     });
     panel.querySelector('.panel-body').addEventListener('pointerup',e=>{if(editMode&&!e.target.closest('.icon-wrap'))exitEdit();});
   }
+
   const spherePanel=document.getElementById('panel-sphere');
   if(spherePanel&&spherePanel.classList.contains('open')){
     spherePanel.classList.remove('open');
@@ -271,7 +274,8 @@ function openFolderPanel(ic){
   }
   history.pushState({folderOpen:true},'');
   folderStack.push({ic});renderFolderPanel(ic);
-  panel.style.background='rgba(8,8,15,'+Math.min(0.92+folderStack.length*0.02,0.97)+')';
+  // Profondeur visuelle via classe CSS
+  panel.dataset.depth=folderStack.length;
   panel.classList.add('open');
 }
 function closeFolderPanel(){
@@ -291,30 +295,41 @@ function renderFolderPanel(ic){
   const items=ic.folderItems||[];
   const pg=document.getElementById('folder-page-0');if(!pg)return;
   const g=GRID();
-  pg.style.cssText='background:transparent;display:grid;grid-template-columns:repeat('+g.cols+',1fr);grid-auto-rows:1fr;min-height:100%;padding:6px 12px 10px;gap:6px;position:relative;';
+  pg.className='desktop-page folder-desktop-page';
+  pg.style.cssText='';// reset tout style inline, la mise en page vient du CSS
   renderPageInto(pg,iconsForPage(items,0),true);
+
+  // Breadcrumb
   const bc=document.getElementById('folder-panel-breadcrumb');
   if(bc){
     bc.innerHTML='';
     folderStack.forEach((entry,i)=>{
-      if(i>0){const sep=document.createElement('span');sep.textContent='›';sep.style.cssText='color:var(--text3);font-size:14px';bc.appendChild(sep);}
+      if(i>0){
+        const sep=document.createElement('span');
+        sep.className='folder-breadcrumb__sep';
+        sep.textContent='›';
+        bc.appendChild(sep);
+      }
       const lbl=document.createElement('span');
       lbl.textContent=entry.ic.label||'Folder';
-      lbl.style.cssText='font-size:12px;color:'+(i===folderStack.length-1?'var(--text)':'var(--text3)')+';cursor:pointer;padding:2px 4px;border-radius:4px';
+      lbl.className='folder-breadcrumb__item'+(i===folderStack.length-1?' folder-breadcrumb__item--active':'');
+
       if(i<folderStack.length-1){
         const capturedI=i;
         lbl.addEventListener('click',()=>{while(folderStack.length>capturedI+1)folderStack.pop();renderFolderPanel(folderStack[folderStack.length-1].ic);});
       }
       if(i===folderStack.length-1){
-        lbl.style.fontWeight='600';
         let renameT=null;
         const startRename=(ev)=>{
           if(ev)ev.stopPropagation();
-          lbl.contentEditable='true';lbl.style.background='rgba(232,160,32,.18)';lbl.style.outline='1px solid var(--gold)';lbl.focus();
+          lbl.contentEditable='true';
+          lbl.classList.add('folder-breadcrumb__item--editing');
+          lbl.focus();
           const sel=window.getSelection(),range=document.createRange();range.selectNodeContents(lbl);sel.removeAllRanges();sel.addRange(range);
         };
         const saveRename=()=>{
-          lbl.contentEditable='false';lbl.style.background='';lbl.style.outline='';
+          lbl.contentEditable='false';
+          lbl.classList.remove('folder-breadcrumb__item--editing');
           const name=lbl.textContent.trim()||'Folder';lbl.textContent=name;entry.ic.label=name;
           const d=LD(),found=findIconParent(entry.ic.id,d);if(found){found.item.label=name;SD(d);}renderDesk();
         };
@@ -325,17 +340,21 @@ function renderFolderPanel(ic){
         lbl.addEventListener('blur',saveRename);
         lbl.addEventListener('keydown',e=>{
           if(e.key==='Enter'){e.preventDefault();lbl.blur();}
-          if(e.key==='Escape'){lbl.textContent=entry.ic.label||'Folder';lbl.contentEditable='false';lbl.style.background='';lbl.style.outline='';}
+          if(e.key==='Escape'){lbl.textContent=entry.ic.label||'Folder';lbl.contentEditable='false';lbl.classList.remove('folder-breadcrumb__item--editing');}
         });
       }
       bc.appendChild(lbl);
     });
   }
+
+  // Drop zone
   const dz=document.getElementById('folder-drop-zone');
   if(dz){
-    dz.style.display=editMode?'block':'none';
+    dz.classList.toggle('folder-drop-zone--hidden',!editMode);
     if(!dz._obs){
-      dz._obs=new MutationObserver(()=>{dz.style.display=document.body.classList.contains('edit-mode')?'block':'none';});
+      dz._obs=new MutationObserver(()=>{
+        dz.classList.toggle('folder-drop-zone--hidden',!document.body.classList.contains('edit-mode'));
+      });
       dz._obs.observe(document.body,{attributes:true,attributeFilter:['class']});
     }
   }
@@ -343,7 +362,6 @@ function renderFolderPanel(ic){
 
 function addToFolder(icSrc,folderIc,fromFolder){
   const d=LD();
-  // Lire les données fraîches depuis le storage pour avoir le bon notif
   const freshSrcFound=findIconParent(icSrc.id,d);
   const freshNotif=freshSrcFound?freshSrcFound.item.notif:(icSrc.notif||0);
   const folderFound=findIconParent(folderIc.id,d);if(!folderFound)return;
@@ -387,7 +405,6 @@ function mkIcon(ic,isFolder){
   const w=document.createElement('div');w.className='icon-wrap';w.dataset.id=ic.id;
   const MANDATORY=['social.sphere.js'];
   const del=document.createElement('div');del.className='icon-del';del.innerHTML='&times;';
-  // Masque définitivement le bouton supprimer pour les spheres obligatoires
   if(MANDATORY.includes(ic.id))del.className='icon-del icon-del-hidden';
   del.addEventListener('pointerdown',e=>{e.stopImmediatePropagation();e.stopPropagation();});
   del.addEventListener('click',e=>{
@@ -401,13 +418,12 @@ function mkIcon(ic,isFolder){
     for(const it of flatIcons(ic.folderItems||[],4)){
       const m=document.createElement('div');m.className='fi';
       if(isImageURL(it.icon)){
-        const img=document.createElement('img');img.src=it.icon;img.style.cssText='width:16px;height:16px;object-fit:contain;border-radius:3px';
+        const img=document.createElement('img');img.src=it.icon;img.className='fi__img';
         m.appendChild(img);
       }else m.textContent=it.icon||'*';
       grid.appendChild(m);
     }
     body.appendChild(grid);
-    // Badge folder = somme des notifs enfants
     const folderNotifTotal=sumFolderNotifs(ic.folderItems);
     if(folderNotifTotal>0){
       const fn=document.createElement('div');fn.className='icon-notif';fn.textContent=folderNotifTotal;body.appendChild(fn);
@@ -435,7 +451,6 @@ function showHL(col,row,pgEl,pg){
 }
 function removeHL(){if(_hl){_hl.remove();_hl=null;_hlPg=-1;}}
 
-// FIX: clamp col ET row dans les bornes strictes de la grille
 function getCellFromPt(x,y,pgEl){
   const g=GRID(),r=pgEl.getBoundingClientRect();
   return{
@@ -503,14 +518,12 @@ function setupDrag(wrap,ic,isFolder){
   wrap.addEventListener('pointerdown',e=>{
     if(e.button>0||e.target.classList.contains('icon-del'))return;
     pDown=true;dragStarted=false;hasMoved=false;sx=e.clientX;sy=e.clientY;
-    // Longpress → edit/delete mode SEULEMENT si on ne bouge pas
     longT=setTimeout(()=>{longT=null;if(!hasMoved)enterEdit();},440);
   });
   wrap.addEventListener('pointermove',e=>{
     if(!pDown||e.buttons===0)return;
     const dx=e.clientX-sx,dy=e.clientY-sy,dist=Math.hypot(dx,dy);
     if(dist<5)return;
-    // Si mouvement détecté : annule le longpress (pas de mode delete au drag)
     if(!hasMoved){hasMoved=true;clearTimeout(longT);longT=null;}
     if(!isPC()&&!dragStarted&&Math.abs(dx)>Math.abs(dy)*1.4&&dist>12){pDown=false;return;}
     if(!dragStarted&&dist>8){
@@ -523,7 +536,7 @@ function setupDrag(wrap,ic,isFolder){
       const gContent=isImageURL(ic.icon) ?
         '<img src="'+ic.icon+'" style="width:36px;height:36px;object-fit:contain;border-radius:8px">' :
         '<span style="font-size:25px">'+ic.icon+'</span>';
-      ghost.innerHTML='<div class="icon-body" style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center">'+gContent+'</div>';
+      ghost.innerHTML='<div class="icon-body drag-ghost__body">'+gContent+'</div>';
       ghost.style.display='block';wrap.style.opacity='0';
     }
     if(!dragStarted)return;
@@ -654,7 +667,6 @@ function ejectFromFolder(ic){
   const inSubFolder=folderStack.length>1;
 
   if(newFI.length===0){
-    // Dossier vide → supprime-le
     const idx=found.parent.findIndex(x=>x.id===topIc.id);
     if(idx>=0)found.parent.splice(idx,1);
     SD(d);
@@ -668,11 +680,9 @@ function ejectFromFolder(ic){
     }
     toast('Folder removed','info');
   }else if(newFI.length===1){
-    // 1 item restant → dissolution du dossier
     const solo=newFI[0];
     const idx=found.parent.findIndex(x=>x.id===topIc.id);
     if(idx>=0)found.parent.splice(idx,1);
-    // Le solo reprend la position du dossier dissous
     found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,
       page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,
       notif:solo.notif||0,folder:solo.folder||false,
@@ -688,18 +698,14 @@ function ejectFromFolder(ic){
       folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');
     }
   }else{
-    // Plusieurs items → met à jour normalement
     found.item.folderItems=newFI;topIc.folderItems=newFI;SD(d);
   }
 
   _liveLayout=null;_baseLayout=null;_livePrevCell=null;
 
-  // L'icône éjectée va dans le dossier PARENT si on est dans un sous-dossier,
-  // sinon elle va sur le bureau
   const d2=LD();
   if(!findIconParent(ic.id,d2)){
     if(inSubFolder&&folderStack.length>0){
-      // Place dans le dossier parent courant
       const parentEntry=folderStack[folderStack.length-1];
       const parentFound=findIconParent(parentEntry.ic.id,d2);
       if(parentFound){
@@ -713,7 +719,6 @@ function ejectFromFolder(ic){
         SD(d2);
       }
     }else{
-      // Place sur le bureau
       const empty=findEmptyIn(d2,curPg);
       d2.push({id:ic.id,icon:ic.icon,label:ic.label,page:curPg,
         col:empty?empty.col:0,row:empty?empty.row:0,
@@ -759,7 +764,6 @@ function refreshFolderPanel(){
   else{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');renderDesk();}
 }
 function createFolder(src,tgt,isFolder){
-  // Lire les notifs fraîches depuis le storage
   const freshD=LD();
   const freshSrc=findIconParent(src.id,freshD);
   const freshTgt=findIconParent(tgt.id,freshD);
@@ -863,8 +867,8 @@ function showBgDlg(p){
   if(grid&&!grid.children.length){
     PRESETS.forEach(pr=>{
       const btn=document.createElement('button');
-      btn.style.cssText='border:none;cursor:pointer;border-radius:6px;overflow:hidden;padding:0;aspect-ratio:16/9;background:#111;transition:transform .15s';
-      btn.innerHTML='<img src="'+pr.url+'&w=200" alt="'+pr.label+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">';
+      btn.className='bg-preset-btn';
+      btn.innerHTML='<img src="'+pr.url+'&w=200" alt="'+pr.label+'" class="bg-preset-img" loading="lazy">';
       btn.title=pr.label;
       btn.addEventListener('mouseenter',()=>{btn.style.transform='scale(1.04)';});
       btn.addEventListener('mouseleave',()=>{btn.style.transform='';});
