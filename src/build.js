@@ -5,10 +5,8 @@
 
 const GH_OWNER = 'theodoreyong9';
 const GH_REPO  = 'YourMinedApp';
+const GH_REPO_URL = 'https://github.com/'+GH_OWNER+'/'+GH_REPO;
 const FILES_URL = 'https://raw.githubusercontent.com/'+GH_OWNER+'/'+GH_REPO+'/main/files.json';
-
-// Architecture : code .sphere.js dans le fork de l'user, codeUrl dans files.json
-// La PR ne touche que files.json + events/
 
 let _userToken     = null;
 let _filesJson     = null;
@@ -39,7 +37,6 @@ function startWalletWatch(container){
   },800);
 }
 
-// Ré-render quand le wallet change (connexion/déconnexion)
 (function(){
   var _lastPk=null;
   setInterval(function(){
@@ -50,11 +47,6 @@ function startWalletWatch(container){
 })();
 
 // ── CALCUL ÉLIGIBILITÉ ────────────────────────────────────────
-// Interface : (score_last+1)/(laps_last+1) < (score_now+1)/(laps_now+1)
-// GitHub Actions : checkScoreEligibility() depuis solana-utils → lecture on-chain
-// score_now = claimable YRM = S·t^α / [ln(A^β(1−τ) + C)]^γ
-// laps_now  = slots écoulés depuis le dernier burn/claim
-
 async function computeEligibility(){
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;if(!pubkey)return null;
   const state=window._mineState||{};
@@ -71,9 +63,6 @@ async function computeEligibility(){
   return{eligible:claimable>0&&ratioCheck<=1,claimable,curLaps,curRatio,curRatioNum:claimable+1,curRatioDen:curLaps+1,lastPub,lastRatio,ratioCheck};
 }
 
-// Calcule les slots nécessaires pour atteindre l'éligibilité
-// On cherche t tel que (claimable(t)+1)/(t+1) > lastRatio
-// claimable(t) ≈ S·t^1.1 / [ln(A^(β(1-τ))+C)]^3  (approximation linéaire pour l'UI)
 function slotsToEligible(elig,extraBurn){
   if(!elig||!elig.lastPub)return 0;
   const state=window._mineState||{};
@@ -84,9 +73,7 @@ function slotsToEligible(elig,extraBurn){
   const dGen=Math.max(1,A-111111111);
   const inner=Math.pow(dGen,2.2*(1-tau))+Math.pow(33,3);
   const den=inner>1?Math.pow(Math.log(inner),3):1;
-  const needed=elig.lastRatio; // (score_last+1)/(laps_last+1)
-  // On cherche t : (S·t^1.1/den + 1)/(t+1) >= needed
-  // Approx numérique par itération
+  const needed=elig.lastRatio;
   var t=elig.curLaps;
   for(var i=0;i<2000;i++){
     const num=S*Math.pow(t,1.1)/den+1;
@@ -106,81 +93,30 @@ function slotsToHuman(slots){
   return (secs/86400).toFixed(1)+'d';
 }
 
-// ── SOURCE FILES ──────────────────────────────────────────────
-// Note: social.sphere.js retiré (obligatoire, pas besoin de le distribuer)
-const SRC_FILES=['index.html','desk.js','mine.js','build.js','profile.js','liste.js'];
-
-function dlFile(filename){
-  const url=window.location.origin+'/'+filename+'?t='+Date.now();
-  fetch(url,{cache:'no-store'}).then(function(r){
-    if(!r.ok)throw new Error('HTTP '+r.status);return r.blob();
-  }).then(function(blob){
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();URL.revokeObjectURL(a.href);
-  }).catch(function(e){toast('Download failed: '+e.message,'error');});
-}
-
-// ── RESOURCES FLOATING BUTTON ─────────────────────────────────
+// ── BOUTON SOURCES → ouvre simplement le repo GitHub ─────────
 function _renderResourcesBtn(body){
-  // Remonte jusqu'au .ym-panel parent
   var panel=body;
   while(panel&&panel!==document.body){
     if(panel.classList&&panel.classList.contains('ym-panel'))break;
     panel=panel.parentElement;
   }
   if(!panel||panel===document.body)return;
-  // Ne pas modifier le header de panel-mine (c'est pas le bon contexte)
   if(panel.id==='panel-mine')return;
   var headerEl=panel.querySelector(':scope>.panel-head');
   if(!headerEl)return;
   if(headerEl.querySelector('#build-res-btn'))return;
-  var resBtn=document.createElement('button');
+  var resBtn=document.createElement('a');
   resBtn.id='build-res-btn';
   resBtn.className='ym-btn ym-btn-ghost';
-  resBtn.style.cssText='font-size:10px;padding:4px 10px;letter-spacing:.5px;margin-left:auto';
-  resBtn.textContent='⬇ Sources';
-  resBtn.addEventListener('click',function(e){e.stopPropagation();_showResourcesPanel(resBtn);});
+  resBtn.href=GH_REPO_URL;
+  resBtn.target='_blank';
+  resBtn.rel='noopener';
+  resBtn.style.cssText='font-size:10px;padding:4px 10px;letter-spacing:.5px;margin-left:auto;text-decoration:none';
+  resBtn.textContent='⌥ GitHub';
+  resBtn.addEventListener('click',function(e){e.stopPropagation();});
   headerEl.style.display='flex';
   headerEl.style.alignItems='center';
   headerEl.appendChild(resBtn);
-}
-
-function _showResourcesPanel(triggerBtn){
-  var existing=document.getElementById('build-res-overlay');
-  if(existing){existing.remove();return;}
-  var overlay=document.createElement('div');
-  overlay.id='build-res-overlay';
-  // Position fixe — fonctionne quel que soit le contexte (panel-build ou panel-mine)
-  overlay.style.cssText='position:fixed;z-index:9996;background:#12121e;border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:12px;width:220px;box-shadow:0 8px 32px rgba(0,0,0,.8)';
-  overlay.innerHTML=
-    '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;font-family:var(--font-m)">Fichiers sources</div>'+
-    '<div style="display:flex;flex-direction:column;gap:4px">'+
-      SRC_FILES.map(function(f){
-        return '<button class="ym-btn ym-btn-ghost" data-dl="'+f+'" style="font-size:11px;text-align:left;padding:6px 10px;display:flex;align-items:center;gap:8px">'+
-          '<span>⬇</span><span>'+esc(f)+'</span></button>';
-      }).join('')+
-    '</div>';
-  document.body.appendChild(overlay);
-
-  // Positionne le dropdown sous le bouton déclencheur
-  var btn=typeof triggerBtn==='object'&&triggerBtn.nodeType===1?triggerBtn:null;
-  if(btn){
-    var r=btn.getBoundingClientRect();
-    var left=r.right-220;
-    if(left<8)left=8;
-    overlay.style.top=(r.bottom+6)+'px';
-    overlay.style.left=left+'px';
-  }else{
-    overlay.style.top='60px';overlay.style.right='12px';overlay.style.left='auto';
-  }
-
-  overlay.querySelectorAll('[data-dl]').forEach(function(b){
-    b.addEventListener('click',function(){dlFile(b.dataset.dl);overlay.remove();});
-  });
-  setTimeout(function(){
-    document.addEventListener('click',function close(e){
-      if(!overlay.contains(e.target)){overlay.remove();document.removeEventListener('click',close);}
-    });
-  },80);
 }
 
 // ── SIMULATEUR FLOTTANT ───────────────────────────────────────
@@ -264,18 +200,20 @@ async function render(containerArg){
   body.innerHTML='';
   body.style.cssText='flex:1;overflow-y:auto;padding:0;display:flex;flex-direction:column;gap:0;background:var(--bg)';
 
-  // Bouton Resources dans le header (panel-build standalone uniquement)
-  // Si on est dans panel-mine, on ajoute un mini-header inline
   var inMine=!!(body.closest&&body.closest('#panel-mine-build'));
   if(inMine){
     var miniHead=document.createElement('div');
     miniHead.style.cssText='display:flex;align-items:center;padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
     miniHead.innerHTML='<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);flex:1">Build</span>';
-    var srcBtn=document.createElement('button');
+    // Bouton Sources → lien direct vers le repo
+    var srcBtn=document.createElement('a');
     srcBtn.className='ym-btn ym-btn-ghost';
-    srcBtn.style.cssText='font-size:10px;padding:3px 8px';
-    srcBtn.textContent='⬇ Sources';
-    srcBtn.addEventListener('click',function(){_showResourcesPanel(srcBtn);});
+    srcBtn.href=GH_REPO_URL;
+    srcBtn.target='_blank';
+    srcBtn.rel='noopener';
+    srcBtn.style.cssText='font-size:10px;padding:3px 8px;text-decoration:none';
+    srcBtn.textContent='⌥ GitHub';
+    srcBtn.addEventListener('click',function(e){e.stopPropagation();});
     miniHead.appendChild(srcBtn);
     body.appendChild(miniHead);
   }else{
@@ -311,7 +249,7 @@ async function render(containerArg){
     }
   });
 
-  // ÉTAPE 2 : Wallet — statut + bouton simulateur sur la même ligne
+  // ÉTAPE 2 : Wallet — statut + bouton simulateur
   _step(body,'2','Wallet','',function(card){
     if(pubkey){
       card.innerHTML+=
@@ -324,7 +262,6 @@ async function render(containerArg){
       var simBtn=card.querySelector('#open-sim-btn');
       var _eligData=null;
 
-      // Un seul listener sur le bouton simulateur
       simBtn.addEventListener('click',function(){
         if(_eligData){_showSimulatorOverlay(_eligData);return;}
         var btn=this;btn.textContent='⏳';btn.disabled=true;
@@ -369,7 +306,10 @@ async function render(containerArg){
       const files=await fetchFilesJson();
       const ex=files.find(function(f){return f.filename===fn;});
       if(ex){
-        st.innerHTML='<span style="color:var(--gold)">⬆ Upgrade</span> · @'+esc(ex.ghAuthor||'?')+(ex.author?' · '+esc(ex.author.slice(0,8))+'…':'')+'<br>'+
+        // Lien vers la page GitHub du fichier existant
+        const fileGhUrl='https://github.com/'+GH_OWNER+'/'+GH_REPO+'/blob/main/'+(ex.filename||fn);
+        st.innerHTML='<span style="color:var(--gold)">⬆ Upgrade</span> · @'+esc(ex.ghAuthor||'?')+(ex.author?' · '+esc(ex.author.slice(0,8))+'…':'')+
+          ' · <a href="'+fileGhUrl+'" target="_blank" rel="noopener" style="color:var(--cyan);font-family:var(--font-m);font-size:10px">&lt;/&gt; code</a><br>'+
           '<span style="color:var(--text3)">GitHub OU wallet suffisent — pas de score requis</span>';
       }else{
         st.innerHTML='<span style="color:var(--green)">✦ Nouveau fichier</span> · Score on-chain requis · '+
@@ -467,7 +407,6 @@ async function submitSphere(body){
     const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
     const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
 
-    // codeUrl = lien direct vers le code dans le fork (c'est LA clé de l'architecture)
     const codeUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/'+filename;
 
     const message=JSON.stringify({action:'create',filename,content_hash:contentHash,nonce,timestamp,score:claimable,laps:curLaps,codeUrl});
@@ -485,11 +424,9 @@ async function submitSphere(body){
     st('Fork / sync…');
     await ensureFork(token,username);
 
-    // Pousse le CODE dans le fork (accessible via codeUrl)
     st('Pushing code dans ton fork…');
     await ghPush(token,username,filename,code,'sphere: '+filename);
 
-    // Pousse l'event
     st('Pushing event log…');
     const ev={action:'create',filename,wallet:pubkey||username,content_hash:contentHash,signature:sigB64,nonce,timestamp,score:claimable,laps:curLaps,codeUrl};
     await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
