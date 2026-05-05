@@ -1,6 +1,162 @@
-<!-- YourMine Theme — hello -->
+<!-- YourMine Theme — hello
+     Thème minimal : page blanche avec "hello" centré.
+     Conserve tout le DOM requis par app.js / desk.js,
+     mais cache tout via CSS sauf le message central.
+-->
+
+<!-- ── Fonts (optionnel) ──────────────────────────────────── -->
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:#fff;display:flex;align-items:center;justify-content:center;font-family:sans-serif}
+/* ── Reset complet ─────────────────────────────────────────── */
+:root{
+  color-scheme:light;
+  --bg:#ffffff;
+  --text:#000000;--text2:#333;--text3:#999;
+  --gold:#000;--cyan:#000;--red:#e00;--green:#080;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --dock-h:0px;
+  --font-d:sans-serif;--font-b:sans-serif;--font-m:monospace;
+  --cols:4;--rows:6;
+  --glass-heavy:#fff;
+  --blur-heavy:none;
+  --blur-mid:none;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#fff;color:#000;font-family:sans-serif}
+
+/* Cache tout sauf #ym-hello ──────────────────────────────── */
+#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,
+#page-dots,#nav-bar,#panel-overlay,
+#panel-switcher,#ym-sign-dlg,
+#pwa-install-btn,#toasts,
+.ym-panel,.dlg{display:none!important}
+
+/* Le message central ─────────────────────────────────────── */
+#ym-hello{
+  position:fixed;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+  z-index:1;
+}
+#ym-hello span{
+  font-size:32px;
+  font-family:sans-serif;
+  color:#000;
+  letter-spacing:.05em;
+}
+
+/* Scrollbars neutres ─────────────────────────────────────── */
+*{scrollbar-width:none}
+::-webkit-scrollbar{display:none}
 </style>
-<p>hello</p>
+
+<!-- ── Message ──────────────────────────────────────────────── -->
+<div id="ym-hello"><span>hello</span></div>
+
+<!-- ── DOM minimal requis par app.js / desk.js ──────────────
+     Ces éléments doivent exister dans le DOM même s'ils sont
+     invisibles, sinon les scripts lancent des erreurs.
+─────────────────────────────────────────────────────────── -->
+<div id="ym-wp"></div>
+<div id="ym-bg"></div>
+<div id="ym-loader"></div>
+<div id="toasts"></div>
+<div id="desktop"><div id="desktop-slider"></div></div>
+<div id="drag-ghost"></div>
+<div id="page-dots"></div>
+<div id="nav-bar">
+  <div id="dock">
+    <button class="dbtn" id="btn-back"></button>
+    <button class="dbtn" id="btn-profile"></button>
+    <button class="dbtn" id="btn-figure"></button>
+  </div>
+</div>
+<div id="panel-overlay" class="ym-overlay"></div>
+<div id="panel-spheres"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn ym-btn-ghost" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
+<div id="panel-profile"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn ym-btn-ghost" style="margin-left:auto"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
+<div id="panel-build"    class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
+<div id="panel-mine"     class="ym-panel">
+  <div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div>
+  <div class="panel-body" style="overflow:hidden;min-height:0">
+    <div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div>
+    <div id="panel-mine-build"  style="display:none;flex-direction:column"></div>
+    <div id="panel-mine-formula" style="display:none;padding:16px"></div>
+    <div id="panel-mine-liste"  style="display:none;flex-direction:column"></div>
+  </div>
+  <div class="ym-tabs" id="mine-tabs-bar">
+    <div class="ym-tab active" data-mine-tab="wallet">Wallet</div>
+    <div class="ym-tab" data-mine-tab="build">Build</div>
+    <div class="ym-tab" data-mine-tab="liste">Apps</div>
+  </div>
+</div>
+<div id="panel-sphere"       class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
+<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
+<div id="ym-sign-dlg">
+  <div id="ym-sign-box">
+    <div id="ym-sign-sphere"></div>
+    <div id="ym-sign-detail"></div>
+    <div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div>
+  </div>
+</div>
+<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
+<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
+<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column">
+  <div class="dlg-title" id="bg-dlg-title">Background</div>
+  <div id="theme-list"></div>
+  <input id="theme-custom-input" class="ym-input">
+  <button id="theme-custom-btn" class="ym-btn">Use</button>
+  <button class="ym-btn" id="bg-wp">Upload</button>
+  <button class="ym-btn" id="bg-remove">Remove</button>
+  <div id="bg-presets"></div>
+  <button class="ym-btn" id="bg-spheres">Spheres</button>
+  <button class="ym-btn" id="bg-del" style="display:none"></button>
+</div></div>
+<button id="pwa-install-btn"></button>
+
+<!-- ── Theme picker (requis par bg-dlg) ─────────────────────── -->
+<script>
+(function(){
+  var THEME_KEY='ym_theme_url';
+  var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+  var GH_BLOB='https://github.com/theodoreyong9/YourMinedApp/blob/main/src/themes/';
+  var DEF_THEME=GH_RAW+'themes/default.html';
+  var INDEX_URL=GH_RAW+'themes/index.json';
+  function activeUrl(){return localStorage.getItem(THEME_KEY)||DEF_THEME;}
+  function fileToLabel(n){return n.replace(/\.html$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
+  function applyTheme(url,label){
+    if(!url||url===activeUrl())return;
+    localStorage.setItem(THEME_KEY,url);localStorage.removeItem('ym_theme_cache');
+    window.YM_toast&&window.YM_toast('✦ '+label+' — reloading…','success',1500);
+    setTimeout(function(){location.reload();},1500);
+  }
+  function buildList(files){
+    var container=document.getElementById('theme-list');if(!container)return;
+    container.innerHTML='';
+    var current=activeUrl(),currentFile=current.split('/').pop();
+    var allFiles=files.slice();if(allFiles.indexOf(currentFile)===-1)allFiles.unshift(currentFile);
+    allFiles.forEach(function(f){
+      var url=f.startsWith('http')?f:(GH_RAW+'themes/'+f);
+      var label=fileToLabel(f.split('/').pop());
+      var isActive=(f===currentFile)||(url===current);
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;'+(isActive?'background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.2)':'background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.08)');
+      var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+(isActive?'#000':'rgba(0,0,0,.2)');
+      var name=document.createElement('span');name.style.cssText='flex:1;font-size:12px;'+(isActive?'font-weight:600':'');name.textContent=label;
+      var codeBtn=document.createElement('a');codeBtn.href=GH_BLOB+f.split('/').pop();codeBtn.target='_blank';codeBtn.rel='noopener';
+      codeBtn.style.cssText='font-size:10px;color:#666;text-decoration:none;padding:2px 6px;border-radius:4px;border:1px solid rgba(0,0,0,.1)';
+      codeBtn.textContent='</>';codeBtn.addEventListener('click',function(e){e.stopPropagation();});
+      row.appendChild(dot);row.appendChild(name);row.appendChild(codeBtn);
+      row.addEventListener('click',function(){if(url!==activeUrl())applyTheme(url,label);});
+      container.appendChild(row);
+    });
+  }
+  document.getElementById('theme-custom-btn').addEventListener('click',function(){
+    var inp=document.getElementById('theme-custom-input');
+    var url=(inp?inp.value:'').trim();if(!url)return;
+    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+    applyTheme(url,fileToLabel(url.split('/').pop()));if(inp)inp.value='';
+  });
+  document.getElementById('theme-custom-input').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('theme-custom-btn').click();});
+  fetch(INDEX_URL).then(function(r){return r.json();}).then(buildList).catch(function(){buildList(['default.html','hello.html']);});
+  document.getElementById('bg-dlg').addEventListener('click',function(e){if(e.target===document.getElementById('bg-dlg'))document.getElementById('bg-dlg').classList.remove('open');});
+})();
+</script>
