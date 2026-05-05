@@ -7,6 +7,7 @@ const REPO_OWNER  = 'theodoreyong9';
 const REPO_NAME   = 'YourMinedApp';
 const REPO_BRANCH = 'main';
 const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/';
+const GH_BLOB_BASE = 'https://github.com/'+REPO_OWNER+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/';
 const FILES_JSON_URL = RAW_BASE+'files.json';
 
 const CACHE_KEY = 'ym_liste_cache_v3';
@@ -157,7 +158,6 @@ async function activateSphereByName(fileName){
 }
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
-// _currentBody : référence au container actif pour les mises à jour in-place
 let _currentBody=null;
 
 async function render(containerArg){
@@ -203,9 +203,7 @@ function renderCategories(body){
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
-// Met à jour une carte existante dans le DOM sans tout re-render
 function _updateCardInPlace(card,sphere,active){
-  // Badge active
   const nameLine=card.querySelector('[data-name-line]');
   if(nameLine){
     const badge=nameLine.querySelector('.pill');
@@ -213,7 +211,6 @@ function _updateCardInPlace(card,sphere,active){
       const b=document.createElement('span');b.className='pill active';b.textContent='active';nameLine.appendChild(b);
     }else if(!active&&badge)badge.remove();
   }
-  // Bouton off / flèche
   const actionCell=card.querySelector('[data-action-cell]');
   if(actionCell){
     if(active&&!MANDATORY_SPHERES.includes(sphere.fileName)){
@@ -248,6 +245,9 @@ function renderList(body){
     const iconIsUrl=sphere.icon&&(sphere.icon.startsWith('http')||sphere.icon.startsWith('/'));
     const iconHtml=iconIsUrl?'<img src="'+sphere.icon+'" style="width:34px;height:34px;border-radius:6px;object-fit:contain">':'<span style="font-size:34px;line-height:1">'+sphere.icon+'</span>';
 
+    // URL de la page GitHub du fichier source
+    const ghPageUrl=GH_BLOB_BASE+sphere.fileName;
+
     const card=document.createElement('div');
     card.className='ym-card';
     card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s'+(active?';border-color:var(--accent-dim)':'');
@@ -264,7 +264,7 @@ function renderList(body){
             '<span style="font-size:10px;color:var(--text3)">'+esc(sphere.category)+'</span>'+
             '<span style="color:var(--text3);font-size:9px">·</span>'+
             '<span style="font-size:9px;color:var(--text3)">by <b style="color:var(--accent)">@'+esc(sphere.ghAuthor||'unknown')+'</b></span>'+
-            (sphere.codeUrl?'<span data-code-link style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;cursor:pointer">⬇ code</span>':'')+
+            '<a data-code-link href="'+ghPageUrl+'" target="_blank" rel="noopener" style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;text-decoration:none">&lt;/&gt; code</a>'+
           '</div>'+
           '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(sphere.description||'—')+'</div>'+
         '</div>'+
@@ -273,20 +273,13 @@ function renderList(body){
         '</div>'+
       '</div>';
 
-    // Code download — ne propage pas au card click
-    const codeBtn=card.querySelector('[data-code-link]');
-    if(codeBtn){
-      codeBtn.addEventListener('click',function(e){
-        e.stopPropagation();
-        const url=sphere.codeUrl;if(!url)return;
-        fetch(url+'?t='+Date.now(),{cache:'no-store'})
-          .then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.blob();})
-          .then(blob=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=sphere.fileName.replace('.sphere.js','.sphere.code.js');a.click();URL.revokeObjectURL(a.href);})
-          .catch(e2=>{window.YM_toast?.('Download failed: '+e2.message,'error');});
-      });
+    // Bouton code → lien GitHub, stoppe la propagation pour ne pas activer la sphere
+    const codeLink=card.querySelector('[data-code-link]');
+    if(codeLink){
+      codeLink.addEventListener('click',function(e){e.stopPropagation();});
     }
 
-    // Bouton désactivation — met à jour la carte IN-PLACE, pas de re-render
+    // Bouton désactivation — met à jour la carte IN-PLACE
     const deactivateBtn=card.querySelector('[data-deactivate]');
     if(deactivateBtn){
       deactivateBtn.addEventListener('click',async function(e){
@@ -298,7 +291,7 @@ function renderList(body){
       });
     }
 
-    // Click sur carte : active ou ouvre — mise à jour IN-PLACE, pas de re-render
+    // Click sur carte : active ou ouvre — mise à jour IN-PLACE
     card.addEventListener('click',async()=>{
       if(isSphereActive(sphere.fileName)){
         window.YM?.openSpherePanel?.(sphere.fileName);
