@@ -7,7 +7,7 @@ const REPO_OWNER  = 'theodoreyong9';
 const REPO_NAME   = 'YourMinedApp';
 const REPO_BRANCH = 'main';
 const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/';
-const GH_BLOB_BASE = 'https://github.com/'+REPO_OWNER+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/';
+// Les fichiers .sphere.js sont dans le fork de l'auteur, pas dans le repo principal
 const FILES_JSON_URL = RAW_BASE+'files.json';
 
 const CACHE_KEY = 'ym_liste_cache_v3';
@@ -245,8 +245,8 @@ function renderList(body){
     const iconIsUrl=sphere.icon&&(sphere.icon.startsWith('http')||sphere.icon.startsWith('/'));
     const iconHtml=iconIsUrl?'<img src="'+sphere.icon+'" style="width:34px;height:34px;border-radius:6px;object-fit:contain">':'<span style="font-size:34px;line-height:1">'+sphere.icon+'</span>';
 
-    // URL de la page GitHub du fichier source
-    const ghPageUrl=GH_BLOB_BASE+sphere.fileName;
+    // URL dans le fork de l'auteur de la sphere (pas le repo principal)
+    const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
 
     const card=document.createElement('div');
     card.className='ym-card';
@@ -264,7 +264,7 @@ function renderList(body){
             '<span style="font-size:10px;color:var(--text3)">'+esc(sphere.category)+'</span>'+
             '<span style="color:var(--text3);font-size:9px">·</span>'+
             '<span style="font-size:9px;color:var(--text3)">by <b style="color:var(--accent)">@'+esc(sphere.ghAuthor||'unknown')+'</b></span>'+
-            '<a data-code-link href="'+ghPageUrl+'" target="_blank" rel="noopener" style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;text-decoration:none">&lt;/&gt; code</a>'+
+            '<a data-code-link href="'+ghAuthorUrl+'" target="_blank" rel="noopener" style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;text-decoration:none">&lt;/&gt; code</a>'+
           '</div>'+
           '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(sphere.description||'—')+'</div>'+
         '</div>'+
