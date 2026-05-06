@@ -58,7 +58,7 @@ function pickWP(){
     const file=inp.files[0];if(!file)return;
     const processFile=(dataUrl)=>{
       try{localStorage.setItem(WK,dataUrl);}catch(e){toast('Image too large','error');return;}
-      applyWP();toast('Wallpaper updated','success');
+      applyWP();
     };
     if(file.size>2*1024*1024){
       const img=new Image(),url=URL.createObjectURL(file);
@@ -873,17 +873,16 @@ function showBgDlg(p){
       btn.addEventListener('mouseenter',()=>{btn.style.transform='scale(1.04)';});
       btn.addEventListener('mouseleave',()=>{btn.style.transform='';});
       btn.addEventListener('click',()=>{
-        toast('Loading…','info');
         const img=new Image();img.crossOrigin='anonymous';
         img.onload=()=>{
           const c=document.createElement('canvas');c.width=1200;c.height=750;
           c.getContext('2d').drawImage(img,0,0,1200,750);
           try{localStorage.setItem(WK,c.toDataURL('image/jpeg',0.85));}catch(err){localStorage.setItem(WK,pr.url);}
-          applyWP();document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper: '+pr.label,'success');
+          applyWP();document.getElementById('bg-dlg').classList.remove('open');
         };
         img.onerror=()=>{
           localStorage.setItem(WK,pr.url);applyWP();
-          document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper set','success');
+          document.getElementById('bg-dlg').classList.remove('open');
         };
         img.src=pr.url;
       });
