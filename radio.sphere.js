@@ -142,7 +142,12 @@ function _unregisterPage(){
 
 function createWidget(){
   if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
+  // Spawn sur la page courante du bureau, pas forcément page 0
+  const spawnPage=window._deskCurPage||0;
   const pos=loadPos();
+  // Si c'est la première fois (pas de pos sauvegardée), on prend la page courante
+  const savedPage=pos.page||0;
+  const targetPage=(localStorage.getItem(POS_KEY))?savedPage:spawnPage;
   _widget=document.createElement('div');
   _widget.id='ym-radio-widget';
   _widget.style.cssText=
@@ -167,12 +172,16 @@ function createWidget(){
     }
   });
 
-  _registerPage(pos.page||0);
+  _registerPage(targetPage);
   _syncWidgetPage();
 
-  window.addEventListener('ym:page-change',_onPageChange);
+  // Si première activation, sauvegarde la page courante
+  if(!localStorage.getItem(POS_KEY)){
+    const navH=getDeskSafeBottom?getDeskSafeBottom():90;
+    savePos({right:12,bottom:navH+14,page:targetPage});
+  }
 
-  let dragging=false,ox=0,oy=0,wx=0,wy=0,_edgeT=null;
+  window.addEventListener('ym:page-change',_onPageChange);
 
   const onMove=(cx,cy)=>{
     if(!dragging)return;
