@@ -8,7 +8,16 @@ const GH_REPO  = 'YourMinedApp';
 const GH_REPO_URL = 'https://github.com/'+GH_OWNER+'/'+GH_REPO;
 const FILES_URL = 'https://raw.githubusercontent.com/'+GH_OWNER+'/'+GH_REPO+'/main/files.json';
 
-let _userToken     = null;
+// _userToken persisté en sessionStorage pour survivre au rechargement de panel
+// (pas localStorage pour ne pas stocker le token trop longtemps)
+let _userToken = (function(){
+  try{const t=sessionStorage.getItem('ym_build_token');return t?JSON.parse(t):null;}catch{return null;}
+})();
+
+function _saveToken(t){
+  _userToken=t;
+  try{if(t)sessionStorage.setItem('ym_build_token',JSON.stringify(t));else sessionStorage.removeItem('ym_build_token');}catch{}
+}
 let _filesJson     = null;
 let _watchTimer    = null;
 let _lastContainer = null;
@@ -93,7 +102,35 @@ function slotsToHuman(slots){
   return (secs/86400).toFixed(1)+'d';
 }
 
-// ── BOUTON SOURCES → ouvre simplement le repo GitHub ─────────
+// Injecte le bouton GitHub dans le .panel-head du panel courant (mine ou build)
+function _injectGithubBtnInPanelHead(){
+  // Cherche le panel-head du panel-mine ou panel-build
+  var heads=[
+    document.querySelector('#panel-mine .panel-head'),
+    document.querySelector('#panel-build .panel-head'),
+  ];
+  heads.forEach(function(headerEl){
+    if(!headerEl)return;
+    if(headerEl.querySelector('#build-gh-btn'))return;
+    var btn=document.createElement('a');
+    btn.id='build-gh-btn';
+    btn.className='ym-btn ym-btn-ghost';
+    btn.href=GH_REPO_URL;
+    btn.target='_blank';
+    btn.rel='noopener';
+    btn.style.cssText='font-size:10px;padding:4px 10px;letter-spacing:.5px;margin-left:auto;text-decoration:none;flex-shrink:0';
+    btn.textContent='⌥ GitHub';
+    btn.addEventListener('click',function(e){e.stopPropagation();});
+    // S'assure que le flex est actif sur le header
+    headerEl.style.display='flex';
+    headerEl.style.alignItems='center';
+    // N'ajoute qu'une fois, retire si déjà présent sous un autre id
+    var old=headerEl.querySelector('[href="'+GH_REPO_URL+'"]');
+    if(old&&old!==btn)old.remove();
+    headerEl.appendChild(btn);
+  });
+}
+
 function _renderResourcesBtn(body){
   var panel=body;
   while(panel&&panel!==document.body){
@@ -202,21 +239,10 @@ async function render(containerArg){
 
   var inMine=!!(body.closest&&body.closest('#panel-mine-build'));
   if(inMine){
-    var miniHead=document.createElement('div');
-    miniHead.style.cssText='display:flex;align-items:center;padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    miniHead.innerHTML='<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);flex:1">Build</span>';
-    // Bouton Sources → lien direct vers le repo
-    var srcBtn=document.createElement('a');
-    srcBtn.className='ym-btn ym-btn-ghost';
-    srcBtn.href=GH_REPO_URL;
-    srcBtn.target='_blank';
-    srcBtn.rel='noopener';
-    srcBtn.style.cssText='font-size:10px;padding:3px 8px;text-decoration:none';
-    srcBtn.textContent='⌥ GitHub';
-    srcBtn.addEventListener('click',function(e){e.stopPropagation();});
-    miniHead.appendChild(srcBtn);
-    body.appendChild(miniHead);
+    // Dans l'onglet mine : pas de titre "Build", le bouton GitHub va dans le panel-head
+    _injectGithubBtnInPanelHead();
   }else{
+    // Panel build standalone : bouton dans le panel-head
     setTimeout(function(){_renderResourcesBtn(body);},0);
   }
 
@@ -228,7 +254,7 @@ async function render(containerArg){
       card.innerHTML+=
         '<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b> connecté</div>'+
         '<button id="bld-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
-      card.querySelector('#bld-disc').addEventListener('click',function(){_userToken=null;render(body);});
+      card.querySelector('#bld-disc').addEventListener('click',function(){_saveToken(null);render(body);});
     }else{
       card.innerHTML+=
         '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
@@ -241,7 +267,7 @@ async function render(containerArg){
         try{
           const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
           if(!r.ok)throw new Error('Token invalide ('+r.status+')');
-          const u=await r.json();_userToken={value:tok,username:u.login};
+          const u=await r.json();_saveToken({value:tok,username:u.login});
           toast('Connecté @'+u.login,'success');render(body);
         }catch(e){toast(e.message,'error');}
       });
