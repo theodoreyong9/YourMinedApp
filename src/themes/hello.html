@@ -28,7 +28,13 @@ html,body{height:100%;overflow:hidden;background:#fff;color:#000;font-family:san
 #page-dots,#nav-bar,#panel-overlay,
 #panel-switcher,#ym-sign-dlg,
 #pwa-install-btn,#toasts,
-.ym-panel,.dlg{display:none!important}
+.ym-panel,.dlg,
+/* Cache aussi les widgets flottants (radio, etc.) */
+[id^="ym-"][id$="-widget"],
+.ym-widget{display:none!important}
+
+/* Bloque l'ajout d'icônes sur le bureau */
+#desktop-slider .icon-wrap{display:none!important}
 
 /* Le message central ─────────────────────────────────────── */
 #ym-hello{
@@ -162,5 +168,31 @@ html,body{height:100%;overflow:hidden;background:#fff;color:#000;font-family:san
   document.getElementById('theme-custom-input').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('theme-custom-btn').click();});
   fetch(INDEX_URL).then(function(r){return r.json();}).then(buildList).catch(function(){buildList(['default.html','hello.html']);});
   document.getElementById('bg-dlg').addEventListener('click',function(e){if(e.target===document.getElementById('bg-dlg'))document.getElementById('bg-dlg').classList.remove('open');});
+})();
+</script>
+<script>
+// Thème hello : bloque l'ajout d'icônes et de widgets
+(function(){
+  function blockDesk(){
+    if(window.YM_Desk){
+      window.YM_Desk.addIcon=function(){};
+      window.YM_Desk.renderDesk=function(){};
+    }
+  }
+  blockDesk();
+  // Masque les widgets créés dynamiquement après activation des sphères
+  var obs=new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        var id=n.id||'';
+        if(id.indexOf('widget')>=0||n.className==='ym-widget'){
+          n.style.cssText='display:none!important';
+        }
+      });
+    });
+  });
+  obs.observe(document.body,{childList:true});
+  window.addEventListener('ym:sphere-activated',function(){blockDesk();});
 })();
 </script>
