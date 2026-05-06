@@ -56,6 +56,10 @@ const BUILTIN = [
 
 let _ctx=null, _audio=null, _playing=false, _curStation=null, _widget=null, _vol=0.8;
 
+// Image 1x1 transparente en data URI pour forcer un artwork neutre sur le lockscreen Android
+// Sans artwork explicite, Android prend le fond du dernier média joué sur le téléphone
+const BLANK_ARTWORK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
 function loadState(){try{return JSON.parse(localStorage.getItem(STATE_KEY)||'{}');}catch(e){return{};}}
 function saveState(d){localStorage.setItem(STATE_KEY,JSON.stringify(d));}
 function loadCustom(){try{return JSON.parse(localStorage.getItem(CUSTOM_KEY)||'[]');}catch(e){return[];}}
@@ -64,7 +68,6 @@ function loadPos(){try{return JSON.parse(localStorage.getItem(POS_KEY)||'{"right
 function savePos(p){localStorage.setItem(POS_KEY,JSON.stringify(p));}
 function allStations(){return [...BUILTIN,...loadCustom()];}
 
-// ── Calcul des limites de zone sûre pour le widget ─────────────────────────
 const _isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
 
 function _getNavBounds(){
@@ -72,15 +75,12 @@ function _getNavBounds(){
   if(!navBar)return{maxRight:window.innerWidth,maxBottom:window.innerHeight,navW:0,navH:0};
   const r=navBar.getBoundingClientRect();
   if(_isPC()){
-    // Desktop : nav barre verticale à droite
     return{maxRight:r.left,maxBottom:window.innerHeight,navW:r.width,navH:0};
   }else{
-    // Mobile : nav barre horizontale en bas
     return{maxRight:window.innerWidth,maxBottom:r.top,navW:0,navH:r.height};
   }
 }
 
-// Clamp wx,wy pour que le widget reste entièrement dans la zone bureau
 function _clampPos(wx,wy){
   const bounds=_getNavBounds();
   const ww=_widget?_widget.offsetWidth:200;
@@ -90,7 +90,6 @@ function _clampPos(wx,wy){
   return{x:cx,y:cy};
 }
 
-// ── AUDIO ──────────────────────────────────────────────────────────────────
 function getAudio(){
   if(!_audio){
     _audio=document.getElementById('ym-radio-audio');
@@ -113,9 +112,17 @@ function stop(){
 function toggle(){if(_playing)stop();else if(_curStation)play(_curStation);}
 function nextStation(){const all=allStations();const idx=_curStation?all.findIndex(s=>s.url===_curStation.url):-1;play(all[(idx+1)%all.length]);}
 function prevStation(){const all=allStations();const idx=_curStation?all.findIndex(s=>s.url===_curStation.url):-1;play(all[(idx-1+all.length)%all.length]);}
+
 function _updateMediaSession(){
   if(!('mediaSession' in navigator))return;
-  navigator.mediaSession.metadata=new MediaMetadata({title:_curStation&&_curStation.name||'Radio',artist:_curStation&&_curStation.genre||'',album:'YourMine Radio'});
+  navigator.mediaSession.metadata=new MediaMetadata({
+    title:_curStation&&_curStation.name||'Radio',
+    artist:_curStation&&_curStation.genre||'',
+    album:'YourMine Radio',
+    // Artwork explicite neutre : empêche Android d'afficher
+    // l'artwork du dernier média joué sur le téléphone
+    artwork:[{src:BLANK_ARTWORK,sizes:'1x1',type:'image/png'}]
+  });
   navigator.mediaSession.playbackState=_playing?'playing':'paused';
   navigator.mediaSession.setActionHandler('play',()=>{if(!_playing&&_curStation)play(_curStation);});
   navigator.mediaSession.setActionHandler('pause',()=>{if(_playing)stop();});
@@ -123,7 +130,6 @@ function _updateMediaSession(){
   navigator.mediaSession.setActionHandler('previoustrack',prevStation);
 }
 
-// ── WIDGET ─────────────────────────────────────────────────────────────────
 let _panelRefresh=null;
 function _refreshPanel(){if(_panelRefresh)_panelRefresh();}
 
@@ -149,7 +155,6 @@ function createWidget(){
   _refreshWidget();
   document.body.appendChild(_widget);
 
-  // Valide la position sauvegardée au prochain frame (widget a sa taille réelle)
   requestAnimationFrame(()=>{
     if(!_widget)return;
     const rect=_widget.getBoundingClientRect();
@@ -171,17 +176,14 @@ function createWidget(){
 
   const onMove=(cx,cy)=>{
     if(!dragging)return;
-    // Calcule nouvelle position brute
     const rawX=wx+(cx-ox);
     const rawY=wy+(cy-oy);
     ox=cx;oy=cy;
-    // Clamp dans la zone bureau (respecte la nav bar)
     const clamped=_clampPos(rawX,rawY);
     wx=clamped.x;wy=clamped.y;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
 
-    // Navigation de page sur les bords latéraux
     const vw=_isPC()?window.innerWidth-72:window.innerWidth;
     const ew=vw*0.15;
     const curPage=window._deskCurPage||0;
@@ -207,7 +209,6 @@ function createWidget(){
   const onEnd=()=>{
     if(!dragging)return;dragging=false;_widget._dragging=false;
     clearTimeout(_edgeT);_edgeT=null;
-    // Recalcule right/bottom depuis la position clamped finale
     const bounds=_getNavBounds();
     const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
     const r=Math.max(0,window.innerWidth-wx-ww);
@@ -282,7 +283,6 @@ function removeWidget(){
   _unregisterPage();
 }
 
-// ── PANEL ──────────────────────────────────────────────────────────────────
 function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
@@ -391,7 +391,6 @@ function renderPanel(container){
   renderNow();renderStations();
 }
 
-// ── SPHERE ─────────────────────────────────────────────────────────────────
 window.YM_S['radio.sphere.js']={
   name:'Radio',icon:'📻',category:'Media',
   description:'Internet radio — background playback, draggable desktop widget',
