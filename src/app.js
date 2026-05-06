@@ -459,6 +459,46 @@
     reducePanel();
   });
 
+  /* Clic sur le bureau (hors icône) = ferme le panel ouvert */
+  document.getElementById('desktop').addEventListener('click', e => {
+    if (!_panel) return;
+    if (e.target.closest('.icon-wrap')) return;
+    if (e.target.closest('#drag-ghost')) return;
+    reducePanel();
+  });
+
+  /* ── Geste bord gauche mobile : swipe depuis < 20px du bord = retour ── */
+  (() => {
+    let _sx = 0, _sy = 0, _active = false;
+    document.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) return;
+      _sx = e.touches[0].clientX;
+      _sy = e.touches[0].clientY;
+      _active = _sx < 20;
+    }, { passive: true });
+    document.addEventListener('touchend', e => {
+      if (!_active) return;
+      _active = false;
+      const dx = e.changedTouches[0].clientX - _sx;
+      const dy = Math.abs(e.changedTouches[0].clientY - _sy);
+      if (dx > 60 && dy < 80) {
+        // Swipe depuis bord gauche → retour
+        if (_panel) reducePanel();
+        else if (sw.classList.contains('open')) closeSwitcher();
+      }
+    }, { passive: true });
+  })();
+
+  /* ── Bouton bord gauche desktop ── */
+  (() => {
+    const edgeBtn = document.getElementById('ym-edge-back-btn');
+    if (!edgeBtn) return;
+    edgeBtn.addEventListener('click', () => {
+      if (_panel) reducePanel();
+      else if (sw.classList.contains('open')) closeSwitcher();
+    });
+  })();
+
   document.getElementById('nav-bar').addEventListener('click', e => {
     if (e.target.closest('.dbtn')) return;
     if (sw && sw.classList.contains('open')) { closeSwitcher(); return; }
@@ -987,10 +1027,8 @@
     }).catch(() => setTimeout(hideLdr, 400));
 
     /* ── PWA install prompt ──────────────────────────────────
-     * Stratégie multi-navigateur :
-     *  - Chrome/Edge/Android : beforeinstallprompt → bouton natif
-     *  - iOS Safari          : pas d'event → bouton "Add to Home Screen" manuel
-     *  - Déjà installé       : caché via media query CSS + guard JS
+     * index.html capture beforeinstallprompt très tôt dans window._pwaPrompt.
+     * Ici on récupère ce prompt (ou on s'abonne si pas encore arrivé).
      * ────────────────────────────────────────────────────── */
     const isStandalone = () =>
       window.matchMedia('(display-mode: standalone)').matches ||
@@ -999,45 +1037,45 @@
     const btn = document.getElementById('pwa-install-btn');
 
     if (btn && !isStandalone()) {
-      let _prompt = null;
-
-      // iOS Safari : pas de beforeinstallprompt, on détecte manuellement
       const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
       const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
       if (isIOS && isSafari) {
-        // Sur iOS, on montre le bouton directement avec un message explicatif
         btn.innerHTML = '<span>⬆</span> ADD TO HOME SCREEN';
         btn.style.display = 'flex';
         btn.addEventListener('click', () => {
-          // Petit toast guidant l'utilisateur
           toast('Tap ⎙ Share → "Add to Home Screen"', 'info');
         });
       } else {
-        // Chrome / Edge / Android : on attend beforeinstallprompt
-        btn.style.display = 'none';
-
-        window.addEventListener('beforeinstallprompt', e => {
-          e.preventDefault();
-          _prompt = e;
+        const setupPrompt = (e) => {
           btn.style.display = 'flex';
-        });
+          btn.onclick = async () => {
+            btn.style.opacity = '.6';
+            btn.style.pointerEvents = 'none';
+            try {
+              e.prompt();
+              const result = await e.userChoice;
+              if (result.outcome === 'accepted') {
+                btn.style.display = 'none';
+                window._pwaPrompt = null;
+              }
+            } catch {}
+            btn.style.opacity = '';
+            btn.style.pointerEvents = '';
+          };
+        };
 
-        btn.addEventListener('click', async () => {
-          if (!_prompt) return;
-          btn.style.opacity = '.6';
-          btn.style.pointerEvents = 'none';
-          try {
-            _prompt.prompt();
-            const result = await _prompt.userChoice;
-            if (result.outcome === 'accepted') {
-              btn.style.display = 'none';
-              _prompt = null;
-            }
-          } catch {}
-          btn.style.opacity = '';
-          btn.style.pointerEvents = '';
-        });
+        // L'event a peut-être déjà été capturé par index.html
+        if (window._pwaPrompt) {
+          setupPrompt(window._pwaPrompt);
+        } else {
+          btn.style.display = 'none';
+          // Callback pour quand il arrive après
+          window._pwaPromptReady = (e) => {
+            window._pwaPrompt = e;
+            setupPrompt(e);
+          };
+        }
       }
 
       window.matchMedia('(display-mode: standalone)').addEventListener('change', e => {
@@ -1046,7 +1084,7 @@
 
       window.addEventListener('appinstalled', () => {
         btn.style.display = 'none';
-        _prompt = null;
+        window._pwaPrompt = null;
       });
     }
   }
