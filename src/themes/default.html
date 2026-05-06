@@ -127,12 +127,73 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
 .ym-overlay{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));background:rgba(0,0,0,.55);z-index:300;opacity:0;pointer-events:none;transition:opacity .3s;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .ym-overlay.open{opacity:1;pointer-events:all}
 @media(hover:hover) and (pointer:fine){.ym-overlay{right:72px;bottom:0;backdrop-filter:none;-webkit-backdrop-filter:none}}
-.ym-panel{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);border:none;z-index:301;transform:translateY(100%);transition:transform .4s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;border-radius:30px 30px 0 0;overflow:hidden}
+
+/* ── Panels : hauteur adaptative, ancrés en bas ────────────────
+   Le panel grandit vers le haut selon son contenu.
+   max-height = 92dvh pour ne jamais dépasser l'écran.
+   transform part de translateY(100%) → translateY(0).
+   Sur desktop (hover:fine) : slide depuis la gauche, pleine hauteur.
+─────────────────────────────────────────────────────────────── */
+.ym-panel{
+  position:fixed;
+  left:0;right:0;
+  bottom:calc(var(--dock-h) + var(--safe-b));
+  /* pas de top fixe : hauteur déterminée par le contenu */
+  max-height:calc(92dvh - var(--dock-h) - var(--safe-b));
+  background:var(--glass-heavy);
+  backdrop-filter:var(--blur-heavy);
+  -webkit-backdrop-filter:var(--blur-heavy);
+  border:none;z-index:301;
+  transform:translateY(calc(100% + 20px));
+  transition:transform .4s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;
+  border-radius:30px 30px 0 0;overflow:hidden;
+}
 .ym-panel.open{transform:translateY(0)}
 .ym-panel::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
-@media(hover:hover) and (pointer:fine){.ym-panel{right:72px;bottom:0}}
+@media(hover:hover) and (pointer:fine){
+  /* Desktop : slide depuis la gauche, toujours pleine hauteur */
+  .ym-panel{
+    left:0;right:72px;bottom:0;top:0;
+    max-height:none;
+    border-radius:0;
+    transform:translateX(-100%);
+  }
+  .ym-panel.open{transform:translateX(0)}
+}
 
-/* ── Folder panel spécifique ─────────────────────────────────── */
+/* ── Bord gauche desktop : zone de survol pour afficher le retour ─ */
+#ym-edge-back{
+  position:fixed;top:0;left:0;bottom:0;width:8px;
+  z-index:500;cursor:pointer;
+}
+#ym-edge-back-btn{
+  position:fixed;top:50%;left:0;
+  transform:translateY(-50%) translateX(-100%);
+  z-index:501;
+  background:var(--glass-heavy);
+  border:1px solid rgba(240,168,48,.4);
+  border-left:none;
+  color:var(--gold);
+  font-size:18px;
+  padding:14px 10px;
+  border-radius:0 12px 12px 0;
+  cursor:pointer;
+  transition:transform .25s cubic-bezier(.32,.72,0,1);
+  backdrop-filter:var(--blur-mid);
+  -webkit-backdrop-filter:var(--blur-mid);
+  pointer-events:none;
+  user-select:none;
+}
+#ym-edge-back:hover ~ #ym-edge-back-btn,
+#ym-edge-back-btn:hover{
+  transform:translateY(-50%) translateX(0);
+  pointer-events:all;
+}
+
+/* ── Background preset button ────────────────────────────────── */
+.bg-preset-btn{border:none;cursor:pointer;border-radius:6px;overflow:hidden;padding:0;aspect-ratio:16/9;background:#111;transition:transform .15s}
+.bg-preset-img{width:100%;height:100%;object-fit:cover;display:block}
 .ym-panel--folder{z-index:299;backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,8,15,.95)}
 /* Profondeur visuelle via data-depth */
 .ym-panel--folder[data-depth="2"]{background:rgba(8,8,15,.96)}
@@ -148,9 +209,26 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
 .folder-content{flex:1;overflow-y:auto;overflow-x:hidden}
 .folder-desktop-page{height:auto;min-height:100%;background:transparent;padding:6px 12px 10px;gap:6px;display:grid;grid-template-columns:repeat(var(--cols),1fr)}
 
-/* ── Background preset button ────────────────────────────────── */
-.bg-preset-btn{border:none;cursor:pointer;border-radius:6px;overflow:hidden;padding:0;aspect-ratio:16/9;background:#111;transition:transform .15s}
-.bg-preset-img{width:100%;height:100%;object-fit:cover;display:block}
+/* ── Largeur max contenu panels sur desktop ─────────────────── */
+@media(hover:hover) and (pointer:fine){
+  .panel-body > *,
+  #panel-spheres-body > *,
+  #panel-profile-body > *,
+  #panel-build-body > *,
+  #panel-sphere-body > *,
+  #panel-profile-view-body > *,
+  #panel-mine-wallet > *,
+  #panel-mine-build > *,
+  #panel-mine-formula > *,
+  #panel-mine-liste > * {
+    max-width:680px;
+    width:100%;
+    margin-left:auto;
+    margin-right:auto;
+  }
+  /* Exception : éléments pleine largeur */
+  .ym-tabs, #mine-tabs-bar, .panel-head, .panel-handle { max-width:none !important; }
+}
 
 .panel-handle{width:44px;height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(240,168,48,.3),rgba(8,224,248,.22));margin:14px auto 2px;flex-shrink:0;cursor:grab;position:relative;z-index:3}
 .panel-head{display:flex;align-items:center;padding:8px 24px 14px;gap:12px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;min-height:50px;background:rgba(255,255,255,.016);position:relative;z-index:2;cursor:pointer}
@@ -463,3 +541,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 
 <!-- PWA install button — caché par CSS, rendu visible par app.js via beforeinstallprompt -->
 <button id="pwa-install-btn"><span>&#8595;</span> INSTALL APP</button>
+
+<!-- Bord gauche desktop : zone de survol → bouton retour -->
+<div id="ym-edge-back"></div>
+<button id="ym-edge-back-btn" aria-label="Back">‹</button>
