@@ -353,6 +353,16 @@
   function openPanel(id) {
     sw.classList.remove('open');
 
+    // Ferme toujours panel-sphere si on ouvre un panel de nav (sauf si c'est panel-sphere lui-même)
+    if (id !== 'panel-sphere') {
+      const sp = document.getElementById('panel-sphere');
+      if (sp && sp.classList.contains('open')) {
+        sp.classList.remove('open'); sp.style.zIndex = '';
+        // Retire de _openSpheres si c'était la vue courante
+        if (_panel === 'panel-sphere') { _panel = null; _prevPanel = null; }
+      }
+    }
+
     const isProfileOverlay = (id === 'panel-profile' || id === 'panel-profile-view' || id === 'panel-mine') && _panel === 'panel-sphere';
     if (isProfileOverlay) {
       _prevPanel = 'panel-sphere';
@@ -388,12 +398,7 @@
       requestAnimationFrame(() => { fp.style.transition = ''; });
       if (window._deskFolderStack) window._deskFolderStack.length = 0;
     }
-    if (id !== 'panel-sphere') {
-      const sp = document.getElementById('panel-sphere');
-      if (sp && sp.classList.contains('open') && _prevPanel !== 'panel-sphere') {
-        sp.classList.remove('open'); sp.style.zIndex = '';
-      }
-    }
+
     if (id === 'panel-profile' || id === 'panel-mine' || id === 'panel-profile-view') {
       p.style.zIndex = '302';
     } else {
