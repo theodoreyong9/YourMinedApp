@@ -129,16 +129,13 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
 @media(hover:hover) and (pointer:fine){.ym-overlay{right:72px;bottom:0;backdrop-filter:none;-webkit-backdrop-filter:none}}
 
 /* ── Panels : hauteur adaptative, ancrés en bas ────────────────
-   Le panel grandit vers le haut selon son contenu.
-   max-height = 92dvh pour ne jamais dépasser l'écran.
-   transform part de translateY(100%) → translateY(0).
-   Sur desktop (hover:fine) : slide depuis la gauche, pleine hauteur.
+   Mobile : slide depuis le bas, hauteur auto.
+   Desktop : slide depuis la DROITE, largeur adaptative (max 560px).
 ─────────────────────────────────────────────────────────────── */
 .ym-panel{
   position:fixed;
   left:0;right:0;
   bottom:calc(var(--dock-h) + var(--safe-b));
-  /* pas de top fixe : hauteur déterminée par le contenu */
   max-height:calc(92dvh - var(--dock-h) - var(--safe-b));
   background:var(--glass-heavy);
   backdrop-filter:var(--blur-heavy);
@@ -152,20 +149,32 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
 .ym-panel.open{transform:translateY(0)}
 .ym-panel::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 @media(hover:hover) and (pointer:fine){
-  /* Desktop : slide depuis la gauche, toujours pleine hauteur */
+  /* Desktop : slide depuis la droite, largeur auto plafonnée à 560px */
   .ym-panel{
-    left:0;right:72px;bottom:0;top:0;
+    left:auto;
+    right:72px; /* largeur nav-bar */
+    bottom:0;top:0;
+    width:min(560px, calc(100vw - 72px));
     max-height:none;
     border-radius:0;
-    transform:translateX(-100%);
+    transform:translateX(100%); /* part hors écran à droite */
   }
   .ym-panel.open{transform:translateX(0)}
+  /* Ligne lumineuse à gauche du panel (bord d'entrée) */
+  .ym-panel::before{
+    top:0;left:0;right:auto;bottom:0;
+    width:1px;height:auto;
+    background:linear-gradient(180deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)
+  }
 }
 
-/* ── Bord gauche desktop : zone de survol pour afficher le retour ─ */
+/* ── Bord droit desktop : zone de survol pour afficher le retour
+   (panels arrivent de droite donc le bord de fermeture est à gauche du panel
+    mais on garde le trigger sur le bord gauche de l'écran pour le geste retour) */
 #ym-edge-back{
   position:fixed;top:0;left:0;bottom:0;width:8px;
   z-index:500;cursor:pointer;
+  display:none; /* caché sur mobile, visible sur desktop via JS */
 }
 #ym-edge-back-btn{
   position:fixed;top:50%;left:0;
@@ -185,10 +194,13 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
   pointer-events:none;
   user-select:none;
 }
-#ym-edge-back:hover ~ #ym-edge-back-btn,
-#ym-edge-back-btn:hover{
-  transform:translateY(-50%) translateX(0);
-  pointer-events:all;
+@media(hover:hover) and (pointer:fine){
+  #ym-edge-back{display:block}
+  #ym-edge-back:hover ~ #ym-edge-back-btn,
+  #ym-edge-back-btn:hover{
+    transform:translateY(-50%) translateX(0);
+    pointer-events:all;
+  }
 }
 
 /* ── Background preset button ────────────────────────────────── */
