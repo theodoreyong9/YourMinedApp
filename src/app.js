@@ -134,11 +134,16 @@
       const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
       const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
       const cw = preview.offsetWidth;
+      const ch = preview.offsetHeight;
       if (pw > 0 && cw > 0) {
-        const sc = cw / pw;
+        // Scale pour que le clone rentre dans la preview sans jamais dépasser 1:1
+        const scX = cw / pw;
+        const scY = ch > 0 ? ch / ph : scX;
+        const sc = Math.min(scX, scY, 1); // jamais de zoom > 100%
         clone.style.width  = pw + 'px';
         clone.style.height = ph + 'px';
         wrap.style.transform = 'scale(' + sc + ')';
+        wrap.style.transformOrigin = 'top left';
         wrap.style.width  = pw + 'px';
         wrap.style.height = ph + 'px';
       }
