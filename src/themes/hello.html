@@ -1,79 +1,438 @@
-<!-- YourMine Theme — hello
-     Thème minimal : page blanche avec "hello" centré.
-     Conserve tout le DOM requis par app.js / desk.js,
-     mais cache tout via CSS sauf le message central.
+<!-- YourMine — Landing Theme (hello)
+     Premier écran : présentation + bouton Start → default + bouton Readme
+     Contient tout le DOM requis par app.js/desk.js (invisible).
 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=block" rel="stylesheet">
 
-<!-- ── Fonts (optionnel) ──────────────────────────────────── -->
 <style>
-/* ── Reset complet ─────────────────────────────────────────── */
 :root{
-  color-scheme:light;
-  --bg:#ffffff;
-  --text:#000000;--text2:#333;--text3:#999;
-  --gold:#000;--cyan:#000;--red:#e00;--green:#080;
-  --safe-b:env(safe-area-inset-bottom,0px);
-  --dock-h:0px;
-  --font-d:sans-serif;--font-b:sans-serif;--font-m:monospace;
+  --bg:#06060e;--text:#e4e6f4;--text2:rgba(228,230,244,.6);--text3:rgba(228,230,244,.3);
+  --gold:#f0a830;--cyan:#08e0f8;--red:#ff4560;--green:#22d98a;
+  --font-d:'Syne',sans-serif;--font-b:'Space Grotesk',sans-serif;--font-m:'JetBrains Mono',monospace;
+  --dock-h:0px;--safe-b:env(safe-area-inset-bottom,0px);
   --cols:4;--rows:6;
-  --glass-heavy:#fff;
-  --blur-heavy:none;
-  --blur-mid:none;
+  --glass-heavy:rgba(6,6,18,.9);--blur-heavy:blur(40px);--blur-mid:blur(20px);
+  --border:rgba(255,255,255,.08);--accent:#f0a830;--surface:rgba(255,255,255,.03);
+  --r:12px;--r-sm:8px;--r-lg:20px;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:#fff;color:#000;font-family:sans-serif}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{height:100%;overflow:hidden;background:var(--bg);scroll-behavior:smooth}
+body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b)}
 
-/* Cache tout sauf #ym-hello ──────────────────────────────── */
-#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,
-#page-dots,#nav-bar,#panel-overlay,
-#panel-switcher,#ym-sign-dlg,
-#pwa-install-btn,#toasts,
-.ym-panel,.dlg,
-/* Cache aussi les widgets flottants (radio, etc.) */
-[id^="ym-"][id$="-widget"],
-.ym-widget{display:none!important}
-
-/* Bloque l'ajout d'icônes sur le bureau */
+/* ── Cache tout le DOM fonctionnel ── */
+#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
+#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
+.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
 #desktop-slider .icon-wrap{display:none!important}
 
-/* Le message central ─────────────────────────────────────── */
-#ym-hello{
+/* ── Landing ── */
+#ym-landing{
   position:fixed;inset:0;
-  display:flex;align-items:center;justify-content:center;
-  /* pointer-events:all pour que le texte soit sélectionnable */
-  pointer-events:all;
-  z-index:2; /* au-dessus du fond, sous les panels */
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:var(--bg);
+  z-index:10;
 }
-#ym-hello span{
-  font-size:32px;
-  font-family:sans-serif;
-  color:#000;
-  letter-spacing:.05em;
-  user-select:text;
-  -webkit-user-select:text;
-  cursor:text;
+/* Fond subtil */
+#ym-landing::before{
+  content:'';position:fixed;inset:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 80% 50% at 70% 10%,rgba(8,224,248,.06),transparent 60%),
+    radial-gradient(ellipse 60% 60% at 20% 90%,rgba(240,168,48,.05),transparent 60%);
+  z-index:0;
 }
 
-/* Scrollbars neutres ─────────────────────────────────────── */
-*{scrollbar-width:none}
-::-webkit-scrollbar{display:none}
+.lp{position:relative;z-index:1;}
+
+/* ── HERO ── */
+.lp-hero{
+  min-height:100dvh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 24px 40px;
+  text-align:center;
+}
+.lp-logo{
+  font-family:var(--font-d);font-size:clamp(36px,8vw,72px);font-weight:800;
+  letter-spacing:.08em;
+  background:linear-gradient(135deg,var(--gold) 0%,#fff 50%,var(--cyan) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:20px;
+}
+.lp-tagline{
+  font-family:var(--font-b);font-size:clamp(14px,2.5vw,20px);
+  color:var(--text2);line-height:1.6;max-width:560px;margin:0 auto 12px;
+}
+.lp-sub{
+  font-family:var(--font-m);font-size:clamp(10px,1.5vw,13px);
+  color:var(--text3);letter-spacing:.05em;margin-bottom:40px;
+}
+.lp-ctas{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.lp-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:14px 28px;border-radius:14px;
+  font-family:var(--font-d);font-size:13px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  cursor:pointer;border:none;text-decoration:none;
+  transition:all .22s;
+}
+.lp-btn-primary{
+  background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.8));
+  color:#000;box-shadow:0 4px 24px rgba(240,168,48,.3);
+}
+.lp-btn-primary:hover{box-shadow:0 8px 40px rgba(240,168,48,.5);transform:translateY(-2px)}
+.lp-btn-secondary{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);
+  color:var(--text2);
+}
+.lp-btn-secondary:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(8,224,248,.05)}
+.lp-scroll-hint{
+  margin-top:48px;font-family:var(--font-m);font-size:10px;
+  color:var(--text3);letter-spacing:2px;
+  animation:bounce 2s ease-in-out infinite;
+}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+/* ── SECTIONS ── */
+.lp-section{
+  padding:80px 24px;
+  max-width:760px;margin:0 auto;
+}
+.lp-section-label{
+  font-family:var(--font-m);font-size:10px;font-weight:400;
+  letter-spacing:4px;text-transform:uppercase;
+  color:var(--gold);opacity:.7;margin-bottom:12px;
+}
+.lp-section-title{
+  font-family:var(--font-d);font-size:clamp(22px,4vw,38px);font-weight:700;
+  line-height:1.2;margin-bottom:28px;
+  background:linear-gradient(135deg,#fff 60%,var(--text2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.lp-p{font-size:clamp(13px,1.8vw,16px);color:var(--text2);line-height:1.8;margin-bottom:16px;}
+.lp-strong{color:var(--text);font-weight:600;}
+
+/* Liste à puces stylée */
+.lp-list{list-style:none;display:flex;flex-direction:column;gap:10px;margin:16px 0 24px;}
+.lp-list li{
+  display:flex;align-items:flex-start;gap:12px;
+  font-size:clamp(12px,1.6vw,14px);color:var(--text2);line-height:1.6;
+}
+.lp-list li::before{
+  content:'·';color:var(--gold);font-size:20px;line-height:1;flex-shrink:0;margin-top:-1px;
+}
+
+/* Grid features */
+.lp-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:16px;margin:24px 0;
+}
+.lp-card{
+  background:rgba(255,255,255,.025);
+  border:1px solid rgba(255,255,255,.07);
+  border-top:1px solid rgba(240,168,48,.2);
+  border-radius:16px;padding:20px;
+}
+.lp-card-icon{font-size:24px;margin-bottom:10px;}
+.lp-card-title{font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
+.lp-card-text{font-size:12px;color:var(--text3);line-height:1.7;}
+
+/* Séparateur */
+.lp-sep{
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(240,168,48,.25),rgba(8,224,248,.2),transparent);
+  margin:0 24px;
+}
+
+/* Formule */
+.lp-formula-box{
+  background:rgba(240,168,48,.04);
+  border:1px solid rgba(240,168,48,.2);
+  border-radius:16px;padding:28px;
+  text-align:center;margin:24px 0;
+}
+.lp-formula{
+  font-family:var(--font-m);font-size:clamp(16px,3vw,26px);
+  color:var(--gold);line-height:2.2;letter-spacing:.05em;
+  margin-bottom:8px;
+}
+.lp-formula-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;}
+.lp-formula-num{border-bottom:1px solid var(--gold);padding:0 8px 4px;}
+.lp-formula-den{padding:4px 8px 0;}
+
+/* Vars table */
+.lp-vars{
+  display:grid;grid-template-columns:auto 1fr;gap:6px 16px;
+  font-size:12px;margin:16px 0;text-align:left;
+}
+.lp-var-k{font-family:var(--font-m);color:var(--gold);font-size:13px;}
+.lp-var-v{color:var(--text3);line-height:1.5;}
+
+/* Principles */
+.lp-principles{
+  display:flex;flex-direction:column;gap:8px;margin:20px 0;
+}
+.lp-principle{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 16px;
+  background:rgba(255,255,255,.02);
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:10px;
+  font-size:13px;color:var(--text2);
+}
+.lp-principle::before{content:'✦';color:var(--gold);font-size:10px;flex-shrink:0;}
+
+/* CTA final */
+.lp-cta-final{
+  padding:80px 24px;text-align:center;
+  background:linear-gradient(180deg,transparent,rgba(240,168,48,.04));
+}
+.lp-cta-title{
+  font-family:var(--font-d);font-size:clamp(20px,4vw,36px);font-weight:800;
+  letter-spacing:.04em;margin-bottom:16px;
+  background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.lp-cta-sub{font-size:14px;color:var(--text3);margin-bottom:12px;line-height:1.7;}
+.lp-cta-taglines{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:8px;
+  margin:24px 0 40px;
+}
+.lp-tagline-pill{
+  font-family:var(--font-m);font-size:10px;letter-spacing:2px;
+  color:var(--text3);padding:6px 14px;
+  border:1px solid rgba(255,255,255,.07);border-radius:20px;
+}
+
+/* ── HACK: composants requis par app.js/desk.js ── */
+.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill{display:none!important}
 </style>
 
-<!-- ── Message ──────────────────────────────────────────────── -->
-<div id="ym-hello"><span>hello</span></div>
+<div id="ym-landing">
+  <!-- HERO -->
+  <div class="lp lp-hero">
+    <div class="lp-logo">YOURMINE</div>
+    <div class="lp-tagline">A Soulnet for apps and value.<br>Give to receive. Build and deploy instantly.</div>
+    <div class="lp-sub">Fork it. Run it. Break it. Improve it.</div>
+    <div class="lp-ctas">
+      <button class="lp-btn lp-btn-primary" id="lp-start-btn">▶ Start</button>
+      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">📄 Readme</a>
+    </div>
+    <div class="lp-scroll-hint">↓ scroll</div>
+  </div>
 
-<!-- ── DOM minimal requis par app.js / desk.js ──────────────
-     Ces éléments doivent exister dans le DOM même s'ils sont
-     invisibles, sinon les scripts lancent des erreurs.
-─────────────────────────────────────────────────────────── -->
-<div id="ym-wp"></div>
-<div id="ym-bg"></div>
-<div id="ym-loader"></div>
+  <div class="lp-sep"></div>
+
+  <!-- WHAT IS YOURMINE -->
+  <div class="lp lp-section">
+    <div class="lp-section-label">Section — What is YourMine</div>
+    <div class="lp-section-title">A new layer of the web</div>
+    <p class="lp-p">YourMine is not a platform. It is a <span class="lp-strong">distributed layer for applications and value</span>. Instead of centralized services, YourMine enables a network where:</p>
+    <ul class="lp-list">
+      <li>Applications are distributed, not hosted</li>
+      <li>Value is generated through participation</li>
+      <li>Identity is unique and non-transferable</li>
+      <li>Proof of participation defines access and rewards</li>
+    </ul>
+    <p class="lp-p">There is no single system state. Only connected realities.</p>
+
+    <div class="lp-grid">
+      <div class="lp-card">
+        <div class="lp-card-icon">⬡</div>
+        <div class="lp-card-title">Open by design</div>
+        <div class="lp-card-text">Anyone can copy it, deploy it, and run their own instance — instantly. Every instance can remain independent, or connect with others.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-icon">⚙</div>
+        <div class="lp-card-title">Built to evolve</div>
+        <div class="lp-card-text">You can build, modify, experiment, break and improve. Exploration is part of the system. Improvement emerges from it.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-icon">🔒</div>
+        <div class="lp-card-title">Safe by structure</div>
+        <div class="lp-card-text">Actions are local. Effects are contained. Systems are modular. You can push the system without breaking others.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lp-sep"></div>
+
+  <!-- SOULNET -->
+  <div class="lp lp-section">
+    <div class="lp-section-label">Section — Soulnet Architecture</div>
+    <div class="lp-section-title">A network of identity and participation</div>
+    <p class="lp-p">YourMine is built on a <span class="lp-strong">Soulnet</span> — a network where identity and proof cannot be transferred or copied. This creates a system where:</p>
+    <ul class="lp-list">
+      <li>Every user is uniquely bound to their actions</li>
+      <li>Participation has permanent attribution</li>
+      <li>Rewards cannot be detached from behavior</li>
+      <li>Sybil and duplication are structurally constrained</li>
+    </ul>
+    <p class="lp-p">The network does not trust accounts. It trusts participation.</p>
+  </div>
+
+  <div class="lp-sep"></div>
+
+  <!-- DISTRIBUTED APP LAYER -->
+  <div class="lp lp-section">
+    <div class="lp-section-label">Section — Distributed App Layer</div>
+    <div class="lp-section-title">Apps that move through the network</div>
+    <p class="lp-p">Applications in YourMine are not installed from a store. They are <span class="lp-strong">distributed through the network itself</span>.</p>
+    <ul class="lp-list">
+      <li>Apps are modular and peer-to-peer</li>
+      <li>They propagate across nodes</li>
+      <li>Execution happens locally</li>
+      <li>Users decide what becomes active</li>
+    </ul>
+    <p class="lp-p">The app layer is not centralized. It is emergent.</p>
+  </div>
+
+  <div class="lp-sep"></div>
+
+  <!-- VALUE SYSTEM -->
+  <div class="lp lp-section">
+    <div class="lp-section-label">Section — Value System</div>
+    <div class="lp-section-title">Participation becomes value</div>
+    <p class="lp-p">Value in YourMine is not extracted from users. It is <span class="lp-strong">generated by them</span>.</p>
+    <ul class="lp-list">
+      <li>Actions are recorded as proof of participation</li>
+      <li>Proof is non-transferable</li>
+      <li>Rewards are tied to identity permanently</li>
+      <li>Contribution defines economic presence</li>
+    </ul>
+    <p class="lp-p">There is no passive ownership. Only active participation.</p>
+  </div>
+
+  <div class="lp-sep"></div>
+
+  <!-- REALITY LAYERS -->
+  <div class="lp lp-section">
+    <div class="lp-section-label">Section — Reality Layers</div>
+    <div class="lp-section-title">Multiple connected realities</div>
+    <p class="lp-p">YourMine does not enforce a single global state. Instead, it operates through <span class="lp-strong">interconnected spheres</span>:</p>
+    <ul class="lp-list">
+      <li>Each user experiences a contextual system view</li>
+      <li>Different realities coexist simultaneously</li>
+      <li>Applications and data evolve locally</li>
+      <li>The system is consistent, not uniform</li>
+    </ul>
+    <p class="lp-p">Reality is not fixed. It is distributed.</p>
+  </div>
+
+  <div class="lp-sep"></div>
+
+  <!-- CORE PRINCIPLES -->
+  <div class="lp lp-section">
+    <div class="lp-section-label">Section — Core Principles</div>
+    <div class="lp-section-title">The foundations of YourMine</div>
+    <div class="lp-principles">
+      <div class="lp-principle">Identity is non-transferable</div>
+      <div class="lp-principle">Proof is non-transferable</div>
+      <div class="lp-principle">Participation is the source of value</div>
+      <div class="lp-principle">Applications are distributed, not owned</div>
+      <div class="lp-principle">The system has no central authority</div>
+    </div>
+  </div>
+
+  <div class="lp-sep"></div>
+
+  <!-- MINING FORMULA -->
+  <div class="lp lp-section">
+    <div class="lp-section-label">The Mining Formula</div>
+    <div class="lp-section-title">Help us test YourMine's deterministic, disinflationary mining formula</div>
+    <p class="lp-p">A user burns an amount <span class="lp-strong">x</span> of SOL and selects a patience rate <span class="lp-strong">T</span>. The immediate reward is <span class="lp-strong">x(1−T) YM</span>. The rest grows over time as a claimable bonus. Every burn or claim resets the miner's personal clock. We take 0.1% of each burn to sustain the project.</p>
+
+    <div class="lp-formula-box">
+      <div class="lp-formula">
+        <span class="lp-formula-frac">
+          <span class="lp-formula-num">S · t<sup>α</sup></span>
+          <span class="lp-formula-den">[ln(A<sup>β(1−T)</sup> + C)]<sup>γ</sup></span>
+        </span>
+      </div>
+      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);margin-top:8px;letter-spacing:1px">The YourMine Formula</div>
+    </div>
+
+    <div class="lp-vars">
+      <span class="lp-var-k">S</span><span class="lp-var-v">amount of the last burn</span>
+      <span class="lp-var-k">t</span><span class="lp-var-v">time elapsed since last action</span>
+      <span class="lp-var-k">T</span><span class="lp-var-v">patience rate chosen</span>
+      <span class="lp-var-k">A</span><span class="lp-var-v">protocol age (Solana block height)</span>
+      <span class="lp-var-k">C</span><span class="lp-var-v">stabilisation constant</span>
+      <span class="lp-var-k">α</span><span class="lp-var-v">temporal growth</span>
+      <span class="lp-var-k">β</span><span class="lp-var-v">patience / age interaction</span>
+      <span class="lp-var-k">γ</span><span class="lp-var-v">concentration compression</span>
+    </div>
+
+    <div class="lp-grid">
+      <div class="lp-card">
+        <div class="lp-card-title">Pareto</div>
+        <div class="lp-card-text">Economic distributions follow a power law. The protocol integrates this dynamic while stabilising it.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-title">Zipf</div>
+        <div class="lp-card-text">In self-organised systems, ranks follow a 1/r<sup>k</sup> hierarchy. Miner hierarchies emerge naturally.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-title">Boltzmann</div>
+        <div class="lp-card-text">Exponential distributions are naturally compressed by the logarithm — hence the logarithmic compression.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-title">Odum</div>
+        <div class="lp-card-text">In energy systems, efficiency decreases with age. A sustainable system must integrate time-based damping.</div>
+      </div>
+    </div>
+
+    <div class="lp-formula-box" style="margin-top:16px">
+      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:12px">COMPUTATIONALLY SAFE FORM</div>
+      <div class="lp-formula" style="font-size:clamp(12px,2vw,16px)">
+        <span class="lp-formula-frac">
+          <span class="lp-formula-num">S · t<sup>α</sup></span>
+          <span class="lp-formula-den">[β(1−T)·ln(A) + ln(1 + C/A<sup>β(1−T)</sup>)]<sup>γ</sup></span>
+        </span>
+      </div>
+      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);margin-top:12px">Avoids overflow · Identical economic dynamics · Stable on-chain execution</div>
+    </div>
+
+    <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="lp-card" style="border-top-color:rgba(240,168,48,.4)">
+        <div class="lp-card-title">Soulbound position</div>
+        <div class="lp-card-text">Non-transferable. Holds the last burn, patience rate, personal clock, and production rights. Represents the capacity to produce YM.</div>
+      </div>
+      <div class="lp-card" style="border-top-color:rgba(8,224,248,.4)">
+        <div class="lp-card-title">Liquid tokens</div>
+        <div class="lp-card-text">Claimed rewards become standard transferable tokens. Exchangeable, usable in other apps, freely transferable.</div>
+      </div>
+    </div>
+    <p class="lp-p" style="text-align:center;margin-top:12px;font-family:var(--font-m);font-size:11px;color:var(--text3)">soulbound (production) + liquid token (circulation)</p>
+  </div>
+
+  <!-- FINAL CTA -->
+  <div class="lp lp-cta-final">
+    <div class="lp-cta-title">Build. Participate.<br>Become part of the network.</div>
+    <p class="lp-cta-sub">YourMine is not something you use.<br>It is something you participate in.</p>
+    <div class="lp-cta-taglines">
+      <span class="lp-tagline-pill">Distribution totalement libre</span>
+      <span class="lp-tagline-pill">Runtime sans contrainte</span>
+      <span class="lp-tagline-pill">Volonté infiniment récompensée</span>
+      <span class="lp-tagline-pill">Système sans fermeture</span>
+      <span class="lp-tagline-pill">Fondation sans autorité</span>
+    </div>
+    <p class="lp-p" style="font-family:var(--font-m);font-size:13px;color:var(--gold);margin-bottom:32px">Giving is receiving.</p>
+    <div class="lp-ctas">
+      <button class="lp-btn lp-btn-primary" id="lp-start-btn2">▶ Start YourMine</button>
+      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">📄 Readme</a>
+    </div>
+    <div style="height:60px"></div>
+  </div>
+</div>
+
+<!-- DOM fonctionnel invisible requis par app.js / desk.js -->
+<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div>
 <div id="desktop"><div id="desktop-slider"></div></div>
-<div id="drag-ghost"></div>
-<div id="page-dots"></div>
-<div id="nav-bar">
+<div id="drag-ghost"></div><div id="page-dots"></div>
+<div id="nav-bar" style="display:none!important">
   <div id="dock">
     <button class="dbtn" id="btn-back"></button>
     <button class="dbtn" id="btn-profile"></button>
@@ -81,8 +440,8 @@ html,body{height:100%;overflow:hidden;background:#fff;color:#000;font-family:san
   </div>
 </div>
 <div id="panel-overlay" class="ym-overlay"></div>
-<div id="panel-spheres"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn ym-btn-ghost" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
-<div id="panel-profile"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn ym-btn-ghost" style="margin-left:auto"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
+<div id="panel-spheres"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
+<div id="panel-profile"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
 <div id="panel-build"    class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
 <div id="panel-mine"     class="ym-panel">
   <div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div>
@@ -100,79 +459,39 @@ html,body{height:100%;overflow:hidden;background:#fff;color:#000;font-family:san
 </div>
 <div id="panel-sphere"       class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
 <div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
-<div id="ym-sign-dlg">
-  <div id="ym-sign-box">
-    <div id="ym-sign-sphere"></div>
-    <div id="ym-sign-detail"></div>
-    <div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div>
-  </div>
-</div>
+<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
 <div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
 <div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
 <div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column">
   <div class="dlg-title" id="bg-dlg-title">Background</div>
-  <div id="theme-list"></div>
-  <input id="theme-custom-input" class="ym-input">
+  <div id="theme-list"></div><input id="theme-custom-input" class="ym-input">
   <button id="theme-custom-btn" class="ym-btn">Use</button>
-  <button class="ym-btn" id="bg-wp">Upload</button>
-  <button class="ym-btn" id="bg-remove">Remove</button>
-  <div id="bg-presets"></div>
-  <button class="ym-btn" id="bg-spheres">Spheres</button>
+  <button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button>
+  <div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button>
   <button class="ym-btn" id="bg-del" style="display:none"></button>
 </div></div>
-<button id="pwa-install-btn"></button>
+<button id="pwa-install-btn" style="display:none"></button>
 
-<!-- ── Theme picker (requis par bg-dlg) ─────────────────────── -->
 <script>
 (function(){
-  var THEME_KEY='ym_theme_url';
   var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-  var GH_BLOB='https://github.com/theodoreyong9/YourMinedApp/blob/main/src/themes/';
   var DEF_THEME=GH_RAW+'themes/default.html';
-  var INDEX_URL=GH_RAW+'themes/index.json';
-  function activeUrl(){return localStorage.getItem(THEME_KEY)||DEF_THEME;}
-  function fileToLabel(n){return n.replace(/\.html$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
-  function applyTheme(url,label){
-    if(!url||url===activeUrl())return;
-    localStorage.setItem(THEME_KEY,url);localStorage.removeItem('ym_theme_cache');
-    window.YM_toast&&window.YM_toast('✦ '+label+' — reloading…','success',1500);
-    setTimeout(function(){location.reload();},1500);
+  var THEME_KEY='ym_theme_url';
+  var THEME_CACHE='ym_theme_cache';
+
+  function goDefault(){
+    localStorage.setItem(THEME_KEY,DEF_THEME);
+    localStorage.removeItem(THEME_CACHE);
+    location.reload();
   }
-  function buildList(files){
-    var container=document.getElementById('theme-list');if(!container)return;
-    container.innerHTML='';
-    var current=activeUrl(),currentFile=current.split('/').pop();
-    var allFiles=files.slice();if(allFiles.indexOf(currentFile)===-1)allFiles.unshift(currentFile);
-    allFiles.forEach(function(f){
-      var url=f.startsWith('http')?f:(GH_RAW+'themes/'+f);
-      var label=fileToLabel(f.split('/').pop());
-      var isActive=(f===currentFile)||(url===current);
-      var row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;'+(isActive?'background:rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.2)':'background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.08)');
-      var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+(isActive?'#000':'rgba(0,0,0,.2)');
-      var name=document.createElement('span');name.style.cssText='flex:1;font-size:12px;'+(isActive?'font-weight:600':'');name.textContent=label;
-      var codeBtn=document.createElement('a');codeBtn.href=GH_BLOB+f.split('/').pop();codeBtn.target='_blank';codeBtn.rel='noopener';
-      codeBtn.style.cssText='font-size:10px;color:#666;text-decoration:none;padding:2px 6px;border-radius:4px;border:1px solid rgba(0,0,0,.1)';
-      codeBtn.textContent='</>';codeBtn.addEventListener('click',function(e){e.stopPropagation();});
-      row.appendChild(dot);row.appendChild(name);row.appendChild(codeBtn);
-      row.addEventListener('click',function(){if(url!==activeUrl())applyTheme(url,label);});
-      container.appendChild(row);
-    });
-  }
-  document.getElementById('theme-custom-btn').addEventListener('click',function(){
-    var inp=document.getElementById('theme-custom-input');
-    var url=(inp?inp.value:'').trim();if(!url)return;
-    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-    applyTheme(url,fileToLabel(url.split('/').pop()));if(inp)inp.value='';
-  });
-  document.getElementById('theme-custom-input').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('theme-custom-btn').click();});
-  fetch(INDEX_URL).then(function(r){return r.json();}).then(buildList).catch(function(){buildList(['default.html','hello.html']);});
-  document.getElementById('bg-dlg').addEventListener('click',function(e){if(e.target===document.getElementById('bg-dlg'))document.getElementById('bg-dlg').classList.remove('open');});
-})();
-</script>
-<script>
-// Thème hello : bloque l'ajout d'icônes et de widgets
-(function(){
+
+  // Boutons Start
+  var s1=document.getElementById('lp-start-btn');
+  var s2=document.getElementById('lp-start-btn2');
+  if(s1)s1.addEventListener('click',goDefault);
+  if(s2)s2.addEventListener('click',goDefault);
+
+  // Neutralise desk et widgets
   function blockDesk(){
     if(window.YM_Desk){
       window.YM_Desk.addIcon=function(){};
@@ -180,19 +499,38 @@ html,body{height:100%;overflow:hidden;background:#fff;color:#000;font-family:san
     }
   }
   blockDesk();
-  // Masque les widgets créés dynamiquement après activation des sphères
+  window.addEventListener('ym:sphere-activated',blockDesk);
+
+  // Masque les widgets créés dynamiquement
   var obs=new MutationObserver(function(muts){
     muts.forEach(function(m){
       m.addedNodes.forEach(function(n){
         if(n.nodeType!==1)return;
         var id=n.id||'';
-        if(id.indexOf('widget')>=0||n.className==='ym-widget'){
-          n.style.cssText='display:none!important';
-        }
+        if(id.indexOf('widget')>=0){n.style.cssText='display:none!important';}
       });
     });
   });
   obs.observe(document.body,{childList:true});
-  window.addEventListener('ym:sphere-activated',function(){blockDesk();});
+
+  // bg-dlg minimal pour ne pas crasher desk.js
+  var bgDlg=document.getElementById('bg-dlg');
+  if(bgDlg)bgDlg.addEventListener('click',function(e){if(e.target===bgDlg)bgDlg.classList.remove('open');});
+  var wpBtn=document.getElementById('bg-wp');
+  var rmBtn=document.getElementById('bg-remove');
+  var sphBtn=document.getElementById('bg-spheres');
+  var thBtn=document.getElementById('theme-custom-btn');
+  if(wpBtn)wpBtn.addEventListener('click',function(){});
+  if(rmBtn)rmBtn.addEventListener('click',function(){});
+  if(sphBtn)sphBtn.addEventListener('click',function(){});
+  if(thBtn)thBtn.addEventListener('click',function(){
+    var inp=document.getElementById('theme-custom-input');
+    var url=(inp?inp.value:'').trim();
+    if(!url)return;
+    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+    localStorage.setItem(THEME_KEY,url);
+    localStorage.removeItem(THEME_CACHE);
+    location.reload();
+  });
 })();
 </script>
