@@ -29,7 +29,7 @@ function _writeCache(list){
 let _fetchPromise=null;
 async function fetchSphereList(){
   if(_fetchPromise)return _fetchPromise;
-  _fetchPromise=_doFetch().catch(e=>{_fetchPromise=null;throw e;});
+  _fetchPromise=_doFetch().catch(e=>{_fetchPromise=null;throw e;}).finally(()=>{_fetchPromise=null;});
   return _fetchPromise;
 }
 
@@ -164,13 +164,14 @@ async function render(containerArg){
   const body=containerArg||_currentBody||document.getElementById('panel-spheres-body');
   if(!body)return;
   _currentBody=body;
-  body.style.cssText='display:flex;flex-direction:column;height:100%;padding:0';
+  // flex column, hauteur 100% du parent — fonctionne dans panel-spheres ET panel-mine-liste
+  body.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;padding:0;overflow:hidden';
 
   body.innerHTML=
-    '<div id="sphere-list-inner" style="flex:1;overflow-y:auto;padding:10px 16px">'+
+    '<div id="sphere-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Loading spheres…</div>'+
     '</div>'+
-    '<div style="padding:10px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:8px;flex-shrink:0">'+
+    '<div style="padding:10px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:inherit">'+
       '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<input class="ym-input" id="sphere-search" placeholder="Search spheres…" value="">'+
     '</div>';
