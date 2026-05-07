@@ -1,536 +1,560 @@
-<!-- YourMine — Landing Theme (hello)
-     Premier écran : présentation + bouton Start → default + bouton Readme
-     Contient tout le DOM requis par app.js/desk.js (invisible).
+<!--
+  YourMine — Default Theme
+  GitHub: theodoreyong9/YourMinedApp/src/themes/default.html
 -->
+
+<!-- ── Fonts ─────────────────────────────────────────────────── -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=block" rel="stylesheet">
 
+<!-- ── Styles ────────────────────────────────────────────────── -->
 <style>
 :root{
-  --bg:#06060e;--text:#e4e6f4;--text2:rgba(228,230,244,.6);--text3:rgba(228,230,244,.3);
+  color-scheme:dark;
+  --bg:#06060e;
+  --text:#e4e6f4;--text2:rgba(228,230,244,.52);--text3:rgba(228,230,244,.26);
   --gold:#f0a830;--cyan:#08e0f8;--red:#ff4560;--green:#22d98a;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --dock-h:76px;
   --font-d:'Syne',sans-serif;--font-b:'Space Grotesk',sans-serif;--font-m:'JetBrains Mono',monospace;
-  --dock-h:0px;--safe-b:env(safe-area-inset-bottom,0px);
   --cols:4;--rows:6;
-  --glass-heavy:rgba(6,6,18,.9);--blur-heavy:blur(40px);--blur-mid:blur(20px);
-  --border:rgba(255,255,255,.08);--accent:#f0a830;--surface:rgba(255,255,255,.03);
-  --r:12px;--r-sm:8px;--r-lg:20px;
+  --glass-heavy:rgba(6,6,18,.84);
+  --blur-heavy:blur(56px) saturate(200%) brightness(.9);
+  --blur-mid:blur(36px) saturate(180%);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{height:100%;overflow:hidden;background:var(--bg);scroll-behavior:smooth}
-body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b)}
+html{height:100%;overflow:hidden;background:#06060e}
+body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b);padding-top:env(safe-area-inset-top,0px)}
+body::before{content:"";position:fixed;top:0;left:0;width:100%;height:env(safe-area-inset-top,0px);background:#06060e;z-index:9999;pointer-events:none}
+*{scrollbar-width:thin;scrollbar-color:rgba(240,168,48,.18) transparent}
+::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:rgba(240,168,48,.18);border-radius:1px}
+#ym-wp{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat}
+#ym-bg{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:var(--bg)}
+#ym-bg::before{content:'';position:absolute;width:90vmax;height:90vmax;border-radius:50%;background:radial-gradient(circle,rgba(8,224,248,.11),transparent 68%);top:-28vmax;right:-18vmax}
+#ym-bg::after{content:'';position:absolute;width:75vmax;height:75vmax;border-radius:50%;background:radial-gradient(circle,rgba(240,168,48,.09),transparent 68%);bottom:-20vmax;left:-14vmax}
+body.has-wallpaper #ym-bg{background:transparent}
+body.has-wallpaper #ym-bg::before,body.has-wallpaper #ym-bg::after{opacity:.35}
+#desktop{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));z-index:10;overflow:hidden;touch-action:pan-y}
+#desktop-slider{display:flex;height:100%;transition:transform .4s cubic-bezier(.4,0,.2,1);will-change:transform}
+.desktop-page{flex:0 0 100vw;width:100vw;height:calc(100dvh - var(--dock-h) - var(--safe-b));display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);padding:6px 12px 10px;gap:6px;overflow:hidden;position:relative}
+@media(hover:hover) and (pointer:fine){.desktop-page{flex:0 0 calc(100vw - 72px);width:calc(100vw - 72px)}}
+.cell-hl{position:absolute;border-radius:50%;pointer-events:none;z-index:3;background:radial-gradient(circle,rgba(240,168,48,.18),rgba(240,168,48,.03));transition:all .1s}
+.icon-body{width:60px;height:60px;border-radius:10px 14px 8px 12px;background:linear-gradient(160deg,rgba(240,168,48,.09) 0%,rgba(255,255,255,.06) 60%,rgba(240,168,48,.05) 100%);border:1px solid rgba(255,255,255,.12);border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;font-size:27px;flex-shrink:0;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.45),0 8px 28px rgba(0,0,0,.35),inset 0 -1px 0 rgba(0,0,0,.25);transition:transform .24s cubic-bezier(.34,1.56,.64,1),box-shadow .24s,border-color .2s;transform:skewX(-8deg);will-change:transform;isolation:isolate}
+.icon-body::before{content:'';position:absolute;inset:0;border-radius:inherit;backdrop-filter:var(--blur-mid);-webkit-backdrop-filter:var(--blur-mid);z-index:-1;pointer-events:none}
+.icon-body>*{transform:skewX(8deg)}
+@media(hover:hover) and (pointer:fine){.icon-body:hover{transform:skewX(-8deg) translateY(-4px) scale(1.07);border-color:rgba(240,168,48,.35);box-shadow:0 4px 16px rgba(0,0,0,.5),0 16px 48px rgba(0,0,0,.4),0 0 0 1px rgba(240,168,48,.2)}}
+.icon-wrap:active .icon-body{transform:skewX(-8deg) scale(.82) translateY(2px);transition-duration:.08s}
+.icon-body img{width:36px;height:36px;object-fit:contain;border-radius:8px;display:block}
+.icon-label{font-size:10px;font-weight:600;color:#fff;text-align:center;max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-b);order:-1;text-shadow:0 0 3px rgba(0,0,0,1),1px 1px 0 rgba(0,0,0,.9),-1px -1px 0 rgba(0,0,0,.9),1px -1px 0 rgba(0,0,0,.9),-1px 1px 0 rgba(0,0,0,.9),0 2px 8px rgba(0,0,0,.8)}
+.icon-notif{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;background:var(--gold);color:#000;font-size:10px;display:flex;align-items:center;justify-content:center;padding:0 5px;font-weight:700;border:2px solid var(--bg);z-index:2;font-family:var(--font-m)}
+.icon-del{position:absolute;top:-8px;left:-8px;width:24px;height:24px;border-radius:50%;background:var(--red);color:#fff;font-size:13px;font-weight:700;display:none;align-items:center;justify-content:center;z-index:10;cursor:pointer;border:2px solid var(--bg);line-height:1;pointer-events:all}
+body.edit-mode .icon-del{display:flex}
+/* Pas de bouton rouge sur les dossiers en mode move */
+body.edit-mode .folder-body>.icon-del{display:none!important}
+.icon-del-hidden{display:none!important}
+body.edit-mode .icon-body{animation:wob .44s ease-in-out infinite}
+@keyframes wob{0%{transform:skewX(-8deg) rotate(-3.5deg) scale(.97)}50%{transform:skewX(-8deg) rotate(3.5deg) scale(.97)}100%{transform:skewX(-8deg) rotate(-3.5deg) scale(.97)}}
+.folder-body{background:linear-gradient(145deg,rgba(240,168,48,.07),rgba(255,255,255,.04));border-radius:10px 14px 8px 12px;transform:skewX(-8deg)}
+.folder-grid{position:absolute;inset:10px;display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:2px;overflow:hidden;border-radius:8px}
+.folder-grid .fi{font-size:13px;display:flex;align-items:center;justify-content:center}
+.folder-grid .fi .fi__img{width:16px;height:16px;object-fit:contain;border-radius:3px}
+#drag-ghost{position:fixed;pointer-events:none;z-index:9800;opacity:.68;transform:scale(1.18) rotate(5deg);display:none}
+.drag-ghost__body{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+#nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy)}
+#nav-bar::after{content:'';position:absolute;bottom:calc(-1 * var(--safe-b));left:0;right:0;height:var(--safe-b);background:var(--glass-heavy)}
+body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
+@media all and (display-mode:standalone){#nav-bar{background:var(--bg)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}#nav-bar::after{background:var(--bg)}}
+#page-dots{position:fixed;bottom:calc(var(--dock-h) + var(--safe-b) + 10px);left:0;right:0;display:flex;gap:5px;align-items:center;justify-content:center;pointer-events:none;z-index:205}
+.pdot{width:4px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);transition:all .35s cubic-bezier(.4,0,.2,1)}
+.pdot.active{width:24px;height:4px;background:linear-gradient(90deg,var(--gold),var(--cyan));box-shadow:0 0 8px rgba(240,168,48,.4);border-radius:2px}
+#dock{display:flex;flex-direction:row;align-items:center;justify-content:space-around;flex:1;padding:0 20px}
+.dbtn{display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;padding:12px 16px;border-radius:16px 12px 12px 16px;transition:background .18s,transform .2s cubic-bezier(.34,1.56,.64,1),color .18s;color:rgba(255,255,255,.38);min-width:54px;min-height:54px;font-size:26px;font-family:var(--font-m);position:relative;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+@media(hover:none) and (pointer:coarse){.dbtn:hover,.dbtn:focus{color:rgba(255,255,255,.38)!important;background:none!important;transform:none!important}}
+@media(hover:hover) and (pointer:fine){.dbtn:hover{color:rgba(255,255,255,.82);transform:translateY(-3px) scale(1.05);background:rgba(255,255,255,.06)}}
+.dbtn:active{transform:scale(.84);background:rgba(240,168,48,.08)}
+.dbtn.active{color:var(--gold)}
+.dbtn.active::after{content:'';position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);width:20px;height:3px;border-radius:2px;background:linear-gradient(90deg,var(--gold),var(--cyan));box-shadow:0 0 8px rgba(240,168,48,.5)}
+#btn-back{font-size:34px;color:rgba(240,168,48,.6)}
+@media(hover:hover) and (pointer:fine){
+  :root{--cols:8;--rows:5;--dock-h:0px}
+  #desktop{right:72px;bottom:0!important}
+  #nav-bar{left:auto;right:0;top:0;bottom:0;height:auto;width:72px;flex-direction:column;border-top:none;padding-bottom:0}
+  #nav-bar::after{display:none}
+  #page-dots{bottom:20px;left:0;right:72px}
+  #dock{flex-direction:column;padding:10px 0;justify-content:center;gap:6px;flex:1}
+  .dbtn{font-size:22px;min-width:56px;min-height:46px;padding:10px 0;flex-direction:column;border-radius:12px}
+}
 
-/* ── Cache tout le DOM fonctionnel ── */
-#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
-#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
-.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
-#desktop-slider .icon-wrap{display:none!important}
-
-/* ── Landing ── */
-#ym-landing{
-  position:fixed;inset:0;
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
-  background:var(--bg);
-  z-index:10;
-}
-/* Fond subtil */
-#ym-landing::before{
-  content:'';position:fixed;inset:0;pointer-events:none;
-  background:
-    radial-gradient(ellipse 80% 50% at 70% 10%,rgba(8,224,248,.06),transparent 60%),
-    radial-gradient(ellipse 60% 60% at 20% 90%,rgba(240,168,48,.05),transparent 60%);
-  z-index:0;
-}
-
-.lp{position:relative;z-index:1;}
-
-/* ── HERO ── */
-.lp-hero{
-  min-height:100dvh;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:60px 24px 40px;
-  text-align:center;
-}
-.lp-logo{
-  font-family:var(--font-d);font-size:clamp(36px,8vw,72px);font-weight:800;
-  letter-spacing:.08em;
-  background:linear-gradient(135deg,var(--gold) 0%,#fff 50%,var(--cyan) 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:20px;
-}
-.lp-tagline{
-  font-family:var(--font-b);font-size:clamp(14px,2.5vw,20px);
-  color:var(--text2);line-height:1.6;max-width:560px;margin:0 auto 12px;
-}
-.lp-sub{
-  font-family:var(--font-m);font-size:clamp(10px,1.5vw,13px);
-  color:var(--text3);letter-spacing:.05em;margin-bottom:40px;
-}
-.lp-ctas{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
-.lp-btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  padding:14px 28px;border-radius:14px;
-  font-family:var(--font-d);font-size:13px;font-weight:700;
-  letter-spacing:2px;text-transform:uppercase;
-  cursor:pointer;border:none;text-decoration:none;
+/* ── PWA install button ───────────────────────────────────────
+ * Toujours caché par défaut ; app.js le rend visible uniquement
+ * quand beforeinstallprompt se déclenche.
+ * z-index 500 pour passer au-dessus des panels (z-index 301–303)
+ * mais sous les dialogs (z-index 500+).
+ * ─────────────────────────────────────────────────────────── */
+#pwa-install-btn{
+  position:fixed;
+  bottom:calc(var(--dock-h) + var(--safe-b) + 28px);
+  left:50%;
+  transform:translateX(-50%);
+  z-index:450;
+  display:none;           /* caché par défaut, app.js met display:flex */
+  align-items:center;
+  gap:8px;
+  background:var(--glass-heavy);
+  border:1px solid rgba(240,168,48,.3);
+  color:var(--gold);
+  font-family:var(--font-d);
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  padding:11px 18px;
+  border-radius:14px;
+  cursor:pointer;
+  backdrop-filter:var(--blur-mid);
+  -webkit-backdrop-filter:var(--blur-mid);
   transition:all .22s;
+  white-space:nowrap;
+  pointer-events:all;
 }
-.lp-btn-primary{
-  background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.8));
-  color:#000;box-shadow:0 4px 24px rgba(240,168,48,.3);
+@media(hover:hover) and (pointer:fine){
+  /* En mode desktop la barre nav est à droite, on recentre sur la zone desktop */
+  #pwa-install-btn{right:calc(72px + 50%);left:auto;transform:translateX(50%);bottom:28px}
 }
-.lp-btn-primary:hover{box-shadow:0 8px 40px rgba(240,168,48,.5);transform:translateY(-2px)}
-.lp-btn-secondary{
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.12);
-  color:var(--text2);
-}
-.lp-btn-secondary:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(8,224,248,.05)}
-.lp-scroll-hint{
-  margin-top:48px;font-family:var(--font-m);font-size:10px;
-  color:var(--text3);letter-spacing:2px;
-  animation:bounce 2s ease-in-out infinite;
-}
-@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+@media all and (display-mode:standalone){#pwa-install-btn{display:none!important}}
 
-/* ── SECTIONS ── */
-.lp-section{
-  padding:80px 24px;
-  max-width:760px;margin:0 auto;
-}
-.lp-section-label{
-  font-family:var(--font-m);font-size:10px;font-weight:400;
-  letter-spacing:4px;text-transform:uppercase;
-  color:var(--gold);opacity:.7;margin-bottom:12px;
-}
-.lp-section-title{
-  font-family:var(--font-d);font-size:clamp(22px,4vw,38px);font-weight:700;
-  line-height:1.2;margin-bottom:28px;
-  background:linear-gradient(135deg,#fff 60%,var(--text2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.lp-p{font-size:clamp(13px,1.8vw,16px);color:var(--text2);line-height:1.8;margin-bottom:16px;}
-.lp-strong{color:var(--text);font-weight:600;}
+/* Overlay : pointer-events uniquement, sans assombrissement du bureau */
+.ym-overlay{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));background:transparent;z-index:300;opacity:0;pointer-events:none;transition:opacity .3s}
+.ym-overlay.open{opacity:1;pointer-events:all}
+@media(hover:hover) and (pointer:fine){.ym-overlay{right:72px;bottom:0}}
 
-/* Liste à puces stylée */
-.lp-list{list-style:none;display:flex;flex-direction:column;gap:10px;margin:16px 0 24px;}
-.lp-list li{
-  display:flex;align-items:flex-start;gap:12px;
-  font-size:clamp(12px,1.6vw,14px);color:var(--text2);line-height:1.6;
+/* ── Panels : hauteur adaptative, ancrés en bas ────────────────
+   Mobile : slide depuis le bas, hauteur auto.
+   Desktop : slide depuis la DROITE, largeur adaptative (max 560px).
+─────────────────────────────────────────────────────────────── */
+.ym-panel{
+  position:fixed;
+  left:0;right:0;
+  bottom:calc(var(--dock-h) + var(--safe-b));
+  max-height:calc(100dvh - var(--dock-h) - var(--safe-b));
+  background:var(--glass-heavy);
+  backdrop-filter:var(--blur-heavy);
+  -webkit-backdrop-filter:var(--blur-heavy);
+  border:none;z-index:301;
+  transform:translateY(calc(100% + 20px));
+  transition:transform .4s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;
+  border-radius:30px 30px 0 0;overflow:hidden;
 }
-.lp-list li::before{
-  content:'·';color:var(--gold);font-size:20px;line-height:1;flex-shrink:0;margin-top:-1px;
-}
-
-/* Grid features */
-.lp-grid{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
-  gap:16px;margin:24px 0;
-}
-.lp-card{
-  background:rgba(255,255,255,.025);
-  border:1px solid rgba(255,255,255,.07);
-  border-top:1px solid rgba(240,168,48,.2);
-  border-radius:16px;padding:20px;
-}
-.lp-card-icon{font-size:24px;margin-bottom:10px;}
-.lp-card-title{font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
-.lp-card-text{font-size:12px;color:var(--text3);line-height:1.7;}
-
-/* Séparateur */
-.lp-sep{
-  height:1px;
-  background:linear-gradient(90deg,transparent,rgba(240,168,48,.25),rgba(8,224,248,.2),transparent);
-  margin:0 24px;
+.ym-panel.open{transform:translateY(0)}
+.ym-panel::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
+@media(hover:hover) and (pointer:fine){
+  /* Desktop : slide depuis la droite, largeur auto plafonnée à 560px */
+  .ym-panel{
+    left:auto;
+    right:72px; /* largeur nav-bar */
+    bottom:0;top:0;
+    width:min(560px, calc(100vw - 72px));
+    max-height:none;
+    border-radius:0;
+    transform:translateX(100%); /* part hors écran à droite */
+  }
+  .ym-panel.open{transform:translateX(0)}
+  /* Ligne lumineuse à gauche du panel (bord d'entrée) */
+  .ym-panel::before{
+    top:0;left:0;right:auto;bottom:0;
+    width:1px;height:auto;
+    background:linear-gradient(180deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)
+  }
 }
 
-/* Formule */
-.lp-formula-box{
-  background:rgba(240,168,48,.04);
-  border:1px solid rgba(240,168,48,.2);
-  border-radius:16px;padding:28px;
-  text-align:center;margin:24px 0;
+/* ── Bord droit desktop : zone de survol pour afficher le retour
+   (panels arrivent de droite donc le bord de fermeture est à gauche du panel
+    mais on garde le trigger sur le bord gauche de l'écran pour le geste retour) */
+#ym-edge-back{
+  position:fixed;top:0;left:0;bottom:0;width:8px;
+  z-index:500;cursor:pointer;
+  display:none; /* caché sur mobile, visible sur desktop via JS */
 }
-.lp-formula{
-  font-family:var(--font-m);font-size:clamp(16px,3vw,26px);
-  color:var(--gold);line-height:2.2;letter-spacing:.05em;
-  margin-bottom:8px;
+#ym-edge-back-btn{
+  position:fixed;top:50%;left:0;
+  transform:translateY(-50%) translateX(-100%);
+  z-index:501;
+  background:var(--glass-heavy);
+  border:1px solid rgba(240,168,48,.4);
+  border-left:none;
+  color:var(--gold);
+  font-size:18px;
+  padding:14px 10px;
+  border-radius:0 12px 12px 0;
+  cursor:pointer;
+  transition:transform .25s cubic-bezier(.32,.72,0,1);
+  backdrop-filter:var(--blur-mid);
+  -webkit-backdrop-filter:var(--blur-mid);
+  pointer-events:none;
+  user-select:none;
 }
-.lp-formula-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;}
-.lp-formula-num{border-bottom:1px solid var(--gold);padding:0 8px 4px;}
-.lp-formula-den{padding:4px 8px 0;}
-
-/* Vars table */
-.lp-vars{
-  display:grid;grid-template-columns:auto 1fr;gap:6px 16px;
-  font-size:12px;margin:16px 0;text-align:left;
-}
-.lp-var-k{font-family:var(--font-m);color:var(--gold);font-size:13px;}
-.lp-var-v{color:var(--text3);line-height:1.5;}
-
-/* Principles */
-.lp-principles{
-  display:flex;flex-direction:column;gap:8px;margin:20px 0;
-}
-.lp-principle{
-  display:flex;align-items:center;gap:12px;
-  padding:12px 16px;
-  background:rgba(255,255,255,.02);
-  border:1px solid rgba(255,255,255,.06);
-  border-radius:10px;
-  font-size:13px;color:var(--text2);
-}
-.lp-principle::before{content:'✦';color:var(--gold);font-size:10px;flex-shrink:0;}
-
-/* CTA final */
-.lp-cta-final{
-  padding:80px 24px;text-align:center;
-  background:linear-gradient(180deg,transparent,rgba(240,168,48,.04));
-}
-.lp-cta-title{
-  font-family:var(--font-d);font-size:clamp(20px,4vw,36px);font-weight:800;
-  letter-spacing:.04em;margin-bottom:16px;
-  background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.lp-cta-sub{font-size:14px;color:var(--text3);margin-bottom:12px;line-height:1.7;}
-.lp-cta-taglines{
-  display:flex;flex-wrap:wrap;justify-content:center;gap:8px;
-  margin:24px 0 40px;
-}
-.lp-tagline-pill{
-  font-family:var(--font-m);font-size:10px;letter-spacing:2px;
-  color:var(--text3);padding:6px 14px;
-  border:1px solid rgba(255,255,255,.07);border-radius:20px;
+@media(hover:hover) and (pointer:fine){
+  #ym-edge-back{display:block}
+  #ym-edge-back:hover ~ #ym-edge-back-btn,
+  #ym-edge-back-btn:hover{
+    transform:translateY(-50%) translateX(0);
+    pointer-events:all;
+  }
 }
 
-/* ── HACK: composants requis par app.js/desk.js ── */
-.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill{display:none!important}
+/* ── Background preset button ────────────────────────────────── */
+.bg-preset-btn{border:none;cursor:pointer;border-radius:6px;overflow:hidden;padding:0;aspect-ratio:16/9;background:#111;transition:transform .15s}
+.bg-preset-img{width:100%;height:100%;object-fit:cover;display:block}
+.ym-panel--folder{z-index:299;backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,8,15,.95)}
+/* Profondeur visuelle via data-depth */
+.ym-panel--folder[data-depth="2"]{background:rgba(8,8,15,.96)}
+.ym-panel--folder[data-depth="3"]{background:rgba(8,8,15,.97)}
+.folder-breadcrumb{display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;min-width:0;padding:0 4px}
+.folder-breadcrumb__sep{color:var(--text3);font-size:14px}
+.folder-breadcrumb__item{font-size:12px;color:var(--text3);cursor:pointer;padding:2px 4px;border-radius:4px}
+.folder-breadcrumb__item--active{font-size:12px;color:var(--text);font-weight:600;cursor:default}
+.folder-breadcrumb__item--editing{background:rgba(232,160,32,.18);outline:1px solid var(--gold)}
+.folder-drop-zone{flex-shrink:0;padding:8px 16px;border-bottom:2px dashed rgba(232,160,32,.4);font-size:11px;color:var(--gold);text-align:center;background:rgba(232,160,32,.06)}
+.folder-drop-zone--hidden{display:none}
+.folder-panel-body{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.folder-content{flex:1;overflow-y:auto;overflow-x:hidden}
+.folder-desktop-page{height:auto;min-height:100%;background:transparent;padding:6px 12px 10px;gap:6px;display:grid;grid-template-columns:repeat(var(--cols),1fr)}
+
+/* ── Largeur max contenu panels sur desktop ─────────────────── */
+@media(hover:hover) and (pointer:fine){
+  .panel-body > *,
+  #panel-spheres-body > *,
+  #panel-profile-body > *,
+  #panel-build-body > *,
+  #panel-sphere-body > *,
+  #panel-profile-view-body > *,
+  #panel-mine-wallet > *,
+  #panel-mine-build > *,
+  #panel-mine-formula > *,
+  #panel-mine-liste > * {
+    max-width:680px;
+    width:100%;
+    margin-left:auto;
+    margin-right:auto;
+  }
+  /* Exception : éléments pleine largeur */
+  .ym-tabs, #mine-tabs-bar, .panel-head, .panel-handle { max-width:none !important; }
+}
+
+.panel-handle{width:44px;height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(240,168,48,.3),rgba(8,224,248,.22));margin:14px auto 2px;flex-shrink:0;cursor:grab;position:relative;z-index:3}
+.panel-head{display:flex;align-items:center;padding:8px 24px 14px;gap:12px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;min-height:50px;background:rgba(255,255,255,.016);position:relative;z-index:2;cursor:pointer}
+.panel-head h2{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:6px;text-transform:uppercase;background:linear-gradient(90deg,var(--gold) 0%,rgba(255,255,255,.8) 50%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200% 100%;animation:titleshift 6s ease-in-out infinite;cursor:default}
+@keyframes titleshift{0%,100%{background-position:0%}50%{background-position:100%}}
+.panel-body{flex:1;overflow:hidden;display:flex;flex-direction:column;-webkit-overflow-scrolling:touch;min-height:0}
+#panel-sphere-body{display:flex;flex-direction:column;padding:0}
+.ym-input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:11px 14px;color:var(--text);font-family:var(--font-b);font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s}
+.ym-input:focus{background:rgba(255,255,255,.07);border-color:rgba(240,168,48,.5);box-shadow:0 0 0 3px rgba(240,168,48,.08)}
+.ym-input::placeholder{color:var(--text3)}
+textarea.ym-input{resize:vertical;font-family:var(--font-m);font-size:12px}
+.ym-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:10px;font-family:var(--font-b);font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;border:1px solid transparent}
+.ym-btn-accent{background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.85));color:#000;font-weight:700;box-shadow:0 4px 20px rgba(240,168,48,.28)}
+.ym-btn-accent:hover{box-shadow:0 8px 32px rgba(240,168,48,.42);transform:translateY(-1px)}
+.ym-btn-ghost{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:var(--text2)}
+.ym-btn-ghost:hover{border-color:rgba(240,168,48,.4);color:var(--gold);background:rgba(240,168,48,.06)}
+.ym-btn-danger{background:transparent;border-color:rgba(255,69,96,.35);color:var(--red)}
+.ym-btn:disabled{opacity:.32;cursor:not-allowed}
+.ym-card{background:rgba(255,255,255,.034);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:16px;margin-bottom:10px;box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.ym-card-title{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(240,168,48,.55);margin-bottom:12px}
+.ym-stat-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.ym-stat-row:last-child{border-bottom:none}
+.ym-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-family:var(--font-m)}
+.ym-stat-value{font-family:var(--font-m);font-size:13px;color:var(--text)}
+.ym-stat-value.gold{color:var(--gold)}.ym-stat-value.cyan{color:var(--cyan)}.ym-stat-value.green{color:var(--green)}
+.ym-notice{padding:10px 14px;border-radius:12px;font-size:12px;display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;line-height:1.5}
+.ym-notice.info{background:rgba(85,153,255,.07);border:1px solid rgba(85,153,255,.2);color:#5599ff}
+.ym-notice.success{background:rgba(34,217,138,.07);border:1px solid rgba(34,217,138,.2);color:var(--green)}
+.ym-notice.error{background:rgba(255,69,96,.07);border:1px solid rgba(255,69,96,.2);color:var(--red)}
+.ym-notice.warn{background:rgba(240,168,48,.07);border:1px solid rgba(240,168,48,.2);color:var(--gold)}
+.ym-separator{height:1px;background:linear-gradient(90deg,transparent,rgba(240,168,48,.25),transparent);margin:12px 0}
+.ym-tabs{display:flex;flex-shrink:0;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.06)}
+.ym-tab{flex:1;padding:14px 4px 12px;text-align:center;font-size:11px;font-family:var(--font-d);letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.3);cursor:pointer;transition:color .18s,background .18s;position:relative;-webkit-tap-highlight-color:transparent;border-top:2px solid transparent}
+.ym-tab.active{color:var(--gold);background:rgba(240,168,48,.06);border-top-color:var(--gold)}
+.ym-tab:hover:not(.active){color:rgba(255,255,255,.6)}
+.ym-tab-badge{position:absolute;top:4px;right:10px;min-width:16px;height:16px;border-radius:8px;background:var(--gold);color:#000;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px;font-family:var(--font-m);pointer-events:none}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:12px;font-size:10px;font-family:var(--font-m);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text3);margin:2px}
+.pill.active{background:rgba(240,168,48,.1);border-color:rgba(240,168,48,.3);color:var(--gold)}
+.profile-avatar{width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.09);border:1.5px solid rgba(240,168,48,.45);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 12px;cursor:pointer;overflow:hidden}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.uuid-display{font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all;cursor:pointer;padding:6px 10px;background:rgba(255,255,255,.04);border-radius:8px;border:1px solid rgba(255,255,255,.07);margin-bottom:10px}
+.formula-section{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:14px;margin-bottom:10px}
+.formula-title{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(240,168,48,.6);margin-bottom:10px}
+.formula-big{font-family:var(--font-m);font-size:18px;color:var(--gold);text-align:center;padding:14px 8px;background:rgba(240,168,48,.05);border-radius:8px;margin:8px 0;line-height:1.6}
+.formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.formula-var{background:rgba(255,255,255,.03);border-radius:6px;padding:7px 8px;font-size:11px;color:var(--text2);line-height:1.4}
+.formula-var b{color:var(--gold);font-family:var(--font-m)}
+body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
+@keyframes wpPan{0%{background-position:0% center}100%{background-position:100% center}}
+/* Switcher : ancré en bas, hauteur auto limitée à 80vh
+   → s'arrête pile au-dessus des miniatures si peu de cards */
+#panel-switcher{
+  position:fixed;
+  left:0;right:0;
+  bottom:calc(var(--dock-h) + var(--safe-b));
+  /* pas de top fixe : la hauteur est déterminée par le contenu */
+  max-height:calc(80dvh - var(--dock-h) - var(--safe-b));
+  background:var(--glass-heavy);
+  backdrop-filter:var(--blur-heavy);
+  -webkit-backdrop-filter:var(--blur-heavy);
+  z-index:298;
+  transform:translateY(calc(100% + 20px));
+  transition:transform .4s cubic-bezier(.32,.72,0,1);
+  display:flex;flex-direction:column;
+  border-radius:30px 30px 0 0;
+  overflow:hidden;
+}
+#panel-switcher::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
+#panel-switcher.open{transform:translateY(0);z-index:303}
+@media(hover:hover) and (pointer:fine){
+  #panel-switcher{right:72px;bottom:0;max-height:80dvh}
+}
+#switcher-grid{
+  flex:1;min-height:0;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:8px;
+  display:grid;grid-template-columns:1fr 1fr;
+  grid-auto-rows:min-content;gap:6px;
+  align-content:start; /* cards en haut, pas en bas */
+}
+.sw-card{height:160px;border-radius:12px;background:rgba(8,8,20,.98);border:1px solid rgba(255,255,255,.1);cursor:pointer;overflow:hidden;position:relative;touch-action:pan-y;box-shadow:0 2px 10px rgba(0,0,0,.5);isolation:isolate}
+@media(hover:hover) and (pointer:fine){.sw-card{height:130px}.sw-card:hover{border-color:rgba(240,168,48,.3)}}
+.icon-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:4px;border-radius:12px;position:relative;touch-action:none;-webkit-user-select:none;user-select:none;width:fit-content;height:fit-content;place-self:center;transform:translateZ(0)}
+#panel-folder .panel-body{-webkit-user-select:none;user-select:none}
+#panel-folder input,#panel-folder textarea{-webkit-user-select:text;user-select:text}
+.sw-preview{position:absolute;top:0;left:0;right:0;bottom:30px;overflow:hidden;border-radius:13px 13px 0 0;background:rgba(6,6,18,.9);pointer-events:none}
+.sw-preview::after{content:'';position:absolute;bottom:0;left:0;right:0;height:40px;background:linear-gradient(transparent,rgba(6,6,18,.95));z-index:3}
+.sw-clone-wrap{position:absolute;top:0;left:0;transform-origin:top left;pointer-events:none;overflow:hidden}
+.sw-label{position:absolute;bottom:0;left:0;right:0;height:30px;display:flex;align-items:center;padding:0 10px;background:rgba(4,4,14,.98);font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(240,168,48,.85);border-top:1px solid rgba(255,255,255,.06)}
+.dlg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.dlg.open{display:flex}
+.dlg-box{background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);border:1px solid rgba(255,255,255,.1);border-top:1px solid rgba(240,168,48,.2);border-radius:26px;padding:26px;width:min(320px,92vw);display:flex;flex-direction:column;gap:14px}
+.dlg-title{font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:4px;color:var(--gold);text-align:center;text-transform:uppercase}
+#toasts{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:700;display:flex;flex-direction:column;gap:6px;min-width:240px;max-width:360px;pointer-events:none}
+.toast{background:var(--glass-heavy);backdrop-filter:var(--blur-mid);-webkit-backdrop-filter:var(--blur-mid);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:11px 16px;font-size:13px;font-family:var(--font-b);animation:tin .24s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:10px}
+#ym-sign-dlg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(14px)}
+#ym-sign-dlg.open{display:flex}
+#ym-sign-box{background:var(--glass-heavy);border:1px solid rgba(255,69,96,.4);border-top:1px solid rgba(255,69,96,.6);border-radius:24px;padding:24px;width:min(320px,92vw);display:flex;flex-direction:column;gap:14px}
+.toast.success{border-color:rgba(34,217,138,.3);color:var(--green)}.toast.error{border-color:rgba(255,69,96,.3);color:var(--red)}.toast.info{border-color:rgba(8,224,248,.3);color:var(--cyan)}.toast.warn{border-color:rgba(240,168,48,.3);color:var(--gold)}
+@keyframes tin{from{opacity:0;transform:translateY(-12px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
+#ym-loader{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .5s}
+#ym-loader.hidden{opacity:0;pointer-events:none}
+.ldr-logo{font-family:var(--font-d);font-size:22px;font-weight:800;letter-spacing:10px;background:linear-gradient(90deg,var(--gold),rgba(255,255,255,.9),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200%;animation:titleshift 3s ease-in-out infinite}
+.ldr-bar{width:160px;height:2px;border-radius:1px;overflow:hidden;background:rgba(255,255,255,.05)}
+.ldr-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--cyan));animation:ldr 1.4s ease infinite}
+@keyframes ldr{0%{width:0;margin-left:0}50%{width:70%;margin-left:15%}100%{width:0;margin-left:100%}}
+.ldr-sub{font-family:var(--font-m);font-size:9px;color:var(--text3);letter-spacing:3px}
 </style>
 
-<div id="ym-landing">
-  <!-- HERO -->
-  <div class="lp lp-hero">
-    <div class="lp-logo">YOURMINE</div>
-    <div class="lp-tagline">A Soulnet for apps and value.<br>Give to receive. Build and deploy instantly.</div>
-    <div class="lp-sub">Fork it. Run it. Break it. Improve it.</div>
-    <div class="lp-ctas">
-      <button class="lp-btn lp-btn-primary" id="lp-start-btn">▶ Start</button>
-      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">📄 Readme</a>
-    </div>
-    <div class="lp-scroll-hint">↓ scroll</div>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- WHAT IS YOURMINE -->
-  <div class="lp lp-section">
-    <div class="lp-section-label">Section — What is YourMine</div>
-    <div class="lp-section-title">A new layer of the web</div>
-    <p class="lp-p">YourMine is not a platform. It is a <span class="lp-strong">distributed layer for applications and value</span>. Instead of centralized services, YourMine enables a network where:</p>
-    <ul class="lp-list">
-      <li>Applications are distributed, not hosted</li>
-      <li>Value is generated through participation</li>
-      <li>Identity is unique and non-transferable</li>
-      <li>Proof of participation defines access and rewards</li>
-    </ul>
-    <p class="lp-p">There is no single system state. Only connected realities.</p>
-
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-icon">⬡</div>
-        <div class="lp-card-title">Open by design</div>
-        <div class="lp-card-text">Anyone can copy it, deploy it, and run their own instance — instantly. Every instance can remain independent, or connect with others.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">⚙</div>
-        <div class="lp-card-title">Built to evolve</div>
-        <div class="lp-card-text">You can build, modify, experiment, break and improve. Exploration is part of the system. Improvement emerges from it.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🔒</div>
-        <div class="lp-card-title">Safe by structure</div>
-        <div class="lp-card-text">Actions are local. Effects are contained. Systems are modular. You can push the system without breaking others.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- SOULNET -->
-  <div class="lp lp-section">
-    <div class="lp-section-label">Section — Soulnet Architecture</div>
-    <div class="lp-section-title">A network of identity and participation</div>
-    <p class="lp-p">YourMine is built on a <span class="lp-strong">Soulnet</span> — a network where identity and proof cannot be transferred or copied. This creates a system where:</p>
-    <ul class="lp-list">
-      <li>Every user is uniquely bound to their actions</li>
-      <li>Participation has permanent attribution</li>
-      <li>Rewards cannot be detached from behavior</li>
-      <li>Sybil and duplication are structurally constrained</li>
-    </ul>
-    <p class="lp-p">The network does not trust accounts. It trusts participation.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- DISTRIBUTED APP LAYER -->
-  <div class="lp lp-section">
-    <div class="lp-section-label">Section — Distributed App Layer</div>
-    <div class="lp-section-title">Apps that move through the network</div>
-    <p class="lp-p">Applications in YourMine are not installed from a store. They are <span class="lp-strong">distributed through the network itself</span>.</p>
-    <ul class="lp-list">
-      <li>Apps are modular and peer-to-peer</li>
-      <li>They propagate across nodes</li>
-      <li>Execution happens locally</li>
-      <li>Users decide what becomes active</li>
-    </ul>
-    <p class="lp-p">The app layer is not centralized. It is emergent.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- VALUE SYSTEM -->
-  <div class="lp lp-section">
-    <div class="lp-section-label">Section — Value System</div>
-    <div class="lp-section-title">Participation becomes value</div>
-    <p class="lp-p">Value in YourMine is not extracted from users. It is <span class="lp-strong">generated by them</span>.</p>
-    <ul class="lp-list">
-      <li>Actions are recorded as proof of participation</li>
-      <li>Proof is non-transferable</li>
-      <li>Rewards are tied to identity permanently</li>
-      <li>Contribution defines economic presence</li>
-    </ul>
-    <p class="lp-p">There is no passive ownership. Only active participation.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- REALITY LAYERS -->
-  <div class="lp lp-section">
-    <div class="lp-section-label">Section — Reality Layers</div>
-    <div class="lp-section-title">Multiple connected realities</div>
-    <p class="lp-p">YourMine does not enforce a single global state. Instead, it operates through <span class="lp-strong">interconnected spheres</span>:</p>
-    <ul class="lp-list">
-      <li>Each user experiences a contextual system view</li>
-      <li>Different realities coexist simultaneously</li>
-      <li>Applications and data evolve locally</li>
-      <li>The system is consistent, not uniform</li>
-    </ul>
-    <p class="lp-p">Reality is not fixed. It is distributed.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- CORE PRINCIPLES -->
-  <div class="lp lp-section">
-    <div class="lp-section-label">Section — Core Principles</div>
-    <div class="lp-section-title">The foundations of YourMine</div>
-    <div class="lp-principles">
-      <div class="lp-principle">Identity is non-transferable</div>
-      <div class="lp-principle">Proof is non-transferable</div>
-      <div class="lp-principle">Participation is the source of value</div>
-      <div class="lp-principle">Applications are distributed, not owned</div>
-      <div class="lp-principle">The system has no central authority</div>
-    </div>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- MINING FORMULA -->
-  <div class="lp lp-section">
-    <div class="lp-section-label">The Mining Formula</div>
-    <div class="lp-section-title">Help us test YourMine's deterministic, disinflationary mining formula</div>
-    <p class="lp-p">A user burns an amount <span class="lp-strong">x</span> of SOL and selects a patience rate <span class="lp-strong">T</span>. The immediate reward is <span class="lp-strong">x(1−T) YM</span>. The rest grows over time as a claimable bonus. Every burn or claim resets the miner's personal clock. We take 0.1% of each burn to sustain the project.</p>
-
-    <div class="lp-formula-box">
-      <div class="lp-formula">
-        <span class="lp-formula-frac">
-          <span class="lp-formula-num">S · t<sup>α</sup></span>
-          <span class="lp-formula-den">[ln(A<sup>β(1−T)</sup> + C)]<sup>γ</sup></span>
-        </span>
-      </div>
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);margin-top:8px;letter-spacing:1px">The YourMine Formula</div>
-    </div>
-
-    <div class="lp-vars">
-      <span class="lp-var-k">S</span><span class="lp-var-v">amount of the last burn</span>
-      <span class="lp-var-k">t</span><span class="lp-var-v">time elapsed since last action</span>
-      <span class="lp-var-k">T</span><span class="lp-var-v">patience rate chosen</span>
-      <span class="lp-var-k">A</span><span class="lp-var-v">protocol age (Solana block height)</span>
-      <span class="lp-var-k">C</span><span class="lp-var-v">stabilisation constant</span>
-      <span class="lp-var-k">α</span><span class="lp-var-v">temporal growth</span>
-      <span class="lp-var-k">β</span><span class="lp-var-v">patience / age interaction</span>
-      <span class="lp-var-k">γ</span><span class="lp-var-v">concentration compression</span>
-    </div>
-
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-title">Pareto</div>
-        <div class="lp-card-text">Economic distributions follow a power law. The protocol integrates this dynamic while stabilising it.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-title">Zipf</div>
-        <div class="lp-card-text">In self-organised systems, ranks follow a 1/r<sup>k</sup> hierarchy. Miner hierarchies emerge naturally.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-title">Boltzmann</div>
-        <div class="lp-card-text">Exponential distributions are naturally compressed by the logarithm — hence the logarithmic compression.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-title">Odum</div>
-        <div class="lp-card-text">In energy systems, efficiency decreases with age. A sustainable system must integrate time-based damping.</div>
-      </div>
-    </div>
-
-    <div class="lp-formula-box" style="margin-top:16px">
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:12px">COMPUTATIONALLY SAFE FORM</div>
-      <div class="lp-formula" style="font-size:clamp(12px,2vw,16px)">
-        <span class="lp-formula-frac">
-          <span class="lp-formula-num">S · t<sup>α</sup></span>
-          <span class="lp-formula-den">[β(1−T)·ln(A) + ln(1 + C/A<sup>β(1−T)</sup>)]<sup>γ</sup></span>
-        </span>
-      </div>
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);margin-top:12px">Avoids overflow · Identical economic dynamics · Stable on-chain execution</div>
-    </div>
-
-    <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div class="lp-card" style="border-top-color:rgba(240,168,48,.4)">
-        <div class="lp-card-title">Soulbound position</div>
-        <div class="lp-card-text">Non-transferable. Holds the last burn, patience rate, personal clock, and production rights. Represents the capacity to produce YM.</div>
-      </div>
-      <div class="lp-card" style="border-top-color:rgba(8,224,248,.4)">
-        <div class="lp-card-title">Liquid tokens</div>
-        <div class="lp-card-text">Claimed rewards become standard transferable tokens. Exchangeable, usable in other apps, freely transferable.</div>
-      </div>
-    </div>
-    <p class="lp-p" style="text-align:center;margin-top:12px;font-family:var(--font-m);font-size:11px;color:var(--text3)">soulbound (production) + liquid token (circulation)</p>
-  </div>
-
-  <!-- FINAL CTA -->
-  <div class="lp lp-cta-final">
-    <div class="lp-cta-title">Build. Participate.<br>Become part of the network.</div>
-    <p class="lp-cta-sub">YourMine is not something you use.<br>It is something you participate in.</p>
-    <div class="lp-cta-taglines">
-      <span class="lp-tagline-pill">Distribution totalement libre</span>
-      <span class="lp-tagline-pill">Runtime sans contrainte</span>
-      <span class="lp-tagline-pill">Volonté infiniment récompensée</span>
-      <span class="lp-tagline-pill">Système sans fermeture</span>
-      <span class="lp-tagline-pill">Fondation sans autorité</span>
-    </div>
-    <p class="lp-p" style="font-family:var(--font-m);font-size:13px;color:var(--gold);margin-bottom:32px">Giving is receiving.</p>
-    <div class="lp-ctas">
-      <button class="lp-btn lp-btn-primary" id="lp-start-btn2">▶ Start YourMine</button>
-      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">📄 Readme</a>
-    </div>
-    <div style="height:60px"></div>
-  </div>
-</div>
-
-<!-- DOM fonctionnel invisible requis par app.js / desk.js -->
-<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
+<!-- ── DOM ───────────────────────────────────────────────────── -->
+<div id="ym-wp"></div><div id="ym-bg"></div>
+<div id="ym-loader"><div class="ldr-logo">YOURMINE</div><div class="ldr-bar"><div class="ldr-fill"></div></div><div class="ldr-sub">LOADING MESH</div></div>
 <div id="toasts"></div>
 <div id="desktop"><div id="desktop-slider"></div></div>
-<div id="drag-ghost"></div><div id="page-dots"></div>
-<div id="nav-bar" style="display:none!important">
+<div id="drag-ghost"></div>
+<div id="page-dots"></div>
+<div id="nav-bar">
   <div id="dock">
-    <button class="dbtn" id="btn-back"></button>
-    <button class="dbtn" id="btn-profile"></button>
-    <button class="dbtn" id="btn-figure"></button>
+    <button class="dbtn" id="btn-back">&#8249;</button>
+    <button class="dbtn" id="btn-profile">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <line x1="11" y1="1" x2="11" y2="11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="11" y1="11" x2="1.6" y2="17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="11" y1="11" x2="20.4" y2="17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button class="dbtn" id="btn-figure"><img src="ym512.png" style="width:28px;height:28px;object-fit:contain;border-radius:6px" alt="YM"></button>
   </div>
 </div>
-<div id="panel-overlay" class="ym-overlay"></div>
-<div id="panel-spheres"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
-<div id="panel-profile"  class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
-<div id="panel-build"    class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
-<div id="panel-mine"     class="ym-panel">
-  <div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div>
-  <div class="panel-body" style="overflow:hidden;min-height:0">
-    <div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div>
-    <div id="panel-mine-build"  style="display:none;flex-direction:column"></div>
-    <div id="panel-mine-formula" style="display:none;padding:16px"></div>
-    <div id="panel-mine-liste"  style="display:none;flex-direction:column"></div>
-  </div>
-  <div class="ym-tabs" id="mine-tabs-bar">
-    <div class="ym-tab active" data-mine-tab="wallet">Wallet</div>
-    <div class="ym-tab" data-mine-tab="build">Build</div>
-    <div class="ym-tab" data-mine-tab="liste">Apps</div>
-  </div>
-</div>
-<div id="panel-sphere"       class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
-<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
-<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
-<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
-<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
-<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column">
+<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Create Folder</div><input class="ym-input" id="folder-name-input" placeholder="Folder name"><div style="display:flex;gap:8px"><button class="ym-btn ym-btn-ghost" style="flex:1" id="folder-cancel">Cancel</button><button class="ym-btn ym-btn-accent" style="flex:1" id="folder-confirm">Create</button></div></div></div>
+<div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(420px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
   <div class="dlg-title" id="bg-dlg-title">Background</div>
-  <div id="theme-list"></div><input id="theme-custom-input" class="ym-input">
-  <button id="theme-custom-btn" class="ym-btn">Use</button>
-  <button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button>
-  <div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button>
-  <button class="ym-btn" id="bg-del" style="display:none"></button>
-</div></div>
-<button id="pwa-install-btn" style="display:none"></button>
 
+  <!-- ── Theme picker ───────────────────────────────────────── -->
+  <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)">
+    <div style="font-size:9px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)">🎨 Theme</div>
+    <div id="theme-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px">
+      <input id="theme-custom-input" class="ym-input" placeholder="Custom theme URL (GitHub blob or raw)…" style="font-size:11px;padding:7px 10px;flex:1">
+      <button id="theme-custom-btn" class="ym-btn ym-btn-ghost" style="padding:7px 12px;font-size:11px;flex-shrink:0">Use</button>
+    </div>
+  </div>
+
+  <!-- ── Wallpaper ──────────────────────────────────────────── -->
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <button class="ym-btn ym-btn-ghost" id="bg-wp" style="flex:1;font-size:12px">&#128193; Upload</button>
+    <button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:12px;color:var(--text3)">&#10005; Remove</button>
+  </div>
+  <div style="font-size:10px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;font-family:var(--font-m)">Free wallpapers</div>
+  <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;padding-bottom:4px"></div>
+  <button class="ym-btn ym-btn-ghost" id="bg-spheres" style="width:100%;font-size:12px;margin-top:10px;color:var(--cyan);border-color:rgba(8,224,248,.2)">&#11835; Browse Spheres</button>
+  <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
+</div></div>
+
+<!-- ── Theme picker script ────────────────────────────────────── -->
 <script>
 (function(){
-  var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-  var DEF_THEME=GH_RAW+'themes/default.html';
-  var THEME_KEY='ym_theme_url';
-  var THEME_CACHE='ym_theme_cache';
+  var THEME_KEY   = 'ym_theme_url';
+  var THEME_CACHE = 'ym_theme_cache';
+  var GH_RAW      = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+  var GH_BLOB     = 'https://github.com/theodoreyong9/YourMinedApp/blob/main/src/themes/';
+  var DEF_THEME   = GH_RAW + 'themes/default.html';
+  var INDEX_URL   = GH_RAW + 'themes/index.json';
 
-  function goDefault(){
-    localStorage.setItem(THEME_KEY,DEF_THEME);
-    localStorage.removeItem(THEME_CACHE);
-    location.reload();
+  function activeUrl(){
+    return localStorage.getItem(THEME_KEY) || DEF_THEME;
   }
 
-  // Boutons Start
-  var s1=document.getElementById('lp-start-btn');
-  var s2=document.getElementById('lp-start-btn2');
-  if(s1)s1.addEventListener('click',goDefault);
-  if(s2)s2.addEventListener('click',goDefault);
+  function fileToLabel(name){
+    return name.replace(/\.html$/i,'')
+               .replace(/[-_]/g,' ')
+               .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+  }
 
-  // Neutralise desk et widgets
-  function blockDesk(){
-    if(window.YM_Desk){
-      window.YM_Desk.addIcon=function(){};
-      window.YM_Desk.renderDesk=function(){};
+  function applyTheme(url, label){
+    if(!url || url === activeUrl()) return;
+    localStorage.setItem(THEME_KEY, url);
+    localStorage.removeItem(THEME_CACHE);
+    window.YM_toast && window.YM_toast('✦ ' + label + ' — reloading…', 'success', 1500);
+    setTimeout(function(){ location.reload(); }, 1500);
+  }
+
+  function buildList(files){
+    var container = document.getElementById('theme-list');
+    if(!container) return;
+    container.innerHTML = '';
+    var current = activeUrl();
+    var currentFile = current.split('/').pop();
+
+    var allFiles = files.slice();
+    if(allFiles.indexOf(currentFile) === -1){
+      allFiles.unshift(currentFile);
     }
-  }
-  blockDesk();
-  window.addEventListener('ym:sphere-activated',blockDesk);
 
-  // Masque les widgets créés dynamiquement
-  var obs=new MutationObserver(function(muts){
-    muts.forEach(function(m){
-      m.addedNodes.forEach(function(n){
-        if(n.nodeType!==1)return;
-        var id=n.id||'';
-        if(id.indexOf('widget')>=0){n.style.cssText='display:none!important';}
+    allFiles.forEach(function(f){
+      var url   = f.startsWith('http') ? f : (GH_RAW + 'themes/' + f);
+      var label = fileToLabel(f.split('/').pop());
+      var isActive = (f === currentFile) || (url === current);
+
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s;' +
+        (isActive ? 'background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3)' : 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)');
+
+      var dot = document.createElement('div');
+      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;' +
+        (isActive ? 'background:var(--gold)' : 'background:rgba(255,255,255,.15)');
+
+      var name = document.createElement('span');
+      name.style.cssText = 'flex:1;font-size:12px;font-family:var(--font-b);' +
+        (isActive ? 'color:var(--gold);font-weight:600' : 'color:var(--text2)');
+      name.textContent = label;
+
+      var codeBtn = document.createElement('a');
+      codeBtn.href = GH_BLOB + f.split('/').pop();
+      codeBtn.target = '_blank';
+      codeBtn.rel = 'noopener';
+      codeBtn.title = 'View source';
+      codeBtn.style.cssText = 'font-size:10px;font-family:var(--font-m);color:var(--text3);text-decoration:none;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);flex-shrink:0;transition:color .15s';
+      codeBtn.textContent = '</>';
+      codeBtn.addEventListener('mouseenter', function(){ this.style.color='var(--gold)'; });
+      codeBtn.addEventListener('mouseleave', function(){ this.style.color='var(--text3)'; });
+      codeBtn.addEventListener('click', function(e){ e.stopPropagation(); });
+
+      row.appendChild(dot);
+      row.appendChild(name);
+      row.appendChild(codeBtn);
+
+      row.addEventListener('click', function(){
+        if(url === activeUrl()) return;
+        applyTheme(url, label);
       });
-    });
-  });
-  obs.observe(document.body,{childList:true});
 
-  // bg-dlg minimal pour ne pas crasher desk.js
-  var bgDlg=document.getElementById('bg-dlg');
-  if(bgDlg)bgDlg.addEventListener('click',function(e){if(e.target===bgDlg)bgDlg.classList.remove('open');});
-  var wpBtn=document.getElementById('bg-wp');
-  var rmBtn=document.getElementById('bg-remove');
-  var sphBtn=document.getElementById('bg-spheres');
-  var thBtn=document.getElementById('theme-custom-btn');
-  if(wpBtn)wpBtn.addEventListener('click',function(){});
-  if(rmBtn)rmBtn.addEventListener('click',function(){});
-  if(sphBtn)sphBtn.addEventListener('click',function(){});
-  if(thBtn)thBtn.addEventListener('click',function(){
-    var inp=document.getElementById('theme-custom-input');
-    var url=(inp?inp.value:'').trim();
-    if(!url)return;
-    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-    localStorage.setItem(THEME_KEY,url);
-    localStorage.removeItem(THEME_CACHE);
-    location.reload();
+      row.addEventListener('mouseenter', function(){
+        if(url !== activeUrl()) this.style.background = 'rgba(255,255,255,.06)';
+      });
+      row.addEventListener('mouseleave', function(){
+        this.style.background = isActive ? 'rgba(240,168,48,.1)' : 'rgba(255,255,255,.03)';
+      });
+
+      container.appendChild(row);
+    });
+  }
+
+  function loadThemeList(){
+    fetch(INDEX_URL)
+      .then(function(r){
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function(text){
+        var files = JSON.parse(text);
+        if(!Array.isArray(files) || !files.length) files = ['default.html'];
+        buildList(files);
+      })
+      .catch(function(e){
+        console.error('[YM theme]', e.message);
+        buildList(['default.html']);
+      });
+  }
+
+  document.getElementById('theme-custom-btn').addEventListener('click', function(){
+    var inp = document.getElementById('theme-custom-input');
+    var url = (inp ? inp.value : '').trim();
+    if(!url){ window.YM_toast && window.YM_toast('Enter a URL', 'warn'); return; }
+    url = url.replace('https://github.com/', 'https://raw.githubusercontent.com/')
+             .replace('/blob/', '/');
+    var label = fileToLabel(url.split('/').pop());
+    applyTheme(url, label);
+    if(inp) inp.value = '';
   });
+
+  document.getElementById('theme-custom-input').addEventListener('keydown', function(e){
+    if(e.key === 'Enter') document.getElementById('theme-custom-btn').click();
+  });
+
+  loadThemeList();
 })();
 </script>
+
+<div class="ym-overlay" id="panel-overlay"></div>
+<div class="ym-panel" id="panel-spheres">
+  <div class="panel-handle"></div>
+  <div class="panel-head"><h2>Spheres</h2><button class="ym-btn ym-btn-ghost" id="spheres-build-btn" style="margin-left:auto;padding:4px 10px;font-size:11px">&#9000; Build</button></div>
+  <div class="panel-body" id="panel-spheres-body">Loading...</div>
+</div>
+<div class="ym-panel" id="panel-profile"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn ym-btn-ghost" style="margin-left:auto;padding:4px 8px;font-size:14px;min-height:unset">&#128279;</button></div><div class="panel-body" id="panel-profile-body"></div></div>
+<div class="ym-panel" id="panel-build"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body">Loading...</div></div>
+<div class="ym-panel" id="panel-mine">
+  <div class="panel-handle"></div>
+  <div class="panel-head"><h2>YourMine</h2></div>
+  <div class="panel-body" style="overflow:hidden;min-height:0">
+    <div id="panel-mine-wallet" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;min-height:0"></div>
+    <div id="panel-mine-build"  style="flex:1;overflow-y:auto;display:none;flex-direction:column;min-height:0"></div>
+    <div id="panel-mine-formula" style="flex:1;overflow-y:auto;display:none;padding:16px"></div>
+    <div id="panel-mine-liste" style="flex:1;overflow:hidden;display:none;flex-direction:column"></div>
+  </div>
+  <div class="ym-tabs" id="mine-tabs-bar">
+    <div class="ym-tab active" data-mine-tab="wallet">&#9935; Wallet</div>
+    <div class="ym-tab" data-mine-tab="build">&#9000; Build</div>
+    <div class="ym-tab" data-mine-tab="liste">&#9633; Apps</div>
+  </div>
+</div>
+<div class="ym-panel" id="panel-sphere"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
+<div class="ym-panel" id="panel-profile-view"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
+<div id="ym-sign-dlg"><div id="ym-sign-box"><div style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:3px;color:var(--red);text-align:center;text-transform:uppercase">⚠ Signature Request</div><div id="ym-sign-sphere" style="font-size:12px;color:var(--text2);text-align:center"></div><div id="ym-sign-detail" style="font-size:10px;font-family:var(--font-m);color:var(--text3);background:rgba(255,255,255,.03);border-radius:8px;padding:10px;max-height:80px;overflow-y:auto;word-break:break-all;line-height:1.6"></div><div style="font-size:11px;color:var(--text3);text-align:center">A sphere is requesting your wallet signature.<br>Only confirm if you trust this sphere.</div><div style="display:flex;gap:10px"><button id="ym-sign-reject" class="ym-btn ym-btn-danger" style="flex:1">✗ Reject</button><button id="ym-sign-confirm" class="ym-btn ym-btn-accent" style="flex:1">✓ Sign</button></div></div></div>
+<div id="panel-switcher">
+  <div class="panel-handle" id="switcher-handle"></div>
+  <div id="switcher-grid"></div>
+</div>
+
+<!-- PWA install button — caché par CSS, rendu visible par app.js via beforeinstallprompt -->
+<button id="pwa-install-btn"><span>&#8595;</span> INSTALL APP</button>
+
+<!-- Bord gauche desktop : zone de survol → bouton retour -->
+<div id="ym-edge-back"></div>
+<button id="ym-edge-back-btn" aria-label="Back">‹</button>
