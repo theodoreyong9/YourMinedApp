@@ -84,23 +84,33 @@
     const b = document.getElementById('panel-mine-build');
     const f = document.getElementById('panel-mine-formula');
     const l = document.getElementById('panel-mine-liste');
-    [w, b, f, l].forEach(el => { if (el) el.style.display = 'none'; });
+    // Cache tout — important : display:none avant le render du nouvel onglet
+    [w, b, f, l].forEach(el => {
+      if (el) {
+        el.style.display = 'none';
+        el.style.flex = '';
+      }
+    });
 
     if (tab === 'wallet' && w) {
       w.style.display = 'flex';
+      w.style.flex = '1';
       if (window.YM_Mine) window.YM_Mine.render(w);
     }
     if (tab === 'build' && b) {
       b.style.display = 'flex';
+      b.style.flex = '1';
       b.innerHTML = '';
       if (window.YM_Build) window.YM_Build.render(b);
     }
     if (tab === 'formula' && f) {
       f.style.display = 'flex';
+      f.style.flex = '1';
       renderFormulaTab();
     }
     if (tab === 'liste' && l) {
       l.style.display = 'flex';
+      l.style.flex = '1';
       if (window.YM_Liste) {
         if (!l.children.length) window.YM_Liste.render(l);
       } else {
@@ -134,12 +144,10 @@
       const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
       const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
       const cw = preview.offsetWidth;
-      const ch = preview.offsetHeight;
       if (pw > 0 && cw > 0) {
-        // Scale pour que le clone rentre dans la preview sans jamais dépasser 1:1
-        const scX = cw / pw;
-        const scY = ch > 0 ? ch / ph : scX;
-        const sc = Math.min(scX, scY, 1); // jamais de zoom > 100%
+        // Scale basé uniquement sur la largeur (comme avant) — le débordement vertical
+        // est masqué par overflow:hidden + le gradient de la preview
+        const sc = cw / pw;
         clone.style.width  = pw + 'px';
         clone.style.height = ph + 'px';
         wrap.style.transform = 'scale(' + sc + ')';
