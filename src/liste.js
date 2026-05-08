@@ -248,6 +248,8 @@ function renderList(body){
 
     // URL dans le fork de l'auteur de la sphere (pas le repo principal)
     const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
+    // Badge WIP
+    const wipBadge=sphere.wip?'<span style="font-size:9px;color:#f0a830;padding:1px 5px;border:1px solid rgba(240,168,48,.3);border-radius:4px;line-height:1.6;flex-shrink:0">🚧 WIP</span>':'';
 
     const card=document.createElement('div');
     card.className='ym-card';
@@ -257,9 +259,10 @@ function renderList(body){
       '<div style="display:flex;align-items:center;gap:12px">'+
         '<div style="flex-shrink:0;line-height:1">'+iconHtml+'</div>'+
         '<div style="flex:1;min-width:0">'+
-          '<div data-name-line style="display:flex;align-items:center;gap:8px;margin-bottom:3px">'+
+          '<div data-name-line style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">'+
             '<div style="font-weight:600;font-size:14px;color:var(--text)">'+esc(sphere.name)+'</div>'+
             (active?'<span class="pill active">active</span>':'')+
+            wipBadge+
           '</div>'+
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">'+
             '<span style="font-size:10px;color:var(--text3)">'+esc(sphere.category)+'</span>'+
@@ -267,17 +270,51 @@ function renderList(body){
             '<span style="font-size:9px;color:var(--text3)">by <b style="color:var(--accent)">@'+esc(sphere.ghAuthor||'unknown')+'</b></span>'+
             '<a data-code-link href="'+ghAuthorUrl+'" target="_blank" rel="noopener" style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;text-decoration:none">&lt;/&gt; code</a>'+
           '</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(sphere.description||'—')+'</div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+esc(sphere.description||'—')+'</div>'+
+          // Champ activation par raw URL directe
+          '<div class="raw-url-row" style="display:flex;gap:6px;align-items:center" data-raw-row>'+
+            '<input class="ym-input" data-raw-input placeholder="Raw URL pour activer depuis fork…" style="font-size:10px;flex:1;padding:5px 8px;display:none">'+
+            '<button data-raw-toggle style="background:none;border:1px solid rgba(255,255,255,.1);color:var(--text3);border-radius:5px;font-size:9px;padding:2px 6px;cursor:pointer;flex-shrink:0;white-space:nowrap">↗ raw</button>'+
+            '<button data-raw-activate style="background:none;border:1px solid rgba(8,224,248,.3);color:var(--cyan);border-radius:5px;font-size:9px;padding:2px 6px;cursor:pointer;flex-shrink:0;display:none">▶ Activer</button>'+
+          '</div>'+
         '</div>'+
         '<div data-action-cell style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'+
           (active&&!MANDATORY_SPHERES.includes(sphere.fileName) ? '<button data-deactivate style="background:none;border:1px solid rgba(255,69,96,.3);color:var(--red);border-radius:6px;font-size:10px;padding:3px 7px;cursor:pointer;line-height:1.4">Off</button>' : (active ? '<div style="font-size:14px;color:var(--text3)">✓</div>' : '<div style="font-size:20px;color:var(--text3)">›</div>'))+
         '</div>'+
       '</div>';
 
-    // Bouton code → lien GitHub, stoppe la propagation pour ne pas activer la sphere
+    // Bouton code → lien GitHub, stoppe la propagation
     const codeLink=card.querySelector('[data-code-link]');
-    if(codeLink){
-      codeLink.addEventListener('click',function(e){e.stopPropagation();});
+    if(codeLink)codeLink.addEventListener('click',e=>e.stopPropagation());
+
+    // Raw URL toggle
+    const rawToggle=card.querySelector('[data-raw-toggle]');
+    const rawInput=card.querySelector('[data-raw-input]');
+    const rawActivate=card.querySelector('[data-raw-activate]');
+    if(rawToggle&&rawInput&&rawActivate){
+      rawToggle.addEventListener('click',e=>{
+        e.stopPropagation();
+        const open=rawInput.style.display!=='none';
+        rawInput.style.display=open?'none':'block';
+        rawActivate.style.display=open?'none':'inline-block';
+        // Pré-remplit avec le codeUrl connu
+        if(!open&&sphere.codeUrl)rawInput.value=sphere.codeUrl;
+      });
+      rawActivate.addEventListener('click',async e=>{
+        e.stopPropagation();
+        const url=rawInput.value.trim();if(!url)return;
+        rawActivate.textContent='…';rawActivate.style.pointerEvents='none';
+        // Active la sphere en forçant le codeUrl custom
+        const overridden={...sphere,codeUrl:url};
+        try{
+          await activateSphere(overridden);
+          const nowActive=isSphereActive(sphere.fileName);
+          _updateCardInPlace(card,sphere,nowActive);
+          rawInput.style.display='none';rawActivate.style.display='none';
+          window.dispatchEvent(new CustomEvent('ym:sphere-activated',{detail:{name:sphere.fileName}}));
+        }catch(err){window.YM_toast?.('Activation error: '+err.message,'error');}
+        rawActivate.textContent='▶ Activer';rawActivate.style.pointerEvents='';
+      });
     }
 
     // Bouton désactivation — met à jour la carte IN-PLACE
