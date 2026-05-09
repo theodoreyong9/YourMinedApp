@@ -532,11 +532,11 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 <div class="ym-panel" id="panel-mine">
   <div class="panel-handle"></div>
   <div class="panel-head"><h2>YourMine</h2></div>
-  <div class="panel-body" style="overflow:hidden;min-height:0">
-    <div id="panel-mine-wallet" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;min-height:0"></div>
-    <div id="panel-mine-build"  style="flex:1;overflow-y:auto;display:none;flex-direction:column;min-height:0"></div>
-    <div id="panel-mine-formula" style="flex:1;overflow-y:auto;display:none;padding:16px"></div>
-    <div id="panel-mine-liste" style="flex:1;overflow:hidden;display:none;flex-direction:column"></div>
+  <div class="panel-body" style="overflow:hidden;min-height:0;display:flex;flex-direction:column">
+    <div id="panel-mine-wallet" style="display:none;flex-direction:column;flex:1;overflow-y:auto;min-height:0"></div>
+    <div id="panel-mine-build"  style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
+    <div id="panel-mine-formula" style="display:none;flex-direction:column;flex:1;overflow-y:auto;padding:16px"></div>
+    <div id="panel-mine-liste" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
   </div>
   <div class="ym-tabs" id="mine-tabs-bar">
     <div class="ym-tab active" data-mine-tab="wallet">&#9935; Wallet</div>
