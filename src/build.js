@@ -113,9 +113,14 @@ async function render(containerArg){
   body.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)';
   setTimeout(_injectGithubBtn,0);
 
-  // ── Onglets Sphere / Theme
+  // Contenu + onglets en bas
+  const content=document.createElement('div');
+  content.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0';
+  body.appendChild(content);
+
+  // Sous-onglets Sphere / Theme en bas
   const tabBar=document.createElement('div');
-  tabBar.style.cssText='display:flex;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)';
+  tabBar.style.cssText='display:flex;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
   ['sphere','theme'].forEach(t=>{
     const tab=document.createElement('div');
     tab.className='ym-tab'+(_activeTab===t?' active':'');
@@ -133,10 +138,6 @@ async function render(containerArg){
   });
   body.appendChild(tabBar);
 
-  const content=document.createElement('div');
-  content.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column';
-  body.appendChild(content);
-
   if(_activeTab==='sphere')renderSphereTab(content);
   else renderThemeTab(content);
 }
@@ -144,34 +145,132 @@ async function render(containerArg){
 // ── ONGLET SPHERE ─────────────────────────────────────────────
 function renderSphereTab(body){
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
+  body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0';
 
-  // Mode toggle : code brut vs minimal
-  let _mode='minimal'; // 'minimal' | 'code'
-  const modeBar=document.createElement('div');
-  modeBar.style.cssText='display:flex;gap:6px;padding:10px 14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.04)';
-  ['minimal','code'].forEach(m=>{
-    const btn=document.createElement('button');
-    btn.className='ym-btn ym-btn-ghost';
-    btn.style.cssText='flex:1;font-size:10px;padding:5px'+(m===_mode?';background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
-    btn.textContent=m==='minimal'?'⚡ Quick (champs)':'</> Code brut';
-    btn.addEventListener('click',()=>{
-      _mode=m;
-      modeBar.querySelectorAll('.ym-btn').forEach((b,i)=>{
-        const isCur=['minimal','code'][i]===m;
-        b.style.cssText='flex:1;font-size:10px;padding:5px'+(isCur?';background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+  // ÉTAPE GitHub
+  _step(body,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
+    if(_userToken){
+      card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b> connecté</div>'+
+        '<button id="bld-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
+      card.querySelector('#bld-disc').addEventListener('click',()=>{_saveToken(null);render(_lastContainer);});
+    }else{
+      card.innerHTML+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
+        '<input id="bld-tok" class="ym-input" type="password" placeholder="ghp_… (scope: repo)" style="flex:1;font-size:11px">'+
+        '<button id="bld-tok-ok" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button>'+
+        '</div><a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan)">↗ Créer token</a>';
+      card.querySelector('#bld-tok-ok').addEventListener('click',async()=>{
+        const tok=card.querySelector('#bld-tok').value.trim();if(!tok)return;
+        try{const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
+          if(!r.ok)throw new Error('Token invalide ('+r.status+')');
+          const u=await r.json();_saveToken({value:tok,username:u.login});
+          toast('Connecté @'+u.login,'success');render(_lastContainer);}
+        catch(e){toast(e.message,'error');}
       });
-      formArea.innerHTML='';
-      if(m==='minimal')renderMinimalForm(formArea,body);
-      else renderCodeForm(formArea,body,pubkey);
-    });
-    modeBar.appendChild(btn);
+      card.querySelector('#bld-tok').addEventListener('keydown',e=>{if(e.key==='Enter')card.querySelector('#bld-tok-ok').click();});
+    }
   });
-  body.appendChild(modeBar);
 
-  const formArea=document.createElement('div');
-  formArea.style.cssText='flex:1;display:flex;flex-direction:column';
-  body.appendChild(formArea);
-  renderMinimalForm(formArea,body);
+  // ÉTAPE Sphere name
+  _step(body,'Sphere','',card=>{
+    card.innerHTML+=
+      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+        '<input id="pub-name" class="ym-input" type="text" placeholder="mon-app" style="flex:1;font-size:12px">'+
+        '<span style="font-size:11px;color:var(--text3);flex-shrink:0;align-self:center">.sphere.js</span>'+
+      '</div>'+
+      '<div id="sphere-status" style="font-size:10px;color:var(--text3);min-height:14px"></div>';
+    card.querySelector('#pub-name').addEventListener('input',async function(){
+      const v=this.value.trim();const st=card.querySelector('#sphere-status');if(!v){st.textContent='';return;}
+      const fn=v.replace(/\.sphere\.js$/,'')+'.sphere.js';
+      const files=await fetchFilesJson();const ex=files.find(f=>f.filename===fn);
+      if(ex)st.innerHTML='<span style="color:var(--gold)">⬆ Upgrade</span> · @'+esc(ex.ghAuthor||'?')+
+        ' · <a href="https://github.com/'+GH_OWNER+'/'+GH_REPO+'/blob/main/'+esc(fn)+'" target="_blank" style="color:var(--cyan);font-size:10px">&lt;/&gt;</a>';
+      else st.innerHTML='<span style="color:var(--green)">✦ Nouveau</span>';
+      // Affiche/cache wallet selon nouveau ou pas
+      const walletStep=body.querySelector('#code-wallet-step');
+      if(walletStep)walletStep.style.display=ex?'none':'block';
+    });
+  });
+
+  // ÉTAPE Wallet (visible seulement si nouveau fichier)
+  const walletWrap=document.createElement('div');
+  walletWrap.id='code-wallet-step';walletWrap.style.display='none';
+  _step(walletWrap,'Wallet','',card=>{
+    if(pubkey){
+      card.innerHTML+='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>';
+    }else{
+      card.innerHTML+='<div class="ym-notice warn" style="font-size:11px">🔒 Wallet requis pour nouveau fichier</div>'+
+        '<button class="ym-btn ym-btn-ghost" id="open-wallet-btn2" style="width:100%;font-size:11px;margin-top:6px">→ Ouvrir Wallet</button>';
+      card.querySelector('#open-wallet-btn2')?.addEventListener('click',()=>{
+        window.dispatchEvent(new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}}));
+      });
+      startWalletWatch(walletWrap);
+    }
+  });
+  body.appendChild(walletWrap);
+
+  // ÉTAPE Code avec toggle Quick / Code brut — code brut par défaut
+  let _mode='code'; // défaut : code brut
+  const codeStep=document.createElement('div');
+  codeStep.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
+
+  const codeStepHead=document.createElement('div');
+  codeStepHead.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
+  codeStepHead.innerHTML=
+    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Code</div>'+
+    '<div style="display:flex;gap:4px">'+
+      '<button id="mode-code" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px;background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)">&lt;/&gt; Code brut</button>'+
+      '<button id="mode-quick" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">⚡ Quick</button>'+
+    '</div>';
+  codeStep.appendChild(codeStepHead);
+
+  const codeArea=document.createElement('div');
+  codeStep.appendChild(codeArea);
+  body.appendChild(codeStep);
+
+  function renderCodeArea(){
+    codeArea.innerHTML='';
+    // Update button styles
+    codeStepHead.querySelector('#mode-code').style.cssText='font-size:9px;padding:3px 8px;'+(_mode==='code'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+    codeStepHead.querySelector('#mode-quick').style.cssText='font-size:9px;padding:3px 8px;'+(_mode==='quick'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+
+    if(_mode==='code'){
+      codeArea.innerHTML=
+        '<textarea id="pub-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="/* window.YM_S[\'mysphere.sphere.js\'] = { ... } */"></textarea>'+
+        '<div id="pub-size" style="font-size:10px;color:var(--text3);text-align:right;margin-top:2px">0 KB</div>';
+      codeArea.querySelector('#pub-code').addEventListener('input',function(){
+        const kb=new TextEncoder().encode(this.value).length/1024;
+        const el=codeArea.querySelector('#pub-size');el.textContent=kb.toFixed(1)+' KB';
+        el.style.color=kb>500?'var(--red)':'var(--text3)';
+      });
+    }else{
+      // Mode quick : champs minimaux
+      codeArea.innerHTML=
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
+          '<input id="min-icon" class="ym-input" placeholder="Icon (emoji ou URL)" style="font-size:12px">'+
+          '<input id="min-cat" class="ym-input" placeholder="Catégorie" style="font-size:12px">'+
+        '</div>'+
+        '<textarea id="min-desc" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
+        '<input id="min-url" class="ym-input" placeholder="Raw URL du vrai code (optionnel)" style="font-size:11px;margin-bottom:6px">'+
+        '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">'+
+          '<input type="checkbox" id="min-wip"> 🚧 Under construction</label>';
+    }
+  }
+
+  codeStepHead.querySelector('#mode-code').addEventListener('click',()=>{_mode='code';renderCodeArea();});
+  codeStepHead.querySelector('#mode-quick').addEventListener('click',()=>{_mode='quick';renderCodeArea();});
+  renderCodeArea();
+
+  // Submit
+  const submitWrap=document.createElement('div');
+  submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
+  submitWrap.innerHTML='<div id="pub-status" style="margin-bottom:8px"></div>'+
+    '<button id="pub-submit" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Sign & Submit</button>';
+  body.appendChild(submitWrap);
+
+  submitWrap.querySelector('#pub-submit').addEventListener('click',()=>{
+    if(_mode==='code')submitCodeForm(body);
+    else submitMinimalFromArea(body,codeArea);
+  });
 }
 
 // ── MODE MINIMAL ──────────────────────────────────────────────
@@ -180,7 +279,7 @@ function renderMinimalForm(area,body){
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
 
   // ÉTAPE 1 : GitHub
-  _step(area,'1','GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
+  _step(area,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
     if(_userToken){
       card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b> connecté</div>'+
         '<button id="bld-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
@@ -203,7 +302,7 @@ function renderMinimalForm(area,body){
   });
 
   // ÉTAPE 2 : Informations sphere
-  _step(area,'2','Infos Sphere','',card=>{
+  _step(area,'Infos Sphere','',card=>{
     card.innerHTML+=
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">'+
         '<input id="min-name" class="ym-input" placeholder="Nom" style="font-size:12px">'+
@@ -236,7 +335,7 @@ function renderMinimalForm(area,body){
   const walletStep=document.createElement('div');
   walletStep.id='min-wallet-step';
   walletStep.style.display='none';
-  _step(walletStep,'3','Wallet (nouveau fichier uniquement)','',card=>{
+  _step(walletStep,'Wallet (nouveau fichier uniquement)','',card=>{
     if(pubkey){
       card.innerHTML+='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>';
     }else{
@@ -430,7 +529,7 @@ function renderCodeForm(area,body,pubkey){
   area.innerHTML='';
 
   // ÉTAPE 1 GitHub
-  _step(area,'1','GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
+  _step(area,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
     if(_userToken){
       card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b></div>'+
         '<button id="bld-disc2" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
@@ -453,7 +552,7 @@ function renderCodeForm(area,body,pubkey){
   });
 
   // ÉTAPE 2 Nom
-  _step(area,'2','Sphere','',card=>{
+  _step(area,'Sphere','',card=>{
     card.innerHTML+=
       '<div style="display:flex;gap:6px;margin-bottom:6px">'+
         '<input id="pub-name" class="ym-input" type="text" placeholder="mon-app" style="flex:1;font-size:12px">'+
@@ -477,7 +576,7 @@ function renderCodeForm(area,body,pubkey){
   // ÉTAPE 3 Wallet conditionnel
   const walletStep=document.createElement('div');
   walletStep.id='code-wallet-step';walletStep.style.display='none';
-  _step(walletStep,'3','Wallet','',card=>{
+  _step(walletStep,'Wallet','',card=>{
     if(pubkey){
       card.innerHTML+='<div style="display:flex;align-items:center;gap:8px">'+
         '<div class="ym-notice success" style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>'+
@@ -514,7 +613,7 @@ function renderCodeForm(area,body,pubkey){
   });
 
   // ÉTAPE 4 Code
-  _step(area,'4','Code','',card=>{
+  _step(area,'Code','',card=>{
     card.innerHTML+=
       '<textarea id="pub-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="/* window.YM_S[\'mysphere.sphere.js\'] = { ... } */"></textarea>'+
       '<div id="pub-size" style="font-size:10px;color:var(--text3);text-align:right;margin-top:2px">0 KB</div>';
@@ -613,7 +712,7 @@ async function renderThemeTab(body){
   body.appendChild(listSec);
 
   // Publier un thème
-  _step(body,'1','GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
+  _step(body,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
     if(_userToken){
       card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b></div>'+
         '<button id="th-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
@@ -634,7 +733,7 @@ async function renderThemeTab(body){
     }
   });
 
-  _step(body,'2','Thème','',card=>{
+  _step(body,'Thème','',card=>{
     card.innerHTML+=
       '<div style="display:flex;gap:6px;margin-bottom:6px">'+
         '<input id="th-name" class="ym-input" placeholder="nom-du-theme" style="flex:1;font-size:12px">'+
@@ -731,11 +830,61 @@ function _showSimulatorOverlay(elig){
 }
 
 // ── HELPERS ──────────────────────────────────────────────────
-function _step(body,num,title,badge,fn){
+
+// submitMinimalFromArea — soumet depuis les champs quick
+async function submitMinimalFromArea(body,codeArea){
+  const btn=body.querySelector('#pub-submit');
+  const statusEl=body.querySelector('#pub-status');
+  function st(msg,type){if(statusEl)statusEl.innerHTML='<div class="ym-notice '+(type||'info')+'" style="font-size:11px">'+msg+'</div>';}
+  const nameRaw=((body.querySelector('#pub-name')||{}).value||'').trim();
+  if(!nameRaw)return st('Nom requis','error');
+  if(!_userToken)return st('Token GitHub requis','error');
+  const icon=(codeArea.querySelector('#min-icon')?.value||'').trim()||'⬡';
+  const cat=(codeArea.querySelector('#min-cat')?.value||'').trim()||'Other';
+  const desc=(codeArea.querySelector('#min-desc')?.value||'').trim().slice(0,140);
+  const rawUrl=(codeArea.querySelector('#min-url')?.value||'').trim();
+  const wip=codeArea.querySelector('#min-wip')?.checked||false;
+  const filename=nameRaw.replace(/\.sphere\.js$/,'')+'.sphere.js';
+  const token=_userToken.value,username=_userToken.username;
+  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
+  if(btn){btn.disabled=true;btn.textContent='Processing…';}
+  try{
+    st('Vérification…');
+    const files=await fetchFilesJson(true);
+    const existing=files.find(f=>f.filename===filename);
+    if(!existing&&!pubkey)throw new Error('Wallet requis pour nouveau fichier');
+    if(existing){const ok=existing.ghAuthor===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
+    const codeUrl=rawUrl||('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/'+filename);
+    const sphereCode=rawUrl
+      ? `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nconst _U='${rawUrl.replace(/'/g,"\\'")}';\nlet _ok=false;\nwindow.YM_S['${filename.replace(/'/g,"\\'")}']={name:'${nameRaw.replace(/'/g,"\\'")}',icon:'${icon.replace(/'/g,"\\'")}',category:'${cat.replace(/'/g,"\\'")}',description:'${desc.replace(/'/g,"\\'")}',${wip?'wip:true,':''}codeUrl:_U,\nasync activate(ctx){if(_ok)return;_ok=true;try{const r=await fetch(_U+'?t='+Date.now(),{cache:'no-store'});const code=await r.text();const b=new Blob([code],{type:'text/javascript'});const u=URL.createObjectURL(b);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>{URL.revokeObjectURL(u);res();};s.onerror=()=>{URL.revokeObjectURL(u);rej();};document.head.appendChild(s);});const real=window.YM_S&&window.YM_S['${filename.replace(/'/g,"\\'")}'];if(real&&real!==this&&real.activate)await real.activate(ctx);}catch(e){ctx.toast('Load error: '+e.message,'error');}},\ndeactivate(){_ok=false;},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px;text-align:center;color:var(--text3)\">Loading…</div>';},\n};\n})();`
+      : `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nwindow.YM_S['${filename.replace(/'/g,"\\'")}']={name:'${nameRaw.replace(/'/g,"\\'")}',icon:'${icon.replace(/'/g,"\\'")}',category:'${cat.replace(/'/g,"\\'")}',description:'${desc.replace(/'/g,"\\'")}',${wip?'wip:true,':''}\nactivate(ctx){ctx.toast('${nameRaw.replace(/'/g,"\\'")} activated','success');},\ndeactivate(){},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px\">${desc.replace(/'/g,"\\'")}</div>';},\n};\n})();`;
+    const nonce=uuid(),timestamp=Math.floor(Date.now()/1000);
+    const state=window._mineState||{};
+    const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
+    const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
+    let sigB64='';
+    if(pubkey&&window.YM_Mine_sign&&!existing){
+      const msg=JSON.stringify({action:'create',filename,nonce,timestamp,score:claimable,laps:curLaps,codeUrl,wip});
+      st('Signature…');const sig=await window.YM_Mine_sign(msg);
+      sigB64=btoa(String.fromCharCode(...Array.from(sig)));
+    }
+    st('Fork…');await ensureFork(token,username);
+    st('Push…');await ghPush(token,username,filename,sphereCode,'sphere: '+filename);
+    const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp,score:claimable,laps:curLaps,codeUrl,wip};
+    await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
+    await new Promise(r=>setTimeout(r,2000));
+    st('PR…');const pr=await openPR(token,username);
+    const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/'+filename;
+    st('⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR #'+pr.number+'</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','info');
+    pollPR(token,pr.number,pr.html_url,statusEl,filename,fileUrl);_filesJson=null;
+  }catch(e){st('✗ '+esc(e.message),'error');toast(e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='⬆ Sign & Submit';}}
+}
+
+function _step(body,title,badge,fn){
   const card=document.createElement('div');
   card.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
   card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'+
-    '<div style="width:18px;height:18px;border-radius:50%;background:var(--gold);color:#000;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+esc(num)+'</div>'+
     '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">'+esc(title)+'</div>'+
     (badge?'<span style="font-size:10px;color:var(--green)">'+esc(badge)+'</span>':'')+
     '</div>';
