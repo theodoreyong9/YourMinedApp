@@ -164,31 +164,131 @@ async function render(containerArg){
   const body=containerArg||_currentBody||document.getElementById('panel-spheres-body');
   if(!body)return;
   _currentBody=body;
-  // flex column, hauteur 100% du parent — fonctionne dans panel-spheres ET panel-mine-liste
   body.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;padding:0;overflow:hidden';
 
+  // Sous-onglets Sphères / Thèmes
+  let _listTab=body._listTab||'spheres';
+
   body.innerHTML=
+    // Contenu principal
+    '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
+    // Sous-onglets en bas
+    '<div style="display:flex;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0">'+
+      '<div class="ym-tab'+(_listTab==='spheres'?' active':'')+'" data-ltab="spheres" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">⬡ Spheres</div>'+
+      '<div class="ym-tab'+(_listTab==='themes'?' active':'')+'" data-ltab="themes" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🎨 Themes</div>'+
+    '</div>';
+
+  const content=body.querySelector('#list-content');
+
+  function switchListTab(tab){
+    _listTab=tab;body._listTab=tab;
+    body.querySelectorAll('[data-ltab]').forEach(t=>t.classList.toggle('active',t.dataset.ltab===tab));
+    content.innerHTML='';
+    if(tab==='spheres')renderSpheresContent(content);
+    else renderThemesContent(content);
+  }
+
+  body.querySelectorAll('[data-ltab]').forEach(t=>{
+    t.addEventListener('click',()=>switchListTab(t.dataset.ltab));
+  });
+
+  if(!_loaded)await fetchSphereList();
+
+  if(_listTab==='spheres')renderSpheresContent(content);
+  else renderThemesContent(content);
+}
+
+async function renderThemesContent(container){
+  const RAW_BASE_THEMES='https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/themes/';
+  const INDEX_URL=RAW_BASE_THEMES+'index.json';
+  const GH_BLOB='https://github.com/'+REPO_OWNER+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/src/themes/';
+  const curTheme=(localStorage.getItem('ym_theme_url')||'').split('/').pop();
+
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+
+  const listEl=document.createElement('div');
+  listEl.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0';
+  listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>';
+  container.appendChild(listEl);
+
+  // Champ URL custom
+  const customEl=document.createElement('div');
+  customEl.style.cssText='padding:10px 16px;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0;display:flex;gap:6px';
+  customEl.innerHTML=
+    '<input class="ym-input" id="theme-raw-input" placeholder="GitHub raw URL d\'un thème…" style="flex:1;font-size:11px">'+
+    '<button class="ym-btn ym-btn-ghost" id="theme-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">Appliquer</button>';
+  container.appendChild(customEl);
+  customEl.querySelector('#theme-raw-btn').addEventListener('click',()=>{
+    const inp=customEl.querySelector('#theme-raw-input');
+    let url=(inp?inp.value:'').trim();
+    if(!url)return;
+    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+    localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');
+    window.YM_toast?.('Thème changé — rechargement…','success');
+    setTimeout(()=>location.reload(),1200);
+  });
+
+  let themes=['default.html'];
+  try{const r=await fetch(INDEX_URL+'?t='+Date.now(),{cache:'no-store'});if(r.ok)themes=await r.json();}catch{}
+
+  listEl.innerHTML='';
+  themes.forEach(f=>{
+    const isCur=f===curTheme;
+    const name=f.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    const rawUrl=RAW_BASE_THEMES+f;
+    const card=document.createElement('div');
+    card.className='ym-card';
+    card.style.cssText='cursor:pointer;transition:border-color .2s'+(isCur?';border-color:var(--accent-dim)':'');
+    card.innerHTML=
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="flex:1">'+
+          '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px">'+esc(name)+(isCur?' <span class="pill active" style="font-size:9px">actif</span>':'')+
+          '</div>'+
+          '<div style="font-size:10px;color:var(--text3)">'+esc(f)+'</div>'+
+        '</div>'+
+        '<a href="'+GH_BLOB+f+'" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan);text-decoration:none;padding:2px 6px;border:1px solid rgba(8,224,248,.3);border-radius:4px;flex-shrink:0" onclick="event.stopPropagation()">&lt;/&gt;</a>'+
+        '<button class="ym-btn ym-btn-ghost" style="font-size:10px;padding:4px 10px;flex-shrink:0">'+(isCur?'Actif':'Appliquer')+'</button>'+
+      '</div>';
+    card.querySelector('button').addEventListener('click',e=>{
+      e.stopPropagation();
+      if(isCur)return;
+      localStorage.setItem('ym_theme_url',rawUrl);localStorage.removeItem('ym_theme_cache');
+      window.YM_toast?.('Thème changé — rechargement…','success');
+      setTimeout(()=>location.reload(),1200);
+    });
+    card.addEventListener('click',()=>{
+      if(isCur)return;
+      localStorage.setItem('ym_theme_url',rawUrl);localStorage.removeItem('ym_theme_cache');
+      window.YM_toast?.('Thème changé — rechargement…','success');
+      setTimeout(()=>location.reload(),1200);
+    });
+    listEl.appendChild(card);
+  });
+}
+
+function renderSpheresContent(container){
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML=
     '<div id="sphere-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
-      '<div style="color:var(--text3);font-size:12px;padding:8px 0">Loading spheres…</div>'+
+      '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
     '</div>'+
     '<div style="padding:10px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:inherit">'+
       '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<input class="ym-input" id="sphere-search" placeholder="Search spheres…" value="">'+
     '</div>';
 
-  body.querySelector('#sphere-search')?.addEventListener('input',e=>{
+  container.querySelector('#sphere-search')?.addEventListener('input',e=>{
     _filterText=e.target.value.toLowerCase();
-    renderList(body);
+    renderList(container);
   });
 
-  if(!_loaded)await fetchSphereList();
-  renderCategories(body);
-  renderList(body);
+  renderCategories(container);
+  renderList(container);
 }
 
-function renderCategories(body){
+function renderCategories(container){
   const cats=[...new Set(_sphereList.map(s=>s.category).filter(Boolean))];
-  const catsEl=body.querySelector('#sphere-cats');if(!catsEl)return;
+  const catsEl=container.querySelector('#sphere-cats');if(!catsEl)return;
   catsEl.innerHTML=
     '<span class="pill '+(!_filterCat&&!_filterActive?'active':'')+'" style="cursor:pointer" data-cat="" data-active="0">All</span>'+
     cats.map(c=>'<span class="pill '+(_filterCat===c?'active':'')+'" style="cursor:pointer" data-cat="'+c+'" data-active="0">'+c+'</span>').join('')+
@@ -197,7 +297,7 @@ function renderCategories(body){
     el.addEventListener('click',()=>{
       if(el.dataset.active==='1'){_filterActive=!_filterActive;_filterCat='';}
       else{_filterActive=false;_filterCat=el.dataset.cat;}
-      renderCategories(body);renderList(body);
+      renderCategories(container);renderList(container);
     });
   });
 }
@@ -271,12 +371,13 @@ function renderList(body){
             '<a data-code-link href="'+ghAuthorUrl+'" target="_blank" rel="noopener" style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;text-decoration:none">&lt;/&gt; code</a>'+
           '</div>'+
           '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+esc(sphere.description||'—')+'</div>'+
-          // Champ activation par raw URL directe
-          '<div class="raw-url-row" style="display:flex;gap:6px;align-items:center" data-raw-row>'+
-            '<input class="ym-input" data-raw-input placeholder="Raw URL pour activer depuis fork…" style="font-size:10px;flex:1;padding:5px 8px;display:none">'+
-            '<button data-raw-toggle style="background:none;border:1px solid rgba(255,255,255,.1);color:var(--text3);border-radius:5px;font-size:9px;padding:2px 6px;cursor:pointer;flex-shrink:0;white-space:nowrap">↗ raw</button>'+
-            '<button data-raw-activate style="background:none;border:1px solid rgba(8,224,248,.3);color:var(--cyan);border-radius:5px;font-size:9px;padding:2px 6px;cursor:pointer;flex-shrink:0;display:none">▶ Activer</button>'+
-          '</div>'+
+          // Champ raw URL visible directement sur les cartes inactives
+          (!active?
+            '<div style="display:flex;gap:6px;align-items:center;margin-top:4px" data-raw-row>'+
+              '<input class="ym-input" data-raw-input placeholder="Raw URL pour activer (optionnel)…" style="font-size:10px;flex:1;padding:5px 8px">'+
+              '<button data-raw-activate style="background:none;border:1px solid rgba(8,224,248,.3);color:var(--cyan);border-radius:5px;font-size:9px;padding:4px 8px;cursor:pointer;flex-shrink:0;white-space:nowrap">▶ Activer</button>'+
+            '</div>'
+          :'')+
         '</div>'+
         '<div data-action-cell style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'+
           (active&&!MANDATORY_SPHERES.includes(sphere.fileName) ? '<button data-deactivate style="background:none;border:1px solid rgba(255,69,96,.3);color:var(--red);border-radius:6px;font-size:10px;padding:3px 7px;cursor:pointer;line-height:1.4">Off</button>' : (active ? '<div style="font-size:14px;color:var(--text3)">✓</div>' : '<div style="font-size:20px;color:var(--text3)">›</div>'))+
@@ -287,32 +388,24 @@ function renderList(body){
     const codeLink=card.querySelector('[data-code-link]');
     if(codeLink)codeLink.addEventListener('click',e=>e.stopPropagation());
 
-    // Raw URL toggle
-    const rawToggle=card.querySelector('[data-raw-toggle]');
+    // Raw URL activate (visible seulement si inactif)
     const rawInput=card.querySelector('[data-raw-input]');
     const rawActivate=card.querySelector('[data-raw-activate]');
-    if(rawToggle&&rawInput&&rawActivate){
-      rawToggle.addEventListener('click',e=>{
-        e.stopPropagation();
-        const open=rawInput.style.display!=='none';
-        rawInput.style.display=open?'none':'block';
-        rawActivate.style.display=open?'none':'inline-block';
-        // Pré-remplit avec le codeUrl connu
-        if(!open&&sphere.codeUrl)rawInput.value=sphere.codeUrl;
-      });
+    if(rawInput&&rawActivate){
+      // Pré-rempli avec codeUrl connu
+      if(sphere.codeUrl)rawInput.value=sphere.codeUrl;
+      rawInput.addEventListener('click',e=>e.stopPropagation());
       rawActivate.addEventListener('click',async e=>{
         e.stopPropagation();
-        const url=rawInput.value.trim();if(!url)return;
+        const url=rawInput.value.trim();
+        const sphereToActivate=url?{...sphere,codeUrl:url}:sphere;
         rawActivate.textContent='…';rawActivate.style.pointerEvents='none';
-        // Active la sphere en forçant le codeUrl custom
-        const overridden={...sphere,codeUrl:url};
         try{
-          await activateSphere(overridden);
+          await activateSphere(sphereToActivate);
           const nowActive=isSphereActive(sphere.fileName);
           _updateCardInPlace(card,sphere,nowActive);
-          rawInput.style.display='none';rawActivate.style.display='none';
           window.dispatchEvent(new CustomEvent('ym:sphere-activated',{detail:{name:sphere.fileName}}));
-        }catch(err){window.YM_toast?.('Activation error: '+err.message,'error');}
+        }catch(err){window.YM_toast?.('Error: '+err.message,'error');}
         rawActivate.textContent='▶ Activer';rawActivate.style.pointerEvents='';
       });
     }
