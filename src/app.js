@@ -112,7 +112,10 @@
       l.style.display = 'flex';
       l.style.flex = '1';
       if (window.YM_Liste) {
-        if (!l.children.length) window.YM_Liste.render(l);
+        // Ne re-render que si le container est vide (premier affichage)
+        if (!l.querySelector('#sphere-list-inner')) {
+          window.YM_Liste.render(l);
+        }
       } else {
         l.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:12px">Loading…</div>';
       }
@@ -144,16 +147,18 @@
       const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
       const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
       const cw = preview.offsetWidth;
+      const ch = preview.offsetHeight || 130;
       if (pw > 0 && cw > 0) {
-        // Scale basé uniquement sur la largeur (comme avant) — le débordement vertical
-        // est masqué par overflow:hidden + le gradient de la preview
         const sc = cw / pw;
+        // Hauteur visible dans la card : ch/sc pixels du contenu réel
+        // On limite la hauteur du clone à ce qui est visible + un peu de marge
+        const visibleH = Math.min(ph, Math.ceil(ch / sc) + 20);
         clone.style.width  = pw + 'px';
-        clone.style.height = ph + 'px';
+        clone.style.height = visibleH + 'px';
         wrap.style.transform = 'scale(' + sc + ')';
         wrap.style.transformOrigin = 'top left';
         wrap.style.width  = pw + 'px';
-        wrap.style.height = ph + 'px';
+        wrap.style.height = visibleH + 'px';
       }
     }); }, 0);
     return preview;
@@ -434,11 +439,18 @@
 
   function _initMinePanel() {
     setTimeout(() => {
-      if (window.YM_Mine) window.YM_Mine.render(document.getElementById('panel-mine-wallet'));
+      // Cache tous les contenus d'abord
+      ['panel-mine-wallet','panel-mine-build','panel-mine-formula','panel-mine-liste'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.style.flex = ''; }
+      });
       setupMineTabs();
       const bar    = document.getElementById('mine-tabs-bar');
       const active = bar && bar.querySelector('.ym-tab.active');
-      if (active) switchMineTab(active.dataset.mineTab || 'wallet');
+      const tab    = (active && active.dataset.mineTab) || 'wallet';
+      // S'assure qu'un seul onglet est marqué actif
+      if (bar) bar.querySelectorAll('.ym-tab').forEach(t => t.classList.toggle('active', t.dataset.mineTab === tab));
+      switchMineTab(tab);
     }, 0);
   }
 
@@ -477,12 +489,12 @@
     reducePanel();
   });
 
-  /* Clic sur le bureau (hors icône) = ferme le panel ouvert */
+  /* Clic sur le bureau (hors icône) = ferme le panel ou le switcher ouvert */
   document.getElementById('desktop').addEventListener('click', e => {
-    if (!_panel) return;
     if (e.target.closest('.icon-wrap')) return;
     if (e.target.closest('#drag-ghost')) return;
-    reducePanel();
+    if (sw && sw.classList.contains('open')) { closeSwitcher(); return; }
+    if (_panel) reducePanel();
   });
 
   /* ── Geste bord gauche mobile : swipe depuis < 20px du bord = retour ── */
