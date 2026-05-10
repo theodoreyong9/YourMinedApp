@@ -129,7 +129,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 :root{--cols:4;--rows:6;--dock-h:76px}
 #desktop{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));z-index:10;overflow:hidden;touch-action:pan-y}
 #desktop-slider{display:flex;height:100%;transition:transform .4s cubic-bezier(.4,0,.2,1);will-change:transform}
-.desktop-page{flex:0 0 100vw;width:100vw;height:calc(100dvh - var(--dock-h) - var(--safe-b));display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);padding:50px 12px 10px;gap:8px;overflow:hidden;position:relative}
+.desktop-page{flex:0 0 100vw;width:100vw;height:calc(100dvh - var(--dock-h) - var(--safe-b));display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);padding:6px 12px 10px;gap:6px;overflow:hidden;position:relative}
 @media(hover:hover) and (pointer:fine){
   :root{--cols:7;--rows:5;--dock-h:0px}
   #desktop{right:72px;bottom:0!important}
@@ -478,7 +478,7 @@ textarea.ym-input{resize:vertical;font-size:11px}
     <button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:10px;color:var(--text3)">&#10005; Remove</button>
   </div>
   <div style="font-size:8px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:3px;font-family:var(--font-m)">Wallpapers</div>
-  <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;padding-bottom:4px;min-height:0;max-height:180px"></div>
+  <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;padding-bottom:4px;min-height:0;height:160px;flex-shrink:0"></div>
   <button class="ym-btn ym-btn-ghost" id="bg-spheres" style="width:100%;font-size:10px;margin-top:10px;color:var(--cy);border-color:rgba(0,245,255,.2)">&#11835; Browse Spheres</button>
   <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
 </div></div>
