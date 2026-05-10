@@ -266,15 +266,23 @@ async function renderThemesContent(container){
   });
 }
 
+// Catégories standardisées — tout ce qui ne correspond pas → "Autres"
+const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media'];
+function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
+
 function renderSpheresContent(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
   container.innerHTML=
     '<div id="sphere-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
     '</div>'+
-    '<div style="padding:10px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:8px;flex-shrink:0;background:inherit">'+
+    '<div style="padding:8px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
       '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
-      '<input class="ym-input" id="sphere-search" placeholder="Search spheres…" value="">'+
+      '<div style="display:flex;gap:6px">'+
+        '<input class="ym-input" id="sphere-search" placeholder="Search spheres…" style="flex:1">'+
+        '<input class="ym-input" id="sphere-raw-url" placeholder="Raw URL pour activer…" style="flex:1;font-size:11px">'+
+        '<button class="ym-btn ym-btn-ghost" id="sphere-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
+      '</div>'+
     '</div>';
 
   container.querySelector('#sphere-search')?.addEventListener('input',e=>{
@@ -282,12 +290,56 @@ function renderSpheresContent(container){
     renderList(container);
   });
 
+  // Activation par raw URL global
+  const rawBtn=container.querySelector('#sphere-raw-btn');
+  const rawInput=container.querySelector('#sphere-raw-url');
+  if(rawBtn&&rawInput){
+    rawBtn.addEventListener('click',async()=>{
+      const url=rawInput.value.trim();if(!url)return;
+      rawBtn.textContent='…';rawBtn.disabled=true;
+      try{
+        // Charge le code depuis l'URL et tente de l'exécuter
+        const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const code=await r.text();
+        // Détecte le nom du fichier depuis l'URL ou depuis window.YM_S
+        const fname=url.split('/').pop().replace(/\?.*$/,'');
+        const blob=new Blob([code],{type:'text/javascript'});
+        const blobUrl=URL.createObjectURL(blob);
+        await new Promise((res,rej)=>{
+          const s=document.createElement('script');s.src=blobUrl;
+          s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
+          s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
+          document.head.appendChild(s);
+        });
+        // Active la sphere trouvée dans YM_S
+        const sphereObj=window.YM_S&&window.YM_S[fname];
+        if(sphereObj&&window.YM){
+          await window.YM.activateSphere(fname,sphereObj);
+          rawInput.value='';
+          window.YM_toast?.('Sphere activée depuis raw URL','success');
+          renderSpheresContent(container);
+        }else{
+          // Cherche n'importe quelle clé nouvellement ajoutée dans YM_S
+          const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
+          if(newKey&&window.YM){
+            await window.YM.activateSphere(newKey,window.YM_S[newKey]);
+            rawInput.value='';
+            window.YM_toast?.('Sphere activée','success');
+            renderSpheresContent(container);
+          }else throw new Error('Aucune sphere trouvée dans le code');
+        }
+      }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
+      rawBtn.textContent='▶';rawBtn.disabled=false;
+    });
+  }
+
   renderCategories(container);
   renderList(container);
 }
 
 function renderCategories(container){
-  const cats=[...new Set(_sphereList.map(s=>s.category).filter(Boolean))];
+  const cats=[...new Set(_sphereList.map(s=>normCat(s.category)||'Autres').filter(Boolean))];
   const catsEl=container.querySelector('#sphere-cats');if(!catsEl)return;
   catsEl.innerHTML=
     '<span class="pill '+(!_filterCat&&!_filterActive?'active':'')+'" style="cursor:pointer" data-cat="" data-active="0">All</span>'+
@@ -336,7 +388,7 @@ function renderList(body){
 
   let filtered=_sphereList;
   if(_filterText)filtered=filtered.filter(s=>(s.name||'').toLowerCase().includes(_filterText)||(s.description||'').toLowerCase().includes(_filterText)||(s.ghAuthor||'').toLowerCase().includes(_filterText)||(s.category||'').toLowerCase().includes(_filterText));
-  if(_filterCat)filtered=filtered.filter(s=>s.category===_filterCat);
+  if(_filterCat)filtered=filtered.filter(s=>normCat(s.category||'')===_filterCat||(_filterCat==='Autres'&&!STD_CATS.includes(s.category||'')));
   if(_filterActive)filtered=filtered.filter(s=>isSphereActive(s.fileName));
   if(!filtered.length){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No spheres found.</div>';return;}
 
@@ -371,13 +423,7 @@ function renderList(body){
             '<a data-code-link href="'+ghAuthorUrl+'" target="_blank" rel="noopener" style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;text-decoration:none">&lt;/&gt; code</a>'+
           '</div>'+
           '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+esc(sphere.description||'—')+'</div>'+
-          // Champ raw URL visible directement sur les cartes inactives
-          (!active?
-            '<div style="display:flex;gap:6px;align-items:center;margin-top:4px" data-raw-row>'+
-              '<input class="ym-input" data-raw-input placeholder="Raw URL pour activer (optionnel)…" style="font-size:10px;flex:1;padding:5px 8px">'+
-              '<button data-raw-activate style="background:none;border:1px solid rgba(8,224,248,.3);color:var(--cyan);border-radius:5px;font-size:9px;padding:4px 8px;cursor:pointer;flex-shrink:0;white-space:nowrap">▶ Activer</button>'+
-            '</div>'
-          :'')+
+
         '</div>'+
         '<div data-action-cell style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'+
           (active&&!MANDATORY_SPHERES.includes(sphere.fileName) ? '<button data-deactivate style="background:none;border:1px solid rgba(255,69,96,.3);color:var(--red);border-radius:6px;font-size:10px;padding:3px 7px;cursor:pointer;line-height:1.4">Off</button>' : (active ? '<div style="font-size:14px;color:var(--text3)">✓</div>' : '<div style="font-size:20px;color:var(--text3)">›</div>'))+
@@ -388,27 +434,7 @@ function renderList(body){
     const codeLink=card.querySelector('[data-code-link]');
     if(codeLink)codeLink.addEventListener('click',e=>e.stopPropagation());
 
-    // Raw URL activate (visible seulement si inactif)
-    const rawInput=card.querySelector('[data-raw-input]');
-    const rawActivate=card.querySelector('[data-raw-activate]');
-    if(rawInput&&rawActivate){
-      // Pré-rempli avec codeUrl connu
-      if(sphere.codeUrl)rawInput.value=sphere.codeUrl;
-      rawInput.addEventListener('click',e=>e.stopPropagation());
-      rawActivate.addEventListener('click',async e=>{
-        e.stopPropagation();
-        const url=rawInput.value.trim();
-        const sphereToActivate=url?{...sphere,codeUrl:url}:sphere;
-        rawActivate.textContent='…';rawActivate.style.pointerEvents='none';
-        try{
-          await activateSphere(sphereToActivate);
-          const nowActive=isSphereActive(sphere.fileName);
-          _updateCardInPlace(card,sphere,nowActive);
-          window.dispatchEvent(new CustomEvent('ym:sphere-activated',{detail:{name:sphere.fileName}}));
-        }catch(err){window.YM_toast?.('Error: '+err.message,'error');}
-        rawActivate.textContent='▶ Activer';rawActivate.style.pointerEvents='';
-      });
-    }
+
 
     // Bouton désactivation — met à jour la carte IN-PLACE
     const deactivateBtn=card.querySelector('[data-deactivate]');
