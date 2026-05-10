@@ -236,7 +236,10 @@ function renderSphereTab(body){
     if(_mode==='code'){
       codeArea.innerHTML=
         '<textarea id="pub-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="/* window.YM_S[\'mysphere.sphere.js\'] = { ... } */"></textarea>'+
-        '<div id="pub-size" style="font-size:10px;color:var(--text3);text-align:right;margin-top:2px">0 KB</div>';
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip" checked> 🚧 Under construction</label>'+
+          '<div id="pub-size" style="font-size:10px;color:var(--text3)">0 KB</div>'+
+        '</div>';
       codeArea.querySelector('#pub-code').addEventListener('input',function(){
         const kb=new TextEncoder().encode(this.value).length/1024;
         const el=codeArea.querySelector('#pub-size');el.textContent=kb.toFixed(1)+' KB';
@@ -252,7 +255,7 @@ function renderSphereTab(body){
         '<textarea id="min-desc" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
         '<input id="min-url" class="ym-input" placeholder="Raw URL du vrai code (optionnel)" style="font-size:11px;margin-bottom:6px">'+
         '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">'+
-          '<input type="checkbox" id="min-wip"> 🚧 Under construction</label>';
+          '<input type="checkbox" id="min-wip" checked> 🚧 Under construction (badge)</label>';
     }
   }
 
@@ -560,7 +563,7 @@ function renderCodeForm(area,body,pubkey){
       '</div>'+
       '<div style="margin-bottom:6px">'+
         '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">'+
-          '<input type="checkbox" id="pub-wip"> 🚧 Under construction</label>'+
+          '<input type="checkbox" id="pub-wip" checked> 🚧 Under construction (badge)</label>'+
       '</div>'+
       '<div id="sphere-status" style="font-size:10px;color:var(--text3)"></div>';
     card.querySelector('#pub-name').addEventListener('input',async function(){
@@ -680,43 +683,16 @@ async function submitCodeForm(body){
 
 // ── ONGLET THEME ──────────────────────────────────────────────
 async function renderThemeTab(body){
-  body.innerHTML='<div style="padding:14px;font-size:12px;color:var(--text3)">Chargement…</div>';
-  const themes=await fetchThemesJson();
-  const GH_BLOB='https://github.com/'+GH_OWNER+'/'+GH_REPO+'/blob/main/src/themes/';
-  const curTheme=(localStorage.getItem('ym_theme_url')||'').split('/').pop();
+  body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0';
 
-  body.innerHTML='';
+  let _themeMode='code'; // code brut par défaut
 
-  // Liste des thèmes publiés
-  const listSec=document.createElement('div');
-  listSec.style.cssText='padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06)';
-  listSec.innerHTML='<div style="font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Thèmes publiés</div>';
-  themes.forEach(f=>{
-    const isCur=f===curTheme;
-    const row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)';
-    const name=f.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-    row.innerHTML=
-      '<span style="font-size:11px;flex:1;color:'+(isCur?'var(--gold)':'var(--text2)')+'">'+esc(name)+(isCur?' ✓':'')+
-      '</span>'+
-      '<a href="'+GH_BLOB+f+'" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan);text-decoration:none">&lt;/&gt;</a>'+
-      '<button class="ym-btn ym-btn-ghost" style="font-size:10px;padding:3px 8px" data-theme="'+f+'">'+(isCur?'Actif':'Appliquer')+'</button>';
-    row.querySelector('button').addEventListener('click',function(){
-      if(isCur)return;
-      const url='https://raw.githubusercontent.com/'+GH_OWNER+'/'+GH_REPO+'/main/src/themes/'+f;
-      localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');
-      toast('Thème changé — rechargement…','success',1500);setTimeout(()=>location.reload(),1500);
-    });
-    listSec.appendChild(row);
-  });
-  body.appendChild(listSec);
-
-  // Publier un thème
+  // ÉTAPE GitHub
   _step(body,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
     if(_userToken){
       card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b></div>'+
         '<button id="th-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
-      card.querySelector('#th-disc').addEventListener('click',()=>{_saveToken(null);renderThemeTab(body);});
+      card.querySelector('#th-disc').addEventListener('click',()=>{_saveToken(null);render(_lastContainer);});
     }else{
       card.innerHTML+='<div style="display:flex;gap:6px;margin-bottom:6px">'+
         '<input id="th-tok" class="ym-input" type="password" placeholder="ghp_…" style="flex:1;font-size:11px">'+
@@ -727,27 +703,72 @@ async function renderThemeTab(body){
         try{const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
           if(!r.ok)throw new Error('Token invalide');
           const u=await r.json();_saveToken({value:tok,username:u.login});
-          toast('@'+u.login,'success');renderThemeTab(body);}
+          toast('@'+u.login,'success');render(_lastContainer);}
         catch(e){toast(e.message,'error');}
       });
     }
   });
 
-  _step(body,'Thème','',card=>{
-    card.innerHTML+=
-      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
-        '<input id="th-name" class="ym-input" placeholder="nom-du-theme" style="flex:1;font-size:12px">'+
-        '<span style="font-size:11px;color:var(--text3);align-self:center;flex-shrink:0">.html</span>'+
-      '</div>'+
-      '<textarea id="th-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box;margin-bottom:6px" placeholder="<!-- Colle le code HTML du thème ici&#10;     Doit contenir tout le DOM requis + styles CSS -->"></textarea>'+
-      '<div id="th-size" style="font-size:10px;color:var(--text3);text-align:right">0 KB</div>';
-    card.querySelector('#th-code').addEventListener('input',function(){
-      const kb=new TextEncoder().encode(this.value).length/1024;
-      const el=card.querySelector('#th-size');el.textContent=kb.toFixed(1)+' KB';
-      el.style.color=kb>200?'var(--red)':'var(--text3)';
-    });
-  });
+  // ÉTAPE Nom + Code avec toggle
+  const codeStep=document.createElement('div');
+  codeStep.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
 
+  const head=document.createElement('div');
+  head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
+  head.innerHTML=
+    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Thème</div>'+
+    '<div style="display:flex;gap:4px">'+
+      '<button id="th-mode-code" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px;background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)">&lt;/&gt; Code brut</button>'+
+      '<button id="th-mode-quick" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">⚡ Quick</button>'+
+    '</div>';
+  codeStep.appendChild(head);
+
+  const nameRow=document.createElement('div');
+  nameRow.style.cssText='display:flex;gap:6px;margin-bottom:8px';
+  nameRow.innerHTML=
+    '<input id="th-name" class="ym-input" placeholder="nom-du-theme" style="flex:1;font-size:12px">'+
+    '<span style="font-size:11px;color:var(--text3);align-self:center;flex-shrink:0">.html</span>';
+  codeStep.appendChild(nameRow);
+
+  const codeArea=document.createElement('div');
+  codeStep.appendChild(codeArea);
+  body.appendChild(codeStep);
+
+  function renderThemeCodeArea(){
+    codeArea.innerHTML='';
+    head.querySelector('#th-mode-code').style.cssText='font-size:9px;padding:3px 8px;'+(_themeMode==='code'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+    head.querySelector('#th-mode-quick').style.cssText='font-size:9px;padding:3px 8px;'+(_themeMode==='quick'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+
+    if(_themeMode==='code'){
+      codeArea.innerHTML=
+        '<textarea id="th-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box;margin-bottom:6px" placeholder="<!-- Thème HTML complet avec tout le DOM requis... -->"></textarea>'+
+        '<div style="display:flex;align-items:center;justify-content:space-between">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="th-wip" checked> 🚧 Under construction</label>'+
+          '<div id="th-size" style="font-size:10px;color:var(--text3)">0 KB</div>'+
+        '</div>';
+      codeArea.querySelector('#th-code').addEventListener('input',function(){
+        const kb=new TextEncoder().encode(this.value).length/1024;
+        const el=codeArea.querySelector('#th-size');el.textContent=kb.toFixed(1)+' KB';
+        el.style.color=kb>200?'var(--red)':'var(--text3)';
+      });
+    }else{
+      // Quick : champs métadonnées + lien vers le fichier HTML
+      codeArea.innerHTML=
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
+          '<input id="th-icon" class="ym-input" placeholder="Icon (emoji ou URL image)" style="font-size:12px">'+
+          '<input id="th-author-display" class="ym-input" placeholder="Votre nom/pseudo" style="font-size:12px">'+
+        '</div>'+
+        '<textarea id="th-desc" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
+        '<input id="th-raw-url" class="ym-input" placeholder="Raw URL du fichier HTML du thème (requis)" style="font-size:11px;margin-bottom:6px">'+
+        '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="th-wip" checked> 🚧 Under construction</label>';
+    }
+  }
+
+  head.querySelector('#th-mode-code').addEventListener('click',()=>{_themeMode='code';renderThemeCodeArea();});
+  head.querySelector('#th-mode-quick').addEventListener('click',()=>{_themeMode='quick';renderThemeCodeArea();});
+  renderThemeCodeArea();
+
+  // Submit
   const submitWrap=document.createElement('div');
   submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
   submitWrap.innerHTML='<div id="th-status" style="margin-bottom:8px"></div>'+
@@ -759,23 +780,53 @@ async function renderThemeTab(body){
     const statusEl=submitWrap.querySelector('#th-status');
     function st(msg,type){statusEl.innerHTML='<div class="ym-notice '+(type||'info')+'" style="font-size:11px">'+msg+'</div>';}
     const nameRaw=body.querySelector('#th-name')?.value.trim().replace(/\.html$/,'');
-    const code=body.querySelector('#th-code')?.value.trim();
-    if(!nameRaw||!code)return st('Nom et code requis','error');
+    if(!nameRaw)return st('Nom requis','error');
     if(!_userToken)return st('Token GitHub requis','error');
-    const filename='src/themes/'+nameRaw+'.html';
     const token=_userToken.value,username=_userToken.username;
+    const wip=codeArea.querySelector('#th-wip')?.checked!==false;
     btn.disabled=true;btn.textContent='Processing…';
     try{
+      let themeCode='',rawFileUrl='';
+      if(_themeMode==='code'){
+        themeCode=codeArea.querySelector('#th-code')?.value.trim()||'';
+        if(!themeCode)throw new Error('Code requis');
+      }else{
+        rawFileUrl=codeArea.querySelector('#th-raw-url')?.value.trim()||'';
+        if(!rawFileUrl)throw new Error('Raw URL requis');
+        // Charge le code depuis l'URL
+        const r=await fetch(rawFileUrl+'?t='+Date.now(),{cache:'no-store'});
+        if(!r.ok)throw new Error('HTTP '+r.status+' — impossible de charger le thème');
+        themeCode=await r.text();
+      }
+      const icon=codeArea.querySelector('#th-icon')?.value.trim()||'🎨';
+      const desc=(codeArea.querySelector('#th-desc')?.value.trim()||'').slice(0,140);
+      const filename='src/themes/'+nameRaw+'.html';
       st('Fork…');await ensureFork(token,username);
-      st('Push thème…');await ghPush(token,username,filename,code,'theme: '+nameRaw);
-      // Met aussi à jour index.json côté fork (le bot le mergera)
+      st('Push thème…');await ghPush(token,username,filename,themeCode,'theme: '+nameRaw);
+
+      // Met à jour themes/index.json et themes-files.json côté fork
       let idx=['default.html'];
       try{const r=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/index.json?t='+Date.now());if(r.ok)idx=await r.json();}catch{}
       if(!idx.includes(nameRaw+'.html'))idx.push(nameRaw+'.html');
       await ghPush(token,username,'src/themes/index.json',JSON.stringify(idx,null,2),'theme index: '+nameRaw);
+
+      // themes-files.json — registry utilisateur
+      const codeUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/'+nameRaw+'.html';
+      let themeFiles=[];
+      try{const r=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/themes-files.json?t='+Date.now());if(r.ok)themeFiles=await r.json();}catch{}
+      const entry={filename:nameRaw+'.html',name:nameRaw.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),icon,description:desc,ghAuthor:username,codeUrl,wip,timestamp:Math.floor(Date.now()/1000)};
+      const ei=themeFiles.findIndex(t=>t.filename===nameRaw+'.html');
+      if(ei>=0)themeFiles[ei]=Object.assign({},themeFiles[ei],entry);else themeFiles.push(entry);
+      await ghPush(token,username,'themes-files.json',JSON.stringify(themeFiles,null,2),'themes-files: '+nameRaw);
+
+      // Event
+      const nonce=uuid(),timestamp2=Math.floor(Date.now()/1000);
+      const ev={action:'create-theme',filename:nameRaw+'.html',wallet:'',ghAuthor:username,codeUrl,icon,description:desc,wip,nonce,timestamp:timestamp2};
+      await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event theme: '+nonce);
+
       st('PR…');const pr=await openPR(token,username);
       const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/src/themes/'+nameRaw+'.html';
-      st('✅ PR ouverte · <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','success');
+      st('✅ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','success');
     }catch(e){st('✗ '+esc(e.message),'error');}
     finally{btn.disabled=false;btn.textContent='⬆ Publier le thème';}
   });
