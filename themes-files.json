@@ -10,5 +10,17 @@
     "laps": 0,
     "timestamp": 1700000000,
     "merged_at": 1700000100
+  },
+    {
+    "filename": "zone.theme.html",
+    "name": "Zone",
+    "icon": "🧠",
+    "description": "Zone theme",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/src/zone.theme.html",
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100
   }
 ]
