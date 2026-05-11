@@ -1081,6 +1081,7 @@
   window.YM = {
     toast, openPanel, closePanel: reducePanel, openSwitcher, closeSwitcher,
     openSpherePanel, openProfilePanel, activateSphere, deactivateSphere,
+    _hasOpenPanel: () => !!_panel || sw.classList.contains('open'),
     addIconToDesktop:    (id, icon, label) => { if (window.YM_Desk) window.YM_Desk.addIcon(id, icon, label); },
     removeIconFromDesktop: id => { if (window.YM_Desk) window.YM_Desk.removeIcon(id); },
     activateSphereByName(n) {
