@@ -266,7 +266,7 @@ async function renderThemesContent(container){
   // Pills types themes
   const themeCatsEl=container.querySelector('#theme-cats');
   if(themeCatsEl){
-    ['All','Theme','Photo','Video'].forEach(c=>{
+    ['Theme','Photo','Video'].forEach(c=>{
       const active=_themeFilterCat===c||(c==='Theme'&&_themeFilterCat==='Theme');
       const p=document.createElement('span');
       p.className='pill'+(active?' active':'');
@@ -391,7 +391,6 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
         '<div style="flex:1;min-width:0">'+
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">'+
             '<div style="font-weight:600;font-size:14px;color:var(--text)">'+esc(t.name||t.filename||'?')+'</div>'+
-            (isCur?'<span class="pill active">actif</span>':'')+
             (t.wip?'<span style="font-size:9px;color:#f0a830;padding:1px 5px;border:1px solid rgba(240,168,48,.3);border-radius:4px">🚧 WIP</span>':'')+
           '</div>'+
           '<div style="font-size:9px;color:var(--text3);margin-bottom:3px">'+
