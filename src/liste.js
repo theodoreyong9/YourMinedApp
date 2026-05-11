@@ -268,7 +268,7 @@ async function renderThemesContent(container){
       p.addEventListener('click',()=>{
         _themeFilterCat=c==='All'?'':c;
         themeCatsEl.querySelectorAll('.pill').forEach(x=>x.classList.toggle('active',x.textContent===c));
-        _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE);
+        _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,_themesList);
       });
       themeCatsEl.appendChild(p);
     });
@@ -276,7 +276,7 @@ async function renderThemesContent(container){
 
   container.querySelector('#theme-search')?.addEventListener('input',e=>{
     _themeSearch=e.target.value.toLowerCase();
-    _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE);
+    _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,_themesList);
   });
 
   const themes=await fetchThemesList();
