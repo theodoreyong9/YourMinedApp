@@ -491,7 +491,10 @@
     p.classList.add('open');
     if (id !== 'panel-sphere' && id !== 'panel-spheres') {
       const meta = PANEL_META[id] || { label: id.replace('panel-', '') };
-      _openPanels.set(id, { label: meta.label });
+      const isDesktop2 = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+      const pw2 = p.offsetWidth || (isDesktop2 ? Math.min(560, window.innerWidth - 72) : window.innerWidth);
+      const ph2 = p.offsetHeight || (isDesktop2 ? window.innerHeight : window.innerHeight - 80);
+      _openPanels.set(id, { label: meta.label, panelW: pw2, panelH: ph2 });
     }
     updateActiveDbtn(id);
     if (id === 'panel-build'   && window.YM_Build)   window.YM_Build.render();
@@ -949,11 +952,16 @@
     }
 
     const panelEl = document.getElementById('panel-sphere');
+    // Sur desktop, les panels font min(560px, 100vw-72px)
+    // Sur mobile, ils font 100vw
+    const isDesktop = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+    const deskPanelW = isDesktop ? Math.min(560, window.innerWidth - 72) : window.innerWidth;
+    const deskPanelH = isDesktop ? window.innerHeight : (window.innerHeight - 80); // 80 = dock height approx
     _openSpheres.set(id, {
       label:   s.name || id.replace('.sphere.js', ''),
       snapshot: panelEl ? panelEl.innerHTML : '',
-      panelW:   panelEl ? panelEl.offsetWidth  || window.innerWidth  : window.innerWidth,
-      panelH:   panelEl ? panelEl.offsetHeight || window.innerHeight : window.innerHeight,
+      panelW:   panelEl ? (panelEl.offsetWidth  || deskPanelW) : deskPanelW,
+      panelH:   panelEl ? (panelEl.offsetHeight || deskPanelH) : deskPanelH,
     });
 
     openPanel('panel-sphere');
