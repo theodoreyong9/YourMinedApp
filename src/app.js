@@ -172,8 +172,6 @@
     });
     return preview;
   }
-    return preview;
-  }
 
   function _buildFakePanel(snapshot, panelW, panelH) {
     const fake = document.createElement('div');
