@@ -664,8 +664,9 @@
   function checkURLRoute() {
     const parts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
 
-    const GH_RAW    = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-    const DEF_THEME = GH_RAW + 'themes/default.html';
+    // Utilise le GH_RAW du thème actuel (ou celui de index.html)
+    const _GH_RAW = window._YM_GH_RAW || 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+    const THEMES_FILES_URL = _GH_RAW.replace('/src/', '/') + 'themes-files.json';
 
     let themeSegment  = null;
     let sphereSegment = null;
@@ -678,13 +679,9 @@
     });
 
     if (themeSegment) {
-      // Cherche dans themes-files.json d'abord (thème utilisateur : nom.theme.html)
-      // puis fallback vers src/themes/nom.html (thèmes système)
-      const THEMES_FILES = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/themes-files.json';
       const afterRoute = () => {
         if (sphereSegment) {
-          const base = sphereSegment.replace('.sphere.js', '.sphere');
-          history.replaceState(null, '', '/' + base);
+          history.replaceState(null, '', '/' + sphereSegment.replace('.sphere.js', '.sphere'));
         } else {
           history.replaceState(null, '', '/');
         }
@@ -692,22 +689,33 @@
       };
       (async () => {
         let themeUrl = null;
-        // 1. Cherche nom.theme dans themes-files.json (codeUrl)
+        // 1. Cherche dans themes-files.json (registry utilisateur)
         try {
-          const r = await fetch(THEMES_FILES + '?t=' + Date.now(), { cache: 'no-store' });
+          const r = await fetch(THEMES_FILES_URL + '?t=' + Date.now(), { cache: 'no-store' });
           if (r.ok) {
             const list = await r.json();
-            // Le fichier s'appelle themeSegment.theme.html
             const entry = list.find(t =>
-              (t.filename || '') === themeSegment + '.theme.html' ||
+              (t.filename || '').replace(/\.theme\.html$/i,'').toLowerCase() === themeSegment.toLowerCase() ||
               (t.name || '').toLowerCase().replace(/\s+/g,'-') === themeSegment.toLowerCase()
             );
             if (entry && entry.codeUrl) themeUrl = entry.codeUrl;
           }
         } catch {}
-        // 2. Fallback : src/themes/nom.theme.html ou nom.html
-        if (!themeUrl) themeUrl = GH_RAW + 'themes/' + themeSegment + '.theme.html';
-        const cur = localStorage.getItem('ym_theme_url') || DEF_THEME;
+        // 2. Fallback : src/themes/nom.theme.html — vérifie que le fichier existe
+        if (!themeUrl) {
+          const candidate = _GH_RAW + 'themes/' + themeSegment + '.theme.html';
+          try {
+            const check = await fetch(candidate + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+            if (check.ok) themeUrl = candidate;
+          } catch {}
+        }
+        // 3. Si rien trouvé → toast et ne pas recharger
+        if (!themeUrl) {
+          if (window.YM_toast) window.YM_toast('Thème "' + themeSegment + '" introuvable', 'error');
+          history.replaceState(null, '', '/');
+          return;
+        }
+        const cur = localStorage.getItem('ym_theme_url') || '';
         if (themeUrl !== cur) {
           localStorage.setItem('ym_theme_url', themeUrl);
           localStorage.removeItem('ym_theme_cache');
