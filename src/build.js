@@ -187,7 +187,7 @@ function renderBuildContent(body){
     _checkName();codeStepEl.style.display='';
   });
   nameTypeStep.querySelector('#type-theme').addEventListener('click',()=>{
-    _pubType='theme';extEl.textContent='.html';
+    _pubType='theme';extEl.textContent='.theme.html';
     nameTypeStep.querySelector('#type-theme').style.cssText='background:rgba(8,224,248,.1);border:none;color:var(--cyan);font-size:10px;padding:4px 10px;cursor:pointer';
     nameTypeStep.querySelector('#type-sphere').style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer';
     _checkName();codeStepEl.style.display='';
@@ -940,7 +940,7 @@ async function renderThemeTab(body){
       }
       const icon=codeArea.querySelector('#th-icon')?.value.trim()||'🎨';
       const desc=(codeArea.querySelector('#th-desc')?.value.trim()||'').slice(0,140);
-      const filename='src/themes/'+nameRaw+'.html';
+      const filename='src/themes/'+nameRaw.replace(/\.theme\.html$|\.html$/,'')+'.theme.html';
       st('Fork…');await ensureFork(token,username);
       st('Push thème…');await ghPush(token,username,filename,themeCode,'theme: '+nameRaw);
 
@@ -954,14 +954,15 @@ async function renderThemeTab(body){
       const codeUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/'+nameRaw+'.html';
       let themeFiles=[];
       try{const r=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/themes-files.json?t='+Date.now());if(r.ok)themeFiles=await r.json();}catch{}
-      const entry={filename:nameRaw+'.html',name:nameRaw.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),icon,description:desc,ghAuthor:username,codeUrl,wip,timestamp:Math.floor(Date.now()/1000)};
-      const ei=themeFiles.findIndex(t=>t.filename===nameRaw+'.html');
+      const _tn=nameRaw.replace(/\.theme\.html$|\.html$/,'')+'.theme.html';
+      const entry={filename:_tn,name:nameRaw.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),icon,description:desc,ghAuthor:username,codeUrl,wip,timestamp:Math.floor(Date.now()/1000)};
+      const ei=themeFiles.findIndex(t=>t.filename===_tn);
       if(ei>=0)themeFiles[ei]=Object.assign({},themeFiles[ei],entry);else themeFiles.push(entry);
       await ghPush(token,username,'themes-files.json',JSON.stringify(themeFiles,null,2),'themes-files: '+nameRaw);
 
       // Event
       const nonce=uuid(),timestamp2=Math.floor(Date.now()/1000);
-      const ev={action:'create-theme',filename:nameRaw+'.html',wallet:'',ghAuthor:username,codeUrl,icon,description:desc,wip,nonce,timestamp:timestamp2};
+      const ev={action:'create-theme',filename:_tn,wallet:'',ghAuthor:username,codeUrl,icon,description:desc,wip,nonce,timestamp:timestamp2};
       await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event theme: '+nonce);
 
       st('PR…');const pr=await openPR(token,username);
