@@ -198,68 +198,140 @@ async function render(containerArg){
   else renderThemesContent(content);
 }
 
+// Themes registry : themes-files.json sur le repo PRINCIPAL (même logique que files.json pour spheres)
+const THEMES_FILES_URL='https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
+let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='';
+
+async function fetchThemesList(force){
+  if(_themesList&&!force)return _themesList;
+  try{
+    const r=await fetch(THEMES_FILES_URL+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error();
+    _themesList=await r.json();
+    _themesLoaded=true;
+    return _themesList;
+  }catch{_themesList=[];_themesLoaded=true;return _themesList;}
+}
+
 async function renderThemesContent(container){
-  const RAW_BASE_THEMES='https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/themes/';
-  const INDEX_URL=RAW_BASE_THEMES+'index.json';
-  const GH_BLOB='https://github.com/'+REPO_OWNER+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/src/themes/';
-  const curTheme=(localStorage.getItem('ym_theme_url')||'').split('/').pop();
+  const GH_BLOB_BASE='https://github.com/';
+  const curThemeUrl=localStorage.getItem('ym_theme_url')||'';
 
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML=
+    '<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
+      '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
+    '</div>'+
+    '<div style="padding:8px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<select id="theme-cat-select" class="ym-input" style="flex:1;font-size:11px;padding:6px 8px">'+
+          '<option value="">Tous types</option>'+
+          '<option value="Theme">Theme</option>'+
+          '<option value="Photo">Photo</option>'+
+          '<option value="Video">Video</option>'+
+        '</select>'+
+        '<input class="ym-input" id="theme-search" placeholder="Search themes…" style="flex:2;font-size:11px">'+
+        '<button class="ym-btn ym-btn-ghost" id="theme-url-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Appliquer par URL">↗</button>'+
+      '</div>'+
+      '<div id="theme-url-row" style="display:none;gap:6px;align-items:center">'+
+        '<input class="ym-input" id="theme-raw-input" placeholder="GitHub raw URL d\'un thème…" style="flex:1;font-size:11px">'+
+        '<button class="ym-btn ym-btn-ghost" id="theme-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
+      '</div>'+
+    '</div>';
 
-  const listEl=document.createElement('div');
-  listEl.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0';
-  listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>';
-  container.appendChild(listEl);
+  // Toggle URL row
+  const urlToggle=container.querySelector('#theme-url-toggle');
+  const urlRow=container.querySelector('#theme-url-row');
+  if(urlToggle&&urlRow){
+    urlToggle.addEventListener('click',()=>{
+      const open=urlRow.style.display!=='none';
+      urlRow.style.display=open?'none':'flex';
+      urlToggle.style.color=open?'':'var(--cyan)';
+    });
+  }
 
-  // Champ URL custom
-  const customEl=document.createElement('div');
-  customEl.style.cssText='padding:10px 16px;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0;display:flex;gap:6px';
-  customEl.innerHTML=
-    '<input class="ym-input" id="theme-raw-input" placeholder="GitHub raw URL d\'un thème…" style="flex:1;font-size:11px">'+
-    '<button class="ym-btn ym-btn-ghost" id="theme-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">Appliquer</button>';
-  container.appendChild(customEl);
-  customEl.querySelector('#theme-raw-btn').addEventListener('click',()=>{
-    const inp=customEl.querySelector('#theme-raw-input');
+  // Apply custom URL
+  container.querySelector('#theme-raw-btn')?.addEventListener('click',()=>{
+    const inp=container.querySelector('#theme-raw-input');
     let url=(inp?inp.value:'').trim();
     if(!url)return;
     url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
     localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');
-    window.YM_toast?.('Thème changé — rechargement…','success');
+    window.YM_toast?.('Thème — rechargement…','success');
     setTimeout(()=>location.reload(),1200);
   });
 
-  let themes=['default.html'];
-  try{const r=await fetch(INDEX_URL+'?t='+Date.now(),{cache:'no-store'});if(r.ok)themes=await r.json();}catch{}
+  container.querySelector('#theme-search')?.addEventListener('input',e=>{
+    _themeSearch=e.target.value.toLowerCase();
+    _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE);
+  });
+  container.querySelector('#theme-cat-select')?.addEventListener('change',e=>{
+    _themeFilterCat=e.target.value;
+    _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE);
+  });
+
+  const themes=await fetchThemesList();
+  _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes);
+}
+
+function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
+  const listEl=container.querySelector('#theme-list-inner');if(!listEl)return;
+  const list=themes||_themesList||[];
+
+  let filtered=list;
+  if(_themeSearch)filtered=filtered.filter(t=>
+    (t.name||'').toLowerCase().includes(_themeSearch)||
+    (t.description||'').toLowerCase().includes(_themeSearch)||
+    (t.ghAuthor||'').toLowerCase().includes(_themeSearch)
+  );
+  if(_themeFilterCat){
+    if(_themeFilterCat==='Photo')filtered=filtered.filter(t=>t.media&&t.media.includes('photo'));
+    else if(_themeFilterCat==='Video')filtered=filtered.filter(t=>t.media&&t.media.includes('video'));
+    else filtered=filtered.filter(t=>!t.media||t.media.length===0);
+  }
+
+  if(!filtered.length){
+    listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">'+(list.length?'Aucun résultat.':'Aucun thème publié.')+'</div>';
+    return;
+  }
 
   listEl.innerHTML='';
-  themes.forEach(f=>{
-    const isCur=f===curTheme;
-    const name=f.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-    const rawUrl=RAW_BASE_THEMES+f;
+  filtered.forEach(t=>{
+    const rawUrl=t.codeUrl||('https://raw.githubusercontent.com/'+t.ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/themes/'+(t.filename||t.name+'.html'));
+    const isCur=curThemeUrl===rawUrl;
+    const ghCodeUrl=t.codeUrl?t.codeUrl.replace('https://raw.githubusercontent.com/','https://github.com/').replace('/'+REPO_BRANCH+'/','/blob/'+REPO_BRANCH+'/'):null;
+
+    // Icon : emoji ou image preview
+    const iconIsUrl=t.icon&&(t.icon.startsWith('http')||t.icon.startsWith('/'));
+    const iconHtml=iconIsUrl
+      ?'<img src="'+esc(t.icon)+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+      :'<div style="width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+(t.icon||'🎨')+'</div>';
+
     const card=document.createElement('div');
     card.className='ym-card';
     card.style.cssText='cursor:pointer;transition:border-color .2s'+(isCur?';border-color:var(--accent-dim)':'');
     card.innerHTML=
-      '<div style="display:flex;align-items:center;gap:10px">'+
-        '<div style="flex:1">'+
-          '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:2px">'+esc(name)+(isCur?' <span class="pill active" style="font-size:9px">actif</span>':'')+
+      '<div style="display:flex;align-items:center;gap:12px">'+
+        iconHtml+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">'+
+            '<div style="font-weight:600;font-size:14px;color:var(--text)">'+esc(t.name||t.filename||'?')+'</div>'+
+            (isCur?'<span class="pill active">actif</span>':'')+
+            (t.wip?'<span style="font-size:9px;color:#f0a830;padding:1px 5px;border:1px solid rgba(240,168,48,.3);border-radius:4px">🚧 WIP</span>':'')+
           '</div>'+
-          '<div style="font-size:10px;color:var(--text3)">'+esc(f)+'</div>'+
+          '<div style="font-size:9px;color:var(--text3);margin-bottom:3px">'+
+            'by <b style="color:var(--accent)">@'+esc(t.ghAuthor||'unknown')+'</b>'+
+            (ghCodeUrl?' &nbsp;·&nbsp; <a href="'+esc(ghCodeUrl)+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-size:9px" onclick="event.stopPropagation()">&lt;/&gt; code</a>':'')+
+          '</div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(t.description||'—')+'</div>'+
         '</div>'+
-        '<a href="'+GH_BLOB+f+'" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan);text-decoration:none;padding:2px 6px;border:1px solid rgba(8,224,248,.3);border-radius:4px;flex-shrink:0" onclick="event.stopPropagation()">&lt;/&gt;</a>'+
-        '<button class="ym-btn ym-btn-ghost" style="font-size:10px;padding:4px 10px;flex-shrink:0">'+(isCur?'Actif':'Appliquer')+'</button>'+
       '</div>';
-    card.querySelector('button').addEventListener('click',e=>{
-      e.stopPropagation();
-      if(isCur)return;
-      localStorage.setItem('ym_theme_url',rawUrl);localStorage.removeItem('ym_theme_cache');
-      window.YM_toast?.('Thème changé — rechargement…','success');
-      setTimeout(()=>location.reload(),1200);
-    });
+
     card.addEventListener('click',()=>{
       if(isCur)return;
-      localStorage.setItem('ym_theme_url',rawUrl);localStorage.removeItem('ym_theme_cache');
-      window.YM_toast?.('Thème changé — rechargement…','success');
+      localStorage.setItem('ym_theme_url',rawUrl);
+      localStorage.removeItem('ym_theme_cache');
+      window.YM_toast?.('Thème — rechargement…','success');
       setTimeout(()=>location.reload(),1200);
     });
     listEl.appendChild(card);
