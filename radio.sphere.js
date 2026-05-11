@@ -276,9 +276,8 @@ function _syncWidgetPage(){
   if(!document.body.contains(_widget)){_widget=null;createWidget();return;}
   if(_widget._dragging)return;
   const pos=loadPos();
-  const widgetPage=pos.page||0;
-  const curPage=window._deskCurPage;
-  if(curPage===undefined||curPage===null){_widget.style.opacity='1';_widget.style.pointerEvents='all';return;}
+  const widgetPage=(pos.page!=null?pos.page:0);
+  const curPage=(window._deskCurPage!=null?window._deskCurPage:0);
   const visible=curPage===widgetPage;
   _widget.style.transition='opacity .25s ease';
   _widget.style.opacity=visible?'1':'0';
