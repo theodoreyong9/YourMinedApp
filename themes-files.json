@@ -1,1 +1,44 @@
-
+[
+  {
+    "filename": "neural.theme.html",
+    "name": "Neural",
+    "icon": "🧠",
+    "description": "Cyberpunk dark theme with cyan and gold accents.",
+    "ghAuthor": "theodoreyong9",
+    "codeUrl": "https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/themes/neural.theme.html",
+    "media": [],
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100
+  },
+  {
+    "filename": "neon.theme.html",
+    "name": "Neon",
+    "icon": "🌈",
+    "description": "Bright neon colors on dark background.",
+    "ghAuthor": "someuser",
+    "codeUrl": "https://raw.githubusercontent.com/someuser/YourMinedApp/main/src/themes/neon.theme.html",
+    "media": [],
+    "wip": true,
+    "score": 12.34,
+    "laps": 450000,
+    "timestamp": 1700001000,
+    "merged_at": 1700001100
+  },
+  {
+    "filename": "nature.theme.html",
+    "name": "Nature Photos",
+    "icon": "https://example.com/preview.jpg",
+    "description": "Nature photography wallpaper theme.",
+    "ghAuthor": "anotheruser",
+    "codeUrl": "https://raw.githubusercontent.com/anotheruser/YourMinedApp/main/src/themes/nature.theme.html",
+    "media": ["photo"],
+    "wip": false,
+    "score": 8.5,
+    "laps": 300000,
+    "timestamp": 1700002000,
+    "merged_at": 1700002100
+  }
+]
