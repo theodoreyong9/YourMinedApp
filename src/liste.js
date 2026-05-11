@@ -223,14 +223,9 @@ async function renderThemesContent(container){
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
     '</div>'+
     '<div style="padding:8px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
+      '<div id="theme-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
-        '<select id="theme-cat-select" class="ym-input" style="flex:1;font-size:11px;padding:6px 8px">'+
-          '<option value="">Tous types</option>'+
-          '<option value="Theme">Theme</option>'+
-          '<option value="Photo">Photo</option>'+
-          '<option value="Video">Video</option>'+
-        '</select>'+
-        '<input class="ym-input" id="theme-search" placeholder="Search themes…" style="flex:2;font-size:11px">'+
+        '<input class="ym-input" id="theme-search" placeholder="Search themes…" style="flex:1;font-size:11px">'+
         '<button class="ym-btn ym-btn-ghost" id="theme-url-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Appliquer par URL">↗</button>'+
       '</div>'+
       '<div id="theme-url-row" style="display:none;gap:6px;align-items:center">'+
@@ -261,12 +256,26 @@ async function renderThemesContent(container){
     setTimeout(()=>location.reload(),1200);
   });
 
+  // Pills types themes
+  const themeCatsEl=container.querySelector('#theme-cats');
+  if(themeCatsEl){
+    ['All','Theme','Photo','Video'].forEach(c=>{
+      const active=c==='All'?!_themeFilterCat:_themeFilterCat===c;
+      const p=document.createElement('span');
+      p.className='pill'+(active?' active':'');
+      p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+      p.textContent=c;
+      p.addEventListener('click',()=>{
+        _themeFilterCat=c==='All'?'':c;
+        themeCatsEl.querySelectorAll('.pill').forEach(x=>x.classList.toggle('active',x.textContent===c));
+        _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE);
+      });
+      themeCatsEl.appendChild(p);
+    });
+  }
+
   container.querySelector('#theme-search')?.addEventListener('input',e=>{
     _themeSearch=e.target.value.toLowerCase();
-    _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE);
-  });
-  container.querySelector('#theme-cat-select')?.addEventListener('change',e=>{
-    _themeFilterCat=e.target.value;
     _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE);
   });
 
@@ -349,12 +358,12 @@ function renderSpheresContent(container){
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
     '</div>'+
     '<div style="padding:8px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
+      '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
-        '<select id="sphere-cat-select" class="ym-input" style="flex:1;font-size:11px;padding:6px 8px"><option value="">Toutes catégories</option></select>'+
-        '<input class="ym-input" id="sphere-search" placeholder="Search…" style="flex:2;font-size:11px">'+
+        '<input class="ym-input" id="sphere-search" placeholder="Search…" style="flex:1;font-size:11px">'+
         '<button class="ym-btn ym-btn-ghost" id="sphere-raw-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Activer par URL">↗</button>'+
       '</div>'+
-      '<div id="sphere-raw-row" style="display:none;flex:1;gap:6px;align-items:center">'+
+      '<div id="sphere-raw-row" style="display:none;gap:6px;align-items:center">'+
         '<input class="ym-input" id="sphere-raw-url" placeholder="GitHub raw URL de la sphere…" style="flex:1;font-size:11px">'+
         '<button class="ym-btn ym-btn-ghost" id="sphere-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶ Activer</button>'+
       '</div>'+
@@ -365,21 +374,25 @@ function renderSpheresContent(container){
     renderList(container);
   });
 
-  // Dropdown catégories
-  const catSelect=container.querySelector('#sphere-cat-select');
-  if(catSelect){
-    // Rempli après chargement
-    const populateCats=()=>{
-      const cats=[...new Set(_sphereList.map(s=>normCat(s.category)||'Autres').filter(Boolean))].sort();
-      catSelect.innerHTML='<option value="">Toutes catégories</option>'+cats.map(c=>'<option value="'+c+'"'+(c===_filterCat?' selected':'')+'>'+c+'</option>').join('');
+  // Pills catégories
+  const catsEl=container.querySelector('#sphere-cats');
+  if(catsEl){
+    const renderPills=()=>{
+      const cats=['All',...new Set(_sphereList.map(s=>normCat(s.category)).filter(Boolean)).values()].filter((v,i,a)=>a.indexOf(v)===i);
+      catsEl.innerHTML=cats.map(c=>{
+        const active=c==='All'?!_filterCat:_filterCat===c;
+        return'<span class="pill'+(active?' active':'')+'" style="cursor:pointer;font-size:10px;flex-shrink:0" data-cat="'+(c==='All'?'':c)+'">'+c+'</span>';
+      }).join('');
+      catsEl.querySelectorAll('.pill').forEach(p=>{
+        p.addEventListener('click',()=>{
+          _filterCat=p.dataset.cat;
+          renderPills();
+          renderList(container);
+        });
+      });
     };
-    populateCats();
-    catSelect.addEventListener('change',()=>{
-      _filterCat=catSelect.value;
-      renderList(container);
-    });
-    // Repopule après fetch
-    setTimeout(populateCats,1500);
+    renderPills();
+    setTimeout(renderPills,1500); // re-render après fetch
   }
 
   // Toggle raw URL row
