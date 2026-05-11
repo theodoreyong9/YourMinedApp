@@ -437,7 +437,19 @@ function mkIcon(ic,isFolder){
     w.appendChild(body);
     const lbl=document.createElement('div');lbl.className='icon-label';lbl.textContent=ic.label;w.appendChild(lbl);
     if(ic.notif){const n=document.createElement('div');n.className='icon-notif';n.textContent=ic.notif;body.appendChild(n);}
-    w.addEventListener('click',()=>{if(!editMode&&!isDragging&&window.YM)window.YM.openSpherePanel(ic.id);});
+    w.addEventListener('click',()=>{
+      if(editMode||isDragging)return;
+      // Icône de thème → applique le thème
+      if(ic.type==='theme'&&ic.themeUrl){
+        localStorage.setItem('ym_theme_url',ic.themeUrl);
+        localStorage.removeItem('ym_theme_cache');
+        if(window.YM_toast)window.YM_toast('Thème — rechargement…','success');
+        setTimeout(()=>location.reload(),800);
+        return;
+      }
+      // Icône de sphère → ouvre le panel
+      if(window.YM)window.YM.openSpherePanel(ic.id);
+    });
   }
   setupDrag(w,ic,isFolder);return w;
 }
