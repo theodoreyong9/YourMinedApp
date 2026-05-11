@@ -6,11 +6,16 @@
 
 const DK='ym_desktop_v1', WK='ym_wallpaper', PGSK='ym_pages';
 const isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+let _gridCache=null;
 const GRID=()=>{
   const s=getComputedStyle(document.documentElement);
-  const cols=parseInt(s.getPropertyValue('--cols').trim())||( isPC()?8:4);
-  const rows=parseInt(s.getPropertyValue('--rows').trim())||( isPC()?5:6);
-  return {cols,rows};
+  const cols=parseInt(s.getPropertyValue('--cols').trim());
+  const rows=parseInt(s.getPropertyValue('--rows').trim());
+  // Si le CSS est chargé (valeurs valides), met à jour le cache
+  if(cols>0&&rows>0){_gridCache={cols,rows};}
+  // Retourne le cache ou les valeurs par défaut
+  if(_gridCache)return _gridCache;
+  return isPC()?{cols:8,rows:5}:{cols:4,rows:6};
 };
 
 function LD(){return JSON.parse(localStorage.getItem(DK)||'[]');}
@@ -384,11 +389,7 @@ function addToFolder(icSrc,folderIc,fromFolder){
   const folderFound=findIconParent(folderIc.id,d);if(!folderFound)return;
   const fi=folderFound.item.folderItems||[];
   const pos=findEmptyInFolder(fi);
-  fi.push({
-    id:icSrc.id,icon:icSrc.icon,label:icSrc.label,page:0,col:pos.col,row:pos.row,
-    notif:freshNotif,folder:icSrc.folder||false,
-    folderItems:deepCopyFolderItems(icSrc.folderItems)
-  });
+  fi.push(copyIcon(icSrc,{page:0,col:pos.col,row:pos.row,notif:freshNotif}));
   folderFound.item.folderItems=fi;
   if(fromFolder){
     const topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
