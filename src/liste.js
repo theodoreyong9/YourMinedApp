@@ -199,21 +199,25 @@ async function render(containerArg){
 }
 
 // Themes registry : themes-files.json sur le repo PRINCIPAL (même logique que files.json pour spheres)
-// themes-files.json est à la racine du repo PRINCIPAL (pas dans src/)
-// On utilise window._YM_GH_RAW si disponible pour supporter les forks
-const _THEMES_GH_RAW = (window._YM_GH_RAW || ('https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/')).replace('/src/','/');
-const THEMES_FILES_URL = _THEMES_GH_RAW + 'themes-files.json';
+// themes-files.json est à la RACINE du repo principal (pas dans src/)
+const THEMES_FILES_URL = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
 let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='';
 
 async function fetchThemesList(force){
   if(_themesList&&!force)return _themesList;
   try{
     const r=await fetch(THEMES_FILES_URL+'?t='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error();
-    _themesList=await r.json();
+    if(!r.ok)throw new Error('HTTP '+r.status+' — '+THEMES_FILES_URL);
+    const data=await r.json();
+    if(!Array.isArray(data))throw new Error('themes-files.json n\'est pas un tableau');
+    _themesList=data;
     _themesLoaded=true;
     return _themesList;
-  }catch{_themesList=[];_themesLoaded=true;return _themesList;}
+  }catch(e){
+    console.error('[YM] fetchThemesList failed:',e.message);
+    window.YM_toast?.('Themes: '+e.message,'error');
+    _themesList=[];_themesLoaded=true;return _themesList;
+  }
 }
 
 async function renderThemesContent(container){
@@ -314,7 +318,7 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
   }
 
   if(!filtered.length){
-    listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">'+(list.length?'Aucun résultat.':'Aucun thème publié.')+'</div>';
+    listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0;line-height:1.8">'+(list.length?'Aucun résultat pour ce filtre.':'Aucun thème dans <code style="font-size:9px;opacity:.7">themes-files.json</code><br><a href="'+THEMES_FILES_URL+'" target="_blank" rel="noopener" style="color:var(--cyan);font-size:10px">Vérifier le fichier ↗</a>')+'</div>';
     return;
   }
 
