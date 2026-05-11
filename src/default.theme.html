@@ -84,7 +84,7 @@ body.edit-mode .icon-body{animation:wob .44s ease-in-out infinite}
 #nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy)}
 #nav-bar::after{content:'';position:absolute;bottom:calc(-1 * var(--safe-b));left:0;right:0;height:var(--safe-b);background:var(--glass-heavy)}
 body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
-@media all and (display-mode:standalone){#nav-bar{background:var(--bg)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}#nav-bar::after{background:var(--bg)}}
+/* PWA standalone: same style as web — glass + blur */
 #page-dots{position:fixed;bottom:calc(var(--dock-h) + var(--safe-b) + 10px);left:0;right:0;display:flex;gap:5px;align-items:center;justify-content:center;pointer-events:none;z-index:205}
 .pdot{width:4px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);transition:all .35s cubic-bezier(.4,0,.2,1)}
 .pdot.active{width:24px;height:4px;background:linear-gradient(90deg,var(--gold),var(--cyan));box-shadow:0 0 8px rgba(240,168,48,.4);border-radius:2px}
