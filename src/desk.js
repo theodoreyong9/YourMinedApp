@@ -737,19 +737,14 @@ function ejectFromFolder(ic){
       if(parentFound){
         const pFI=parentFound.item.folderItems||[];
         const pos=findEmptyInFolder(pFI);
-        pFI.push({id:ic.id,icon:ic.icon,label:ic.label,page:0,col:pos.col,row:pos.row,
-          notif:ic.notif||0,folder:ic.folder||false,
-          folderItems:deepCopyFolderItems(ic.folderItems)});
+        pFI.push(copyIcon(ic,{page:0,col:pos.col,row:pos.row}));
         parentFound.item.folderItems=pFI;
         parentEntry.ic=parentFound.item;
         SD(d2);
       }
     }else{
       const empty=findEmptyIn(d2,curPg);
-      d2.push({id:ic.id,icon:ic.icon,label:ic.label,page:curPg,
-        col:empty?empty.col:0,row:empty?empty.row:0,
-        notif:ic.notif||0,folder:ic.folder||false,
-        folderItems:deepCopyFolderItems(ic.folderItems)});
+      d2.push(copyIcon(ic,{page:curPg,col:empty?empty.col:0,row:empty?empty.row:0}));
       SD(d2);
     }
   }
