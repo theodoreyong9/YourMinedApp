@@ -407,7 +407,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   var THEME_CACHE = 'ym_theme_cache';
   var GH_RAW      = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
   var GH_BLOB     = 'https://github.com/theodoreyong9/YourMinedApp/blob/main/src/themes/';
-  var DEF_THEME   = GH_RAW + 'themes/default.html';
+  var DEF_THEME   = GH_RAW + 'themes/default.theme.html';
   var INDEX_URL   = GH_RAW + 'themes/index.json';
 
   function activeUrl(){
@@ -497,12 +497,12 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       })
       .then(function(text){
         var files = JSON.parse(text);
-        if(!Array.isArray(files) || !files.length) files = ['default.html'];
+        if(!Array.isArray(files) || !files.length) files = ['default.theme.html'];
         buildList(files);
       })
       .catch(function(e){
         console.error('[YM theme]', e.message);
-        buildList(['default.html']);
+        buildList(['default.theme.html']);
       });
   }
 
