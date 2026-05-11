@@ -188,25 +188,184 @@ These class names are used by `desk.js` and must be styled or at minimum declare
 | `body.edit-mode .folder-body>.icon-del` | Must be `display:none!important` |
 | `body.has-wallpaper` | Wallpaper active state |
 
-### Theme Metadata (recommended)
+### Theme Metadata (required)
 
-Add a comment block at the top of your theme for discovery:
+Every theme **must** declare these JS globals near the top (in a `<script>` tag before any other JS):
 
 ```html
-<!--
-  theme: My Theme Name
-  author: @yourgithub
-  description: A short description of the visual style
-  preview: https://link-to-screenshot.png
--->
+<script>
+// Required — used by desk.js for desktop icon label and icon
+window.YM_THEME_META = {
+  name:        "My Theme",
+  icon:        "🎨",
+  description: "Short description shown in Themes list",
+};
+
+// Required — wallpaper presets shown in the background picker
+// These URLs are also extracted by merge.js and stored in themes-files.json media.photos
+window.YM_WALLPAPER_PRESETS = [
+  { label: 'City Night', url: 'https://images.unsplash.com/photo-xxx?w=1400&q=80' },
+  { label: 'Aurora',     url: 'https://images.unsplash.com/photo-yyy?w=1400&q=80' },
+];
+</script>
 ```
 
-### Theme Picker Script
+**Important:** `YM_WALLPAPER_PRESETS` must be defined by the theme, **not** by `desk.js`. Each theme owns its wallpaper collection. `desk.js` reads `window.YM_WALLPAPER_PRESETS || []`.
 
-Include the standard theme picker script from `default.html` to populate the theme selector in the background dialog. The script must:
-1. Fetch `themes/index.json` from the GitHub raw URL
-2. Render a list of theme options with apply/active state
-3. Support a custom URL input field
+### Theme picker script
+
+The background dialog (`#bg-dlg`) expects a script that:
+1. Fetches `src/themes/index.json` from GitHub raw URL
+2. Calls `buildList(files)` to populate `#theme-list`
+3. Handles `applyTheme(url, label)` — **must** call `history.replaceState(null,'','/')` before `location.reload()` to clear any `.theme` segment from the URL
+
+```js
+function applyTheme(url, label) {
+  if (!url || url === activeUrl()) return;
+  localStorage.setItem('ym_theme_url', url);
+  localStorage.removeItem('ym_theme_cache');
+  if (location.pathname !== '/') history.replaceState(null, '', '/'); // ← critical
+  window.YM_toast && window.YM_toast('✦ ' + label + ' — reloading…', 'success', 1500);
+  setTimeout(() => location.reload(), 1500);
+}
+```
+
+### icon-label--below CSS class
+
+Desktop icon labels appear **above** the icon by default (`order:-1`). For theme icons (which use `type:'theme'`), `desk.js` adds class `icon-label--below` to put the label below. Your theme CSS must include:
+
+```css
+.icon-label--below { order: 1 !important; }
+```
+
+---
+
+## URL Routing
+
+### Theme routing
+
+Typing `https://yourmine-dapp.web.app/name.theme` in the address bar:
+
+1. `index.html boot()` detects `/name.theme` segment
+2. Looks up `name.theme.html` in `themes-files.json` (by filename or name field)
+3. Falls back to `HEAD src/themes/name.theme.html` → then `src/themes/name.html`
+4. Stores found URL in `ym_theme_url` and reloads on `/`
+
+### Sphere routing
+
+`https://yourmine-dapp.web.app/social.sphere` → activates `social.sphere.js` and opens its panel.
+
+### Combined routing
+
+`https://yourmine-dapp.web.app/neural.theme/social.sphere` — applies neural theme first, then after reload opens social sphere. The sphere segment is preserved in the URL during the theme reload.
+
+### Important constraint
+
+After applying a theme via the background picker or any programmatic change, always call:
+```js
+if (location.pathname !== '/') history.replaceState(null, '', '/');
+```
+before `location.reload()`. Otherwise `checkURLRoute` re-runs on reload and overwrites the new theme choice with the old URL segment.
+
+---
+
+## Edge-back Button
+
+`index.html` injects a theme-proof edge button (`#_ym_edge_btn`) at `z-index:10000`, independent of any theme:
+
+**Desktop (hover:hover):** button appears on hover of the 20px left edge zone via CSS `#_ym_edge:hover ~ #_ym_edge_btn`.
+
+**Mobile (touch):**
+- Tap on left edge (20px zone) → toggles button visible for 5 seconds
+- Swipe right from left edge (dx > 40px) → action immediately
+- Swipe left ending near left edge → toggle button
+
+**Action:** always navigates to `default.html` via `localStorage.setItem('ym_theme_url', DEF_THEME)` + `history.replaceState(null,'','/')` + `location.reload()`. Never reads from `themes-files.json` — hardcoded to system default.
+
+---
+
+## Desktop Icon System
+
+### Icon object structure
+
+Icons are stored in `localStorage` key `ym_desktop_v1` as a JSON array:
+
+```json
+{
+  "id":       "mysphere.sphere.js",
+  "icon":     "🔮",
+  "label":    "My Sphere",
+  "page":     0,
+  "col":      3,
+  "row":      5,
+  "notif":    0,
+  "folder":   false,
+  "folderItems": null,
+  "type":     "theme",      // only for theme icons
+  "themeUrl": "https://..."  // only for theme icons
+}
+```
+
+### Theme icons
+
+Created via `desk.js addIcon(id, icon, label, page, {type:'theme', themeUrl})`. On tap, apply theme + reload. The `type` and `themeUrl` fields **must be preserved** through all copy operations (folder drag, extraction, etc.) — `desk.js` uses `copyIcon()` for this.
+
+### Grid layout
+
+`desk.js GRID()` returns `{cols:8, rows:5}` on desktop and `{cols:4, rows:6}` on mobile. Your theme CSS **must** use matching values:
+
+```css
+:root { --cols: 4; --rows: 6; }               /* mobile */
+@media (hover:hover) and (pointer:fine) {
+  :root { --cols: 8; --rows: 5; }              /* desktop */
+  .desktop-page { grid-template-columns: repeat(var(--cols), 1fr); }
+}
+```
+
+If `--cols` in your CSS doesn't match `GRID()`, the drop ghost will be misaligned.
+
+---
+
+## Sphere Visibility
+
+Profile panel exposes per-sphere visibility settings stored in `ym_sphere_visibility`:
+
+```js
+// API — usable by social.sphere.js and other spheres
+window.YM_canSeeSphere(sphereName, peerUUID)
+// → true if peer can see this sphere is active
+
+window.YM_getSphereVisibility(sphereName)
+// → 'all' | 'contacts' | uuid[]
+```
+
+Values: `'all'` (default), `'contacts'` (contacts list only), or an array of UUIDs (custom selection). Use in `social.sphere.js` before broadcasting sphere presence:
+
+```js
+ctx.onReceive((type, data, peerId) => {
+  if (type === 'social:ping') {
+    // Only respond with spheres this peer is allowed to see
+    const visibleSpheres = myProfile.spheres.filter(s =>
+      window.YM_canSeeSphere(s, peerId)
+    );
+    ctx.send('social:pong', { spheres: visibleSpheres }, peerId);
+  }
+});
+```
+
+---
+
+## Merge Bot
+
+`merge.js` runs as a GitHub Action on PR merge. It:
+1. Updates `files.json` for sphere submissions
+2. Updates `themes-files.json` for theme submissions, including **auto-extracting media URLs** from the theme HTML via `merge_media_extractor.js`
+3. Closes the PR with a comment
+4. Syncs the fork with main
+
+`merge_media_extractor.js` scans theme HTML for Unsplash/Pexels URLs, `.jpg/.png/.webp` images, YouTube/Vimeo links, and `.mp4/.webm` files. Results are stored in `themes-files.json → media.{photos, videos}`.
+
+Both files must be in the same directory (`.github/scripts/` or repo root).
 
 ---
 
@@ -324,13 +483,43 @@ The profile JSON backup (`💾` button in Profile) saves:
 
 `codeUrl` is the only field used to load sphere code. It always points to the author's fork, never to the main repo.
 
-### `themes/index.json` — Theme registry
+### `themes-files.json` — Theme registry
+
+Located at the **root** of the main repo (not in `src/`). Loaded by `liste.js` and `checkURLRoute`.
 
 ```json
-["default.html", "neural.html", "hello.html"]
+[
+  {
+    "filename":    "default.theme.html",
+    "name":        "Default",
+    "icon":        "🏠",
+    "description": "The default YourMine theme.",
+    "ghAuthor":    "theodoreyong9",
+    "codeUrl":     "https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/themes/default.html",
+    "wip":         false,
+    "score":       0,
+    "laps":        0,
+    "timestamp":   1700000000,
+    "merged_at":   1700000100,
+    "media": {
+      "photos": ["https://images.unsplash.com/photo-xxx"],
+      "videos": []
+    }
+  }
+]
 ```
 
-Simple array of filenames. Themes are loaded from `themes/[filename]` on the main repo.
+**Field notes:**
+- `filename` — canonical name in `.theme.html` format, used for URL routing (`/default.theme` → looks up `default.theme.html`)
+- `codeUrl` — the **actual file URL**, may use `.html` extension for system themes
+- `media.photos` / `media.videos` — extracted automatically by `merge.js` from the theme HTML. Powers the Photo/Video filter in the Themes list
+- `wip:true` — shows 🚧 badge in list
+- System themes (`default`, `neural`, `hello`) have `ghAuthor: "theodoreyong9"` and `codeUrl` pointing to `src/themes/*.html`
+- User themes have `codeUrl` pointing to their fork
+
+**Difference from `files.json`:** themes-files.json lives at root, uses `.theme.html` filenames, has `media` field, no `author` (wallet) field.
+
+---
 
 ### Sphere file format
 
@@ -395,24 +584,32 @@ icon-splash-dark.png
 
 ```
 /
-├── index.html
-├── manifest.json
-├── sw.js
-├── files.json          ← sphere registry
-├── events/             ← submission events (read by merge bot)
-├── src/
-│   ├── app.js
-│   ├── desk.js
-│   ├── mine.js
-│   ├── build.js
-│   ├── liste.js
-│   ├── profile.js
-│   └── themes/
-│       ├── index.json  ← ["default.html","neural.html","hello.html"]
-│       ├── default.html
-│       ├── neural.html
-│       └── hello.html
+├── index.html              ← boot loader (do not rename)
+├── manifest.json           ← PWA manifest
+├── sw.js                   ← service worker
+├── ym512.png               ← app icon (used in nav btn-figure — must be at root)
+├── icon-splash-dark.png
+├── files.json              ← sphere registry
+├── themes-files.json       ← theme registry (root, not in src/)
+├── events/                 ← submission events (read by merge bot)
+├── .github/scripts/
+│   ├── merge.js            ← merge bot
+│   └── merge_media_extractor.js
+└── src/
+    ├── app.js
+    ├── desk.js
+    ├── mine.js
+    ├── build.js
+    ├── liste.js
+    ├── profile.js
+    └── themes/
+        ├── index.json      ← ["default.html","neural.html","hello.html"]
+        ├── default.html    ← system theme (served from src/themes/)
+        ├── neural.html
+        └── hello.html
 ```
+
+**Note:** `ym512.png` must be deployed at the root of your web app (e.g. `yourmine-dapp.web.app/ym512.png`). It's referenced with an absolute URL in themes so it works regardless of the current URL path.
 
 ### Forking and running your own instance
 
