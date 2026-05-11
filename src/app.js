@@ -128,40 +128,77 @@
   function _buildClonePreview(sourceEl, cardEl, cardW, cardH) {
     const preview = document.createElement('div');
     preview.className = 'sw-preview';
-    const wrap  = document.createElement('div');
+    const wrap = document.createElement('div');
     wrap.className = 'sw-clone-wrap';
-    const clone = sourceEl.cloneNode(true);
-    clone.removeAttribute('id');
-    clone.style.cssText = 'position:relative;transform:none;transition:none;border-radius:0;pointer-events:none;overflow:hidden;';
-    clone.querySelectorAll('*').forEach(el => {
-      el.style.animation = 'none'; el.style.transition = 'none'; el.style.pointerEvents = 'none';
-      el.removeAttribute('id');
-    });
-    clone.querySelectorAll('button,input,textarea,select,canvas,video,audio,script,.panel-handle').forEach(el => el.remove());
-    if (sourceEl._needsRemoval) sourceEl.remove();
-    wrap.appendChild(clone);
-    preview.appendChild(wrap);
 
+    // Dimensions réelles de la source
     const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
     const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
-    // cardW/cardH sont passés depuis doPreview() où la card est déjà rendue
-    const cw = cardW || (cardEl ? cardEl.offsetWidth : 0) || (window.innerWidth / 2 - 12);
+    // Dimensions de la card (mesurées APRÈS que le switcher est visible)
+    const cw = cardW || (cardEl ? cardEl.offsetWidth  : 0) || Math.round(window.innerWidth / 2 - 10);
     const isDesktop = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
     const totalH = cardH || (cardEl ? cardEl.offsetHeight : 0) || (isDesktop ? 130 : 160);
-    const ch = Math.max(60, totalH - 30); // -30px pour le label
+    const ch = Math.max(40, totalH - 30); // hauteur visible (sans label)
 
-    if (pw > 0 && cw > 0) {
-      const sc = cw / pw;
-      const visH = Math.min(ph, Math.ceil(ch / sc));
-      clone.style.width    = pw + 'px';
-      clone.style.height   = visH + 'px';
-      clone.style.overflow = 'hidden';
-      wrap.style.transform       = 'scale(' + sc + ')';
-      wrap.style.transformOrigin = 'top left';
-      wrap.style.width           = pw + 'px';
-      wrap.style.height          = visH + 'px';
-      wrap.style.overflow        = 'hidden';
+    if (pw <= 0 || cw <= 0) { preview.appendChild(wrap); return preview; }
+
+    const sc  = cw / pw;
+    const visH = Math.min(ph, Math.ceil(ch / sc));
+
+    // Clone — on ne cloneNode que le contenu visible du panel (panel-body + panel-head)
+    // pour éviter les éléments fixed qui s'échappent
+    const clone = document.createElement('div');
+    clone.style.cssText =
+      'position:relative;width:'+pw+'px;height:'+visH+'px;overflow:hidden;'+
+      'background:inherit;pointer-events:none;flex-shrink:0;';
+
+    // Copie uniquement les éléments structurels du panel (évite les fixed escapees)
+    const toClone = sourceEl.querySelectorAll('.panel-head,.panel-body,.ym-tabs');
+    if (toClone.length) {
+      toClone.forEach(el => {
+        const deep = el.cloneNode(true);
+        deep.removeAttribute('id');
+        deep.style.position = 'relative';
+        deep.style.transform = 'none';
+        deep.style.transition = 'none';
+        deep.style.animation = 'none';
+        deep.querySelectorAll('*').forEach(child => {
+          child.removeAttribute('id');
+          child.style.animation = 'none';
+          child.style.transition = 'none';
+          child.style.pointerEvents = 'none';
+          // Force tous les fixed/absolute en relative pour éviter les échappés
+          const cs = getComputedStyle(child);
+          if (cs.position === 'fixed') child.style.position = 'relative';
+        });
+        deep.querySelectorAll('button,input,textarea,select,canvas,video,audio,script').forEach(el => el.remove());
+        clone.appendChild(deep);
+      });
+    } else {
+      // Fallback : clone complet avec strip des fixed
+      const deep = sourceEl.cloneNode(true);
+      deep.removeAttribute('id');
+      deep.style.cssText = 'position:relative;transform:none;transition:none;width:'+pw+'px;height:'+visH+'px;overflow:hidden;pointer-events:none;';
+      deep.querySelectorAll('*').forEach(child => {
+        child.removeAttribute('id');
+        child.style.animation = 'none';
+        child.style.transition = 'none';
+        child.style.pointerEvents = 'none';
+        if (window.getComputedStyle(child).position === 'fixed') child.style.position = 'relative';
+      });
+      deep.querySelectorAll('button,input,textarea,select,canvas,video,audio,script,.panel-handle').forEach(el => el.remove());
+      clone.appendChild(deep);
     }
+
+    if (sourceEl._needsRemoval) sourceEl.remove();
+
+    wrap.style.cssText =
+      'position:absolute;top:0;left:0;'+
+      'width:'+pw+'px;height:'+visH+'px;'+
+      'transform:scale('+sc+');transform-origin:top left;'+
+      'overflow:hidden;pointer-events:none;';
+    wrap.appendChild(clone);
+    preview.appendChild(wrap);
     return preview;
   }
 
