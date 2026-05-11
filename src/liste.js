@@ -301,6 +301,8 @@ function _addThemeIcon(theme, rawUrl){
   window.YM_Desk.addIcon(id, icon, label, page, {type:'theme', themeUrl:rawUrl});
 }
 
+let _themeActivating=false;
+
 function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
   const listEl=container.querySelector('#theme-list-inner');if(!listEl)return;
   const list=themes||_themesList||[];
@@ -413,11 +415,12 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
     card.querySelector('[data-theme-act-btn]').addEventListener('click',e=>{
       e.stopPropagation();
       if(isCur){window.YM_toast?.('Déjà actif','info');return;}
-      // Active le thème sans ajouter d'icône automatiquement
+      if(_themeActivating)return;
+      _themeActivating=true;
       localStorage.setItem('ym_theme_url',rawUrl);
       localStorage.removeItem('ym_theme_cache');
       window.YM_toast?.('Thème — rechargement…','success');
-      setTimeout(()=>location.reload(),1200);
+      setTimeout(()=>{if(window._YM_softReload)window._YM_softReload();else location.reload();},400);
     });
     listEl.appendChild(card);
   });
