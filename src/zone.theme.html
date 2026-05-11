@@ -512,6 +512,7 @@ textarea.ym-input{resize:vertical;font-size:11px}
   function applyTheme(url,label){
     if(!url||url===activeUrl()){window.YM_toast&&window.YM_toast('Already active','info');return;}
     localStorage.setItem(THEME_KEY,url);localStorage.removeItem(THEME_CACHE);
+    if(location.pathname!=='/')history.replaceState(null,'','/');
     window.YM_toast&&window.YM_toast('✦ '+label+' — reloading…','success',1500);
     setTimeout(function(){location.reload();},1500);
   }
