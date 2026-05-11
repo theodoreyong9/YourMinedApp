@@ -201,7 +201,7 @@ async function render(containerArg){
 // Themes registry : themes-files.json sur le repo PRINCIPAL (même logique que files.json pour spheres)
 // themes-files.json est à la RACINE du repo principal (pas dans src/)
 const THEMES_FILES_URL = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
-let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='';
+let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='Theme';
 
 async function fetchThemesList(force){
   if(_themesList&&!force)return _themesList;
@@ -267,7 +267,7 @@ async function renderThemesContent(container){
   const themeCatsEl=container.querySelector('#theme-cats');
   if(themeCatsEl){
     ['All','Theme','Photo','Video'].forEach(c=>{
-      const active=c==='All'?!_themeFilterCat:_themeFilterCat===c;
+      const active=_themeFilterCat===c||(c==='Theme'&&_themeFilterCat==='Theme');
       const p=document.createElement('span');
       p.className='pill'+(active?' active':'');
       p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
@@ -305,30 +305,78 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
   const listEl=container.querySelector('#theme-list-inner');if(!listEl)return;
   const list=themes||_themesList||[];
 
+  // Recherche textuelle
   let filtered=list;
   if(_themeSearch)filtered=filtered.filter(t=>
     (t.name||'').toLowerCase().includes(_themeSearch)||
     (t.description||'').toLowerCase().includes(_themeSearch)||
     (t.ghAuthor||'').toLowerCase().includes(_themeSearch)
   );
-  if(_themeFilterCat){
-    if(_themeFilterCat==='Photo')filtered=filtered.filter(t=>t.media&&t.media.photos&&t.media.photos.length>0);
-    else if(_themeFilterCat==='Video')filtered=filtered.filter(t=>t.media&&t.media.videos&&t.media.videos.length>0);
-    else filtered=filtered.filter(t=>!t.media||(!t.media.photos?.length&&!t.media.videos?.length));
-  }
 
   if(!filtered.length){
-    listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0;line-height:1.8">'+(list.length?'Aucun résultat pour ce filtre.':'Aucun thème dans <code style="font-size:9px;opacity:.7">themes-files.json</code><br><a href="'+THEMES_FILES_URL+'" target="_blank" rel="noopener" style="color:var(--cyan);font-size:10px">Vérifier le fichier ↗</a>')+'</div>';
+    listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0;line-height:1.8">'+(list.length?'Aucun résultat.':'Aucun thème dans <a href="'+THEMES_FILES_URL+'" target="_blank" rel="noopener" style="color:var(--cyan);font-size:10px">themes-files.json ↗</a>')+'</div>';
     return;
   }
 
   listEl.innerHTML='';
+
+  // ── Vue PHOTO : grille de photos cliquables ────────────────────
+  if(_themeFilterCat==='Photo'){
+    const grid=document.createElement('div');
+    grid.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);gap:6px';
+    let hasPhotos=false;
+    filtered.forEach(t=>{
+      const photos=(t.media&&t.media.photos)||[];
+      photos.forEach(url=>{
+        hasPhotos=true;
+        const wrap=document.createElement('div');
+        wrap.style.cssText='position:relative;cursor:pointer;border-radius:8px;overflow:hidden;aspect-ratio:16/9;background:#111';
+        wrap.innerHTML='<img src="'+esc(url)+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'+
+          '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.7));font-size:9px;color:#fff">'+esc(t.name||'')+'</div>';
+        wrap.addEventListener('click',()=>{
+          // Clic sur photo → applique le thème avec cette photo comme wallpaper
+          localStorage.setItem('ym_theme_url',t.codeUrl||'');
+          localStorage.setItem('ym_wallpaper',url);
+          localStorage.removeItem('ym_theme_cache');
+          window.YM_toast?.('Thème + photo — rechargement…','success');
+          setTimeout(()=>location.reload(),1000);
+        });
+        grid.appendChild(wrap);
+      });
+    });
+    if(hasPhotos) listEl.appendChild(grid);
+    else listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0">Aucune photo dans ces thèmes.</div>';
+    return;
+  }
+
+  // ── Vue VIDEO : liste de liens vidéos ─────────────────────────
+  if(_themeFilterCat==='Video'){
+    let hasVideos=false;
+    filtered.forEach(t=>{
+      const videos=(t.media&&t.media.videos)||[];
+      if(!videos.length)return;
+      hasVideos=true;
+      const section=document.createElement('div');
+      section.style.cssText='margin-bottom:10px';
+      section.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px">'+esc(t.name||'')+'</div>';
+      videos.forEach(url=>{
+        const a=document.createElement('a');
+        a.href=url;a.target='_blank';a.rel='noopener';
+        a.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid rgba(8,224,248,.2);border-radius:8px;text-decoration:none;margin-bottom:4px;color:var(--cyan);font-size:11px';
+        a.innerHTML='▶ '+esc(url.replace(/^https?:\/\//,'').split('/')[0]);
+        section.appendChild(a);
+      });
+      listEl.appendChild(section);
+    });
+    if(!hasVideos) listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0">Aucune vidéo dans ces thèmes.</div>';
+    return;
+  }
+
+  // ── Vue THEME (défaut) et ALL : cartes normales ────────────────
   filtered.forEach(t=>{
     const rawUrl=t.codeUrl||('https://raw.githubusercontent.com/'+t.ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/themes/'+(t.filename||t.name+'.html'));
     const isCur=curThemeUrl===rawUrl;
     const ghCodeUrl=t.codeUrl?t.codeUrl.replace('https://raw.githubusercontent.com/','https://github.com/').replace('/'+REPO_BRANCH+'/','/blob/'+REPO_BRANCH+'/'):null;
-
-    // Icon : emoji ou image preview
     const iconIsUrl=t.icon&&(t.icon.startsWith('http')||t.icon.startsWith('/'));
     const iconHtml=iconIsUrl
       ?'<img src="'+esc(t.icon)+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0">'
@@ -350,40 +398,19 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
             'by <b style="color:var(--accent)">@'+esc(t.ghAuthor||'unknown')+'</b>'+
             (ghCodeUrl?' &nbsp;·&nbsp; <a href="'+esc(ghCodeUrl)+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-size:9px" onclick="event.stopPropagation()">&lt;/&gt; code</a>':'')+
           '</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+esc(t.description||'—')+'</div>'+
-          // Aperçu médias (photos/videos) si présents
-          (t.media&&(t.media.photos&&t.media.photos.length||t.media.videos&&t.media.videos.length)?
-            '<div style="margin-bottom:8px">'+
-              (t.media.photos&&t.media.photos.length?
-                '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">'+
-                  t.media.photos.slice(0,4).map(url=>
-                    '<img src="'+esc(url)+'" style="width:52px;height:38px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid rgba(255,255,255,.1)" '+
-                    'onclick="event.stopPropagation();window.open(\''+esc(url)+'\',\'_blank\')" loading="lazy">'
-                  ).join('')+
-                  (t.media.photos.length>4?'<span style="font-size:10px;color:var(--text3);align-self:center">+'+( t.media.photos.length-4)+' photos</span>':'')+
-                '</div>':'')+
-              (t.media.videos&&t.media.videos.length?
-                '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
-                  t.media.videos.slice(0,2).map(url=>
-                    '<a href="'+esc(url)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:10px;color:var(--cyan);padding:3px 8px;border:1px solid rgba(8,224,248,.3);border-radius:4px;text-decoration:none">▶ Video</a>'
-                  ).join('')+
-                '</div>':'')+
-            '</div>':'')+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:8px">'+esc(t.description||'—')+'</div>'+
           '<div style="display:flex;gap:6px">'+
-            '<button class="ym-btn ym-btn-ghost" data-theme-icon-btn style="font-size:10px;padding:4px 9px" title="Ajouter au bureau">＋ Bureau</button>'+
+            '<button class="ym-btn ym-btn-ghost" data-theme-icon-btn style="font-size:10px;padding:4px 9px">＋ Bureau</button>'+
             '<button class="ym-btn '+(isCur?'ym-btn-ghost':'ym-btn-accent')+'" data-theme-act-btn style="font-size:10px;padding:4px 10px">'+(isCur?'✓ Actif':'▶ Activer')+'</button>'+
           '</div>'+
         '</div>'+
       '</div>';
 
-    // Bouton "＋ Bureau" : ajoute icône sur le bureau seulement
     card.querySelector('[data-theme-icon-btn]').addEventListener('click',e=>{
       e.stopPropagation();
       _addThemeIcon(t,rawUrl);
       window.YM_toast?.('Icône ajoutée au bureau','success');
     });
-
-    // Bouton "▶ Activer" : applique le thème + ajoute icône
     card.querySelector('[data-theme-act-btn]').addEventListener('click',e=>{
       e.stopPropagation();
       if(isCur){window.YM_toast?.('Déjà actif','info');return;}
