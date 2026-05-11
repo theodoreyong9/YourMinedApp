@@ -231,6 +231,7 @@ function createWidget(){
 
   _widget.addEventListener('pointerdown',e=>{
     if(e.target.closest('button'))return;
+    console.log('[radio] pointerdown dragging='+dragging+' pointerId='+e.pointerId);
     dragging=true;_widget._dragging=true;
     const rect=_widget.getBoundingClientRect();
     wx=rect.left;wy=rect.top;
@@ -239,6 +240,7 @@ function createWidget(){
     ox=e.clientX;oy=e.clientY;
     e.preventDefault();
     _widget.setPointerCapture(e.pointerId);
+    console.log('[radio] capture set');
   },{passive:false});
   _widget.addEventListener('pointermove',e=>{if(dragging)onMove(e.clientX,e.clientY);},{passive:false});
   _widget.addEventListener('pointerup',onEnd);
@@ -279,6 +281,7 @@ function _syncWidgetPage(){
   const widgetPage=(pos.page!=null?pos.page:0);
   const curPage=(window._deskCurPage!=null?window._deskCurPage:0);
   const visible=curPage===widgetPage;
+  console.log('[radio] syncWidgetPage curPage='+curPage+' widgetPage='+widgetPage+' visible='+visible+' pointerEvents='+_widget.style.pointerEvents);
   _widget.style.transition='opacity .25s ease';
   _widget.style.opacity=visible?'1':'0';
   _widget.style.pointerEvents=visible?'all':'none';
