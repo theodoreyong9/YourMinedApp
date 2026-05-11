@@ -79,6 +79,9 @@
     });
   }
 
+  // Exposé globalement pour build.js, hello.html, etc.
+  window.app_switchMineTab = (tab) => switchMineTab(tab);
+
   function switchMineTab(tab) {
     const w = document.getElementById('panel-mine-wallet');
     const b = document.getElementById('panel-mine-build');
@@ -146,24 +149,24 @@
     setTimeout(() => { requestAnimationFrame(() => {
       const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
       const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
-      const cw = preview.offsetWidth  || 160;
-      const ch = preview.offsetHeight || 130;
+      // Hauteurs CSS connues des cards (.sw-card)
+      const isDesktop = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+      const cardH = isDesktop ? 130 : 160;
+      const cw = preview.offsetWidth || preview.parentElement?.offsetWidth || (window.innerWidth / 2 - 12);
+      const ch = cardH - 30; // 30px = sw-label height
       if (pw > 0 && cw > 0) {
         const sc = cw / pw;
-        // Hauteur visible = ch/sc pixels de contenu réel
         const visH = Math.min(ph, Math.ceil(ch / sc));
-        // Clone : taille réelle du panel (portion visible seulement)
-        clone.style.width  = pw + 'px';
-        clone.style.height = visH + 'px';
+        clone.style.width    = pw + 'px';
+        clone.style.height   = visH + 'px';
         clone.style.overflow = 'hidden';
-        // Wrap : transformé puis sa taille apparente = cw × ch
         wrap.style.transform       = 'scale(' + sc + ')';
         wrap.style.transformOrigin = 'top left';
         wrap.style.width           = pw + 'px';
         wrap.style.height          = visH + 'px';
         wrap.style.overflow        = 'hidden';
       }
-    }); }, 50); // délai légèrement augmenté pour que le DOM soit peint
+    }); }, 80);
     return preview;
   }
 
@@ -492,45 +495,63 @@
     reducePanel();
   });
 
-  /* Clic sur le bureau (hors icône) = ferme le panel ou le switcher ouvert */
+  /* Clic sur le bureau (hors icône) = ferme le panel ou le switcher ouvert
+     On ignore si le mouvement de souris dépasse 10px (c'est un swipe, pas un clic) */
+  let _deskMouseSX = 0, _deskMouseSY = 0;
+  document.getElementById('desktop').addEventListener('mousedown', e => {
+    _deskMouseSX = e.clientX; _deskMouseSY = e.clientY;
+  }, { passive: true });
   document.getElementById('desktop').addEventListener('click', e => {
     if (e.target.closest('.icon-wrap')) return;
     if (e.target.closest('#drag-ghost')) return;
+    const dx = Math.abs(e.clientX - _deskMouseSX);
+    const dy = Math.abs(e.clientY - _deskMouseSY);
+    if (dx > 10 || dy > 10) return; // swipe → ignore
     if (sw && sw.classList.contains('open')) { closeSwitcher(); return; }
     if (_panel) reducePanel();
   });
 
-  /* ── Geste bord gauche mobile : swipe depuis < 20px du bord = retour ── */
+
+  /* ── Geste bord gauche mobile : swipe depuis < 30px du bord ─────
+     capture:true pour ne pas être bloqué par les panels ou overlays  */
   (() => {
     let _sx = 0, _sy = 0, _active = false;
     document.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) return;
       _sx = e.touches[0].clientX;
       _sy = e.touches[0].clientY;
-      _active = _sx < 20;
-    }, { passive: true });
+      _active = _sx < 30; // zone élargie
+    }, { passive: true, capture: true });
     document.addEventListener('touchend', e => {
       if (!_active) return;
       _active = false;
       const dx = e.changedTouches[0].clientX - _sx;
       const dy = Math.abs(e.changedTouches[0].clientY - _sy);
-      if (dx > 60 && dy < 80) {
-        // Swipe depuis bord gauche → retour
-        if (_panel) reducePanel();
-        else if (sw.classList.contains('open')) closeSwitcher();
+      if (dx > 50 && dy < 100) {
+        if (_panel) { reducePanel(); return; }
+        if (sw.classList.contains('open')) { closeSwitcher(); return; }
       }
-    }, { passive: true });
+    }, { passive: true, capture: true });
   })();
+
+  /* ── Expose YM global ─────────────────────────────────────────── */
+  window.YM = window.YM || {};
+  window.YM.closePanel   = () => { if (_panel) reducePanel(); else if (sw.classList.contains('open')) closeSwitcher(); };
+  window.YM.openPanel    = (id) => openPanel(id);
+  window.YM.openSwitcher = () => openSwitcher();
 
   /* ── Bouton bord gauche desktop ── */
   (() => {
-    const edgeBtn = document.getElementById('ym-edge-back-btn');
+    const edgeBtn = document.getElementById('_ym_edge_btn');
     if (!edgeBtn) return;
     edgeBtn.addEventListener('click', () => {
-      if (_panel) reducePanel();
-      else if (sw.classList.contains('open')) closeSwitcher();
+      if (_panel) { reducePanel(); return; }
+      if (sw.classList.contains('open')) { closeSwitcher(); return; }
     });
+    const sphBtn = document.getElementById('_ym_edge_sph');
+    if (sphBtn) sphBtn.addEventListener('click', () => openPanel('panel-mine'));
   })();
+
 
   document.getElementById('nav-bar').addEventListener('click', e => {
     if (e.target.closest('.dbtn')) return;
@@ -594,11 +615,10 @@
     });
 
     if (themeSegment) {
-      const url = GH_RAW + 'themes/' + themeSegment + '.html';
-      const cur = localStorage.getItem('ym_theme_url') || DEF_THEME;
-      if (url !== cur) {
-        localStorage.setItem('ym_theme_url', url);
-        localStorage.removeItem('ym_theme_cache');
+      // Cherche dans themes-files.json d'abord (thème utilisateur : nom.theme.html)
+      // puis fallback vers src/themes/nom.html (thèmes système)
+      const THEMES_FILES = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/themes-files.json';
+      const afterRoute = () => {
         if (sphereSegment) {
           const base = sphereSegment.replace('.sphere.js', '.sphere');
           history.replaceState(null, '', '/' + base);
@@ -606,8 +626,32 @@
           history.replaceState(null, '', '/');
         }
         location.reload();
-        return;
-      }
+      };
+      (async () => {
+        let themeUrl = null;
+        // 1. Cherche nom.theme dans themes-files.json (codeUrl)
+        try {
+          const r = await fetch(THEMES_FILES + '?t=' + Date.now(), { cache: 'no-store' });
+          if (r.ok) {
+            const list = await r.json();
+            // Le fichier s'appelle themeSegment.theme.html
+            const entry = list.find(t =>
+              (t.filename || '') === themeSegment + '.theme.html' ||
+              (t.name || '').toLowerCase().replace(/\s+/g,'-') === themeSegment.toLowerCase()
+            );
+            if (entry && entry.codeUrl) themeUrl = entry.codeUrl;
+          }
+        } catch {}
+        // 2. Fallback : src/themes/nom.theme.html ou nom.html
+        if (!themeUrl) themeUrl = GH_RAW + 'themes/' + themeSegment + '.theme.html';
+        const cur = localStorage.getItem('ym_theme_url') || DEF_THEME;
+        if (themeUrl !== cur) {
+          localStorage.setItem('ym_theme_url', themeUrl);
+          localStorage.removeItem('ym_theme_cache');
+          afterRoute();
+        }
+      })();
+      return;
     }
 
     if (sphereSegment) {
