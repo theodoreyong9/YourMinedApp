@@ -413,7 +413,7 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
     card.querySelector('[data-theme-act-btn]').addEventListener('click',e=>{
       e.stopPropagation();
       if(isCur){window.YM_toast?.('Déjà actif','info');return;}
-      _addThemeIcon(t,rawUrl);
+      // Active le thème sans ajouter d'icône automatiquement
       localStorage.setItem('ym_theme_url',rawUrl);
       localStorage.removeItem('ym_theme_cache');
       window.YM_toast?.('Thème — rechargement…','success');
