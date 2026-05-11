@@ -6,17 +6,7 @@
 
 const DK='ym_desktop_v1', WK='ym_wallpaper', PGSK='ym_pages';
 const isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
-let _gridCache=null;
-const GRID=()=>{
-  const s=getComputedStyle(document.documentElement);
-  const cols=parseInt(s.getPropertyValue('--cols').trim());
-  const rows=parseInt(s.getPropertyValue('--rows').trim());
-  // Si le CSS est chargé (valeurs valides), met à jour le cache
-  if(cols>0&&rows>0){_gridCache={cols,rows};}
-  // Retourne le cache ou les valeurs par défaut
-  if(_gridCache)return _gridCache;
-  return isPC()?{cols:8,rows:5}:{cols:4,rows:6};
-};
+const GRID=()=>isPC()?{cols:8,rows:5}:{cols:4,rows:6};
 
 function LD(){return JSON.parse(localStorage.getItem(DK)||'[]');}
 function SD(d){localStorage.setItem(DK,JSON.stringify(d));}
@@ -45,13 +35,14 @@ function renderIconContent(icon){
 
 // Copie complète d'une icône en préservant type, themeUrl et tous les champs custom
 function copyIcon(ic, overrides){
-  return Object.assign({
+  const base={
     id:ic.id, icon:ic.icon, label:ic.label,
     notif:ic.notif||0, folder:ic.folder||false,
     folderItems:deepCopyFolderItems(ic.folderItems),
-    // Champs custom (theme, sphere, etc.)
-    type:ic.type, themeUrl:ic.themeUrl,
-  }, overrides||{});
+  };
+  if(ic.type!==undefined)base.type=ic.type;
+  if(ic.themeUrl!==undefined)base.themeUrl=ic.themeUrl;
+  return Object.assign(base, overrides||{});
 }
 function deepCopyFolderItems(items){
   if(!items)return undefined;
