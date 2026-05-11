@@ -460,7 +460,7 @@ textarea.ym-input{resize:vertical;font-size:11px}
 <div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Create Folder</div><input class="ym-input" id="folder-name-input" placeholder="Folder name"><div style="display:flex;gap:8px"><button class="ym-btn ym-btn-ghost" style="flex:1" id="folder-cancel">Cancel</button><button class="ym-btn ym-btn-accent" style="flex:1" id="folder-confirm">Create</button></div></div></div>
 
 <!-- BG DIALOG avec theme picker complet (liste GitHub raw) -->
-<div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(420px,94vw);max-height:min(85vh,600px);display:flex;flex-direction:column;overflow:hidden">
+<div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(420px,94vw);max-height:min(85vh,600px);display:flex;flex-direction:column;overflow:hidden;min-width:0">
   <div class="dlg-title" id="bg-dlg-title">Background</div>
 
   <!-- Theme picker liste complète -->
@@ -478,8 +478,9 @@ textarea.ym-input{resize:vertical;font-size:11px}
     <button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:10px;color:var(--text3)">&#10005; Remove</button>
   </div>
   <div style="font-size:8px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:3px;font-family:var(--font-m)">Wallpapers</div>
-  <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;min-height:0;padding-bottom:4px"></div>
-  <button class="ym-btn ym-btn-ghost" id="bg-spheres" style="width:100%;font-size:10px;margin-top:10px;color:var(--cy);border-color:rgba(0,245,255,.2)">&#11835; Browse Spheres</button>
+  <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;overflow-y:auto;flex:1;min-height:0;padding-bottom:4px;width:100%;min-width:0"></div>
+
+  <div id="bg-spheres" style="display:none"></div>
   <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
 </div></div>
 
