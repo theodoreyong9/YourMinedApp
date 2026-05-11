@@ -305,9 +305,9 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
     (t.ghAuthor||'').toLowerCase().includes(_themeSearch)
   );
   if(_themeFilterCat){
-    if(_themeFilterCat==='Photo')filtered=filtered.filter(t=>t.media&&t.media.includes('photo'));
-    else if(_themeFilterCat==='Video')filtered=filtered.filter(t=>t.media&&t.media.includes('video'));
-    else filtered=filtered.filter(t=>!t.media||t.media.length===0);
+    if(_themeFilterCat==='Photo')filtered=filtered.filter(t=>t.media&&t.media.photos&&t.media.photos.length>0);
+    else if(_themeFilterCat==='Video')filtered=filtered.filter(t=>t.media&&t.media.videos&&t.media.videos.length>0);
+    else filtered=filtered.filter(t=>!t.media||(!t.media.photos?.length&&!t.media.videos?.length));
   }
 
   if(!filtered.length){
@@ -343,7 +343,25 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
             'by <b style="color:var(--accent)">@'+esc(t.ghAuthor||'unknown')+'</b>'+
             (ghCodeUrl?' &nbsp;·&nbsp; <a href="'+esc(ghCodeUrl)+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-size:9px" onclick="event.stopPropagation()">&lt;/&gt; code</a>':'')+
           '</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:8px">'+esc(t.description||'—')+'</div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+esc(t.description||'—')+'</div>'+
+          // Aperçu médias (photos/videos) si présents
+          (t.media&&(t.media.photos&&t.media.photos.length||t.media.videos&&t.media.videos.length)?
+            '<div style="margin-bottom:8px">'+
+              (t.media.photos&&t.media.photos.length?
+                '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">'+
+                  t.media.photos.slice(0,4).map(url=>
+                    '<img src="'+esc(url)+'" style="width:52px;height:38px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid rgba(255,255,255,.1)" '+
+                    'onclick="event.stopPropagation();window.open(\''+esc(url)+'\',\'_blank\')" loading="lazy">'
+                  ).join('')+
+                  (t.media.photos.length>4?'<span style="font-size:10px;color:var(--text3);align-self:center">+'+( t.media.photos.length-4)+' photos</span>':'')+
+                '</div>':'')+
+              (t.media.videos&&t.media.videos.length?
+                '<div style="display:flex;gap:4px;flex-wrap:wrap">'+
+                  t.media.videos.slice(0,2).map(url=>
+                    '<a href="'+esc(url)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:10px;color:var(--cyan);padding:3px 8px;border:1px solid rgba(8,224,248,.3);border-radius:4px;text-decoration:none">▶ Video</a>'
+                  ).join('')+
+                '</div>':'')+
+            '</div>':'')+
           '<div style="display:flex;gap:6px">'+
             '<button class="ym-btn ym-btn-ghost" data-theme-icon-btn style="font-size:10px;padding:4px 9px" title="Ajouter au bureau">＋ Bureau</button>'+
             '<button class="ym-btn '+(isCur?'ym-btn-ghost':'ym-btn-accent')+'" data-theme-act-btn style="font-size:10px;padding:4px 10px">'+(isCur?'✓ Actif':'▶ Activer')+'</button>'+
