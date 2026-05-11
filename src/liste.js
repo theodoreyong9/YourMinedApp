@@ -348,7 +348,7 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
 }
 
 // Catégories standardisées — tout ce qui ne correspond pas → "Autres"
-const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media'];
+const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent'];
 function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
 
 function renderSpheresContent(container){
@@ -374,25 +374,31 @@ function renderSpheresContent(container){
     renderList(container);
   });
 
-  // Pills catégories
+  // Pills catégories prédéterminées
   const catsEl=container.querySelector('#sphere-cats');
   if(catsEl){
+    const FIXED_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent','Autres'];
     const renderPills=()=>{
-      const cats=['All',...new Set(_sphereList.map(s=>normCat(s.category)).filter(Boolean)).values()].filter((v,i,a)=>a.indexOf(v)===i);
-      catsEl.innerHTML=cats.map(c=>{
-        const active=c==='All'?!_filterCat:_filterCat===c;
-        return'<span class="pill'+(active?' active':'')+'" style="cursor:pointer;font-size:10px;flex-shrink:0" data-cat="'+(c==='All'?'':c)+'">'+c+'</span>';
+      // "Actifs" = filtre spécial
+      const allPills=['All','Actifs',...FIXED_CATS];
+      catsEl.innerHTML=allPills.map(c=>{
+        const isActive=c==='All'?(!_filterCat&&!_filterActive)
+          :c==='Actifs'?_filterActive
+          :(!_filterActive&&_filterCat===c);
+        return'<span class="pill'+(isActive?' active':'')+'" style="cursor:pointer;font-size:10px;flex-shrink:0" data-cat="'+c+'">'+c+'</span>';
       }).join('');
       catsEl.querySelectorAll('.pill').forEach(p=>{
         p.addEventListener('click',()=>{
-          _filterCat=p.dataset.cat;
+          const cat=p.dataset.cat;
+          if(cat==='All'){_filterCat='';_filterActive=false;}
+          else if(cat==='Actifs'){_filterActive=!_filterActive;_filterCat='';}
+          else{_filterCat=cat;_filterActive=false;}
           renderPills();
           renderList(container);
         });
       });
     };
     renderPills();
-    setTimeout(renderPills,1500); // re-render après fetch
   }
 
   // Toggle raw URL row
