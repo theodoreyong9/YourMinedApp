@@ -6,7 +6,12 @@
 
 const DK='ym_desktop_v1', WK='ym_wallpaper', PGSK='ym_pages';
 const isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
-const GRID=()=>isPC()?{cols:8,rows:5}:{cols:4,rows:6};
+const GRID=()=>{
+  const s=getComputedStyle(document.documentElement);
+  const cols=parseInt(s.getPropertyValue('--cols').trim())||( isPC()?8:4);
+  const rows=parseInt(s.getPropertyValue('--rows').trim())||( isPC()?5:6);
+  return {cols,rows};
+};
 
 function LD(){return JSON.parse(localStorage.getItem(DK)||'[]');}
 function SD(d){localStorage.setItem(DK,JSON.stringify(d));}
@@ -439,6 +444,7 @@ function mkIcon(ic,isFolder){
     w.appendChild(body);
     const lbl=document.createElement('div');
     lbl.className='icon-label'+(ic.type==='theme'?' icon-label--below':'');
+    if(ic.type==='theme') lbl.setAttribute('style','order:1!important');
     lbl.textContent=ic.label;
     w.appendChild(lbl);
     if(ic.notif){const n=document.createElement('div');n.className='icon-notif';n.textContent=ic.notif;body.appendChild(n);}
@@ -839,6 +845,10 @@ const pageOf=el=>{const pg=el&&el.closest&&el.closest('.desktop-page');return pa
 
 deskEl.addEventListener('pointerdown',e=>{
   _bgActive=false;if(isInteractive(e.target))return;
+  // Ferme le folder si ouvert et on clique sur le bureau
+  if(folderStack.length>0&&!e.target.closest('#panel-folder')){
+    closeFolderPanel();
+  }
   bgSX=e.clientX;bgSY=e.clientY;bgMoved=false;_bgActive=true;
   const pg=pageOf(e.target);if(!isRealPage(pg)){_bgActive=false;return;}
   bgLT=setTimeout(()=>{bgLT=null;if(!bgMoved)showBgDlg(pg);},1000);
