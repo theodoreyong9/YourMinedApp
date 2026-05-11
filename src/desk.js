@@ -869,19 +869,9 @@ function showBgDlg(p){
   document.getElementById('bg-remove').onclick=()=>{localStorage.removeItem(WK);applyWP();document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper removed','info');};
   const bgSph=document.getElementById('bg-spheres');
   if(bgSph)bgSph.onclick=()=>{document.getElementById('bg-dlg').classList.remove('open');if(window.YM){window.YM.openPanel('panel-spheres');if(window.YM_Liste)window.YM_Liste.render();}};
-  const PRESETS=[
-    {label:'Night City',url:'https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=1400&q=80'},
-    {label:'Tokyo Night',url:'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1400&q=80'},
-    {label:'Aurora',url:'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1400&q=80'},
-    {label:'Mountains',url:'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1400&q=80'},
-    {label:'Galaxy',url:'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1400&q=80'},
-    {label:'Nebula',url:'https://images.unsplash.com/photo-1543722530-d2c3201371e7?w=1400&q=80'},
-    {label:'Dark Gradient',url:'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1400&q=80'},
-    {label:'Lava Flow',url:'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=1400&q=80'},
-    {label:'City Aerial',url:'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1400&q=80'},
-    {label:'Geometric',url:'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1400&q=80'},
-    {label:'Milky Way',url:'https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1400&q=80'},
-  ];
+  // Les presets sont fournis par le thème actif via window.YM_WALLPAPER_PRESETS
+  // Si le thème n'en fournit pas, tableau vide (pas de presets par défaut dans desk.js)
+  const PRESETS = window.YM_WALLPAPER_PRESETS || [];
   const grid=document.getElementById('bg-presets');
   if(grid&&!grid.children.length){
     PRESETS.forEach(pr=>{
