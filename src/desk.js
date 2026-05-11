@@ -438,10 +438,8 @@ function mkIcon(ic,isFolder){
     body.appendChild(renderIconContent(ic.icon));
     w.appendChild(body);
     const lbl=document.createElement('div');
-    lbl.className='icon-label';
+    lbl.className='icon-label'+(ic.type==='theme'?' icon-label--below':'');
     lbl.textContent=ic.label;
-    // Thème : label en dessous (order:0), sphere : label au-dessus (order:-1 via CSS)
-    if(ic.type==='theme') lbl.style.order='1';
     w.appendChild(lbl);
     if(ic.notif){const n=document.createElement('div');n.className='icon-notif';n.textContent=ic.notif;body.appendChild(n);}
     w.addEventListener('click',()=>{
