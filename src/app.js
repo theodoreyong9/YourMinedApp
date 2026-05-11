@@ -142,7 +142,8 @@
 
     if (pw <= 0 || cw <= 0) { preview.appendChild(wrap); return preview; }
 
-    const sc  = cw / pw;
+    // Cap sc à 1 — ne jamais zoomer au-delà de 100% (sinon moche sur grand écran)
+    const sc  = Math.min(cw / pw, 1);
     const visH = Math.min(ph, Math.ceil(ch / sc));
 
     // Clone — on ne cloneNode que le contenu visible du panel (panel-body + panel-head)
@@ -630,6 +631,8 @@
     const state = e.state || { t: 'root', stack: [] };
     navStack.length = 0;
     (state.stack || []).forEach(s => navStack.push(s));
+    // Ferme le switcher s'il est ouvert
+    if (sw && sw.classList.contains('open')) closeSwitcher();
     document.querySelectorAll('.ym-panel.open').forEach(p => p.classList.remove('open'));
     overlay.classList.remove('open');
     _panel = null; updateActiveDbtn(null);
