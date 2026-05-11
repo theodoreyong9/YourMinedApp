@@ -125,7 +125,7 @@
    * ═══════════════════════════════════════════════════════════ */
 
 
-  function _buildClonePreview(sourceEl, cardEl) {
+  function _buildClonePreview(sourceEl, cardEl, cardW, cardH) {
     const preview = document.createElement('div');
     preview.className = 'sw-preview';
     const wrap  = document.createElement('div');
@@ -142,29 +142,26 @@
     wrap.appendChild(clone);
     preview.appendChild(wrap);
 
-    // Utilise la card comme référence de taille (elle est dans le DOM)
-    requestAnimationFrame(() => {
-      const refEl = cardEl || preview.parentElement;
-      const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
-      const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
-      const cw = refEl ? refEl.offsetWidth : (window.innerWidth / 2 - 12);
-      const isDesktop = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
-      const totalCardH = isDesktop ? 130 : 160;
-      const ch = totalCardH - 30; // soustraire la hauteur du label
+    const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
+    const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
+    // cardW/cardH sont passés depuis doPreview() où la card est déjà rendue
+    const cw = cardW || (cardEl ? cardEl.offsetWidth : 0) || (window.innerWidth / 2 - 12);
+    const isDesktop = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+    const totalH = cardH || (cardEl ? cardEl.offsetHeight : 0) || (isDesktop ? 130 : 160);
+    const ch = Math.max(60, totalH - 30); // -30px pour le label
 
-      if (pw > 0 && cw > 0) {
-        const sc = cw / pw;
-        const visH = Math.min(ph, Math.ceil(ch / sc));
-        clone.style.width    = pw + 'px';
-        clone.style.height   = visH + 'px';
-        clone.style.overflow = 'hidden';
-        wrap.style.transform       = 'scale(' + sc + ')';
-        wrap.style.transformOrigin = 'top left';
-        wrap.style.width           = pw + 'px';
-        wrap.style.height          = visH + 'px';
-        wrap.style.overflow        = 'hidden';
-      }
-    });
+    if (pw > 0 && cw > 0) {
+      const sc = cw / pw;
+      const visH = Math.min(ph, Math.ceil(ch / sc));
+      clone.style.width    = pw + 'px';
+      clone.style.height   = visH + 'px';
+      clone.style.overflow = 'hidden';
+      wrap.style.transform       = 'scale(' + sc + ')';
+      wrap.style.transformOrigin = 'top left';
+      wrap.style.width           = pw + 'px';
+      wrap.style.height          = visH + 'px';
+      wrap.style.overflow        = 'hidden';
+    }
     return preview;
   }
 
@@ -180,7 +177,7 @@
     return fake;
   }
 
-  function _makeCard(label, getSourceEl, onTap, onDismiss) {
+  function _makeCard(label, getSourceEl, onTap, onDismiss, buildPreviewNow) {
     const card = document.createElement('div');
     card.className = 'sw-card';
 
@@ -193,16 +190,22 @@
     lbl.textContent = label;
     card.appendChild(lbl);
 
-    // On attend que la card soit dans le DOM (requestAnimationFrame après paint)
-    // pour que offsetWidth soit disponible
-    const buildPreview = () => {
+    const doPreview = () => {
       const sourceEl = getSourceEl();
       if (!sourceEl) return;
-      const preview = _buildClonePreview(sourceEl, card);
-      card.replaceChild(preview, previewSlot);
+      // Mesure la card MAINTENANT qu'elle est dans le DOM visible
+      const cardW = card.offsetWidth;
+      const cardH = card.offsetHeight;
+      const preview = _buildClonePreview(sourceEl, card, cardW, cardH);
+      card.replaceChild(preview, card.querySelector('.sw-preview') || previewSlot);
     };
-    // Double rAF pour s'assurer que le layout est calculé
-    requestAnimationFrame(() => requestAnimationFrame(buildPreview));
+
+    if (buildPreviewNow !== false) {
+      // Appelé après que le switcher est visible : une seule rAF suffit
+      requestAnimationFrame(doPreview);
+    }
+    // Stocke doPreview pour que renderSwitcherCards(true) puisse l'appeler
+    card._buildPreview = doPreview;
 
     const SWIPE_THRESH = 48;
     const TAP_THRESH   = 12;
@@ -271,7 +274,8 @@
     else _buildSwitcherRows();
   }
 
-  function _buildSwitcherRows() {
+  function _buildSwitcherRows(buildPreviews) {
+    buildPreviews = buildPreviews !== false;
     const grid = document.getElementById('switcher-grid');
     if (!grid) return;
     grid.innerHTML = '';
@@ -299,10 +303,21 @@
 
     if (!items.length) { closeSwitcher(); return; }
     if (items.length % 2 === 1) grid.appendChild(document.createElement('div'));
-    items.forEach(item => grid.appendChild(_makeCard(item.label, item.getEl, item.onTap, item.onDel)));
+    items.forEach(item => grid.appendChild(_makeCard(item.label, item.getEl, item.onTap, item.onDel, buildPreviews)));
   }
 
-  function renderSwitcherCards() { _buildSwitcherRows(); }
+  function renderSwitcherCards(buildPreviews) {
+    const grid = document.getElementById('switcher-grid');
+    if (buildPreviews === true && grid) {
+      // Deuxième appel : les cards existent, on construit les previews maintenant
+      grid.querySelectorAll('.sw-card').forEach(card => {
+        if (card._buildPreview) card._buildPreview();
+      });
+      return;
+    }
+    const bp = buildPreviews !== false;
+    _buildSwitcherRows(bp);
+  }
 
   function closeSwitcher() {
     sw.classList.remove('open');
@@ -342,8 +357,11 @@
       if (window.YM_Liste) window.YM_Liste.render();
       return;
     }
-    renderSwitcherCards();
+    // Ouvre d'abord, construit les previews après que le layout est calculé
+    renderSwitcherCards(false); // false = ne pas builder les previews tout de suite
     sw.classList.add('open');
+    // Après l'animation d'ouverture (~150ms), les cards ont une taille réelle
+    setTimeout(() => { renderSwitcherCards(true); }, 180);
   }
 
   /* Switcher handle drag-to-close */
