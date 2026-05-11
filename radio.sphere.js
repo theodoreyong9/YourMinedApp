@@ -237,11 +237,12 @@ function createWidget(){
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
     ox=e.clientX;oy=e.clientY;
-    try{_widget.setPointerCapture(e.pointerId);}catch(ex){}
-  },{passive:true});
-  _widget.addEventListener('pointermove',e=>{if(dragging)onMove(e.clientX,e.clientY);},{passive:true});
-  _widget.addEventListener('pointerup',onEnd,{passive:true});
-  _widget.addEventListener('pointercancel',onEnd,{passive:true});
+    e.preventDefault();
+    _widget.setPointerCapture(e.pointerId);
+  },{passive:false});
+  _widget.addEventListener('pointermove',e=>{if(dragging)onMove(e.clientX,e.clientY);},{passive:false});
+  _widget.addEventListener('pointerup',onEnd);
+  _widget.addEventListener('pointercancel',onEnd);
 }
 
 const _onPageChange=()=>{_syncWidgetPage();};
