@@ -103,13 +103,14 @@ function findEmptyInFolder(folderItems){
   return{col:0,row:maxRow+1};
 }
 
-function addIcon(id,icon,label,page){
+function addIcon(id,icon,label,page,extraFields){
   page=page!==undefined?page:curPg;
   const d=LD();if(findIconParent(id,d))return;
   let pg=page;
   while(!findEmptyIn(d,pg)){pg++;if(pg>=getPgCount()){setPgCount(pg+1);buildSlider();}}
   const pos=findEmptyIn(d,pg);
-  d.push({id,icon,label,page:pg,col:pos.col,row:pos.row,notif:0});SD(d);renderDesk();
+  const entry=Object.assign({id,icon,label,page:pg,col:pos.col,row:pos.row,notif:0},extraFields||{});
+  d.push(entry);SD(d);renderDesk();
 }
 function removeIcon(id){
   const d=LD();
@@ -410,6 +411,7 @@ function mkIcon(ic,isFolder){
   del.addEventListener('click',e=>{
     e.stopPropagation();e.preventDefault();
     if(ic.folder){deactivateAll(ic.folderItems||[]);removeIcon(ic.id);}
+    else if(ic.type==='theme'){removeIcon(ic.id);} // icône thème : supprime juste l'icône
     else if(window.YM)window.YM.deactivateSphere(ic.id);
   });
   if(ic.folder){
