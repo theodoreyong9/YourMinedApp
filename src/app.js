@@ -87,36 +87,31 @@
     const b = document.getElementById('panel-mine-build');
     const f = document.getElementById('panel-mine-formula');
     const l = document.getElementById('panel-mine-liste');
-    // Cache tout — important : display:none avant le render du nouvel onglet
+
+    // Cache TOUT et reset le style — mine.js render() modifie style.cssText
+    // ce qui peut supprimer display:none. On force via !important via setAttribute
     [w, b, f, l].forEach(el => {
-      if (el) {
-        el.style.display = 'none';
-        el.style.flex = '';
-      }
+      if (!el) return;
+      el.style.cssText = 'display:none !important; flex:0; min-height:0;';
     });
 
     if (tab === 'wallet' && w) {
-      w.style.display = 'flex';
-      w.style.flex = '1';
+      w.style.cssText = 'display:flex; flex:1; flex-direction:column; overflow-y:auto; min-height:0;';
       if (window.YM_Mine) window.YM_Mine.render(w);
     }
-    if (tab === 'build' && b) {
-      b.style.display = 'flex';
-      b.style.flex = '1';
+    else if (tab === 'build' && b) {
+      b.style.cssText = 'display:flex; flex:1; flex-direction:column; overflow:hidden; min-height:0;';
       b.innerHTML = '';
       if (window.YM_Build) window.YM_Build.render(b);
     }
-    if (tab === 'formula' && f) {
-      f.style.display = 'flex';
-      f.style.flex = '1';
+    else if (tab === 'formula' && f) {
+      f.style.cssText = 'display:flex; flex:1; flex-direction:column; overflow-y:auto; padding:16px;';
       renderFormulaTab();
     }
-    if (tab === 'liste' && l) {
-      l.style.display = 'flex';
-      l.style.flex = '1';
+    else if (tab === 'liste' && l) {
+      l.style.cssText = 'display:flex; flex:1; flex-direction:column; overflow:hidden; min-height:0;';
       if (window.YM_Liste) {
-        // Ne re-render que si le container est vide (premier affichage)
-        if (!l.querySelector('#sphere-list-inner')) {
+        if (!l.querySelector('#list-content')) {
           window.YM_Liste.render(l);
         }
       } else {
