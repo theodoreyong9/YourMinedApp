@@ -440,6 +440,8 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
     if(!url || url === activeUrl()) return;
     localStorage.setItem(THEME_KEY, url);
     localStorage.removeItem(THEME_CACHE);
+    // Nettoie l'URL pour éviter que checkURLRoute réécrase le choix au reload
+    if(location.pathname !== '/') history.replaceState(null, '', '/');
     window.YM_toast && window.YM_toast('✦ ' + label + ' — reloading…', 'success', 1500);
     setTimeout(function(){ location.reload(); }, 1500);
   }
