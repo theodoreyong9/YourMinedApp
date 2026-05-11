@@ -283,6 +283,30 @@ async function renderThemesContent(container){
   _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes);
 }
 
+
+function _addThemeIcon(theme, rawUrl){
+  if(!window.YM_Desk || !window.YM_Desk.addIcon) return;
+  const id = 'theme_' + (theme.filename||theme.name||'theme').replace(/[^a-z0-9]/gi,'_');
+  const existing = window._iconsMap && window._iconsMap[id];
+  if(existing) return; // icône déjà présente
+  const icon = {
+    id,
+    label: theme.name || theme.filename || 'Theme',
+    icon: theme.icon||'🎨',
+    type: 'theme',
+    themeUrl: rawUrl,
+    page: window._deskCurPage||0,
+  };
+  window.YM_Desk.addIcon(icon);
+  // Sauve dans le profil
+  if(window.YM && window.YM.saveProfile){
+    const p = window.YM.loadProfile ? window.YM.loadProfile() : {};
+    const icons = p.customIcons || [];
+    if(!icons.find(i=>i.id===id)) icons.push(icon);
+    window.YM.saveProfile({customIcons: icons});
+  }
+}
+
 function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
   const listEl=container.querySelector('#theme-list-inner');if(!listEl)return;
   const list=themes||_themesList||[];
@@ -337,10 +361,15 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
       '</div>';
 
     card.addEventListener('click',()=>{
-      if(isCur)return;
+      if(isCur){
+        window.YM_toast?.('Thème déjà actif','info');
+        return;
+      }
+      // Crée un raccourci icône sur le bureau + applique le thème
+      _addThemeIcon(t, rawUrl);
       localStorage.setItem('ym_theme_url',rawUrl);
       localStorage.removeItem('ym_theme_cache');
-      window.YM_toast?.('Thème — rechargement…','success');
+      window.YM_toast?.('Thème appliqué — rechargement…','success');
       setTimeout(()=>location.reload(),1200);
     });
     listEl.appendChild(card);
