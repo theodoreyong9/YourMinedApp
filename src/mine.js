@@ -129,8 +129,8 @@ async function importWallet(raw,pw){const sol=window.solanaWeb3;let kp;if(raw.st
 // ── RENDER ─────────────────────────────────────────────────────────────────
 async function render(container){
   await _loadSolana();await _loadQR();
-  // S'assure que le container est vide et bien configuré
   if(!container)return;
+  // Ne pas modifier style.cssText — switchMineTab gère le display
   container.innerHTML='';
   if(_wallet.locked)renderLocked(container);
   else renderUnlocked(container);
@@ -193,7 +193,6 @@ function renderLocked(body){
   }
 
   wrap.appendChild(inner);
-  body.style.cssText='flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden';
   body.appendChild(wrap);
 
   const $=id=>body.querySelector('#'+id);
@@ -279,7 +278,6 @@ function renderUnlocked(body){
   '</div>';
 
   wrap.appendChild(inner);
-  body.style.cssText='flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden';
   body.appendChild(wrap);
 
   if(window.QRCode&&addr){const el=body.querySelector('#mine-qr');if(el){el.innerHTML='';new window.QRCode(el,{text:addr,width:72,height:72,correctLevel:window.QRCode.CorrectLevel.M});}}
