@@ -286,24 +286,25 @@ async function renderThemesContent(container){
 
 function _addThemeIcon(theme, rawUrl){
   if(!window.YM_Desk || !window.YM_Desk.addIcon) return;
-  const id = 'theme_' + (theme.filename||theme.name||'theme').replace(/[^a-z0-9]/gi,'_');
-  const existing = window._iconsMap && window._iconsMap[id];
-  if(existing) return; // icône déjà présente
-  const icon = {
+  const id='theme_'+(theme.filename||theme.name||'theme').replace(/[^a-z0-9]/gi,'_');
+  // Vérifie si l'icône existe déjà (via le profil)
+  const p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
+  const existingIcons=p.customIcons||[];
+  if(existingIcons.find(i=>i.id===id))return;
+  const iconEntry={
     id,
-    label: theme.name || theme.filename || 'Theme',
-    icon: theme.icon||'🎨',
-    type: 'theme',
-    themeUrl: rawUrl,
-    page: window._deskCurPage||0,
+    label:theme.name||(theme.filename||'').replace(/\.theme\.html$/,''),
+    icon:theme.icon||'🎨',
+    type:'theme',
+    themeUrl:rawUrl,
+    page:window._deskCurPage||0,
   };
-  window.YM_Desk.addIcon(icon);
-  // Sauve dans le profil
-  if(window.YM && window.YM.saveProfile){
-    const p = window.YM.loadProfile ? window.YM.loadProfile() : {};
-    const icons = p.customIcons || [];
-    if(!icons.find(i=>i.id===id)) icons.push(icon);
-    window.YM.saveProfile({customIcons: icons});
+  // desk.js addIcon(ic) attend un objet icône complet
+  window.YM_Desk.addIcon(iconEntry);
+  // Persiste dans le profil
+  if(window.YM&&window.YM.saveProfile){
+    existingIcons.push(iconEntry);
+    window.YM.saveProfile({customIcons:existingIcons});
   }
 }
 
@@ -342,7 +343,7 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
 
     const card=document.createElement('div');
     card.className='ym-card';
-    card.style.cssText='cursor:pointer;transition:border-color .2s'+(isCur?';border-color:var(--accent-dim)':'');
+    card.style.cssText='transition:border-color .2s'+(isCur?';border-color:var(--accent-dim)':'');
     card.innerHTML=
       '<div style="display:flex;align-items:center;gap:12px">'+
         iconHtml+
@@ -356,20 +357,29 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
             'by <b style="color:var(--accent)">@'+esc(t.ghAuthor||'unknown')+'</b>'+
             (ghCodeUrl?' &nbsp;·&nbsp; <a href="'+esc(ghCodeUrl)+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-size:9px" onclick="event.stopPropagation()">&lt;/&gt; code</a>':'')+
           '</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(t.description||'—')+'</div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:8px">'+esc(t.description||'—')+'</div>'+
+          '<div style="display:flex;gap:6px">'+
+            '<button class="ym-btn ym-btn-ghost" data-theme-icon-btn style="font-size:10px;padding:4px 9px" title="Ajouter au bureau">＋ Bureau</button>'+
+            '<button class="ym-btn '+(isCur?'ym-btn-ghost':'ym-btn-accent')+'" data-theme-act-btn style="font-size:10px;padding:4px 10px">'+(isCur?'✓ Actif':'▶ Activer')+'</button>'+
+          '</div>'+
         '</div>'+
       '</div>';
 
-    card.addEventListener('click',()=>{
-      if(isCur){
-        window.YM_toast?.('Thème déjà actif','info');
-        return;
-      }
-      // Crée un raccourci icône sur le bureau + applique le thème
-      _addThemeIcon(t, rawUrl);
+    // Bouton "＋ Bureau" : ajoute icône sur le bureau seulement
+    card.querySelector('[data-theme-icon-btn]').addEventListener('click',e=>{
+      e.stopPropagation();
+      _addThemeIcon(t,rawUrl);
+      window.YM_toast?.('Icône ajoutée au bureau','success');
+    });
+
+    // Bouton "▶ Activer" : applique le thème + ajoute icône
+    card.querySelector('[data-theme-act-btn]').addEventListener('click',e=>{
+      e.stopPropagation();
+      if(isCur){window.YM_toast?.('Déjà actif','info');return;}
+      _addThemeIcon(t,rawUrl);
       localStorage.setItem('ym_theme_url',rawUrl);
       localStorage.removeItem('ym_theme_cache');
-      window.YM_toast?.('Thème appliqué — rechargement…','success');
+      window.YM_toast?.('Thème — rechargement…','success');
       setTimeout(()=>location.reload(),1200);
     });
     listEl.appendChild(card);
