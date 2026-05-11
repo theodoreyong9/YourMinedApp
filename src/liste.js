@@ -277,11 +277,14 @@ function renderSpheresContent(container){
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
     '</div>'+
     '<div style="padding:8px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
-      '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
-      '<div style="display:flex;gap:6px">'+
-        '<input class="ym-input" id="sphere-search" placeholder="Search spheres…" style="flex:1">'+
-        '<input class="ym-input" id="sphere-raw-url" placeholder="Raw URL pour activer…" style="flex:1;font-size:11px">'+
-        '<button class="ym-btn ym-btn-ghost" id="sphere-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<select id="sphere-cat-select" class="ym-input" style="flex:1;font-size:11px;padding:6px 8px"><option value="">Toutes catégories</option></select>'+
+        '<input class="ym-input" id="sphere-search" placeholder="Search…" style="flex:2;font-size:11px">'+
+        '<button class="ym-btn ym-btn-ghost" id="sphere-raw-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Activer par URL">↗</button>'+
+      '</div>'+
+      '<div id="sphere-raw-row" style="display:none;flex:1;gap:6px;align-items:center">'+
+        '<input class="ym-input" id="sphere-raw-url" placeholder="GitHub raw URL de la sphere…" style="flex:1;font-size:11px">'+
+        '<button class="ym-btn ym-btn-ghost" id="sphere-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶ Activer</button>'+
       '</div>'+
     '</div>';
 
@@ -289,6 +292,34 @@ function renderSpheresContent(container){
     _filterText=e.target.value.toLowerCase();
     renderList(container);
   });
+
+  // Dropdown catégories
+  const catSelect=container.querySelector('#sphere-cat-select');
+  if(catSelect){
+    // Rempli après chargement
+    const populateCats=()=>{
+      const cats=[...new Set(_sphereList.map(s=>normCat(s.category)||'Autres').filter(Boolean))].sort();
+      catSelect.innerHTML='<option value="">Toutes catégories</option>'+cats.map(c=>'<option value="'+c+'"'+(c===_filterCat?' selected':'')+'>'+c+'</option>').join('');
+    };
+    populateCats();
+    catSelect.addEventListener('change',()=>{
+      _filterCat=catSelect.value;
+      renderList(container);
+    });
+    // Repopule après fetch
+    setTimeout(populateCats,1500);
+  }
+
+  // Toggle raw URL row
+  const rawToggleBtn=container.querySelector('#sphere-raw-toggle');
+  const rawRow=container.querySelector('#sphere-raw-row');
+  if(rawToggleBtn&&rawRow){
+    rawToggleBtn.addEventListener('click',()=>{
+      const open=rawRow.style.display!=='none';
+      rawRow.style.display=open?'none':'flex';
+      rawToggleBtn.style.color=open?'':'var(--cyan)';
+    });
+  }
 
   // Activation par raw URL global
   const rawBtn=container.querySelector('#sphere-raw-btn');
@@ -334,7 +365,6 @@ function renderSpheresContent(container){
     });
   }
 
-  renderCategories(container);
   renderList(container);
 }
 
