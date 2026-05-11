@@ -130,7 +130,7 @@
    * ═══════════════════════════════════════════════════════════ */
 
 
-  function _buildClonePreview(sourceEl) {
+  function _buildClonePreview(sourceEl, cardEl) {
     const preview = document.createElement('div');
     preview.className = 'sw-preview';
     const wrap  = document.createElement('div');
@@ -146,14 +146,17 @@
     if (sourceEl._needsRemoval) sourceEl.remove();
     wrap.appendChild(clone);
     preview.appendChild(wrap);
-    setTimeout(() => { requestAnimationFrame(() => {
+
+    // Utilise la card comme référence de taille (elle est dans le DOM)
+    requestAnimationFrame(() => {
+      const refEl = cardEl || preview.parentElement;
       const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
       const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
-      // Hauteurs CSS connues des cards (.sw-card)
+      const cw = refEl ? refEl.offsetWidth : (window.innerWidth / 2 - 12);
       const isDesktop = window.matchMedia('(hover:hover) and (pointer:fine)').matches;
-      const cardH = isDesktop ? 130 : 160;
-      const cw = preview.offsetWidth || preview.parentElement?.offsetWidth || (window.innerWidth / 2 - 12);
-      const ch = cardH - 30; // 30px = sw-label height
+      const totalCardH = isDesktop ? 130 : 160;
+      const ch = totalCardH - 30; // soustraire la hauteur du label
+
       if (pw > 0 && cw > 0) {
         const sc = cw / pw;
         const visH = Math.min(ph, Math.ceil(ch / sc));
@@ -166,7 +169,9 @@
         wrap.style.height          = visH + 'px';
         wrap.style.overflow        = 'hidden';
       }
-    }); }, 80);
+    });
+    return preview;
+  }
     return preview;
   }
 
@@ -195,12 +200,16 @@
     lbl.textContent = label;
     card.appendChild(lbl);
 
-    setTimeout(() => {
+    // On attend que la card soit dans le DOM (requestAnimationFrame après paint)
+    // pour que offsetWidth soit disponible
+    const buildPreview = () => {
       const sourceEl = getSourceEl();
       if (!sourceEl) return;
-      const preview = _buildClonePreview(sourceEl);
+      const preview = _buildClonePreview(sourceEl, card);
       card.replaceChild(preview, previewSlot);
-    }, 0);
+    };
+    // Double rAF pour s'assurer que le layout est calculé
+    requestAnimationFrame(() => requestAnimationFrame(buildPreview));
 
     const SWIPE_THRESH = 48;
     const TAP_THRESH   = 12;
