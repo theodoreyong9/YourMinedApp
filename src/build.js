@@ -112,34 +112,175 @@ async function render(containerArg){
   body.innerHTML='';
   body.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)';
   setTimeout(_injectGithubBtn,0);
+  renderBuildContent(body);
+}
 
-  // Contenu + onglets en bas
-  const content=document.createElement('div');
-  content.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0';
-  body.appendChild(content);
+function renderBuildContent(body){
+  body.innerHTML='';
+  body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0';
+  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
 
-  // Sous-onglets Sphere / Theme en bas
-  const tabBar=document.createElement('div');
-  tabBar.style.cssText='display:flex;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-  ['sphere','theme'].forEach(t=>{
-    const tab=document.createElement('div');
-    tab.className='ym-tab'+(_activeTab===t?' active':'');
-    tab.dataset.tab=t;
-    tab.style.cssText='flex:1;padding:12px 4px;text-align:center;font-size:10px;cursor:pointer';
-    tab.textContent=t==='sphere'?'⬡ Sphere':'🎨 Theme';
-    tab.addEventListener('click',()=>{
-      _activeTab=t;
-      tabBar.querySelectorAll('.ym-tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
-      content.innerHTML='';
-      if(t==='sphere')renderSphereTab(content);
-      else renderThemeTab(content);
-    });
-    tabBar.appendChild(tab);
+  // ÉTAPE GitHub
+  _step(body,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
+    if(_userToken){
+      card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b></div>'+
+        '<button id="bld-disc-main" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
+      card.querySelector('#bld-disc-main').addEventListener('click',()=>{_saveToken(null);render(_lastContainer);});
+    }else{
+      card.innerHTML+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
+        '<input id="bld-tok-main" class="ym-input" type="password" placeholder="ghp_… (scope: repo)" style="flex:1;font-size:11px">'+
+        '<button id="bld-tok-ok-main" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button></div>'+
+        '<a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan)">↗ Créer token</a>';
+      card.querySelector('#bld-tok-ok-main').addEventListener('click',async()=>{
+        const tok=card.querySelector('#bld-tok-main').value.trim();if(!tok)return;
+        try{const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
+          if(!r.ok)throw new Error('Token invalide');
+          const u=await r.json();_saveToken({value:tok,username:u.login});
+          toast('Connecté @'+u.login,'success');render(_lastContainer);}
+        catch(e){toast(e.message,'error');}
+      });
+      card.querySelector('#bld-tok-main').addEventListener('keydown',e=>{if(e.key==='Enter')card.querySelector('#bld-tok-ok-main').click();});
+    }
   });
-  body.appendChild(tabBar);
 
-  if(_activeTab==='sphere')renderSphereTab(content);
-  else renderThemeTab(content);
+  // ÉTAPE Nom + Type (Sphere / Thème) avec toggle dynamique dans le nom
+  const nameTypeStep=document.createElement('div');
+  nameTypeStep.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
+  nameTypeStep.innerHTML=
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'+
+      '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Publication</div>'+
+      '<div style="display:flex;gap:4px;border:1px solid rgba(255,255,255,.1);border-radius:8px;overflow:hidden">'+
+        '<button id="type-sphere" style="background:rgba(240,168,48,.1);border:none;color:var(--gold);font-size:10px;padding:4px 10px;cursor:pointer">⬡ Sphere</button>'+
+        '<button id="type-theme" style="background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer">🎨 Thème</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+      '<input id="pub-name-main" class="ym-input" placeholder="nom" style="flex:1;font-size:12px">'+
+      '<span id="pub-ext" style="font-size:11px;color:var(--text3);flex-shrink:0;align-self:center">.sphere.js</span>'+
+    '</div>'+
+    '<div id="pub-name-status" style="font-size:10px;color:var(--text3);min-height:14px"></div>';
+  body.appendChild(nameTypeStep);
+
+  let _pubType='sphere';
+  const extEl=nameTypeStep.querySelector('#pub-ext');
+  const statusEl2=nameTypeStep.querySelector('#pub-name-status');
+
+  async function _checkName(){
+    const v=(nameTypeStep.querySelector('#pub-name-main')?.value||'').trim();
+    if(!v){statusEl2.textContent='';return;}
+    if(_pubType==='sphere'){
+      const fn=v.replace(/\.sphere\.js$/,'')+'.sphere.js';
+      const files=await fetchFilesJson();const ex=files.find(f=>f.filename===fn);
+      statusEl2.innerHTML=ex?'<span style="color:var(--gold)">⬆ Upgrade</span> · @'+esc(ex.ghAuthor||'?'):'<span style="color:var(--green)">✦ Nouveau</span>';
+      walletStepEl.style.display=ex?'none':'block';
+    }else{
+      statusEl2.innerHTML='<span style="color:var(--cyan)">🎨 Thème</span>';
+      walletStepEl.style.display='none';
+    }
+  }
+  nameTypeStep.querySelector('#pub-name-main').addEventListener('input',_checkName);
+
+  nameTypeStep.querySelector('#type-sphere').addEventListener('click',()=>{
+    _pubType='sphere';extEl.textContent='.sphere.js';
+    nameTypeStep.querySelector('#type-sphere').style.cssText='background:rgba(240,168,48,.1);border:none;color:var(--gold);font-size:10px;padding:4px 10px;cursor:pointer';
+    nameTypeStep.querySelector('#type-theme').style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer';
+    _checkName();codeStepEl.style.display='';
+  });
+  nameTypeStep.querySelector('#type-theme').addEventListener('click',()=>{
+    _pubType='theme';extEl.textContent='.html';
+    nameTypeStep.querySelector('#type-theme').style.cssText='background:rgba(8,224,248,.1);border:none;color:var(--cyan);font-size:10px;padding:4px 10px;cursor:pointer';
+    nameTypeStep.querySelector('#type-sphere').style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer';
+    _checkName();codeStepEl.style.display='';
+  });
+
+  // ÉTAPE Wallet (conditionnel)
+  const walletStepEl=document.createElement('div');
+  walletStepEl.style.display='none';
+  _step(walletStepEl,'Wallet','',card=>{
+    if(pubkey){
+      card.innerHTML+='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>';
+    }else{
+      card.innerHTML+='<div class="ym-notice warn" style="font-size:11px">🔒 Wallet requis pour nouveau fichier</div>'+
+        '<button class="ym-btn ym-btn-ghost" id="open-wallet-main" style="width:100%;font-size:11px;margin-top:6px">→ Ouvrir Wallet</button>';
+      card.querySelector('#open-wallet-main')?.addEventListener('click',()=>{
+        window.dispatchEvent(new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}}));
+      });
+      startWalletWatch(walletStepEl);
+    }
+  });
+  body.appendChild(walletStepEl);
+
+  // ÉTAPE Code avec toggle Code brut / Quick
+  let _mode='code';
+  const codeStepEl=document.createElement('div');
+  codeStepEl.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
+
+  const codeHead=document.createElement('div');
+  codeHead.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
+  codeHead.innerHTML=
+    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Code</div>'+
+    '<div style="display:flex;gap:4px">'+
+      '<button id="mode-code-main" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px;background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)">&lt;/&gt; Code brut</button>'+
+      '<button id="mode-quick-main" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">⚡ Quick</button>'+
+    '</div>';
+  codeStepEl.appendChild(codeHead);
+
+  const codeAreaEl=document.createElement('div');
+  codeStepEl.appendChild(codeAreaEl);
+  body.appendChild(codeStepEl);
+
+  function renderCodeAreaMain(){
+    codeAreaEl.innerHTML='';
+    const isCode=_mode==='code';
+    codeHead.querySelector('#mode-code-main').style.cssText='font-size:9px;padding:3px 8px;'+(isCode?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+    codeHead.querySelector('#mode-quick-main').style.cssText='font-size:9px;padding:3px 8px;'+(!isCode?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+
+    if(isCode){
+      const ph=_pubType==='theme'?'<!-- Thème HTML complet avec tout le DOM requis... -->':'/* window.YM_S[\'name.sphere.js\'] = { ... } */';
+      codeAreaEl.innerHTML=
+        '<textarea id="pub-code-main" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="'+ph+'"></textarea>'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>'+
+          '<div id="pub-size-main" style="font-size:10px;color:var(--text3)">0 KB</div>'+
+        '</div>';
+      codeAreaEl.querySelector('#pub-code-main').addEventListener('input',function(){
+        const kb=new TextEncoder().encode(this.value).length/1024;
+        const el=codeAreaEl.querySelector('#pub-size-main');el.textContent=kb.toFixed(1)+' KB';
+        el.style.color=kb>500?'var(--red)':'var(--text3)';
+      });
+    }else{
+      // Quick fields depend on type
+      if(_pubType==='sphere'){
+        codeAreaEl.innerHTML=
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
+            '<input id="min-icon-main" class="ym-input" placeholder="Icon (emoji ou URL)" style="font-size:12px">'+
+            '<input id="min-cat-main" class="ym-input" placeholder="Catégorie" style="font-size:12px">'+
+          '</div>'+
+          '<textarea id="min-desc-main" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
+          '<input id="min-url-main" class="ym-input" placeholder="Raw URL du vrai code (optionnel)" style="font-size:11px;margin-bottom:6px">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
+      }else{
+        codeAreaEl.innerHTML=
+          '<input id="th-icon-main" class="ym-input" placeholder="Icon preview (emoji ou URL image)" style="font-size:12px;margin-bottom:6px">'+
+          '<textarea id="th-desc-main" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
+          '<input id="th-raw-main" class="ym-input" placeholder="Raw URL du fichier HTML du thème" style="font-size:11px;margin-bottom:6px">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
+      }
+    }
+  }
+
+  codeHead.querySelector('#mode-code-main').addEventListener('click',()=>{_mode='code';renderCodeAreaMain();});
+  codeHead.querySelector('#mode-quick-main').addEventListener('click',()=>{_mode='quick';renderCodeAreaMain();});
+  renderCodeAreaMain();
+
+  // Submit
+  const submitWrap=document.createElement('div');
+  submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
+  submitWrap.innerHTML='<div id="pub-status-main" style="margin-bottom:8px"></div>'+
+    '<button id="pub-submit-main" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Sign & Submit</button>';
+  body.appendChild(submitWrap);
+
+  submitWrap.querySelector('#pub-submit-main').addEventListener('click',()=>submitUnified(body,codeAreaEl,nameTypeStep,_pubType,_mode));
 }
 
 // ── ONGLET SPHERE ─────────────────────────────────────────────
@@ -754,9 +895,8 @@ async function renderThemeTab(body){
     }else{
       // Quick : champs métadonnées + lien vers le fichier HTML
       codeArea.innerHTML=
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
-          '<input id="th-icon" class="ym-input" placeholder="Icon (emoji ou URL image)" style="font-size:12px">'+
-          '<input id="th-author-display" class="ym-input" placeholder="Votre nom/pseudo" style="font-size:12px">'+
+        '<div style="margin-bottom:6px">'+
+          '<input id="th-icon" class="ym-input" placeholder="Icon (emoji ou URL image preview)" style="font-size:12px">'+
         '</div>'+
         '<textarea id="th-desc" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
         '<input id="th-raw-url" class="ym-input" placeholder="Raw URL du fichier HTML du thème (requis)" style="font-size:11px;margin-bottom:6px">'+
@@ -881,6 +1021,100 @@ function _showSimulatorOverlay(elig){
 }
 
 // ── HELPERS ──────────────────────────────────────────────────
+
+
+// ── SUBMIT UNIFIÉ ─────────────────────────────────────────────
+async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
+  const btn=body.querySelector('#pub-submit-main');
+  const statusEl=body.querySelector('#pub-status-main');
+  function st(msg,type){if(statusEl)statusEl.innerHTML='<div class="ym-notice '+(type||'info')+'" style="font-size:11px">'+msg+'</div>';}
+  if(!_userToken)return st('Token GitHub requis','error');
+  const token=_userToken.value,username=_userToken.username;
+  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
+  const nameRaw=(nameTypeStep.querySelector('#pub-name-main')?.value||'').trim();
+  if(!nameRaw)return st('Nom requis','error');
+  const wip=codeAreaEl.querySelector('#pub-wip-main')?.checked!==false;
+  if(btn){btn.disabled=true;btn.textContent='Processing…';}
+  try{
+    if(pubType==='sphere'){
+      const filename=nameRaw.replace(/\.sphere\.js$/,'')+'.sphere.js';
+      let sphereCode='',codeUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/'+filename;
+      if(mode==='code'){
+        sphereCode=codeAreaEl.querySelector('#pub-code-main')?.value.trim()||'';
+        if(!sphereCode)throw new Error('Code requis');
+      }else{
+        const icon=(codeAreaEl.querySelector('#min-icon-main')?.value||'').trim()||'⬡';
+        const cat=(codeAreaEl.querySelector('#min-cat-main')?.value||'').trim()||'Other';
+        const desc=(codeAreaEl.querySelector('#min-desc-main')?.value||'').trim().slice(0,140);
+        const rawUrl=(codeAreaEl.querySelector('#min-url-main')?.value||'').trim();
+        codeUrl=rawUrl||codeUrl;
+        sphereCode=rawUrl
+          ? `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nconst _U='${rawUrl}';\nlet _ok=false;\nwindow.YM_S['${filename}']={name:'${nameRaw}',icon:'${icon}',category:'${cat}',description:'${desc}',${wip?'wip:true,':''}codeUrl:_U,\nasync activate(ctx){if(_ok)return;_ok=true;try{const r=await fetch(_U+'?t='+Date.now(),{cache:'no-store'});const code=await r.text();const b=new Blob([code],{type:'text/javascript'});const u=URL.createObjectURL(b);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>{URL.revokeObjectURL(u);res();};s.onerror=()=>{URL.revokeObjectURL(u);rej();};document.head.appendChild(s);});const real=window.YM_S&&window.YM_S['${filename}'];if(real&&real!==this&&real.activate)await real.activate(ctx);}catch(e){ctx.toast('Load error: '+e.message,'error');}},\ndeactivate(){_ok=false;},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px;text-align:center;color:var(--text3)\">Loading…</div>';},\n};\n})();`
+          : `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nwindow.YM_S['${filename}']={name:'${nameRaw}',icon:'${icon}',category:'${cat}',description:'${desc}',${wip?'wip:true,':''}\nactivate(ctx){ctx.toast('${nameRaw} activated','success');},\ndeactivate(){},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px\">${desc}</div>';},\n};\n})();`;
+      }
+      st('Vérification…');
+      const files=await fetchFilesJson(true);
+      const existing=files.find(f=>f.filename===filename);
+      if(!existing&&!pubkey)throw new Error('Wallet requis pour nouveau fichier');
+      if(existing){const ok=existing.ghAuthor===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
+      if(!existing){const elig=await computeEligibility();if(elig&&!elig.eligible)throw new Error('Score insuffisant');}
+      const nonce=uuid(),ts=Math.floor(Date.now()/1000);
+      const state=window._mineState||{};
+      const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
+      const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
+      let sigB64='';
+      if(pubkey&&window.YM_Mine_sign&&!existing){
+        const msg=JSON.stringify({action:'create',filename,nonce,timestamp:ts,score:claimable,laps:curLaps,codeUrl,wip});
+        st('Signature…');const sig=await window.YM_Mine_sign(msg);
+        sigB64=btoa(String.fromCharCode(...Array.from(sig)));
+      }
+      st('Fork…');await ensureFork(token,username);
+      st('Push…');await ghPush(token,username,filename,sphereCode,'sphere: '+filename);
+      const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp:ts,score:claimable,laps:curLaps,codeUrl,wip};
+      await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
+      await new Promise(r=>setTimeout(r,2000));
+      st('PR…');const pr=await openPR(token,username);
+      const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/'+filename;
+      st('⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','info');
+      pollPR(token,pr.number,pr.html_url,statusEl,filename,fileUrl);_filesJson=null;
+    }else{
+      // Theme
+      const filename2=nameRaw.replace(/\.html$/,'')+'.html';
+      let themeCode='';
+      const icon2=(codeAreaEl.querySelector('#th-icon-main')?.value||'').trim()||'🎨';
+      const desc2=(codeAreaEl.querySelector('#th-desc-main')?.value||'').trim().slice(0,140);
+      if(mode==='code'){
+        themeCode=codeAreaEl.querySelector('#pub-code-main')?.value.trim()||'';
+        if(!themeCode)throw new Error('Code requis');
+      }else{
+        const rawUrl2=(codeAreaEl.querySelector('#th-raw-main')?.value||'').trim();
+        if(!rawUrl2)throw new Error('Raw URL requis');
+        const r=await fetch(rawUrl2+'?t='+Date.now(),{cache:'no-store'});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        themeCode=await r.text();
+      }
+      const codeUrl2='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/'+filename2;
+      st('Fork…');await ensureFork(token,username);
+      st('Push thème…');await ghPush(token,username,'src/themes/'+filename2,themeCode,'theme: '+filename2);
+      let idx=['default.html'];
+      try{const ri=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/index.json?t='+Date.now());if(ri.ok)idx=await ri.json();}catch{}
+      if(!idx.includes(filename2))idx.push(filename2);
+      await ghPush(token,username,'src/themes/index.json',JSON.stringify(idx,null,2),'theme index: '+filename2);
+      let themeFiles=[];
+      try{const rt=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/themes-files.json?t='+Date.now());if(rt.ok)themeFiles=await rt.json();}catch{}
+      const entry2={filename:filename2,name:filename2.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\w/g,c=>c.toUpperCase()),icon:icon2,description:desc2,ghAuthor:username,codeUrl:codeUrl2,wip,timestamp:Math.floor(Date.now()/1000)};
+      const ei=themeFiles.findIndex(t=>t.filename===filename2);
+      if(ei>=0)themeFiles[ei]=Object.assign({},themeFiles[ei],entry2);else themeFiles.push(entry2);
+      await ghPush(token,username,'themes-files.json',JSON.stringify(themeFiles,null,2),'themes-files: '+filename2);
+      const nonce2=uuid();
+      await ghPush(token,username,'events/'+nonce2+'.json',JSON.stringify({action:'create-theme',filename:filename2,ghAuthor:username,codeUrl:codeUrl2,icon:icon2,description:desc2,wip,nonce:nonce2,timestamp:Math.floor(Date.now()/1000)}),'event theme: '+nonce2);
+      st('PR…');const pr2=await openPR(token,username);
+      const fu2='https://github.com/'+username+'/'+GH_REPO+'/blob/main/src/themes/'+filename2;
+      st('✅ <a href="'+pr2.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR</a> · <a href="'+fu2+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','success');
+    }
+  }catch(e){st('✗ '+esc(e.message),'error');toast(e.message,'error');}
+  finally{if(btn){btn.disabled=false;btn.textContent='⬆ Sign & Submit';}}
+}
 
 // submitMinimalFromArea — soumet depuis les champs quick
 async function submitMinimalFromArea(body,codeArea){
