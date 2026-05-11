@@ -663,8 +663,6 @@
 
   function checkURLRoute() {
     const parts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
-
-    // Utilise le GH_RAW du thème actuel (ou celui de index.html)
     const _GH_RAW = window._YM_GH_RAW || 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
     const THEMES_FILES_URL = _GH_RAW.replace('/src/', '/') + 'themes-files.json';
 
@@ -678,18 +676,22 @@
       if (sm) sphereSegment = sm[1] + '.sphere.js';
     });
 
-    if (themeSegment) {
-      const afterRoute = () => {
-        if (sphereSegment) {
-          history.replaceState(null, '', '/' + sphereSegment.replace('.sphere.js', '.sphere'));
-        } else {
-          history.replaceState(null, '', '/');
+    // Traite le sphere même s'il n'y a pas de theme
+    const handleSphere = () => {
+      if (!sphereSegment) return;
+      const n = sphereSegment;
+      setTimeout(async () => {
+        if (window.YM_sphereRegistry && !window.YM_sphereRegistry.has(n)) {
+          try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(n); } catch {}
         }
-        location.reload();
-      };
+        openSpherePanel(n);
+      }, 1400);
+    };
+
+    if (themeSegment) {
       (async () => {
         let themeUrl = null;
-        // 1. Cherche dans themes-files.json (registry utilisateur)
+        // 1. themes-files.json
         try {
           const r = await fetch(THEMES_FILES_URL + '?t=' + Date.now(), { cache: 'no-store' });
           if (r.ok) {
@@ -701,39 +703,43 @@
             if (entry && entry.codeUrl) themeUrl = entry.codeUrl;
           }
         } catch {}
-        // 2. Fallback : src/themes/nom.theme.html — vérifie que le fichier existe
+        // 2. src/themes/nom.theme.html
         if (!themeUrl) {
-          const candidate = _GH_RAW + 'themes/' + themeSegment + '.theme.html';
-          try {
-            const check = await fetch(candidate + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
-            if (check.ok) themeUrl = candidate;
-          } catch {}
+          const c1 = _GH_RAW + 'themes/' + themeSegment + '.theme.html';
+          try { const r = await fetch(c1 + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' }); if (r.ok) themeUrl = c1; } catch {}
         }
-        // 3. Si rien trouvé → toast et ne pas recharger
+        // 3. src/themes/nom.html
         if (!themeUrl) {
-          if (window.YM_toast) window.YM_toast('Thème "' + themeSegment + '" introuvable', 'error');
-          history.replaceState(null, '', '/');
+          const c2 = _GH_RAW + 'themes/' + themeSegment + '.html';
+          try { const r = await fetch(c2 + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' }); if (r.ok) themeUrl = c2; } catch {}
+        }
+        if (!themeUrl) {
+          // Vraiment introuvable
+          toast('Thème "' + themeSegment + '" introuvable', 'error');
+          history.replaceState(null, '', sphereSegment ? '/' + sphereSegment.replace('.sphere.js','.sphere') : '/');
+          handleSphere();
           return;
         }
         const cur = localStorage.getItem('ym_theme_url') || '';
         if (themeUrl !== cur) {
           localStorage.setItem('ym_theme_url', themeUrl);
           localStorage.removeItem('ym_theme_cache');
-          afterRoute();
+          // Conserve le sphere dans l'URL pour qu'il soit traité après le reload
+          if (sphereSegment) {
+            history.replaceState(null, '', '/' + sphereSegment.replace('.sphere.js','.sphere'));
+          } else {
+            history.replaceState(null, '', '/');
+          }
+          location.reload();
+        } else {
+          // Même thème déjà actif → traite juste le sphere
+          handleSphere();
         }
       })();
       return;
     }
 
-    if (sphereSegment) {
-      const n = sphereSegment;
-      setTimeout(async () => {
-        if (window.YM_sphereRegistry && !window.YM_sphereRegistry.has(n)) {
-          try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(n); } catch (ex) {}
-        }
-        openSpherePanel(n);
-      }, 1400);
-    }
+    handleSphere();
   }
   window.addEventListener('hashchange', checkURLRoute);
   setTimeout(checkURLRoute, 100);
