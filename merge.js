@@ -1,6 +1,7 @@
-// merge.js — Architecture loader unique : met à jour files.json avec codeUrl
+// merge.js — Architecture loader unique : met à jour files.json et themes-files.json
 const fs  = require('fs');
 const { execSync } = require('child_process');
+const { extractThemeMedia } = require('./merge_media_extractor');
 
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
 const BASE_REPO      = process.env.BASE_REPO;
@@ -26,6 +27,92 @@ function safeParseJson(raw) {
   catch(e) { try { return JSON.parse(raw.replace(/,\s*([}\]])/g, '$1').trim()); } catch(e2) { return []; } }
 }
 
+// ── SPHÈRES ───────────────────────────────────────────────────────────────────
+async function updateSpheresJson(files, ghActor, forkOwner) {
+  let filesJson = [];
+  try { filesJson = safeParseJson(fs.readFileSync('files.json', 'utf8')); } catch(e) {}
+
+  for (const { filename, isUpdate, codeUrl, wallet, score, laps, timestamp, wip } of files.filter(f => f.filename && f.filename.endsWith('.sphere.js'))) {
+    const effectiveCodeUrl = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + BASE_REPO.split('/')[1] + '/main/' + filename);
+    const entry = {
+      filename,
+      author:         wallet || '',
+      ghAuthor:       ghActor,
+      last_committer: ghActor,
+      codeUrl:        effectiveCodeUrl,
+      wip:            !!wip,
+      score:     parseFloat((score    || 0).toFixed(6)),
+      laps:      parseFloat((laps     || 0).toFixed(6)),
+      timestamp: timestamp || Math.floor(Date.now() / 1000),
+      merged_at: Math.floor(Date.now() / 1000)
+    };
+    const idx = filesJson.findIndex(f => f.filename === filename);
+    if (idx >= 0) {
+      filesJson[idx] = Object.assign({}, filesJson[idx], entry);
+      console.log('Updated sphere', filename);
+    } else {
+      filesJson.push(entry);
+      console.log('Added sphere', filename);
+    }
+  }
+
+  fs.writeFileSync('files.json', JSON.stringify(filesJson, null, 2));
+}
+
+// ── THÈMES ────────────────────────────────────────────────────────────────────
+async function updateThemesJson(files, ghActor, forkOwner) {
+  let themesJson = [];
+  try { themesJson = safeParseJson(fs.readFileSync('themes-files.json', 'utf8')); } catch(e) {}
+
+  for (const { filename, codeUrl, icon, description, wip, score, laps, timestamp } of files.filter(f => f.filename && f.filename.endsWith('.theme.html'))) {
+    const forkRepo   = BASE_REPO.split('/')[1];
+    const effectiveCU = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + forkRepo + '/main/' + filename);
+
+    // Extrait les médias depuis le code HTML du thème dans le fork
+    let media = { photos: [], videos: [] };
+    try {
+      const themeResp = await fetch(effectiveCU + '?t=' + Date.now(), {
+        headers: { 'Authorization': 'token ' + GITHUB_TOKEN, 'Accept': 'application/vnd.github.v3.raw' }
+      });
+      if (themeResp.ok) {
+        const themeCode = await themeResp.text();
+        media = extractThemeMedia(themeCode);
+        console.log('Media extracted from', filename, '— photos:', media.photos.length, 'videos:', media.videos.length);
+      }
+    } catch(e) {
+      console.warn('Could not extract media from', filename, ':', e.message);
+    }
+
+    const nameFromFile = filename.replace(/\.theme\.html$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const entry = {
+      filename,
+      name:        nameFromFile,
+      icon:        icon || '🎨',
+      description: description || '',
+      ghAuthor:    ghActor,
+      codeUrl:     effectiveCU,
+      wip:         !!wip,
+      media,
+      score:     parseFloat((score    || 0).toFixed(6)),
+      laps:      parseFloat((laps     || 0).toFixed(6)),
+      timestamp: timestamp || Math.floor(Date.now() / 1000),
+      merged_at: Math.floor(Date.now() / 1000)
+    };
+
+    const idx = themesJson.findIndex(t => t.filename === filename);
+    if (idx >= 0) {
+      themesJson[idx] = Object.assign({}, themesJson[idx], entry);
+      console.log('Updated theme', filename);
+    } else {
+      themesJson.push(entry);
+      console.log('Added theme', filename);
+    }
+  }
+
+  fs.writeFileSync('themes-files.json', JSON.stringify(themesJson, null, 2));
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────────
 async function main() {
   const validationPath = '/tmp/validation_result.json';
   if (!fs.existsSync(validationPath)) { console.error('No validation result found.'); process.exit(1); }
@@ -33,7 +120,7 @@ async function main() {
   const { walletPubkey, ghActor, files } = JSON.parse(fs.readFileSync(validationPath, 'utf8'));
   if (!files || !files.length) { console.log('No files to merge.'); process.exit(0); }
 
-  console.log('Merging ' + files.length + ' file(s) from @' + ghActor + ' to main');
+  console.log('Merging ' + files.length + ' file(s) from @' + ghActor);
 
   // Info PR pour récupérer le fork
   const prInfo = await ghAPI('/repos/' + BASE_REPO + '/pulls/' + PR_NUMBER);
@@ -45,8 +132,7 @@ async function main() {
   run('git checkout main');
   run('git pull origin main');
 
-  // Architecture loader unique : on ne copie PAS de .sphere.js sur main
-  // On copie uniquement les events
+  // Copie les events
   const prEventsDir = PR_CONTENT_DIR + '/events';
   if (fs.existsSync(prEventsDir)) {
     if (!fs.existsSync('events')) fs.mkdirSync('events');
@@ -54,66 +140,40 @@ async function main() {
     for (const evFile of fs.readdirSync(prEventsDir)) {
       if (!mainEvents.has(evFile)) {
         fs.copyFileSync(prEventsDir + '/' + evFile, 'events/' + evFile);
-        console.log('Copied event ' + evFile);
+        console.log('Copied event', evFile);
       }
     }
   }
 
-  // Met à jour files.json avec codeUrl pointant vers le fork de l'user
-  let filesJson = [];
-  try { filesJson = safeParseJson(fs.readFileSync('files.json', 'utf8')); } catch(e) {}
+  // Met à jour files.json (sphères) et themes-files.json (thèmes)
+  await updateSpheresJson(files, ghActor, forkOwner);
+  await updateThemesJson(files, ghActor, forkOwner);
 
-  for (const { filename, isUpdate, codeUrl, wallet, score, laps, timestamp } of files) {
-    // codeUrl = lien direct vers le code dans le fork de l'user
-    const effectiveCodeUrl = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + BASE_REPO.split('/')[1] + '/main/' + filename);
-
-    const entry = {
-      filename,
-      author:         walletPubkey || wallet || '',
-      ghAuthor:       ghActor,
-      last_committer: ghActor,
-      codeUrl:        effectiveCodeUrl,    // ← clé du loader unique
-      score:     parseFloat((score    || 0).toFixed(6)),
-      laps:      parseFloat((laps     || 0).toFixed(6)),
-      timestamp: timestamp || Math.floor(Date.now() / 1000),
-      merged_at: Math.floor(Date.now() / 1000)
-    };
-
-    const idx = filesJson.findIndex(f => f.filename === filename);
-    if (idx >= 0) {
-      // Upgrade : peut changer ghAuthor ou wallet si l'un des deux correspond
-      filesJson[idx] = Object.assign({}, filesJson[idx], entry);
-      console.log('Updated ' + filename + ' → codeUrl: ' + effectiveCodeUrl);
-    } else {
-      filesJson.push(entry);
-      console.log('Added ' + filename + ' → codeUrl: ' + effectiveCodeUrl);
-    }
-  }
-
-  fs.writeFileSync('files.json', JSON.stringify(filesJson, null, 2));
-
-  run('git add files.json events/');
-  run('git commit -m "bot: merge @' + ghActor + ' — files.json updated"');
+  // Commit et push
+  run('git add files.json themes-files.json events/');
+  run('git commit -m "bot: merge @' + ghActor + ' — files.json + themes-files.json updated"');
   run('git push https://x-access-token:' + GITHUB_TOKEN + '@github.com/' + BASE_REPO + '.git main');
   console.log('Pushed to main');
 
-  // Ferme la PR avec commentaire de succès
+  // Ferme la PR avec commentaire
   try {
-    const fileList = files.map(f => '- `' + f.filename + '` (' + (f.isUpdate ? 'updated' : 'new') + ') → [code](' + (f.codeUrl || '') + ')').join('\n');
+    const fileList = files.map(f =>
+      '- `' + f.filename + '` (' + (f.isUpdate ? 'updated' : 'new') + ') → [code](' + (f.codeUrl || '') + ')'
+    ).join('\n');
     await ghAPI('/repos/' + BASE_REPO + '/issues/' + PR_NUMBER + '/comments', 'POST', {
-      body: '✅ Merged by YourMine Bot\n\n' + fileList + '\n\nCode hosted in your fork · files.json updated with codeUrl.'
+      body: '✅ Merged by YourMine Bot\n\n' + fileList + '\n\nCode hosted in your fork · registries updated.'
     });
     await ghAPI('/repos/' + BASE_REPO + '/pulls/' + PR_NUMBER, 'PATCH', { state: 'closed' });
     console.log('PR closed');
   } catch(e) { console.warn('Could not close PR:', e.message); }
 
-  // Synchronise le fork avec upstream
+  // Synchronise le fork
   try {
     await ghAPI('/repos/' + forkRepo + '/merge-upstream', 'POST', { branch: 'main' });
     console.log('Fork synced');
   } catch(e) { console.warn('Fork sync:', e.message); }
 
-  console.log('\nDone — ' + files.length + ' file(s), files.json updated.');
+  console.log('\nDone — ' + files.length + ' file(s) merged.');
 }
 
 main().catch(e => { console.error('Merge error:', e.message); process.exit(1); });
