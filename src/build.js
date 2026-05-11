@@ -264,6 +264,8 @@ function renderBuildContent(body){
           '<input id="th-icon-main" class="ym-input" placeholder="Icon preview (emoji ou URL image)" style="font-size:12px;margin-bottom:6px">'+
           '<textarea id="th-desc-main" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
           '<input id="th-raw-main" class="ym-input" placeholder="Raw URL du fichier HTML du thème" style="font-size:11px;margin-bottom:6px">'+
+          '<textarea id="th-photos-main" class="ym-input" rows="2" placeholder="URLs photos (une par ligne, optionnel)" style="font-size:10px;margin-bottom:4px"></textarea>'+
+          '<textarea id="th-videos-main" class="ym-input" rows="1" placeholder="URLs vidéos (une par ligne, optionnel)" style="font-size:10px;margin-bottom:6px"></textarea>'+
           '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
       }
     }
