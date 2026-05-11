@@ -37,6 +37,17 @@ function renderIconContent(icon){
   }
   const span=document.createElement('span');span.textContent=icon||'⬡';return span;
 }
+
+// Copie complète d'une icône en préservant type, themeUrl et tous les champs custom
+function copyIcon(ic, overrides){
+  return Object.assign({
+    id:ic.id, icon:ic.icon, label:ic.label,
+    notif:ic.notif||0, folder:ic.folder||false,
+    folderItems:deepCopyFolderItems(ic.folderItems),
+    // Champs custom (theme, sphere, etc.)
+    type:ic.type, themeUrl:ic.themeUrl,
+  }, overrides||{});
+}
 function deepCopyFolderItems(items){
   if(!items)return undefined;
   return JSON.parse(JSON.stringify(items));
@@ -766,12 +777,12 @@ function saveFolderItems(newItems){
   }
   if(newItems.length===1&&folderStack.length===1){
     const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);
-    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,notif:solo.notif||0,folder:solo.folder||false,folderItems:deepCopyFolderItems(solo.folderItems)});
+    found.parent.push(copyIcon(solo,{page:topIc.page||0,col:topIc.col||0,row:topIc.row||0}));
     SD(d);closeFolder();renderDesk();toast('Folder dissolved','info');return;
   }
   if(newItems.length===1&&folderStack.length>1){
     const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);
-    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,notif:solo.notif||0,folder:solo.folder||false,folderItems:deepCopyFolderItems(solo.folderItems)});
+    found.parent.push(copyIcon(solo,{page:topIc.page||0,col:topIc.col||0,row:topIc.row||0}));
     SD(d);folderStack.pop();
     const pFound=findIconParent(folderStack[folderStack.length-1].ic.id,LD());
     if(pFound){folderStack[folderStack.length-1].ic=pFound.item;renderFolderPanel(pFound.item);}
@@ -794,8 +805,8 @@ function createFolder(src,tgt,isFolder){
   const tgtNotif=freshTgt?freshTgt.item.notif:(tgt.notif||0);
   const newFolder={id:'f_'+Date.now(),icon:'📁',label:'Folder',page:tgt.page,col:tgt.col,row:tgt.row,notif:0,folder:true,
     folderItems:[
-      {id:tgt.id,icon:tgt.icon,label:tgt.label,page:0,col:0,row:0,notif:tgtNotif,folder:tgt.folder||false,folderItems:deepCopyFolderItems(tgt.folderItems)},
-      {id:src.id,icon:src.icon,label:src.label,page:0,col:1,row:0,notif:srcNotif,folder:src.folder||false,folderItems:deepCopyFolderItems(src.folderItems)}
+      copyIcon(tgt,{page:0,col:0,row:0,notif:tgtNotif}),
+      copyIcon(src,{page:0,col:1,row:0,notif:srcNotif})
     ]};
   if(isFolder){
     const d=LD(),topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
