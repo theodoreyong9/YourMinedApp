@@ -199,7 +199,10 @@ async function render(containerArg){
 }
 
 // Themes registry : themes-files.json sur le repo PRINCIPAL (même logique que files.json pour spheres)
-const THEMES_FILES_URL='https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
+// themes-files.json est à la racine du repo PRINCIPAL (pas dans src/)
+// On utilise window._YM_GH_RAW si disponible pour supporter les forks
+const _THEMES_GH_RAW = (window._YM_GH_RAW || ('https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/')).replace('/src/','/');
+const THEMES_FILES_URL = _THEMES_GH_RAW + 'themes-files.json';
 let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='';
 
 async function fetchThemesList(force){
