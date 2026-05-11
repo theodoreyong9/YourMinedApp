@@ -1079,7 +1079,7 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       pollPR(token,pr.number,pr.html_url,statusEl,filename,fileUrl);_filesJson=null;
     }else{
       // Theme
-      const filename2=nameRaw.replace(/\.html$/,'')+'.html';
+      const filename2=nameRaw.replace(/\.theme\.html$|\.html$/,'')+'.theme.html';
       let themeCode='';
       const icon2=(codeAreaEl.querySelector('#th-icon-main')?.value||'').trim()||'🎨';
       const desc2=(codeAreaEl.querySelector('#th-desc-main')?.value||'').trim().slice(0,140);
@@ -1095,7 +1095,8 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       }
       const codeUrl2='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/'+filename2;
       st('Fork…');await ensureFork(token,username);
-      st('Push thème…');await ghPush(token,username,'src/themes/'+filename2,themeCode,'theme: '+filename2);
+      const themeFilePath='src/themes/'+filename2;
+st('Push thème…');await ghPush(token,username,themeFilePath,themeCode,'theme: '+filename2);
       let idx=['default.html'];
       try{const ri=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/index.json?t='+Date.now());if(ri.ok)idx=await ri.json();}catch{}
       if(!idx.includes(filename2))idx.push(filename2);
