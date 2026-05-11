@@ -287,25 +287,11 @@ async function renderThemesContent(container){
 function _addThemeIcon(theme, rawUrl){
   if(!window.YM_Desk || !window.YM_Desk.addIcon) return;
   const id='theme_'+(theme.filename||theme.name||'theme').replace(/[^a-z0-9]/gi,'_');
-  // Vérifie si l'icône existe déjà (via le profil)
-  const p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
-  const existingIcons=p.customIcons||[];
-  if(existingIcons.find(i=>i.id===id))return;
-  const iconEntry={
-    id,
-    label:theme.name||(theme.filename||'').replace(/\.theme\.html$/,''),
-    icon:theme.icon||'🎨',
-    type:'theme',
-    themeUrl:rawUrl,
-    page:window._deskCurPage||0,
-  };
-  // desk.js addIcon(ic) attend un objet icône complet
-  window.YM_Desk.addIcon(iconEntry);
-  // Persiste dans le profil
-  if(window.YM&&window.YM.saveProfile){
-    existingIcons.push(iconEntry);
-    window.YM.saveProfile({customIcons:existingIcons});
-  }
+  const label=theme.name||(theme.filename||'').replace(/\.theme\.html$/,'').replace(/[-_]/g,' ');
+  const icon=theme.icon||'🎨';
+  const page=window._deskCurPage||0;
+  // addIcon(id, icon, label, page, extraFields)
+  window.YM_Desk.addIcon(id, icon, label, page, {type:'theme', themeUrl:rawUrl});
 }
 
 function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
