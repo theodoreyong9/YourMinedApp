@@ -741,8 +741,13 @@
 
     handleSphere();
   }
-  window.addEventListener('hashchange', checkURLRoute);
-  setTimeout(checkURLRoute, 100);
+  // hashchange ne retriggère PAS checkURLRoute — on ne veut l'appliquer qu'au chargement
+  // Lance checkURLRoute une seule fois au démarrage
+  // Si l'URL ne contient pas de .theme segment, ne fait rien
+  setTimeout(function(){
+    var _hasThemeSegment = location.pathname.split('/').some(function(s){ return /\.theme$/i.test(s); });
+    if(_hasThemeSegment) checkURLRoute();
+  }, 100);
 
   function togglePanel(id, onOpen) {
     if (_panel === id) reducePanel();
