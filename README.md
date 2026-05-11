@@ -311,9 +311,15 @@ The profile JSON backup (`💾` button in Profile) saves:
     "score":          12.345678,
     "laps":           450000,
     "timestamp":      1700000000,
-    "merged_at":      1700000100
+    "merged_at":      1700000100,
+    "media": {
+      "photos": ["https://images.unsplash.com/photo-xxx", "https://..."],
+      "videos": ["https://vimeo.com/xxx"]
+    }
   }
 ]
+
+`media` is optional. Omit entirely for pure visual themes. Add `photos` or `videos` arrays for themes that distribute media content. These appear as previews in the Themes list (Photo/Video pill filter).
 ```
 
 `codeUrl` is the only field used to load sphere code. It always points to the author's fork, never to the main repo.
