@@ -146,21 +146,24 @@
     setTimeout(() => { requestAnimationFrame(() => {
       const pw = sourceEl._snapshotWidth  || sourceEl.offsetWidth  || window.innerWidth;
       const ph = sourceEl._snapshotHeight || sourceEl.offsetHeight || window.innerHeight;
-      const cw = preview.offsetWidth;
+      const cw = preview.offsetWidth  || 160;
       const ch = preview.offsetHeight || 130;
       if (pw > 0 && cw > 0) {
         const sc = cw / pw;
-        // Hauteur visible dans la card : ch/sc pixels du contenu réel
-        // On limite la hauteur du clone à ce qui est visible + un peu de marge
-        const visibleH = Math.min(ph, Math.ceil(ch / sc) + 20);
+        // Hauteur visible = ch/sc pixels de contenu réel
+        const visH = Math.min(ph, Math.ceil(ch / sc));
+        // Clone : taille réelle du panel (portion visible seulement)
         clone.style.width  = pw + 'px';
-        clone.style.height = visibleH + 'px';
-        wrap.style.transform = 'scale(' + sc + ')';
+        clone.style.height = visH + 'px';
+        clone.style.overflow = 'hidden';
+        // Wrap : transformé puis sa taille apparente = cw × ch
+        wrap.style.transform       = 'scale(' + sc + ')';
         wrap.style.transformOrigin = 'top left';
-        wrap.style.width  = pw + 'px';
-        wrap.style.height = visibleH + 'px';
+        wrap.style.width           = pw + 'px';
+        wrap.style.height          = visH + 'px';
+        wrap.style.overflow        = 'hidden';
       }
-    }); }, 0);
+    }); }, 50); // délai légèrement augmenté pour que le DOM soit peint
     return preview;
   }
 
@@ -647,7 +650,18 @@
   const psbtn = document.getElementById('profile-share-btn');
   if (psbtn) psbtn.addEventListener('click', () => { if (window.YM_Profile) window.YM_Profile.showShare(); });
 
-  document.getElementById('btn-figure').addEventListener('click', () => togglePanel('panel-mine'));
+  document.getElementById('btn-figure').addEventListener('click', () => {
+    togglePanel('panel-mine', () => {
+      setTimeout(() => {
+        setupMineTabs();
+        const bar = document.getElementById('mine-tabs-bar');
+        if (bar) {
+          bar.querySelectorAll('.ym-tab').forEach(t => t.classList.toggle('active', t.dataset.mineTab === 'liste'));
+        }
+        switchMineTab('liste');
+      }, 50);
+    });
+  });
 
   const buildBtn = document.getElementById('spheres-build-btn');
   if (buildBtn) buildBtn.addEventListener('click', () => {
