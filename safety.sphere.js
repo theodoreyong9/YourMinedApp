@@ -272,6 +272,10 @@ function renderPanel(container) {
   });
   container.appendChild(toggleCard);
 
+  const statusCard = document.createElement('div');
+  statusCard.className = 'ym-card';
+  statusCard.id = 'safety-status-card';
+
   function updateStatus() {
     if (_ready) {
       statusCard.innerHTML =
