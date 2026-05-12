@@ -17,6 +17,9 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [Theme API Specification](#theme-api-specification)
 - [External Apps & Bridge API](#external-apps--bridge-api)
 - [Runtime Cycle & Lifecycle](#runtime-cycle--lifecycle)
+- [Safety System](#safety-system)
+- [Link Tab](#link-tab)
+- [Ownership Transfer](#ownership-transfer)
 - [URL Routing](#url-routing)
 - [Permissions & Security Model](#permissions--security-model)
 - [File Format Standards](#file-format-standards)
@@ -573,30 +576,144 @@ Both files must be in the same directory (`.github/scripts/` or repo root).
 
 ```
 1. index.html captures beforeinstallprompt → window._pwaPrompt
-2. index.html injects edge-back UI (theme-proof)
-3. index.html fetches theme HTML → injectTheme() → CSS in <head>, DOM in <body>
-4. boot: await desk.js (execScript)
-5. boot: await app.js (execScript)
-6. app.js: OC() — creates profile if none
-7. app.js: deskInit() → applyWP, buildSlider, goPage(0)
-8. app.js: loads mine.js, liste.js, build.js, profile.js (sequential, from GitHub raw)
-9. app.js: fetchSphereList() — populates sphere registry from files.json
-10. app.js: restores active spheres from profile.spheres[]
-11. app.js: activates social.sphere.js (mandatory)
-12. app.js: initP2P() — Trystero via Nostr relays
-13. app.js: hides loader on fonts.ready
+2. index.html loads WebLLM via <script type="module"> if navigator.gpu → window.__webllm
+3. index.html injects edge-back UI (theme-proof)
+4. index.html fetches theme HTML → injectTheme() → CSS in <head>, DOM in <body>
+5. boot: await desk.js (execScript)
+6. boot: await app.js (execScript)
+7. app.js: OC() — creates profile if none
+8. app.js: deskInit() → applyWP, buildSlider, goPage(0)
+9. app.js: loads mine.js, liste.js, build.js, profile.js (sequential, from GitHub raw)
+10. app.js: fetchSphereList() — populates sphere registry from files.json
+11. app.js: restores active spheres from profile.spheres[]
+12. app.js: activates social.sphere.js (mandatory)
+13. app.js: activates safety.sphere.js (mandatory)
+14. app.js: initP2P() — Trystero via Nostr relays
+15. app.js: hides loader on fonts.ready
 ```
 
 ### Sphere activation flow
 
 ```
 YM.activateSphere(name, obj)
+  → dispatch 'ym:sphere-before-activate'  ← Safety listens here
   → mkCtx(name)           — creates scoped context
   → obj.activate(ctx)     — 8s timeout enforced
   → addIcon(name, ...)    — adds to desktop
   → SP({spheres: [...]})  — saves to profile
   → dispatch 'ym:sphere-activated'
 ```
+
+**Activation timeout:** `activate()` must resolve within **8 seconds**. If it doesn't, `app.js` kills the activation, removes the icon, and shows an error toast. Do not use `await` on slow network calls in `activate()` — use fire-and-forget instead:
+
+```js
+activate(ctx) {
+  // ✓ Fire-and-forget — doesn't block activation
+  fetch('https://api.example.com/init').then(r => r.json()).then(data => {
+    ctx.storage.set('data', JSON.stringify(data));
+  });
+  // ✗ Never do this — will timeout
+  // const data = await fetch('...');
+}
+```
+
+### Mandatory spheres
+
+`social.sphere.js` and `safety.sphere.js` are **mandatory** — loaded automatically at boot, not deactivatable from the list or the desktop. They always appear in the sphere list with a `✓` indicator instead of an `Off` button. To add a sphere to the mandatory list, add it to `MANDATORY_SPHERES` in `app.js`, `desk.js`, and `liste.js`.
+
+---
+
+## Safety System
+
+### Safety Events
+
+`safety.sphere.js` listens to three custom events dispatched by `app.js` and `liste.js`:
+
+```js
+// Dispatched by app.js before every non-mandatory sphere activation
+window.dispatchEvent(new CustomEvent('ym:sphere-before-activate', {
+  detail: {
+    filename: 'mysphere.sphere.js',
+    author:   'github-username',
+    code:     '/* first 500 chars of source */'
+  }
+}));
+
+// Dispatched by liste.js before loading an external app URL (iframe sphere)
+window.dispatchEvent(new CustomEvent('ym:external-app-load', {
+  detail: { url: 'https://myapp.bolt.new', name: 'My App' }
+}));
+
+// Dispatched by mine.js before signing a Solana transaction
+window.dispatchEvent(new CustomEvent('ym:before-transaction', {
+  detail: {
+    amount:      0.5,
+    destination: 'wallet-address',
+    program:     'program-id'
+  }
+}));
+```
+
+Safety uses **Llama 3.2 1B** running locally via WebGPU (loaded by `index.html` into `window.__webllm`). Results: `none/low` → silent, `medium` → warning toast (`z-index:10002`), `high` → error toast.
+
+**Note:** Safety cannot block sphere activation — it warns. The user always has final say. Safety is a monitor, not a gatekeeper.
+
+---
+
+## Link Tab
+
+The **Link** tab in the sphere list (`liste.js`) handles loading any URL as a sphere or theme directly, without going through the PR/merge flow.
+
+### Sphere from raw GitHub URL
+
+```
+Tab: Link → Type: Sphere → Pill: 🐙 GitHub Raw
+Input: theodoreyong9/YourMinedApp/main/src/social.sphere.js
+→ resolved: https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/social.sphere.js
+```
+
+The sphere JS is fetched, executed, registered in `window.YM_S`, and activated via `YM.activateSphere()`.
+
+### External app as sphere
+
+```
+Tab: Link → Type: Sphere → Pill: ⚡ Bolt
+Input: sb1-abc123
+→ resolved: https://stackblitz.com/edit/sb1-abc123?embed=1&view=preview
+```
+
+An iframe sphere is created automatically. The app runs in an isolated frame with access to the YourMine bridge.
+
+### Theme from URL
+
+```
+Tab: Link → Type: Theme → Pill: 🐙 GitHub Raw
+Input: keanuji/YourMinedApp/main/src/themes/neural.html
+→ sets ym_theme_url, reloads
+```
+
+**Supported platforms:** Bolt/StackBlitz, Replit, CodeSandbox, GitHub Pages, GitHub Raw, direct URL.
+
+---
+
+## Ownership Transfer
+
+When publishing or updating a sphere/theme via the **Publish** panel, an optional "Transfer ownership to @github-user" field is available.
+
+**Effect:** sets `owner` field in `files.json` (spheres) or `themes-files.json` (themes). The `owner` can modify the entry in future submissions. The `ghAuthor` (original author) is preserved for scoring and ranking — it never changes.
+
+```json
+{
+  "filename":  "mysphere.sphere.js",
+  "ghAuthor":  "original-author",
+  "owner":     "new-owner",
+  "codeUrl":   "https://raw.githubusercontent.com/new-owner/..."
+}
+```
+
+**Permission check order:** `ghAuthor === username` OR `owner === username` OR `author (wallet) === pubkey`.
+
+---
 
 ### Sphere deactivation flow
 
