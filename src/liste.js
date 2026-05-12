@@ -294,12 +294,7 @@ async function renderThemesContent(container){
   const themeHintEl=container.querySelector('#theme-raw-hint');
   const themeRawInp=container.querySelector('#theme-raw-input');
   if(themePillsEl){
-    // Pour les thèmes : GitHub raw + URL directe surtout
-    [{id:'ghraw',label:'GitHub Raw',icon:'🐙',hint:'user/repo/branch/file.html',
-       resolve:id=>'https://raw.githubusercontent.com/'+id},
-     {id:'url',label:'URL directe',icon:'🌐',hint:'https://montheme.html',
-       resolve:id=>(/^https?:\/\//i.test(id)?id:'https://'+id)}
-    ].forEach(p=>{
+    PLATFORMS.forEach(p=>{
       const pill=document.createElement('span');
       pill.className='pill';
       pill.style.cssText='cursor:pointer;font-size:10px';
@@ -308,7 +303,10 @@ async function renderThemesContent(container){
         themePillsEl.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
         pill.classList.toggle('active');
         if(themeRawInp)themeRawInp.placeholder=p.hint;
-        if(themeHintEl)themeHintEl.textContent='';
+        if(themeHintEl){
+          const v=themeRawInp?.value.trim();
+          themeHintEl.textContent=v?'→ '+p.resolve(v):'';
+        }
       });
       themePillsEl.appendChild(pill);
     });
@@ -323,15 +321,17 @@ async function renderThemesContent(container){
     });
   }
 
-  // Apply custom URL
   container.querySelector('#theme-raw-btn')?.addEventListener('click',()=>{
     const inp=container.querySelector('#theme-raw-input');
     let url=(inp?inp.value:'').trim();
     if(!url)return;
+    // Utilise _resolveExtURL pour supporter toutes les plateformes
+    url=_resolveExtURL(url)||url;
+    // Pour les thèmes .html GitHub : convertit les URLs blob en raw
     url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
     localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');
     window.YM_toast?.('Thème — rechargement…','success');
-    setTimeout(()=>location.reload(),1200);
+    setTimeout(()=>{if(window._YM_softReload)window._YM_softReload();else location.reload();},400);
   });
 
   // Pills types themes
