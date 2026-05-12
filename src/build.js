@@ -399,6 +399,7 @@ function renderSphereTab(body){
         '</div>'+
         '<textarea id="min-desc" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
         '<input id="min-url" class="ym-input" placeholder="Raw URL du vrai code (optionnel)" style="font-size:11px;margin-bottom:6px">'+
+        '<input id="min-owner" class="ym-input" placeholder="Transférer ownership à @github-user (optionnel)" style="font-size:11px;margin-bottom:6px">'+
         '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">'+
           '<input type="checkbox" id="min-wip" checked> 🚧 Under construction (badge)</label>';
     }
@@ -554,7 +555,7 @@ async function submitMinimal(area){
     const existing=files.find(f=>f.filename===filename);
     if(!existing&&!pubkey)throw new Error('Wallet requis pour un nouveau fichier');
     if(existing){
-      const ok=existing.ghAuthor===username||(pubkey&&existing.author===pubkey);
+      const ok=existing.ghAuthor===username||existing.owner===username||(pubkey&&existing.author===pubkey);
       if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));
     }
 
@@ -651,7 +652,7 @@ window.YM_S['${filename}'] = {
       sigB64=btoa(String.fromCharCode(...Array.from(sig)));
     }
     const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp,
-              score:claimable,laps:curLaps,codeUrl,wip};
+              score:claimable,laps:curLaps,codeUrl,wip,...(newOwner?{transferTo:newOwner}:{})};
     await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
 
     await new Promise(r=>setTimeout(r,2000));
@@ -799,7 +800,7 @@ async function submitCodeForm(body){
     const files=await fetchFilesJson(true);
     const existing=files.find(f=>f.filename===filename);
     if(!existing&&!pubkey)throw new Error('Wallet requis pour nouveau fichier');
-    if(existing){const ok=existing.ghAuthor===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
+    if(existing){const ok=existing.ghAuthor===username||existing.owner===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
     if(!existing){const elig=await computeEligibility();if(elig&&!elig.eligible)throw new Error('Score insuffisant');}
     const nonce=uuid(),timestamp=Math.floor(Date.now()/1000);
     const state=window._mineState||{};
@@ -1061,7 +1062,7 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       const files=await fetchFilesJson(true);
       const existing=files.find(f=>f.filename===filename);
       if(!existing&&!pubkey)throw new Error('Wallet requis pour nouveau fichier');
-      if(existing){const ok=existing.ghAuthor===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
+      if(existing){const ok=existing.ghAuthor===username||existing.owner===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
       if(!existing){const elig=await computeEligibility();if(elig&&!elig.eligible)throw new Error('Score insuffisant');}
       const nonce=uuid(),ts=Math.floor(Date.now()/1000);
       const state=window._mineState||{};
@@ -1139,6 +1140,7 @@ async function submitMinimalFromArea(body,codeArea){
   const cat=(codeArea.querySelector('#min-cat')?.value||'').trim()||'Other';
   const desc=(codeArea.querySelector('#min-desc')?.value||'').trim().slice(0,140);
   const rawUrl=(codeArea.querySelector('#min-url')?.value||'').trim();
+  const newOwner=(codeArea.querySelector('#min-owner')?.value||'').trim().replace('@','');
   const wip=codeArea.querySelector('#min-wip')?.checked||false;
   const filename=nameRaw.replace(/\.sphere\.js$/,'')+'.sphere.js';
   const token=_userToken.value,username=_userToken.username;
@@ -1149,7 +1151,7 @@ async function submitMinimalFromArea(body,codeArea){
     const files=await fetchFilesJson(true);
     const existing=files.find(f=>f.filename===filename);
     if(!existing&&!pubkey)throw new Error('Wallet requis pour nouveau fichier');
-    if(existing){const ok=existing.ghAuthor===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
+    if(existing){const ok=existing.ghAuthor===username||existing.owner===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
     const codeUrl=rawUrl||('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/'+filename);
     const sphereCode=rawUrl
       ? `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nconst _U='${rawUrl.replace(/'/g,"\\'")}';\nlet _ok=false;\nwindow.YM_S['${filename.replace(/'/g,"\\'")}']={name:'${nameRaw.replace(/'/g,"\\'")}',icon:'${icon.replace(/'/g,"\\'")}',category:'${cat.replace(/'/g,"\\'")}',description:'${desc.replace(/'/g,"\\'")}',${wip?'wip:true,':''}codeUrl:_U,\nasync activate(ctx){if(_ok)return;_ok=true;try{const r=await fetch(_U+'?t='+Date.now(),{cache:'no-store'});const code=await r.text();const b=new Blob([code],{type:'text/javascript'});const u=URL.createObjectURL(b);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>{URL.revokeObjectURL(u);res();};s.onerror=()=>{URL.revokeObjectURL(u);rej();};document.head.appendChild(s);});const real=window.YM_S&&window.YM_S['${filename.replace(/'/g,"\\'")}'];if(real&&real!==this&&real.activate)await real.activate(ctx);}catch(e){ctx.toast('Load error: '+e.message,'error');}},\ndeactivate(){_ok=false;},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px;text-align:center;color:var(--text3)\">Loading…</div>';},\n};\n})();`
