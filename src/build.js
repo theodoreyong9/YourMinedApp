@@ -185,12 +185,14 @@ function renderBuildContent(body){
     nameTypeStep.querySelector('#type-sphere').style.cssText='background:rgba(240,168,48,.1);border:none;color:var(--gold);font-size:10px;padding:4px 10px;cursor:pointer';
     nameTypeStep.querySelector('#type-theme').style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer';
     _checkName();codeStepEl.style.display='';
+    renderCodeAreaMain();
   });
   nameTypeStep.querySelector('#type-theme').addEventListener('click',()=>{
     _pubType='theme';extEl.textContent='.theme.html';
     nameTypeStep.querySelector('#type-theme').style.cssText='background:rgba(8,224,248,.1);border:none;color:var(--cyan);font-size:10px;padding:4px 10px;cursor:pointer';
     nameTypeStep.querySelector('#type-sphere').style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer';
     _checkName();codeStepEl.style.display='';
+    renderCodeAreaMain();
   });
 
   // ÉTAPE Wallet (conditionnel)
@@ -236,7 +238,7 @@ function renderBuildContent(body){
     codeHead.querySelector('#mode-quick-main').style.cssText='font-size:9px;padding:3px 8px;'+(!isCode?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
 
     if(isCode){
-      const ph=_pubType==='theme'?'<!-- Thème HTML complet avec tout le DOM requis... -->':'/* window.YM_S[\'name.sphere.js\'] = { ... } */';
+      const ph=_pubType==='theme'?'<!-- HTML theme code -->\n<!-- Visit github.com/theodoreyong9/YourMinedApp for examples -->':'/* Visit github.com/theodoreyong9/YourMinedApp for sphere examples */';
       codeAreaEl.innerHTML=
         '<textarea id="pub-code-main" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="'+ph+'"></textarea>'+
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">'+
@@ -264,8 +266,8 @@ function renderBuildContent(body){
           '<input id="th-icon-main" class="ym-input" placeholder="Icon preview (emoji ou URL image)" style="font-size:12px;margin-bottom:6px">'+
           '<textarea id="th-desc-main" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
           '<input id="th-raw-main" class="ym-input" placeholder="Raw URL du fichier HTML du thème" style="font-size:11px;margin-bottom:6px">'+
-          '<textarea id="th-photos-main" class="ym-input" rows="2" placeholder="URLs photos (une par ligne, optionnel)" style="font-size:10px;margin-bottom:4px"></textarea>'+
-          '<textarea id="th-videos-main" class="ym-input" rows="1" placeholder="URLs vidéos (une par ligne, optionnel)" style="font-size:10px;margin-bottom:6px"></textarea>'+
+          '<textarea id="th-photos-main" class="ym-input" rows="4" placeholder="Photos URLs (max 15, une par ligne)" style="font-size:10px;margin-bottom:4px"></textarea>'+
+          '<textarea id="th-videos-main" class="ym-input" rows="2" placeholder="Videos URLs (max 15, une par ligne)" style="font-size:10px;margin-bottom:6px"></textarea>'+
           '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
       }
     }
@@ -1106,7 +1108,12 @@ st('Push thème…');await ghPush(token,username,themeFilePath,themeCode,'theme:
       await ghPush(token,username,'src/themes/index.json',JSON.stringify(idx,null,2),'theme index: '+filename2);
       let themeFiles=[];
       try{const rt=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/themes-files.json?t='+Date.now());if(rt.ok)themeFiles=await rt.json();}catch{}
-      const entry2={filename:filename2,name:filename2.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\w/g,c=>c.toUpperCase()),icon:icon2,description:desc2,ghAuthor:username,codeUrl:codeUrl2,wip,timestamp:Math.floor(Date.now()/1000)};
+      const photosRaw=(codeAreaEl.querySelector('#th-photos-main')?.value||'').trim();
+      const videosRaw=(codeAreaEl.querySelector('#th-videos-main')?.value||'').trim();
+      const mediaPhotos=photosRaw?photosRaw.split('\n').map(u=>u.trim()).filter(Boolean).slice(0,15):[];
+      const mediaVideos=videosRaw?videosRaw.split('\n').map(u=>u.trim()).filter(Boolean).slice(0,15):[];
+      const media2=(mediaPhotos.length||mediaVideos.length)?{photos:mediaPhotos,videos:mediaVideos}:undefined;
+      const entry2={filename:filename2,name:filename2.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\w/g,c=>c.toUpperCase()),icon:icon2,description:desc2,ghAuthor:username,codeUrl:codeUrl2,wip,timestamp:Math.floor(Date.now()/1000),...(media2?{media:media2}:{})};
       const ei=themeFiles.findIndex(t=>t.filename===filename2);
       if(ei>=0)themeFiles[ei]=Object.assign({},themeFiles[ei],entry2);else themeFiles.push(entry2);
       await ghPush(token,username,'themes-files.json',JSON.stringify(themeFiles,null,2),'themes-files: '+filename2);
