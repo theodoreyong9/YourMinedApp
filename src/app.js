@@ -872,6 +872,13 @@
 
   async function activateSphere(name, obj) {
     if (window.YM_sphereRegistry.has(name)) return;
+
+    // Dispatch avant activation — Safety peut écouter et prévenir
+    if (!MANDATORY_SPHERES.includes(name)) {
+      window.dispatchEvent(new CustomEvent('ym:sphere-before-activate', {
+        detail: { filename: name, author: obj.ghAuthor||'', code: obj._sourceCode||'' }
+      }));
+    }
     const ctx = mkCtx(name);
     obj._ctx = ctx;
     window.YM_sphereRegistry.set(name, obj);
