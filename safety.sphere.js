@@ -20,111 +20,40 @@ const ENABLED_KEY = 'ym_safety_enabled';
 
 function isEnabled(){ return localStorage.getItem(ENABLED_KEY) !== '0'; }
 function setEnabled(v){ localStorage.setItem(ENABLED_KEY, v ? '1' : '0'); }
-// Le LLM tourne dans un Worker séparé — UI jamais bloquée
-const WORKER_CODE = `
-import { CreateMLCEngine } from "${WEBLLM_CDN}";
+// ── WebLLM via dynamic import (thread principal) ─────────────────────────────
+// Worker blob + ES module import = bloqué sur Android Chrome
+// Dynamic import() dans le thread principal avec progression native
 
-let engine = null;
-let ready  = false;
-
-self.onmessage = async (e) => {
-  const { id, type, payload } = e.data;
-
-  if (type === 'load') {
-    try {
-      engine = await CreateMLCEngine("${MODEL_ID}", {
-        initProgressCallback: (p) => {
-          self.postMessage({ id, type: 'progress', progress: p.progress, text: p.text });
-        }
-      });
-      ready = true;
-      self.postMessage({ id, type: 'ready' });
-    } catch(e) {
-      self.postMessage({ id, type: 'error', msg: e.message });
-    }
-    return;
-  }
-
-  if (type === 'analyze' && ready) {
-    try {
-      const reply = await engine.chat.completions.create({
-        messages: [
-          { role: 'system', content: \`You are a security assistant for a decentralized web app.
-Analyze the user action and respond with JSON only:
-{"risk": "none"|"low"|"medium"|"high", "reason": "one short sentence"}\` },
-          { role: 'user', content: payload.prompt }
-        ],
-        max_tokens: 80,
-        temperature: 0.1,
-      });
-      const text = reply.choices[0].message.content.trim();
-      // Parse JSON robuste
-      const match = text.match(/\\{[^}]+\\}/);
-      const result = match ? JSON.parse(match[0]) : { risk: 'none', reason: '' };
-      self.postMessage({ id, type: 'result', result });
-    } catch(e) {
-      // En cas d'erreur d'analyse → ne pas bloquer l'action
-      self.postMessage({ id, type: 'result', result: { risk: 'none', reason: '' } });
-    }
-    return;
-  }
-
-  // Worker pas prêt → laisse passer
-  self.postMessage({ id, type: 'result', result: { risk: 'none', reason: '' } });
-};
-`;
-
-// ── Gestion du Worker ─────────────────────────────────────────────────────────
-let _worker   = null;
-let _ready    = false;
-let _loading  = false;
-let _msgId    = 0;
-const _pending = new Map();
-
-function _initWorker() {
-  if (_worker) return;
-  const blob = new Blob([WORKER_CODE], { type: 'application/javascript' });
-  const url  = URL.createObjectURL(blob);
-  _worker = new Worker(url, { type: 'module' });
-  _worker.onmessage = (e) => {
-    const { id, type, progress, text, result, msg } = e.data;
-    if (type === 'progress') {
-      window.dispatchEvent(new CustomEvent('ym:safety-progress', {
-        detail: { progress, text }
-      }));
-      return;
-    }
-    const cb = _pending.get(id);
-    if (cb) { _pending.delete(id); cb({ type, result, msg }); }
-  };
-}
-
-function _send(type, payload) {
-  return new Promise((resolve) => {
-    const id = ++_msgId;
-    _pending.set(id, resolve);
-    _worker.postMessage({ id, type, payload });
-  });
-}
+let _engine  = null;
+let _ready   = false;
+let _loading = false;
 
 async function loadModel(onProgress) {
   if (_ready) return true;
   if (_loading) return false;
+  if (!isEnabled()) return false;
   _loading = true;
-  _initWorker();
-  if (onProgress) {
-    const handler = (e) => onProgress(e.detail);
-    window.addEventListener('ym:safety-progress', handler, { once: false });
-    const res = await _send('load', {});
-    window.removeEventListener('ym:safety-progress', handler);
+  try {
+    const webllm = await import(WEBLLM_CDN);
+    _engine = await webllm.CreateMLCEngine(MODEL_ID, {
+      initProgressCallback: (p) => {
+        const detail = { progress: p.progress || 0, text: p.text || '' };
+        if (onProgress) onProgress(detail);
+        window.dispatchEvent(new CustomEvent('ym:safety-progress', { detail }));
+      }
+    });
+    _ready   = true;
     _loading = false;
-    if (res.type === 'ready') { _ready = true; localStorage.setItem(MODEL_KEY, '1'); return true; }
+    localStorage.setItem(MODEL_KEY, '1');
+    return true;
+  } catch(e) {
+    console.error('[Safety] loadModel:', e.message);
+    _loading = false;
+    window.dispatchEvent(new CustomEvent('ym:safety-progress', {
+      detail: { progress: 0, text: 'Error: ' + e.message, error: true }
+    }));
     return false;
   }
-  const res = await _send('load', {});
-  _loading = false;
-  if (res.type === 'ready') { _ready = true; localStorage.setItem(MODEL_KEY, '1'); return true; }
-  return false;
 }
 
 // ── Toast Safety haute priorité ───────────────────────────────────────────────
@@ -155,19 +84,29 @@ function safetyToast(msg, level){
   },4000);
 }
 async function analyze(actionType, context) {
-  if (!_ready || !isEnabled()) return { risk: 'none', reason: '' };
-
-  const prompts = {
-    external_app: `User is about to load an external web app from: "${context.url}"\nApp name: "${context.name}"\nIs this URL potentially dangerous, phishing, or suspicious?`,
-    sphere_code:  `A sphere JavaScript file is being activated.\nFilename: "${context.filename}"\nAuthor: "${context.author}"\nCode preview (first 500 chars): ${context.code?.slice(0,500)}\nDoes this code contain suspicious patterns (eval, crypto mining, data exfiltration)?`,
-    transaction:  `User is about to sign a Solana transaction.\nAmount: ${context.amount} SOL\nDestination: ${context.destination}\nProgram: ${context.program}\nIs this transaction suspicious?`,
-    profile_share:`User is about to share their profile with UUID: ${context.uuid}\nWith peer: ${context.peer}\nContext: ${context.context}\nIs there any risk?`,
-    url:          `User is about to navigate to URL: "${context.url}"\nContext: ${context.context}\nIs this URL potentially dangerous?`,
-  };
-
-  const prompt = prompts[actionType] || `Action: ${actionType}\nContext: ${JSON.stringify(context)}\nIs there any security risk?`;
-  const res = await _send('analyze', { prompt });
-  return res.result || { risk: 'none', reason: '' };
+  if (!_ready || !isEnabled() || !_engine) return { risk: 'none', reason: '' };
+  try {
+    const prompts = {
+      external_app: `URL: "${context.url}" app: "${context.name}". Phishing or dangerous?`,
+      sphere_code:  `Sphere "${context.filename}" by "${context.author}". Code: ${(context.code||'').slice(0,300)}. Suspicious?`,
+      transaction:  `Solana tx ${context.amount} SOL to ${context.destination}. Suspicious?`,
+      profile_share:`Profile share with ${context.peer}. Risk?`,
+      url:          `URL: "${context.url}". Dangerous?`,
+    };
+    const prompt = prompts[actionType] || `${actionType}: ${JSON.stringify(context)}. Risk?`;
+    const reply = await _engine.chat.completions.create({
+      messages: [
+        { role: 'system', content: 'Security assistant. Respond JSON only: {"risk":"none"|"low"|"medium"|"high","reason":"short sentence"}' },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 60, temperature: 0.1,
+    });
+    const text = reply.choices[0].message.content.trim();
+    const m = text.match(/\{[^}]+\}/);
+    return m ? JSON.parse(m[0]) : { risk: 'none', reason: '' };
+  } catch(e) {
+    return { risk: 'none', reason: '' };
+  }
 }
 
 // ── Intercepte les actions YourMine ───────────────────────────────────────────
@@ -263,7 +202,7 @@ function renderPanel(container) {
     if (!newVal) {
       // Désactive — vide le worker
       _ready = false;
-      if (_worker) { _worker.terminate(); _worker = null; }
+      _engine = null;
     } else if (localStorage.getItem(MODEL_KEY)) {
       // Réactive — recharge le modèle si déjà téléchargé
       loadModel().then(() => { if (_ready) setupInterceptors(); });
@@ -403,8 +342,8 @@ window.YM_S[SPHERE_NAME] = {
   },
 
   deactivate() {
-    // Restore original functions si interceptées
     _ready = false;
+    _engine = null;
   },
 
   profileSection(container) {
