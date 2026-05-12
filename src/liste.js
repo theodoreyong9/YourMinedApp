@@ -203,6 +203,38 @@ async function render(containerArg){
 const THEMES_FILES_URL = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
 let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='Theme';
 
+// Plateformes supportées pour apps externes
+const PLATFORMS=[
+  {id:'bolt',       label:'Bolt',         icon:'⚡', hint:'ID ex: sb1-abc123',
+   resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
+  {id:'replit',     label:'Replit',        icon:'🔁', hint:'@user/repl-name',
+   resolve:id=>{const m=id.match(/^@?([\w-]+)\/([\w-]+)$/);return m?'https://'+m[2]+'.'+m[1]+'.repl.co':'https://replit.com/'+id;}},
+  {id:'codesandbox',label:'CodeSandbox',   icon:'📦', hint:'ID ex: r3f-game-abc123',
+   resolve:id=>'https://codesandbox.io/embed/'+id+'?fontsize=14&hidenavigation=1&theme=dark'},
+  {id:'stackblitz', label:'StackBlitz',    icon:'⚡', hint:'ID ex: vitejs-vite-abc123',
+   resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
+  {id:'ghpages',    label:'GitHub Pages',  icon:'🐙', hint:'user/repo',
+   resolve:id=>{const p=id.split('/');return'https://'+p[0]+'.github.io/'+(p.slice(1).join('/')||'')}},
+  {id:'url',        label:'URL directe',   icon:'🌐', hint:'https://monapp.com',
+   resolve:id=>(/^https?:\/\//i.test(id)?id:'https://'+id)},
+];
+
+let _selPlatform=null;
+
+function _resolveExtURL(input){
+  input=(input||'').trim();if(!input)return null;
+  if(/^https?:\/\//i.test(input)&&!_selPlatform)return input;
+  if(_selPlatform){const p=PLATFORMS.find(x=>x.id===_selPlatform);if(p)return p.resolve(input);}
+  // Auto-détection
+  if(input.includes('stackblitz.com')||input.includes('bolt.new'))return input+'?embed=1&view=preview';
+  if(input.includes('replit.com')||input.includes('.repl.co'))return input;
+  if(input.includes('codesandbox.io'))return input.replace('/s/','/embed/');
+  if(input.includes('github.io'))return input;
+  if(/^@?[\w-]+\/[\w-]+$/.test(input)){const p2=input.split('/');return'https://'+p2[0].replace('@','')+'.github.io/'+p2[1];}
+  if(/^[\w-]+$/.test(input))return'https://stackblitz.com/edit/'+input+'?embed=1&view=preview';
+  return'https://'+input;
+}
+
 async function fetchThemesList(force){
   if(_themesList&&!force)return _themesList;
   try{
@@ -235,9 +267,13 @@ async function renderThemesContent(container){
         '<input class="ym-input" id="theme-search" placeholder="Search themes…" style="flex:1;font-size:11px">'+
         '<button class="ym-btn ym-btn-ghost" id="theme-url-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Appliquer par URL">↗</button>'+
       '</div>'+
-      '<div id="theme-url-row" style="display:none;gap:6px;align-items:center">'+
-        '<input class="ym-input" id="theme-raw-input" placeholder="GitHub raw URL d\'un thème…" style="flex:1;font-size:11px">'+
-        '<button class="ym-btn ym-btn-ghost" id="theme-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
+      '<div id="theme-url-row" style="display:none;flex-direction:column;gap:8px;padding:8px 0">'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap" id="theme-platform-pills"></div>'+
+        '<div style="display:flex;gap:6px;align-items:center">'+
+          '<input class="ym-input" id="theme-raw-input" placeholder="GitHub raw URL ou ID plateforme…" style="flex:1;font-size:11px">'+
+          '<button class="ym-btn ym-btn-ghost" id="theme-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
+        '</div>'+
+        '<div id="theme-raw-hint" style="font-size:10px;color:var(--text3);min-height:14px"></div>'+
       '</div>'+
     '</div>';
 
@@ -249,6 +285,40 @@ async function renderThemesContent(container){
       const open=urlRow.style.display!=='none';
       urlRow.style.display=open?'none':'flex';
       urlToggle.style.color=open?'':'var(--cyan)';
+    });
+  }
+
+  // Platform pills pour themes
+  const themePillsEl=container.querySelector('#theme-platform-pills');
+  const themeHintEl=container.querySelector('#theme-raw-hint');
+  const themeRawInp=container.querySelector('#theme-raw-input');
+  if(themePillsEl){
+    // Pour les thèmes : GitHub raw + URL directe surtout
+    [{id:'ghraw',label:'GitHub Raw',icon:'🐙',hint:'user/repo/branch/file.html',
+       resolve:id=>'https://raw.githubusercontent.com/'+id},
+     {id:'url',label:'URL directe',icon:'🌐',hint:'https://montheme.html',
+       resolve:id=>(/^https?:\/\//i.test(id)?id:'https://'+id)}
+    ].forEach(p=>{
+      const pill=document.createElement('span');
+      pill.className='pill';
+      pill.style.cssText='cursor:pointer;font-size:10px';
+      pill.textContent=p.icon+' '+p.label;
+      pill.addEventListener('click',()=>{
+        themePillsEl.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+        pill.classList.toggle('active');
+        if(themeRawInp)themeRawInp.placeholder=p.hint;
+        if(themeHintEl)themeHintEl.textContent='';
+      });
+      themePillsEl.appendChild(pill);
+    });
+  }
+  if(themeRawInp&&themeHintEl){
+    themeRawInp.addEventListener('input',()=>{
+      const v=themeRawInp.value.trim();
+      if(!v){themeHintEl.textContent='';return;}
+      let resolved=v;
+      if(!/^https?:\/\//i.test(v))resolved='https://raw.githubusercontent.com/'+v;
+      themeHintEl.textContent=resolved!==v?'→ '+resolved:'';
     });
   }
 
@@ -496,26 +566,6 @@ function renderSpheresContent(container){
   }
 
   // ── Platform picker ───────────────────────────────────────────────────────
-  const PLATFORMS=[
-    {id:'bolt',      label:'Bolt',         icon:'⚡', hint:'ID ex: sb1-abc123',
-     resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
-    {id:'replit',    label:'Replit',        icon:'🔁', hint:'@user/repl-name',
-     resolve:id=>{
-       // @user/repl → https://repl-name--user.repl.co ou replit.com/@user/repl
-       const m=id.match(/^@?([\w-]+)\/([\w-]+)$/);
-       return m?'https://'+m[2]+'.'+m[1]+'.repl.co':'https://replit.com/'+id;
-     }},
-    {id:'codesandbox',label:'CodeSandbox', icon:'📦', hint:'ID ex: r3f-game-abc123',
-     resolve:id=>'https://codesandbox.io/embed/'+id+'?fontsize=14&hidenavigation=1&theme=dark'},
-    {id:'stackblitz', label:'StackBlitz',  icon:'⚡', hint:'ID ex: vitejs-vite-abc123',
-     resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
-    {id:'ghpages',   label:'GitHub Pages', icon:'🐙', hint:'user/repo ou user/repo/path',
-     resolve:id=>{const p=id.split('/');return'https://'+p[0]+'.github.io/'+(p.slice(1).join('/')||'');}},
-    {id:'url',       label:'URL directe',  icon:'🌐', hint:'https://monapp.com',
-     resolve:id=>id.startsWith('http')?id:'https://'+id},
-  ];
-
-  let _selPlatform=null;
   const pillsEl=container.querySelector('#sphere-platform-pills');
   const hintEl=container.querySelector('#sphere-raw-hint');
   const rawInput2=container.querySelector('#sphere-raw-url');
@@ -523,7 +573,7 @@ function renderSpheresContent(container){
   if(pillsEl){
     PLATFORMS.forEach(p=>{
       const pill=document.createElement('span');
-      pill.className='pill';
+      pill.className='pill'+((_selPlatform===p.id)?' active':'');
       pill.style.cssText='cursor:pointer;font-size:10px;display:flex;align-items:center;gap:3px';
       pill.innerHTML=p.icon+' '+p.label;
       pill.addEventListener('click',()=>{
@@ -543,43 +593,11 @@ function renderSpheresContent(container){
     });
   }
 
-  // Résout l'URL finale depuis l'input et la plateforme sélectionnée
-  function _resolveURL(input){
-    input=(input||'').trim();
-    if(!input)return null;
-    // Si URL complète et aucune plateforme sélectionnée → URL directe
-    if(/^https?:\/\//i.test(input)&&!_selPlatform)return input;
-    // Plateforme sélectionnée → résout l'ID
-    if(_selPlatform){
-      const p=PLATFORMS.find(x=>x.id===_selPlatform);
-      if(p)return p.resolve(input);
-    }
-    // Auto-détection si pas de plateforme sélectionnée
-    if(input.includes('stackblitz.com')||input.includes('bolt.new'))
-      return input.replace('stackblitz.com/edit/','stackblitz.com/edit/')+'?embed=1&view=preview';
-    if(input.includes('replit.com')||input.includes('.repl.co'))return input;
-    if(input.includes('codesandbox.io'))return input.replace('/s/','/embed/');
-    if(input.includes('github.io'))return input;
-    // Patterns d'ID
-    if(/^@?[\w-]+\/[\w-]+$/.test(input)){
-      // user/repo → GitHub Pages ou Replit selon contexte
-      const p2=input.split('/');
-      return'https://'+p2[0].replace('@','')+'.github.io/'+p2[1];
-    }
-    // ID seul → Bolt/StackBlitz par défaut
-    if(/^[\w-]+$/.test(input))
-      return'https://stackblitz.com/edit/'+input+'?embed=1&view=preview';
-    return'https://'+input;
-  }
-
-  // Mise à jour du hint en temps réel
   if(rawInput2){
     rawInput2.addEventListener('input',()=>{
       if(!hintEl)return;
-      const resolved=_resolveURL(rawInput2.value);
-      if(resolved&&resolved!==rawInput2.value)
-        hintEl.textContent='→ '+resolved;
-      else hintEl.textContent='';
+      const resolved=_resolveExtURL(rawInput2.value);
+      hintEl.textContent=(resolved&&resolved!==rawInput2.value)?'→ '+resolved:'';
     });
   }
 
@@ -589,7 +607,7 @@ function renderSpheresContent(container){
   if(rawBtn&&rawInput){
     const doActivate=async()=>{
       const input=rawInput.value.trim();if(!input)return;
-      const url=_resolveURL(input);
+      const url=_resolveExtURL(input);
       if(!url){window.YM_toast?.('URL invalide','error');return;}
       rawBtn.textContent='…';rawBtn.disabled=true;
       try{
@@ -776,7 +794,9 @@ function renderList(body){
 function _setInactive(fileName){setActiveSpheres(getActiveSpheres().filter(s=>s!==fileName));}
 
 window.YM_Liste={render,fetchSphereList,activateSphereByName,isSphereActive,_setInactive,
-  _forceRefresh(){_loaded=false;_sphereList=[];_fetchPromise=null;},
+  get _sphereList(){return _sphereList;},
+  get _themesList(){return _themesList;},
+  _forceRefresh(){_loaded=false;_sphereList=[];_fetchPromise=null;_themesList=null;_themesLoaded=false;},
   _searchAndOpen(term){_filterText=(term||'').toLowerCase();render();}
 };
 
