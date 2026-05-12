@@ -412,7 +412,7 @@ function flatIcons(items,max){
 
 function mkIcon(ic,isFolder){
   const w=document.createElement('div');w.className='icon-wrap';w.dataset.id=ic.id;
-  const MANDATORY=['social.sphere.js'];
+  const MANDATORY=['social.sphere.js','safety.sphere.js'];
   const del=document.createElement('div');del.className='icon-del';del.innerHTML='&times;';
   if(MANDATORY.includes(ic.id))del.className='icon-del icon-del-hidden';
   del.addEventListener('pointerdown',e=>{e.stopImmediatePropagation();e.stopPropagation();});
