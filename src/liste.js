@@ -284,6 +284,7 @@ async function renderThemesContent(container){
     urlToggle.addEventListener('click',()=>{
       const open=urlRow.style.display!=='none';
       urlRow.style.display=open?'none':'flex';
+      urlRow.style.flexDirection='column';
       urlToggle.style.color=open?'':'var(--cyan)';
     });
   }
