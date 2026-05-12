@@ -269,17 +269,9 @@ function renderPanel(container) {
       statusCard.innerHTML =
         '<div style="font-weight:600;font-size:13px;margin-bottom:10px">Loading model…</div>'+
         '<div id="safety-progress-bar" style="height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin-bottom:6px">'+
-          '<div id="safety-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--accent,#f0a830),var(--cyan,#08e0f8));width:0%;transition:width .3s"></div>'+
+          '<div id="safety-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--accent,#f0a830),var(--cyan,#08e0f8));width:2%;transition:width .3s"></div>'+
         '</div>'+
         '<div id="safety-progress-text" style="font-size:10px;color:var(--text3)">Initializing…</div>';
-
-      window.addEventListener('ym:safety-progress', (e) => {
-        const fill = document.getElementById('safety-progress-fill');
-        const txt  = document.getElementById('safety-progress-text');
-        if (fill) fill.style.width = Math.round((e.detail.progress||0)*100)+'%';
-        if (txt)  txt.textContent  = e.detail.text || '';
-        if (e.detail.progress >= 1) setTimeout(updateStatus, 500);
-      });
     } else {
       statusCard.innerHTML =
         '<div style="font-weight:600;font-size:13px;margin-bottom:6px">Safety Monitor</div>'+
@@ -295,10 +287,16 @@ function renderPanel(container) {
         if (btn) btn.onclick = async () => {
           _loading = true;
           updateStatus();
-          await loadModel();
+          await loadModel((p) => {
+            const fill = document.getElementById('safety-progress-fill');
+            const txt  = document.getElementById('safety-progress-text');
+            if (fill) fill.style.width = Math.round((p.progress||0)*100)+'%';
+            if (txt)  txt.textContent  = p.text || '';
+            if (p.error) txt && (txt.style.color='#ff4560');
+          });
+          _loading = false;
           updateStatus();
-          setupInterceptors();
-          renderPanel(container);
+          if (_ready) setupInterceptors();
         };
       }, 50);
     }
