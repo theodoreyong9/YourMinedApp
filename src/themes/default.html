@@ -81,9 +81,9 @@ body.edit-mode .icon-body{animation:wob .44s ease-in-out infinite}
 .folder-grid .fi .fi__img{width:16px;height:16px;object-fit:contain;border-radius:3px}
 #drag-ghost{position:fixed;pointer-events:none;z-index:9800;opacity:.68;transform:scale(1.18) rotate(5deg);display:none}
 .drag-ghost__body{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-#nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy)}
+#nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:rgba(6,6,18,.55);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border-top:1px solid rgba(255,255,255,.06);box-shadow:0 -1px 0 rgba(255,255,255,.04)}
 #nav-bar::after{content:'';position:absolute;bottom:calc(-1 * var(--safe-b));left:0;right:0;height:var(--safe-b);background:var(--glass-heavy)}
-body.has-wallpaper #nav-bar{background:rgba(0,0,0,.75)}
+body.has-wallpaper #nav-bar{background:rgba(0,0,0,.45)}
 /* PWA standalone: same style as web — glass + blur */
 #page-dots{position:fixed;bottom:calc(var(--dock-h) + var(--safe-b) + 10px);left:0;right:0;display:flex;gap:5px;align-items:center;justify-content:center;pointer-events:none;z-index:205}
 .pdot{width:4px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);transition:all .35s cubic-bezier(.4,0,.2,1)}
@@ -550,7 +550,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   <div class="panel-body" id="panel-spheres-body">Loading...</div>
 </div>
 <div class="ym-panel" id="panel-profile"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn ym-btn-ghost" style="margin-left:auto;padding:4px 8px;font-size:14px;min-height:unset">&#128279;</button></div><div class="panel-body" id="panel-profile-body"></div></div>
-<div class="ym-panel" id="panel-build"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body">Loading...</div></div>
+<div class="ym-panel" id="panel-build"><div class="panel-handle"></div><div class="panel-head"><h2>Publish</h2></div><div class="panel-body" id="panel-build-body">Loading...</div></div>
 <div class="ym-panel" id="panel-mine">
   <div class="panel-handle"></div>
   <div class="panel-head"><h2>YourMine</h2></div>
@@ -562,7 +562,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   </div>
   <div class="ym-tabs" id="mine-tabs-bar">
     <div class="ym-tab active" data-mine-tab="wallet">&#9935; Wallet</div>
-    <div class="ym-tab" data-mine-tab="build">&#9000; Build</div>
+    <div class="ym-tab" data-mine-tab="build">&#9000; Publish</div>
     <div class="ym-tab" data-mine-tab="liste">&#9633; Apps</div>
   </div>
 </div>
