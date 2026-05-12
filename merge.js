@@ -68,7 +68,7 @@ async function updateThemesJson(files, ghActor, forkOwner) {
   let themesJson = [];
   try { themesJson = safeParseJson(fs.readFileSync('themes-files.json', 'utf8')); } catch(e) {}
 
-  for (const { filename, codeUrl, icon, description, wip, score, laps, timestamp } of files.filter(f => f.filename && f.filename.endsWith('.theme.html'))) {
+  for (const { filename, codeUrl, icon, description, wip, score, laps, timestamp, transferTo } of files.filter(f => f.filename && f.filename.endsWith('.theme.html'))) {
     const forkRepo   = BASE_REPO.split('/')[1];
     const effectiveCU = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + forkRepo + '/main/' + filename);
 
@@ -102,8 +102,9 @@ async function updateThemesJson(files, ghActor, forkOwner) {
       timestamp: timestamp || Math.floor(Date.now() / 1000),
       merged_at: Math.floor(Date.now() / 1000)
     };
-
     const idx = themesJson.findIndex(t => t.filename === filename);
+    if (transferTo) entry.owner = transferTo;
+    else if (idx >= 0 && themesJson[idx]?.owner) entry.owner = themesJson[idx].owner;
     if (idx >= 0) {
       themesJson[idx] = Object.assign({}, themesJson[idx], entry);
       console.log('Updated theme', filename);
