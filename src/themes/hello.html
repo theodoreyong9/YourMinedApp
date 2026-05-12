@@ -302,6 +302,65 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
       <li>Users decide what becomes active</li>
     </ul>
     <p class="lp-p">The app layer is not centralized. It is emergent.</p>
+    <div class="lp-grid">
+      <div class="lp-card">
+        <div class="lp-card-icon">⬡</div>
+        <div class="lp-card-title">Spheres</div>
+        <div class="lp-card-text">Native JS apps living in the network. They run locally, share state via P2P, and expose a desktop icon and panel. Published via Build, scored by mining.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-icon">🎨</div>
+        <div class="lp-card-title">Themes</div>
+        <div class="lp-card-text">Full visual environments. Each theme owns its wallpaper collection, color system, and grid layout. Switchable via URL — <span style="font-family:var(--font-m);font-size:11px">/neural.theme</span>.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-icon">⚡</div>
+        <div class="lp-card-title">External Apps</div>
+        <div class="lp-card-text">Any web app — Bolt, Replit, Vercel, GitHub Pages — becomes a sphere instantly. Paste the URL. It runs in an isolated frame with full access to the YourMine bridge.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="lp-sep"></div>
+
+  <!-- APP RUNTIME + BRIDGE -->
+  <div class="lp lp-section">
+    <div class="lp-section-title">A universal app runtime</div>
+    <p class="lp-p">YourMine is a <span class="lp-strong">runtime layer</span> for the open web. Any app hosted anywhere can connect to it and access identity, P2P networking, and persistent storage — without touching the YourMine codebase.</p>
+    <div class="lp-formula-box">
+      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:16px">BRIDGE API — FROM YOUR APP</div>
+      <div style="text-align:left;font-family:var(--font-m);font-size:clamp(10px,1.4vw,12px);color:var(--text2);line-height:2">
+        <span style="color:var(--text3)">// Detect YourMine</span><br>
+        <span style="color:var(--cyan)">const</span> inYM = window.parent !== window;<br><br>
+        <span style="color:var(--text3)">// Receive profile on load</span><br>
+        window.addEventListener(<span style="color:var(--gold)">'message'</span>, e => {<br>
+        &nbsp;&nbsp;<span style="color:var(--cyan)">if</span> (e.data?.type === <span style="color:var(--gold)">'ym:ready'</span>)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;console.log(e.data.profile);<br>
+        });<br><br>
+        <span style="color:var(--text3)">// Toast, storage, P2P</span><br>
+        window.parent.postMessage({type:<span style="color:var(--gold)">'ym:toast'</span>, msg:<span style="color:var(--gold)">'Hello!'</span>}, <span style="color:var(--gold)">'*'</span>);<br>
+        window.parent.postMessage({type:<span style="color:var(--gold)">'ym:storage:set'</span>, key:<span style="color:var(--gold)">'score'</span>, value:<span style="color:var(--gold)">'42'</span>}, <span style="color:var(--gold)">'*'</span>);<br>
+        window.parent.postMessage({type:<span style="color:var(--gold)">'ym:p2p:broadcast'</span>, data:{x:1,y:2}}, <span style="color:var(--gold)">'*'</span>);
+      </div>
+    </div>
+    <div class="lp-grid">
+      <div class="lp-card">
+        <div class="lp-card-icon">👤</div>
+        <div class="lp-card-title">Identity</div>
+        <div class="lp-card-text">The app receives the user's YourMine profile on load — UUID, name, avatar, active spheres. Read-only. The user controls what is shared.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-icon">📡</div>
+        <div class="lp-card-title">P2P</div>
+        <div class="lp-card-text">Broadcast and receive messages across the YourMine P2P network. Your app becomes a real-time multiplayer experience without any backend.</div>
+      </div>
+      <div class="lp-card">
+        <div class="lp-card-icon">💾</div>
+        <div class="lp-card-title">Storage</div>
+        <div class="lp-card-text">Isolated key-value storage per app, scoped to the user's YourMine instance. Persistent across sessions. No database needed.</div>
+      </div>
+    </div>
+    <p class="lp-p" style="margin-top:16px">The bridge is silent outside YourMine. <span class="lp-strong">Your app runs normally everywhere else.</span> No SDK to install. No account to create. Paste a URL — it works.</p>
   </div>
 
   <div class="lp-sep"></div>
