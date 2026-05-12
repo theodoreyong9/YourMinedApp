@@ -112,48 +112,26 @@ async function analyze(actionType, context) {
 }
 
 // ── Intercepte les actions YourMine ───────────────────────────────────────────
-function setupInterceptors(ctx) {
-  // 1. App externe chargée via liste.js
-  const _origLoadSphere = window.YM?.loadSphereFromURL;
-  if (_origLoadSphere && window.YM) {
-    window.YM.loadSphereFromURL = async (url, name) => {
-      const isExternal = !url.includes('.sphere.js') && !url.includes('raw.githubusercontent.com');
-      if (isExternal && _ready) {
-        const result = await analyze('external_app', { url, name });
-        if (result.risk === 'high') {
-          const ok = await _confirm(`⚠️ High risk detected\n${result.reason}\n\nLoad anyway?`);
-          if (!ok) return null;
-        } else if (result.risk === 'medium') {
-          safetyToast(result.reason,'warn');
-        }
-      }
-      return _origLoadSphere(url, name);
-    };
-  }
-
-  // 2. Activation de sphère — analyse le code
+function setupInterceptors() {
   window.addEventListener('ym:sphere-before-activate', async (e) => {
-    if (!_ready) return;
+    if (!_ready || !isEnabled()) return;
     const { filename, author, code } = e.detail || {};
     const result = await analyze('sphere_code', { filename, author, code });
-    if (result.risk === 'high') {
-      e.preventDefault?.();
-      safetyToast('Sphere blocked: '+result.reason,'error');
-    } else if (result.risk === 'medium') {
-      safetyToast(result.reason,'warn');
-    }
+    if (result.risk === 'high') safetyToast('Sphere blocked: '+result.reason,'error');
+    else if (result.risk === 'medium') safetyToast(result.reason,'warn');
   });
-
-  // 3. Transaction Solana
   window.addEventListener('ym:before-transaction', async (e) => {
-    if (!_ready) return;
+    if (!_ready || !isEnabled()) return;
     const result = await analyze('transaction', e.detail || {});
-    if (result.risk === 'high') {
-      e.preventDefault?.();
-      safetyToast('Transaction blocked: '+result.reason,'error');
-    } else if (result.risk === 'medium') {
-      safetyToast(result.reason,'warn');
-    }
+    if (result.risk === 'high') safetyToast('Transaction blocked: '+result.reason,'error');
+    else if (result.risk === 'medium') safetyToast(result.reason,'warn');
+  });
+  window.addEventListener('ym:external-app-load', async (e) => {
+    if (!_ready || !isEnabled()) return;
+    const { url, name } = e.detail || {};
+    const result = await analyze('external_app', { url, name });
+    if (result.risk === 'high') safetyToast('App blocked: '+result.reason,'error');
+    else if (result.risk === 'medium') safetyToast(result.reason,'warn');
   });
 }
 
