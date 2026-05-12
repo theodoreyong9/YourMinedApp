@@ -30,7 +30,6 @@ let _loading = false;
 
 function _loadWebLLMScript() {
   return new Promise((resolve, reject) => {
-    // Si déjà chargé
     if (window.__webllm) { resolve(window.__webllm); return; }
     const s = document.createElement('script');
     s.type = 'module';
@@ -39,9 +38,11 @@ function _loadWebLLMScript() {
       window.__webllm = webllm;
       window.dispatchEvent(new CustomEvent('ym:webllm-ready'));
     `;
-    window.addEventListener('ym:webllm-ready', () => resolve(window.__webllm), { once: true });
-    s.onerror = reject;
+    const timeout = setTimeout(() => reject(new Error('WebLLM script timeout after 30s')), 30000);
+    window.addEventListener('ym:webllm-ready', () => { clearTimeout(timeout); resolve(window.__webllm); }, { once: true });
+    s.onerror = (e) => { clearTimeout(timeout); reject(new Error('Script load error: ' + (e.message||'unknown'))); };
     document.head.appendChild(s);
+    console.log('[Safety] WebLLM script injected, waiting for ym:webllm-ready...');
   });
 }
 
@@ -50,27 +51,36 @@ async function loadModel(onProgress) {
   if (_loading) return false;
   if (!isEnabled()) return false;
   _loading = true;
+
+  const updateProgress = (text, progress=0) => {
+    const detail = { progress, text };
+    if (onProgress) onProgress(detail);
+    window.dispatchEvent(new CustomEvent('ym:safety-progress', { detail }));
+    console.log('[Safety]', text, progress);
+  };
+
   try {
-    // 1. Charge la lib WebLLM via script tag (contourne la CSP blob)
+    updateProgress('Loading WebLLM library…', 0.02);
     const webllm = await _loadWebLLMScript();
-    // 2. Crée le moteur avec callback de progression
+    console.log('[Safety] WebLLM loaded, keys:', Object.keys(webllm));
+
+    if (!webllm.CreateMLCEngine) throw new Error('CreateMLCEngine not found in WebLLM');
+
+    updateProgress('Initializing engine…', 0.05);
     _engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: (p) => {
-        const detail = { progress: p.progress || 0, text: p.text || '' };
-        if (onProgress) onProgress(detail);
-        window.dispatchEvent(new CustomEvent('ym:safety-progress', { detail }));
+        updateProgress(p.text || 'Loading…', p.progress || 0);
       }
     });
     _ready   = true;
     _loading = false;
     localStorage.setItem(MODEL_KEY, '1');
+    updateProgress('Ready ✓', 1);
     return true;
   } catch(e) {
-    console.error('[Safety] loadModel:', e.message);
+    console.error('[Safety] loadModel FAILED:', e);
     _loading = false;
-    window.dispatchEvent(new CustomEvent('ym:safety-progress', {
-      detail: { progress: 0, text: 'Error: ' + e.message, error: true }
-    }));
+    updateProgress('Error: ' + e.message, 0);
     return false;
   }
 }
