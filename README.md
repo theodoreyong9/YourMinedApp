@@ -13,7 +13,9 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [Architecture Overview](#architecture-overview)
 - [Sphere API Specification](#sphere-api-specification)
 - [Theme API Specification](#theme-api-specification)
+- [External Apps & Bridge API](#external-apps--bridge-api)
 - [Runtime Cycle & Lifecycle](#runtime-cycle--lifecycle)
+- [URL Routing](#url-routing)
 - [Permissions & Security Model](#permissions--security-model)
 - [File Format Standards](#file-format-standards)
 - [Deployment](#deployment)
@@ -619,6 +621,102 @@ icon-splash-dark.png
 # 3. Your instance runs at https://yourusername.github.io/YourMinedApp
 # 4. Customize themes, publish spheres, connect to the same Nostr relays
 ```
+
+---
+
+## External Apps & Bridge API
+
+Any web app hosted anywhere (Bolt, Replit, Vercel, GitHub Pages, custom URL) can be loaded as a sphere in YourMine. No code changes needed on the main repo.
+
+### How to add an external app
+
+In the Apps list (↗ button), paste any URL or ID:
+
+| Platform | Input | Example |
+|---|---|---|
+| Bolt / StackBlitz | Project ID | `sb1-abc123` |
+| Replit | `@user/repl` | `@alice/my-game` |
+| CodeSandbox | Sandbox ID | `r3f-physics-abc` |
+| GitHub Pages | `user/repo` | `alice/my-app` |
+| Any URL | Full URL | `https://myapp.vercel.app` |
+
+The app opens as a fullscreen panel with a desktop icon, exactly like a native sphere.
+
+### Bridge postMessage API
+
+YourMine automatically sends `ym:ready` to the iframe 300ms after load. The app can then communicate with YourMine via `postMessage`:
+
+```js
+// ── Detect YourMine ──────────────────────────────────────────────────────────
+const isInYourMine = window.parent !== window;
+
+// ── Receive profile on load (automatic) ─────────────────────────────────────
+window.addEventListener('message', e => {
+  if (e.data?.type === 'ym:ready') {
+    const profile = e.data.profile;
+    // profile.uuid, profile.name, profile.avatar, profile.spheres...
+  }
+  if (e.data?.type === 'ym:profile') {
+    // Response to ym:getProfile
+  }
+  if (e.data?.type === 'ym:storage:value') {
+    // Response to ym:storage:get
+    const { key, value } = e.data;
+  }
+  if (e.data?.type === 'ym:p2p:receive') {
+    const { msgType, data, from } = e.data;
+  }
+});
+
+// ── Send commands to YourMine ────────────────────────────────────────────────
+// Toast notification
+window.parent.postMessage({ type: 'ym:toast', msg: 'Saved!', style: 'success' }, '*');
+// style: 'success' | 'error' | 'info' | 'warn'
+
+// Get profile
+window.parent.postMessage({ type: 'ym:getProfile' }, '*');
+
+// Storage (isolated per app per user)
+window.parent.postMessage({ type: 'ym:storage:set', key: 'score', value: '42' }, '*');
+window.parent.postMessage({ type: 'ym:storage:get', key: 'score' }, '*');
+
+// P2P broadcast to all YourMine peers
+window.parent.postMessage({ type: 'ym:p2p:broadcast', data: { x: 1, y: 2 } }, '*');
+
+// P2P send to specific peer
+window.parent.postMessage({ type: 'ym:p2p:send', to: 'peer-uuid', data: { msg: 'hi' } }, '*');
+
+// Resize iframe height
+window.parent.postMessage({ type: 'ym:resize', height: 600 }, '*');
+```
+
+The bridge is **silent outside YourMine** — all `postMessage` calls to `window.parent` are no-ops when `window.parent === window`. Your app runs normally everywhere.
+
+### Publishing an external app as a sphere
+
+Submit via Build panel → Quick → Sphere. Set `codeUrl` to your app's URL. The merge bot adds it to `files.json`. It appears in the sphere list with score/ranking, exactly like a native sphere.
+
+---
+
+## URL Routing
+
+YourMine supports direct URL navigation for themes and spheres:
+
+```
+/                        → loads theme from localStorage (default.html on first visit)
+/default.theme           → applies default theme
+/neural.theme            → applies neural theme
+/social.sphere           → activates social sphere and opens its panel
+/neural.theme/social.sphere → applies theme then opens sphere after reload
+```
+
+**Resolution order for `/name.theme`:**
+1. Search `themes-files.json` by `filename` or `name` field
+2. HEAD check `src/themes/name.theme.html`
+3. HEAD check `src/themes/name.html`
+4. Toast "not found" if all fail
+
+**Important:** always call `history.replaceState(null, '', '/')` before `location.reload()` when applying a theme programmatically, to prevent `checkURLRoute` from re-applying the old URL on the next load.
 
 ---
 
