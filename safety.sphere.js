@@ -14,7 +14,7 @@
 const SPHERE_NAME = 'safety.sphere.js';
 const MODEL_KEY   = 'ym_safety_model_ready';
 const MODEL_ID    = 'Llama-3.2-1B-Instruct-q4f32_1-MLC';
-const WEBLLM_CDN  = 'https://esm.run/@mlc-ai/web-llm';
+const WEBLLM_CDN  = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm/+esm';
 
 const ENABLED_KEY = 'ym_safety_enabled';
 
@@ -326,8 +326,8 @@ function renderPanel(container) {
 window.YM_S[SPHERE_NAME] = {
   name:        'Safety',
   icon:        '🛡️',
-  category:    'Security',
-  description: 'Local AI safety monitor. Detects risky actions in real time using Llama 3.2 running entirely in your browser — no cloud, no cost.',
+  category:    'AI',
+  description: 'Local AI safety monitor. Runs Llama 3.2 entirely in your browser via WebGPU — no cloud, no data sharing. Detects risky actions in real time: external apps, sphere code, Solana transactions, profile sharing.',
   version:     '1.0.0',
 
   async activate(ctx) {
