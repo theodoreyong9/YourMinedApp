@@ -280,16 +280,30 @@ activate(ctx) {
 
 ### Bring your own infrastructure
 
-The default P2P uses public Nostr relays. A sphere can declare its own:
+The default P2P uses public Nostr relays. A sphere can use any real-time infrastructure:
 
 ```js
-// In activate(ctx) — connect to custom relay
-const customP2P = new WebSocket('wss://my-relay.example.com');
-// Handle messages independently of ctx.send/onReceive
-// ctx.send still works for the default Nostr layer
+// Custom WebSocket relay
+const ws = new WebSocket('wss://my-relay.example.com');
+ws.onmessage = e => handleMessage(JSON.parse(e.data));
+
+// Gun.js (decentralized graph DB)
+const gun = Gun(['https://gun-relay.example.com/gun']);
+
+// Matrix (federated real-time)
+const client = matrixcs.createClient({ baseUrl: 'https://matrix.org' });
+
+// WebRTC (use Nostr for signaling, then direct P2P)
+ctx.onReceive((type, data, peerId) => {
+  if (type === 'mygame:sdp-offer') {
+    const pc = new RTCPeerConnection();
+    pc.setRemoteDescription(data.sdp);
+    // ... WebRTC handshake via Nostr signaling
+  }
+});
 ```
 
-WebRTC direct connections are also possible — use the Nostr layer for signaling, then establish direct peer connections for low-latency data (games, voice, etc.).
+`ctx.send/onReceive` still works for the default Nostr layer alongside any custom transport. The two can coexist in the same sphere.
 
 ---
 
@@ -898,7 +912,13 @@ YourMine supports direct URL navigation for themes and spheres:
 3. HEAD check `src/themes/name.html`
 4. Toast "not found" if all fail
 
-**Important:** always call `history.replaceState(null, '', '/')` before `location.reload()` when applying a theme programmatically, to prevent `checkURLRoute` from re-applying the old URL on the next load.
+**Important:** always call `history.replaceState(null, '', '/')` before `location.reload()` when applying a theme programmatically.
+
+**Why:** when a user navigates to `/neural.theme`, `index.html` stores this URL in `localStorage` and reloads on `/neural.theme`. After reload, `app.js` runs `checkURLRoute()` which detects the `.theme` segment and re-applies the theme from the URL — overwriting whatever was just set in `localStorage`.
+
+So if a user on `/neural.theme` uses the background picker to switch to `default`, and the picker does `localStorage.set('ym_theme_url', defaultUrl) + location.reload()` without clearing the URL, `checkURLRoute` will see `/neural.theme` again on reload and overwrite the user's choice with neural again.
+
+`history.replaceState(null, '', '/')` clears the URL before reload so `checkURLRoute` sees no `.theme` segment and leaves `localStorage` untouched.
 
 ---
 
