@@ -20,13 +20,30 @@ const ENABLED_KEY = 'ym_safety_enabled';
 
 function isEnabled(){ return localStorage.getItem(ENABLED_KEY) !== '0'; }
 function setEnabled(v){ localStorage.setItem(ENABLED_KEY, v ? '1' : '0'); }
-// ── WebLLM via dynamic import (thread principal) ─────────────────────────────
-// Worker blob + ES module import = bloqué sur Android Chrome
-// Dynamic import() dans le thread principal avec progression native
+// ── WebLLM via script tag injection ──────────────────────────────────────────
+// dynamic import() depuis une sphere blob est bloqué par la CSP Firebase
+// Solution : injecter un <script type="module"> dans le DOM principal
 
 let _engine  = null;
 let _ready   = false;
 let _loading = false;
+
+function _loadWebLLMScript() {
+  return new Promise((resolve, reject) => {
+    // Si déjà chargé
+    if (window.__webllm) { resolve(window.__webllm); return; }
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.textContent = `
+      import * as webllm from "${WEBLLM_CDN}";
+      window.__webllm = webllm;
+      window.dispatchEvent(new CustomEvent('ym:webllm-ready'));
+    `;
+    window.addEventListener('ym:webllm-ready', () => resolve(window.__webllm), { once: true });
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
 
 async function loadModel(onProgress) {
   if (_ready) return true;
@@ -34,7 +51,9 @@ async function loadModel(onProgress) {
   if (!isEnabled()) return false;
   _loading = true;
   try {
-    const webllm = await import(WEBLLM_CDN);
+    // 1. Charge la lib WebLLM via script tag (contourne la CSP blob)
+    const webllm = await _loadWebLLMScript();
+    // 2. Crée le moteur avec callback de progression
     _engine = await webllm.CreateMLCEngine(MODEL_ID, {
       initProgressCallback: (p) => {
         const detail = { progress: p.progress || 0, text: p.text || '' };
