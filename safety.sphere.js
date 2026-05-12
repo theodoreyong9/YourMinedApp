@@ -38,11 +38,20 @@ function _loadWebLLMScript() {
       window.__webllm = webllm;
       window.dispatchEvent(new CustomEvent('ym:webllm-ready'));
     `;
-    const timeout = setTimeout(() => reject(new Error('WebLLM script timeout after 30s')), 30000);
-    window.addEventListener('ym:webllm-ready', () => { clearTimeout(timeout); resolve(window.__webllm); }, { once: true });
-    s.onerror = (e) => { clearTimeout(timeout); reject(new Error('Script load error: ' + (e.message||'unknown'))); };
+    // Poll + event — le poll rattrape si l'event arrive avant le listener
+    const poll = setInterval(() => {
+      if (window.__webllm) { clearInterval(poll); clearTimeout(timeout); resolve(window.__webllm); }
+    }, 100);
+    const onReady = () => { clearInterval(poll); clearTimeout(timeout); resolve(window.__webllm); };
+    window.addEventListener('ym:webllm-ready', onReady, { once: true });
+    const timeout = setTimeout(() => {
+      clearInterval(poll);
+      window.removeEventListener('ym:webllm-ready', onReady);
+      reject(new Error('WebLLM script timeout after 30s'));
+    }, 30000);
+    s.onerror = (e) => { clearInterval(poll); clearTimeout(timeout); reject(new Error('Script load error')); };
     document.head.appendChild(s);
-    console.log('[Safety] WebLLM script injected, waiting for ym:webllm-ready...');
+    console.log('[Safety] WebLLM script injected');
   });
 }
 
