@@ -176,6 +176,7 @@ async function render(containerArg){
     '<div style="display:flex;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0">'+
       '<div class="ym-tab'+(_listTab==='spheres'?' active':'')+'" data-ltab="spheres" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">⬡ Spheres</div>'+
       '<div class="ym-tab'+(_listTab==='themes'?' active':'')+'" data-ltab="themes" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🎨 Themes</div>'+
+      '<div class="ym-tab'+(_listTab==='link'?' active':'')+'" data-ltab="link" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🔗 Link</div>'+
     '</div>';
 
   const content=body.querySelector('#list-content');
@@ -185,7 +186,8 @@ async function render(containerArg){
     body.querySelectorAll('[data-ltab]').forEach(t=>t.classList.toggle('active',t.dataset.ltab===tab));
     content.innerHTML='';
     if(tab==='spheres')renderSpheresContent(content);
-    else renderThemesContent(content);
+    else if(tab==='themes')renderThemesContent(content);
+    else renderLinkContent(content);
   }
 
   body.querySelectorAll('[data-ltab]').forEach(t=>{
@@ -265,15 +267,6 @@ async function renderThemesContent(container){
       '<div id="theme-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
         '<input class="ym-input" id="theme-search" placeholder="Search themes…" style="flex:1;font-size:11px">'+
-        '<button class="ym-btn ym-btn-accent" id="theme-url-toggle" style="font-size:13px;padding:5px 12px;flex-shrink:0;font-weight:700" title="Appliquer un thème par URL ou plateforme">＋</button>'+
-      '</div>'+
-      '<div id="theme-url-row" style="display:none;flex-direction:column;gap:8px;padding:8px 0">'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap" id="theme-platform-pills"></div>'+
-        '<div style="display:flex;gap:6px;align-items:center">'+
-          '<input class="ym-input" id="theme-raw-input" placeholder="GitHub raw URL ou ID plateforme…" style="flex:1;font-size:11px">'+
-          '<button class="ym-btn ym-btn-ghost" id="theme-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
-        '</div>'+
-        '<div id="theme-raw-hint" style="font-size:10px;color:var(--text3);min-height:14px"></div>'+
       '</div>'+
     '</div>';
 
@@ -507,6 +500,158 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
 const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent'];
 function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
 
+function renderLinkContent(container){
+  container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden;padding:16px;gap:12px';
+
+  // Section type
+  let _linkType='sphere'; // 'sphere' | 'theme'
+  const typeRow=document.createElement('div');
+  typeRow.style.cssText='display:flex;gap:6px';
+  ['sphere','theme'].forEach(t=>{
+    const btn=document.createElement('button');
+    btn.className='ym-btn '+(_linkType===t?'ym-btn-accent':'ym-btn-ghost');
+    btn.style.cssText='font-size:10px;flex:1';
+    btn.textContent=t==='sphere'?'⬡ Sphere':'🎨 Theme';
+    btn.onclick=()=>{
+      _linkType=t;
+      typeRow.querySelectorAll('button').forEach((b,i)=>{
+        b.className='ym-btn '+(i===(t==='sphere'?0:1)?'ym-btn-accent':'ym-btn-ghost');
+      });
+      updateHint();
+    };
+    typeRow.appendChild(btn);
+  });
+  container.appendChild(typeRow);
+
+  // Platform pills
+  const pillsWrap=document.createElement('div');
+  pillsWrap.style.cssText='display:flex;gap:5px;flex-wrap:wrap';
+  // GitHub Raw pill spécifique pour les .sphere.js et .theme.html
+  const allPills=[
+    {id:'ghraw', label:'GitHub Raw', icon:'🐙', hint:'user/repo/branch/file.sphere.js',
+     resolve:id=>'https://raw.githubusercontent.com/'+id},
+    ...PLATFORMS
+  ];
+  allPills.forEach(p=>{
+    const pill=document.createElement('span');
+    pill.className='pill'+(_selPlatform===p.id?' active':'');
+    pill.style.cssText='cursor:pointer;font-size:10px';
+    pill.textContent=p.icon+' '+p.label;
+    pill.onclick=()=>{
+      const was=pill.classList.contains('active');
+      pillsWrap.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+      _selPlatform=was?null:p.id;
+      if(!was){pill.classList.add('active');inp.placeholder=p.hint;}
+      else inp.placeholder='URL, raw GitHub, ID…';
+      updateHint();inp.focus();
+    };
+    pillsWrap.appendChild(pill);
+  });
+  container.appendChild(pillsWrap);
+
+  // Input + bouton
+  const row=document.createElement('div');
+  row.style.cssText='display:flex;gap:6px;align-items:center';
+  const inp=document.createElement('input');
+  inp.className='ym-input';
+  inp.placeholder='URL, raw GitHub, ID…';
+  inp.style.cssText='flex:1;font-size:11px';
+  const btn=document.createElement('button');
+  btn.className='ym-btn ym-btn-accent';
+  btn.style.cssText='font-size:11px;padding:6px 14px;flex-shrink:0;font-weight:700';
+  btn.textContent='▶';
+  row.appendChild(inp);row.appendChild(btn);
+  container.appendChild(row);
+
+  const hint=document.createElement('div');
+  hint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
+  container.appendChild(hint);
+
+  function resolveURL(input){
+    input=(input||'').trim();if(!input)return null;
+    if(_selPlatform){
+      const p=allPills.find(x=>x.id===_selPlatform);
+      if(p)return p.resolve(input);
+    }
+    if(/^https?:\/\//i.test(input))return input;
+    // Détection auto
+    if(input.includes('raw.githubusercontent.com'))return input;
+    if(/^[\w-]+\/[\w-]+\/[\w-]+\/.+$/.test(input))return'https://raw.githubusercontent.com/'+input;
+    if(input.includes('stackblitz.com')||input.includes('bolt.new'))return input+'?embed=1&view=preview';
+    if(input.includes('replit.com')||input.includes('.repl.co'))return input;
+    if(input.includes('codesandbox.io'))return input.replace('/s/','/embed/');
+    if(/^@?[\w-]+\/[\w-]+$/.test(input)){const p2=input.split('/');return'https://'+p2[0].replace('@','')+'.github.io/'+p2[1];}
+    if(/^[\w-]+$/.test(input))return'https://stackblitz.com/edit/'+input+'?embed=1&view=preview';
+    return'https://'+input;
+  }
+
+  function updateHint(){
+    const v=inp.value.trim();
+    const resolved=v?resolveURL(v):null;
+    hint.textContent=(resolved&&resolved!==v)?'→ '+resolved:'';
+  }
+  inp.addEventListener('input',updateHint);
+
+  const doActivate=async()=>{
+    const input=inp.value.trim();if(!input)return;
+    const url=resolveURL(input);
+    if(!url){window.YM_toast?.('URL invalide','error');return;}
+    btn.textContent='…';btn.disabled=true;
+    try{
+      if(_linkType==='theme'){
+        // Applique le thème
+        let themeUrl=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+        localStorage.setItem('ym_theme_url',themeUrl);
+        localStorage.removeItem('ym_theme_cache');
+        window.YM_toast?.('Thème — rechargement…','success');
+        setTimeout(()=>location.reload(),400);
+      }else{
+        // Charge comme sphère
+        const isSphereJS=url.includes('.sphere.js')||url.includes('raw.githubusercontent.com');
+        if(!isSphereJS){
+          // App externe → iframe sphere
+          const selP=_selPlatform?allPills.find(x=>x.id===_selPlatform):null;
+          const sphereName=(selP?selP.label+' — ':'')+input.replace(/^https?:\/\//,'').split('/').slice(0,2).join('/');
+          const sphereObj=await window.YM.loadSphereFromURL(url,sphereName);
+          if(sphereObj&&window.YM){
+            await window.YM.activateSphere(sphereName,sphereObj);
+            inp.value='';hint.textContent='';
+            window.YM_toast?.('App ajoutée : '+sphereName,'success');
+          }else throw new Error('Impossible de charger');
+        }else{
+          // Sphère .sphere.js → exécution JS
+          const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+          if(!r.ok)throw new Error('HTTP '+r.status);
+          const code=await r.text();
+          const fname=url.split('/').pop().replace(/\?.*$/,'');
+          const blob=new Blob([code],{type:'text/javascript'});
+          const blobUrl=URL.createObjectURL(blob);
+          await new Promise((res,rej)=>{
+            const s=document.createElement('script');s.src=blobUrl;
+            s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
+            s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
+            document.head.appendChild(s);
+          });
+          // Cherche dans YM_S
+          let sphereObj=window.YM_S&&window.YM_S[fname];
+          if(!sphereObj){
+            const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
+            if(newKey)sphereObj=window.YM_S[newKey];
+          }
+          if(sphereObj&&window.YM){
+            const key=Object.keys(window.YM_S).find(k=>window.YM_S[k]===sphereObj)||fname;
+            await window.YM.activateSphere(key,sphereObj);
+            inp.value='';
+            window.YM_toast?.('Sphere activée','success');
+          }else throw new Error('Sphere non trouvée dans le code');
+        }
+      }
+    }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
+    btn.textContent='▶';btn.disabled=false;
+  };
+  btn.addEventListener('click',doActivate);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')doActivate();});
+}
 function renderSpheresContent(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
   container.innerHTML=
@@ -517,15 +662,6 @@ function renderSpheresContent(container){
       '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
         '<input class="ym-input" id="sphere-search" placeholder="Search…" style="flex:1;font-size:11px">'+
-        '<button class="ym-btn ym-btn-accent" id="sphere-raw-toggle" style="font-size:13px;padding:5px 12px;flex-shrink:0;font-weight:700" title="Activer par URL ou plateforme">＋</button>'+
-      '</div>'+
-      '<div id="sphere-raw-row" style="display:none;flex-direction:column;gap:8px;padding:8px 0">'+
-        '<div style="display:flex;gap:6px;flex-wrap:wrap" id="sphere-platform-pills"></div>'+
-        '<div style="display:flex;gap:6px;align-items:center">'+
-          '<input class="ym-input" id="sphere-raw-url" placeholder="ID, URL, user/repo…" style="flex:1;font-size:11px">'+
-          '<button class="ym-btn ym-btn-ghost" id="sphere-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
-        '</div>'+
-        '<div id="sphere-raw-hint" style="font-size:10px;color:var(--text3);min-height:14px"></div>'+
       '</div>'+
     '</div>';
 
@@ -561,113 +697,8 @@ function renderSpheresContent(container){
     renderPills();
   }
 
-  // Toggle raw URL row
-  const rawToggleBtn=container.querySelector('#sphere-raw-toggle');
-  const rawRow=container.querySelector('#sphere-raw-row');
-  if(rawToggleBtn&&rawRow){
-    rawToggleBtn.addEventListener('click',()=>{
-      const open=rawRow.style.display!=='none';
-      rawRow.style.display=open?'none':'flex';
-      rawToggleBtn.style.color=open?'':'var(--cyan)';
-    });
-  }
-
-  // ── Platform picker ───────────────────────────────────────────────────────
-  const pillsEl=container.querySelector('#sphere-platform-pills');
-  const hintEl=container.querySelector('#sphere-raw-hint');
-  const rawInput2=container.querySelector('#sphere-raw-url');
-
-  if(pillsEl){
-    PLATFORMS.forEach(p=>{
-      const pill=document.createElement('span');
-      pill.className='pill'+((_selPlatform===p.id)?' active':'');
-      pill.style.cssText='cursor:pointer;font-size:10px;display:flex;align-items:center;gap:3px';
-      pill.innerHTML=p.icon+' '+p.label;
-      pill.addEventListener('click',()=>{
-        _selPlatform=_selPlatform===p.id?null:p.id;
-        pillsEl.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
-        if(_selPlatform){
-          pill.classList.add('active');
-          if(hintEl)hintEl.textContent='→ '+p.hint;
-          if(rawInput2)rawInput2.placeholder=p.hint;
-        }else{
-          if(hintEl)hintEl.textContent='';
-          if(rawInput2)rawInput2.placeholder='ID, URL, user/repo…';
-        }
-        if(rawInput2)rawInput2.focus();
-      });
-      pillsEl.appendChild(pill);
-    });
-  }
-
-  if(rawInput2){
-    rawInput2.addEventListener('input',()=>{
-      if(!hintEl)return;
-      const resolved=_resolveExtURL(rawInput2.value);
-      hintEl.textContent=(resolved&&resolved!==rawInput2.value)?'→ '+resolved:'';
-    });
-  }
-
-  // Activation par raw URL global — supporte .sphere.js ET apps web externes
-  const rawBtn=container.querySelector('#sphere-raw-btn');
-  const rawInput=container.querySelector('#sphere-raw-url');
-  if(rawBtn&&rawInput){
-    const doActivate=async()=>{
-      const input=rawInput.value.trim();if(!input)return;
-      const url=_resolveExtURL(input);
-      if(!url){window.YM_toast?.('URL invalide','error');return;}
-      rawBtn.textContent='…';rawBtn.disabled=true;
-      try{
-        const isExternal=!url.includes('.sphere.js')&&!url.includes('raw.githubusercontent.com');
-        if(isExternal){
-          // Nom = plateforme sélectionnée + input court, ou domaine
-          const selP=_selPlatform?PLATFORMS.find(x=>x.id===_selPlatform):null;
-          const sphereName=(selP?selP.label+' — ':'')+input.replace(/^https?:\/\//,'').split('/').slice(0,2).join('/');
-          const sphereObj=await window.YM.loadSphereFromURL(url, sphereName);
-          if(sphereObj&&window.YM){
-            await window.YM.activateSphere(sphereName, sphereObj);
-            rawInput.value='';
-            if(hintEl)hintEl.textContent='';
-            window.YM_toast?.('App ajoutée : '+sphereName,'success');
-            renderSpheresContent(container);
-          }else throw new Error('Impossible de charger l\'app');
-        }else{
-          const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
-          if(!r.ok)throw new Error('HTTP '+r.status);
-          const code=await r.text();
-          const fname=url.split('/').pop().replace(/\?.*$/,'');
-          const blob=new Blob([code],{type:'text/javascript'});
-          const blobUrl=URL.createObjectURL(blob);
-          await new Promise((res,rej)=>{
-            const s=document.createElement('script');s.src=blobUrl;
-            s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
-            s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
-            document.head.appendChild(s);
-          });
-          const sphereObj=window.YM_S&&window.YM_S[fname];
-          if(sphereObj&&window.YM){
-            await window.YM.activateSphere(fname,sphereObj);
-            rawInput.value='';
-            window.YM_toast?.('Sphere activée','success');
-            renderSpheresContent(container);
-          }else{
-            const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
-            if(newKey&&window.YM){
-              await window.YM.activateSphere(newKey,window.YM_S[newKey]);
-              rawInput.value='';
-              window.YM_toast?.('Sphere activée','success');
-              renderSpheresContent(container);
-            }else throw new Error('Aucune sphere trouvée dans le code');
-          }
-        }
-      }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
-      rawBtn.textContent='▶';rawBtn.disabled=false;
-    };
-    rawBtn.addEventListener('click',doActivate);
-    rawInput.addEventListener('keydown',e=>{if(e.key==='Enter')doActivate();});
-  }
-
   renderList(container);
+  fetchSphereList().then(()=>renderList(container));
 }
 
 function renderCategories(container){
