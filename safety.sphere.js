@@ -398,7 +398,7 @@ window.YM_S[SPHERE_NAME] = {
     }
   },
 
-  panel(container) {
+  renderPanel(container) {
     renderPanel(container);
   },
 
