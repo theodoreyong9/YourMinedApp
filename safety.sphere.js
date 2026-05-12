@@ -258,13 +258,22 @@ function renderPanel(container) {
       statusCard.innerHTML =
         '<div style="display:flex;align-items:center;gap:10px">'+
           '<div style="width:10px;height:10px;border-radius:50%;background:#22d98a;box-shadow:0 0 8px #22d98a;flex-shrink:0"></div>'+
-          '<div><div style="font-weight:600;font-size:13px">Safety Monitor Active</div>'+
+          '<div style="flex:1"><div style="font-weight:600;font-size:13px">Safety Monitor Active</div>'+
           '<div style="font-size:11px;color:var(--text3)">'+MODEL_ID+'</div></div>'+
+          '<button id="safety-reset-btn" style="font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;padding:4px">↺</button>'+
         '</div>'+
         '<div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.6">'+
           'Monitoring: external apps, sphere activations, transactions.'+
           '<br>Model runs locally — no data leaves your device.'+
         '</div>';
+      setTimeout(()=>{
+        const rb = document.getElementById('safety-reset-btn');
+        if(rb) rb.onclick = ()=>{
+          _ready=false; _loading=false; _engine=null;
+          localStorage.removeItem(MODEL_KEY);
+          renderPanel(container);
+        };
+      }, 50);
     } else if (_loading) {
       statusCard.innerHTML =
         '<div style="font-weight:600;font-size:13px;margin-bottom:10px">Loading model…</div>'+
@@ -365,6 +374,10 @@ window.YM_S[SPHERE_NAME] = {
   category:    'AI',
   description: 'Local AI safety monitor. Runs Llama 3.2 entirely in your browser via WebGPU — no cloud, no data sharing. Detects risky actions in real time: external apps, sphere code, Solana transactions, profile sharing.',
   version:     '1.0.0',
+
+  get _dbg_ready(){ return _ready; },
+  get _dbg_loading(){ return _loading; },
+  _dbg_reset(){ _ready=false; _loading=false; _engine=null; localStorage.removeItem(MODEL_KEY); },
 
   async activate(ctx) {
     if (!isEnabled()) return;
