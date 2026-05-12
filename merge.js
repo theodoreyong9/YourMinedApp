@@ -46,6 +46,10 @@ async function updateSpheresJson(files, ghActor, forkOwner) {
       timestamp: timestamp || Math.floor(Date.now() / 1000),
       merged_at: Math.floor(Date.now() / 1000)
     };
+    // Transfer ownership si demandé
+    if (transferTo) entry.owner = transferTo;
+    // Sinon préserve l'owner existant si déjà défini
+    else if (idx >= 0 && filesJson[idx].owner) entry.owner = filesJson[idx].owner;
     const idx = filesJson.findIndex(f => f.filename === filename);
     if (idx >= 0) {
       filesJson[idx] = Object.assign({}, filesJson[idx], entry);
