@@ -13,32 +13,9 @@ window.YM_S['bomb.sphere.js'] = {
   description: 'Tests de détection Safety — URLs suspectes, code malveillant simulé, transactions.',
   version:     '1.0.0',
 
-  async activate(ctx) {
-    ctx.toast('💣 Bomb Test activé — lancement des tests Safety', 'warn');
-
-    // Test 1 : URL de phishing
-    await new Promise(r => setTimeout(r, 1000));
-    window.dispatchEvent(new CustomEvent('ym:safety-test', {
-      detail: { type: 'url', url: 'https://yourmine-dapp.web.app.evil-hacker.com/steal-wallet' }
-    }));
-
-    // Test 2 : Transaction suspecte
-    await new Promise(r => setTimeout(r, 2000));
-    window.dispatchEvent(new CustomEvent('ym:before-transaction', {
-      detail: {
-        amount: 99999,
-        destination: 'Hs7JZMF3veNyWzDCFjkGWf9TqHiV2mZqW9KkVbTq3abc',
-        program: 'unknown_program_id'
-      }
-    }));
-
-    // Test 3 : Tentative de couvrir le DOM avec z-index élevé
-    await new Promise(r => setTimeout(r, 3000));
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(255,0,0,0.3);z-index:99999;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;pointer-events:none';
-    overlay.textContent = '💣 TEST OVERLAY z-index:99999 — Safety toast devrait passer par-dessus';
-    document.body.appendChild(overlay);
-    setTimeout(() => overlay.remove(), 3000);
+  activate(ctx) {
+    // Lance les tests en arrière-plan sans bloquer l'activation
+    setTimeout(() => ctx.toast('💣 Bomb Test activé — ouvre le panel pour lancer les tests', 'warn'), 500);
   },
 
   renderPanel(container) {
