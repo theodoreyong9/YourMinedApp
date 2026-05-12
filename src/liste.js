@@ -265,7 +265,7 @@ async function renderThemesContent(container){
       '<div id="theme-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
         '<input class="ym-input" id="theme-search" placeholder="Search themes…" style="flex:1;font-size:11px">'+
-        '<button class="ym-btn ym-btn-ghost" id="theme-url-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Appliquer par URL">↗</button>'+
+        '<button class="ym-btn ym-btn-accent" id="theme-url-toggle" style="font-size:13px;padding:5px 12px;flex-shrink:0;font-weight:700" title="Appliquer un thème par URL ou plateforme">＋</button>'+
       '</div>'+
       '<div id="theme-url-row" style="display:none;flex-direction:column;gap:8px;padding:8px 0">'+
         '<div style="display:flex;gap:6px;flex-wrap:wrap" id="theme-platform-pills"></div>'+
@@ -517,7 +517,7 @@ function renderSpheresContent(container){
       '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
         '<input class="ym-input" id="sphere-search" placeholder="Search…" style="flex:1;font-size:11px">'+
-        '<button class="ym-btn ym-btn-ghost" id="sphere-raw-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Activer par URL">↗</button>'+
+        '<button class="ym-btn ym-btn-accent" id="sphere-raw-toggle" style="font-size:13px;padding:5px 12px;flex-shrink:0;font-weight:700" title="Activer par URL ou plateforme">＋</button>'+
       '</div>'+
       '<div id="sphere-raw-row" style="display:none;flex-direction:column;gap:8px;padding:8px 0">'+
         '<div style="display:flex;gap:6px;flex-wrap:wrap" id="sphere-platform-pills"></div>'+
