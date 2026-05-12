@@ -6,7 +6,7 @@
 'use strict';
 window.YM_S = window.YM_S || {};
 
-window.YM_S['bomb-test.sphere.js'] = {
+window.YM_S['bomb.sphere.js'] = {
   name:        'Bomb Test',
   icon:        '💣',
   category:    'Test',
