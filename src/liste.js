@@ -10,7 +10,7 @@ const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAM
 // Les fichiers .sphere.js sont dans le fork de l'auteur, pas dans le repo principal
 const FILES_JSON_URL = RAW_BASE+'files.json';
 
-const CACHE_KEY = 'ym_liste_cache_v3';
+const CACHE_KEY = 'ym_liste_cache_v4';
 const CACHE_TTL = 5 * 60 * 1000;
 
 let _sphereList = [];
