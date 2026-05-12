@@ -267,6 +267,7 @@ function renderBuildContent(body){
           '<input id="th-icon-main" class="ym-input" placeholder="Icon preview (emoji ou URL image)" style="font-size:12px;margin-bottom:6px">'+
           '<textarea id="th-desc-main" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
           '<input id="th-raw-main" class="ym-input" placeholder="Raw URL du fichier HTML du thème" style="font-size:11px;margin-bottom:6px">'+
+          '<input id="th-owner-main" class="ym-input" placeholder="Transférer ownership à @github-user (optionnel)" style="font-size:11px;margin-bottom:6px">'+
           '<textarea id="th-photos-main" class="ym-input" rows="4" placeholder="Photos URLs (max 15, une par ligne)" style="font-size:10px;margin-bottom:4px"></textarea>'+
           '<textarea id="th-videos-main" class="ym-input" rows="2" placeholder="Videos URLs (max 15, une par ligne)" style="font-size:10px;margin-bottom:6px"></textarea>'+
           '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
@@ -1096,6 +1097,7 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
         if(!themeCode)throw new Error('Code requis');
       }else{
         const rawUrl2=(codeAreaEl.querySelector('#th-raw-main')?.value||'').trim();
+        const newOwner2=(codeAreaEl.querySelector('#th-owner-main')?.value||'').trim().replace('@','');
         if(!rawUrl2)throw new Error('Raw URL requis');
         const r=await fetch(rawUrl2+'?t='+Date.now(),{cache:'no-store'});
         if(!r.ok)throw new Error('HTTP '+r.status);
@@ -1116,7 +1118,7 @@ st('Push thème…');await ghPush(token,username,themeFilePath,themeCode,'theme:
       const mediaPhotos=photosRaw?photosRaw.split('\n').map(u=>u.trim()).filter(Boolean).slice(0,15):[];
       const mediaVideos=videosRaw?videosRaw.split('\n').map(u=>u.trim()).filter(Boolean).slice(0,15):[];
       const media2=(mediaPhotos.length||mediaVideos.length)?{photos:mediaPhotos,videos:mediaVideos}:undefined;
-      const entry2={filename:filename2,name:filename2.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\w/g,c=>c.toUpperCase()),icon:icon2,description:desc2,ghAuthor:username,codeUrl:codeUrl2,wip,timestamp:Math.floor(Date.now()/1000),...(media2?{media:media2}:{})};
+      const entry2={filename:filename2,name:filename2.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\w/g,c=>c.toUpperCase()),icon:icon2,description:desc2,ghAuthor:username,codeUrl:codeUrl2,wip,timestamp:Math.floor(Date.now()/1000),...(media2?{media:media2}:{}),...(newOwner2?{owner:newOwner2}:{})};
       const ei=themeFiles.findIndex(t=>t.filename===filename2);
       if(ei>=0)themeFiles[ei]=Object.assign({},themeFiles[ei],entry2);else themeFiles.push(entry2);
       await ghPush(token,username,'themes-files.json',JSON.stringify(themeFiles,null,2),'themes-files: '+filename2);
