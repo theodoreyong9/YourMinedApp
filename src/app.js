@@ -1083,8 +1083,107 @@
     });
   }
 
+  // Normalise une URL externe (Bolt, Replit, etc.)
+  function _normalizeExtURL(url){
+    url = url.trim();
+    if(!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    url = url.replace('stackblitz.com/edit/', 'stackblitz.com/preview/');
+    url = url.replace('codesandbox.io/s/', 'codesandbox.io/embed/');
+    return url;
+  }
+
+  // Crée une sphère iframe pour une app web externe
+  function _makeIframeSphere(url, name){
+    const icon = '⬡';
+    let _bridgeCleanup = null;
+
+    return {
+      name, icon,
+      description: url,
+      _isExternalApp: true,
+      _externalUrl: url,
+
+      panel(container){
+        if(_bridgeCleanup){ _bridgeCleanup(); _bridgeCleanup=null; }
+        container.innerHTML = '';
+        container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden';
+
+        // Barre top
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'flex-shrink:0;display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.3)';
+        hdr.innerHTML =
+          '<div style="flex:1;font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+url+'</div>'+
+          '<a href="'+url+'" target="_blank" rel="noopener" style="color:var(--cyan);font-size:11px;text-decoration:none;flex-shrink:0;padding:4px">↗</a>';
+        container.appendChild(hdr);
+
+        // Barre de chargement
+        const bar = document.createElement('div');
+        bar.style.cssText = 'flex-shrink:0;height:2px;background:linear-gradient(90deg,var(--accent,#f0a830),var(--cyan,#08e0f8));transform-origin:left;animation:_ym_load .9s ease-in-out infinite alternate';
+        container.appendChild(bar);
+        const style = document.createElement('style');
+        style.textContent = '@keyframes _ym_load{from{transform:scaleX(.2)}to{transform:scaleX(1)}}';
+        document.head.appendChild(style);
+
+        // iframe
+        const iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.style.cssText = 'flex:1;border:none;width:100%;min-height:0';
+        iframe.setAttribute('allow','camera;microphone;clipboard-read;clipboard-write;fullscreen');
+        iframe.setAttribute('allowfullscreen','');
+        iframe.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads');
+        iframe.addEventListener('load', () => {
+          bar.style.display = 'none';
+          // Envoie profil + signal ready
+          const p = window.YM?.getProfile?.();
+          setTimeout(() => {
+            try {
+              iframe.contentWindow?.postMessage({type:'ym:ready', version:'1.0', profile:p||{}}, '*');
+            } catch{}
+          }, 300);
+        });
+        container.appendChild(iframe);
+
+        // Bridge postMessage
+        const handler = (e) => {
+          if(!e.data||typeof e.data!=='object') return;
+          try{ if(e.source!==iframe.contentWindow) return; }catch{ return; }
+          const {type,msg,style:st,key,value,to,data,height} = e.data;
+          switch(type){
+            case 'ym:toast': toast(msg||'', st||'info'); break;
+            case 'ym:getProfile':
+              iframe.contentWindow?.postMessage({type:'ym:profile',data:window.YM?.getProfile?.()}, '*');
+              break;
+            case 'ym:storage:get':
+              iframe.contentWindow?.postMessage({type:'ym:storage:value',key,value:localStorage.getItem('ym_ext|'+name+'|'+key)}, '*');
+              break;
+            case 'ym:storage:set':
+              localStorage.setItem('ym_ext|'+name+'|'+key, value);
+              iframe.contentWindow?.postMessage({type:'ym:storage:ok',key}, '*');
+              break;
+            case 'ym:resize':
+              if(height) iframe.style.height=Math.max(100,Math.min(height,window.innerHeight-120))+'px';
+              break;
+          }
+        };
+        window.addEventListener('message', handler);
+        _bridgeCleanup = () => window.removeEventListener('message', handler);
+      },
+
+      deactivate(){ if(_bridgeCleanup){_bridgeCleanup();_bridgeCleanup=null;} },
+    };
+  }
+
   async function loadSphereURL(url, name) {
     if (_sA) { console.warn('[YM] blocked nested load'); return null; }
+
+    // URL externe (app web) — pas un fichier .sphere.js
+    const isExternal = !url.includes('.sphere.js') &&
+      !url.includes('raw.githubusercontent.com') &&
+      (url.startsWith('http'));
+    if(isExternal){
+      const sphereName = name || url.replace(/^https?:\/\//,'').split('/')[0];
+      return _makeIframeSphere(_normalizeExtURL(url), sphereName);
+    }
     const r = await _f(url);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const _p  = { YM: window.YM, YM_Desk: window.YM_Desk, YM_sphereRegistry: window.YM_sphereRegistry, YM_P2P: window.YM_P2P, fetch: window.fetch };
