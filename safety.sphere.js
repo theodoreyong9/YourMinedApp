@@ -288,31 +288,41 @@ function renderPanel(container) {
           'Runs <b>Llama 3.2 1B</b> locally via WebGPU.<br>'+
           'Downloaded once (~500MB), cached permanently.<br>'+
           'Zero cloud. Zero cost. Zero data sharing.'+
-        '</div>'+
-        '<button id="safety-load-btn" class="ym-btn ym-btn-accent" style="width:100%">⬇ Download Model (~500MB)</button>';
-
-      setTimeout(() => {
-        const btn = document.getElementById('safety-load-btn');
-        if (btn) btn.onclick = async () => {
-          _loading = true;
-          updateStatus();
-          await loadModel((p) => {
-            const fill = document.getElementById('safety-progress-fill');
-            const txt  = document.getElementById('safety-progress-text');
-            if (fill) fill.style.width = Math.round((p.progress||0)*100)+'%';
-            if (txt)  txt.textContent  = p.text || '';
-            if (p.error) txt && (txt.style.color='#ff4560');
-          });
-          _loading = false;
-          updateStatus();
-          if (_ready) setupInterceptors();
-        };
-      }, 50);
+        '</div>';
+      const loadBtn = document.createElement('button');
+      loadBtn.className = 'ym-btn ym-btn-accent';
+      loadBtn.style.width = '100%';
+      loadBtn.textContent = '⬇ Download Model (~500MB)';
+      loadBtn.onclick = async () => {
+        loadBtn.disabled = true;
+        loadBtn.textContent = 'Starting…';
+        // Affiche la barre de progression directement dans statusCard
+        statusCard.innerHTML =
+          '<div style="font-weight:600;font-size:13px;margin-bottom:10px">Loading model…</div>'+
+          '<div style="height:4px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;margin-bottom:6px">'+
+            '<div id="safety-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--accent,#f0a830),var(--cyan,#08e0f8));width:2%;transition:width .3s"></div>'+
+          '</div>'+
+          '<div id="safety-progress-text" style="font-size:10px;color:var(--text3)">Initializing…</div>';
+        _loading = true;
+        const ok = await loadModel((p) => {
+          const fill = statusCard.querySelector('#safety-progress-fill');
+          const txt  = statusCard.querySelector('#safety-progress-text');
+          if (fill) fill.style.width = Math.round((p.progress||0)*100)+'%';
+          if (txt)  txt.textContent  = p.text || '';
+          if (p.error){ if(txt) txt.style.color='#ff4560'; }
+        });
+        _loading = false;
+        if (ok && _ready) { setupInterceptors(); renderPanel(container); }
+        else {
+          statusCard.innerHTML += '<div style="color:#ff4560;font-size:11px;margin-top:8px">Failed — check console for details</div>';
+        }
+      };
+      statusCard.appendChild(loadBtn);
     }
   }
 
-  updateStatus();
   container.appendChild(statusCard);
+  updateStatus();
 
   // Infos plateformes supportées
   if (_ready) {
