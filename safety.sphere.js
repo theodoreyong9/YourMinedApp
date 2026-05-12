@@ -20,76 +20,40 @@ const ENABLED_KEY = 'ym_safety_enabled';
 
 function isEnabled(){ return localStorage.getItem(ENABLED_KEY) !== '0'; }
 function setEnabled(v){ localStorage.setItem(ENABLED_KEY, v ? '1' : '0'); }
-// ── WebLLM via script tag injection ──────────────────────────────────────────
-// dynamic import() depuis une sphere blob est bloqué par la CSP Firebase
-// Solution : injecter un <script type="module"> dans le DOM principal
 
+// ── WebLLM chargé par index.html via window.__webllm ─────────────────────────
 let _engine  = null;
 let _ready   = false;
 let _loading = false;
 
-function _loadWebLLMScript() {
-  return new Promise((resolve, reject) => {
-    if (window.__webllm) { resolve(window.__webllm); return; }
-    const s = document.createElement('script');
-    s.type = 'module';
-    s.textContent = `
-      import * as webllm from "${WEBLLM_CDN}";
-      window.__webllm = webllm;
-      window.dispatchEvent(new CustomEvent('ym:webllm-ready'));
-    `;
-    // Poll + event — le poll rattrape si l'event arrive avant le listener
-    const poll = setInterval(() => {
-      if (window.__webllm) { clearInterval(poll); clearTimeout(timeout); resolve(window.__webllm); }
-    }, 100);
-    const onReady = () => { clearInterval(poll); clearTimeout(timeout); resolve(window.__webllm); };
-    window.addEventListener('ym:webllm-ready', onReady, { once: true });
-    const timeout = setTimeout(() => {
-      clearInterval(poll);
-      window.removeEventListener('ym:webllm-ready', onReady);
-      reject(new Error('WebLLM script timeout after 30s'));
-    }, 30000);
-    s.onerror = (e) => { clearInterval(poll); clearTimeout(timeout); reject(new Error('Script load error')); };
-    document.head.appendChild(s);
-    console.log('[Safety] WebLLM script injected');
+function _waitForWebLLM(ms){
+  if(window.__webllm) return Promise.resolve(window.__webllm);
+  return new Promise((res,rej)=>{
+    const t=setTimeout(()=>rej(new Error('WebGPU/WebLLM not available')),ms||30000);
+    window.addEventListener('ym:webllm-ready',()=>{clearTimeout(t);res(window.__webllm);},{once:true});
   });
 }
 
-async function loadModel(onProgress) {
-  if (_ready) return true;
-  if (_loading) return false;
-  if (!isEnabled()) return false;
-  _loading = true;
-
-  const updateProgress = (text, progress=0) => {
-    const detail = { progress, text };
-    if (onProgress) onProgress(detail);
-    window.dispatchEvent(new CustomEvent('ym:safety-progress', { detail }));
-    console.log('[Safety]', text, progress);
-  };
-
-  try {
-    updateProgress('Loading WebLLM library…', 0.02);
-    const webllm = await _loadWebLLMScript();
-    console.log('[Safety] WebLLM loaded, keys:', Object.keys(webllm));
-
-    if (!webllm.CreateMLCEngine) throw new Error('CreateMLCEngine not found in WebLLM');
-
-    updateProgress('Initializing engine…', 0.05);
-    _engine = await webllm.CreateMLCEngine(MODEL_ID, {
-      initProgressCallback: (p) => {
-        updateProgress(p.text || 'Loading…', p.progress || 0);
-      }
+async function loadModel(onProgress){
+  if(_ready) return true;
+  if(_loading) return false;
+  if(!isEnabled()) return false;
+  if(!navigator.gpu){onProgress&&onProgress({progress:0,text:'WebGPU not available'});return false;}
+  _loading=true;
+  try{
+    onProgress&&onProgress({progress:0.02,text:'Waiting for WebLLM…'});
+    const webllm=await _waitForWebLLM();
+    onProgress&&onProgress({progress:0.05,text:'Creating engine…'});
+    _engine=await webllm.CreateMLCEngine(MODEL_ID,{
+      initProgressCallback:p=>{onProgress&&onProgress({progress:p.progress||0,text:p.text||''});}
     });
-    _ready   = true;
-    _loading = false;
-    localStorage.setItem(MODEL_KEY, '1');
-    updateProgress('Ready ✓', 1);
+    _ready=true;_loading=false;
+    localStorage.setItem(MODEL_KEY,'1');
+    onProgress&&onProgress({progress:1,text:'Ready ✓'});
     return true;
-  } catch(e) {
-    console.error('[Safety] loadModel FAILED:', e);
-    _loading = false;
-    updateProgress('Error: ' + e.message, 0);
+  }catch(e){
+    _loading=false;
+    onProgress&&onProgress({progress:0,text:'Error: '+e.message});
     return false;
   }
 }
