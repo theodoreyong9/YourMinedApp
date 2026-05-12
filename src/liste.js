@@ -300,12 +300,18 @@ async function renderThemesContent(container){
       pill.style.cssText='cursor:pointer;font-size:10px';
       pill.textContent=p.icon+' '+p.label;
       pill.addEventListener('click',()=>{
+        const wasActive=pill.classList.contains('active');
         themePillsEl.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
-        pill.classList.toggle('active');
-        if(themeRawInp)themeRawInp.placeholder=p.hint;
-        if(themeHintEl){
-          const v=themeRawInp?.value.trim();
-          themeHintEl.textContent=v?'→ '+p.resolve(v):'';
+        if(!wasActive){
+          pill.classList.add('active');
+          if(themeRawInp)themeRawInp.placeholder=p.hint;
+          if(themeHintEl){
+            const v=themeRawInp?.value.trim();
+            themeHintEl.textContent=v?'→ '+p.resolve(v):'';
+          }
+        }else{
+          if(themeRawInp)themeRawInp.placeholder='GitHub raw URL ou ID plateforme…';
+          if(themeHintEl)themeHintEl.textContent='';
         }
       });
       themePillsEl.appendChild(pill);
