@@ -442,9 +442,13 @@ function renderSpheresContent(container){
         '<input class="ym-input" id="sphere-search" placeholder="Search…" style="flex:1;font-size:11px">'+
         '<button class="ym-btn ym-btn-ghost" id="sphere-raw-toggle" style="font-size:11px;padding:6px 8px;flex-shrink:0" title="Activer par URL">↗</button>'+
       '</div>'+
-      '<div id="sphere-raw-row" style="display:none;gap:6px;align-items:center">'+
-        '<input class="ym-input" id="sphere-raw-url" placeholder="GitHub raw URL de la sphere…" style="flex:1;font-size:11px">'+
-        '<button class="ym-btn ym-btn-ghost" id="sphere-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶ Activer</button>'+
+      '<div id="sphere-raw-row" style="display:none;flex-direction:column;gap:8px;padding:8px 0">'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap" id="sphere-platform-pills"></div>'+
+        '<div style="display:flex;gap:6px;align-items:center">'+
+          '<input class="ym-input" id="sphere-raw-url" placeholder="ID, URL, user/repo…" style="flex:1;font-size:11px">'+
+          '<button class="ym-btn ym-btn-ghost" id="sphere-raw-btn" style="font-size:11px;padding:6px 10px;flex-shrink:0">▶</button>'+
+        '</div>'+
+        '<div id="sphere-raw-hint" style="font-size:10px;color:var(--text3);min-height:14px"></div>'+
       '</div>'+
     '</div>';
 
@@ -491,48 +495,151 @@ function renderSpheresContent(container){
     });
   }
 
-  // Activation par raw URL global
+  // ── Platform picker ───────────────────────────────────────────────────────
+  const PLATFORMS=[
+    {id:'bolt',      label:'Bolt',         icon:'⚡', hint:'ID ex: sb1-abc123',
+     resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
+    {id:'replit',    label:'Replit',        icon:'🔁', hint:'@user/repl-name',
+     resolve:id=>{
+       // @user/repl → https://repl-name--user.repl.co ou replit.com/@user/repl
+       const m=id.match(/^@?([\w-]+)\/([\w-]+)$/);
+       return m?'https://'+m[2]+'.'+m[1]+'.repl.co':'https://replit.com/'+id;
+     }},
+    {id:'codesandbox',label:'CodeSandbox', icon:'📦', hint:'ID ex: r3f-game-abc123',
+     resolve:id=>'https://codesandbox.io/embed/'+id+'?fontsize=14&hidenavigation=1&theme=dark'},
+    {id:'stackblitz', label:'StackBlitz',  icon:'⚡', hint:'ID ex: vitejs-vite-abc123',
+     resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
+    {id:'ghpages',   label:'GitHub Pages', icon:'🐙', hint:'user/repo ou user/repo/path',
+     resolve:id=>{const p=id.split('/');return'https://'+p[0]+'.github.io/'+(p.slice(1).join('/')||'');}},
+    {id:'url',       label:'URL directe',  icon:'🌐', hint:'https://monapp.com',
+     resolve:id=>id.startsWith('http')?id:'https://'+id},
+  ];
+
+  let _selPlatform=null;
+  const pillsEl=container.querySelector('#sphere-platform-pills');
+  const hintEl=container.querySelector('#sphere-raw-hint');
+  const rawInput2=container.querySelector('#sphere-raw-url');
+
+  if(pillsEl){
+    PLATFORMS.forEach(p=>{
+      const pill=document.createElement('span');
+      pill.className='pill';
+      pill.style.cssText='cursor:pointer;font-size:10px;display:flex;align-items:center;gap:3px';
+      pill.innerHTML=p.icon+' '+p.label;
+      pill.addEventListener('click',()=>{
+        _selPlatform=_selPlatform===p.id?null:p.id;
+        pillsEl.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
+        if(_selPlatform){
+          pill.classList.add('active');
+          if(hintEl)hintEl.textContent='→ '+p.hint;
+          if(rawInput2)rawInput2.placeholder=p.hint;
+        }else{
+          if(hintEl)hintEl.textContent='';
+          if(rawInput2)rawInput2.placeholder='ID, URL, user/repo…';
+        }
+        if(rawInput2)rawInput2.focus();
+      });
+      pillsEl.appendChild(pill);
+    });
+  }
+
+  // Résout l'URL finale depuis l'input et la plateforme sélectionnée
+  function _resolveURL(input){
+    input=(input||'').trim();
+    if(!input)return null;
+    // Si URL complète et aucune plateforme sélectionnée → URL directe
+    if(/^https?:\/\//i.test(input)&&!_selPlatform)return input;
+    // Plateforme sélectionnée → résout l'ID
+    if(_selPlatform){
+      const p=PLATFORMS.find(x=>x.id===_selPlatform);
+      if(p)return p.resolve(input);
+    }
+    // Auto-détection si pas de plateforme sélectionnée
+    if(input.includes('stackblitz.com')||input.includes('bolt.new'))
+      return input.replace('stackblitz.com/edit/','stackblitz.com/edit/')+'?embed=1&view=preview';
+    if(input.includes('replit.com')||input.includes('.repl.co'))return input;
+    if(input.includes('codesandbox.io'))return input.replace('/s/','/embed/');
+    if(input.includes('github.io'))return input;
+    // Patterns d'ID
+    if(/^@?[\w-]+\/[\w-]+$/.test(input)){
+      // user/repo → GitHub Pages ou Replit selon contexte
+      const p2=input.split('/');
+      return'https://'+p2[0].replace('@','')+'.github.io/'+p2[1];
+    }
+    // ID seul → Bolt/StackBlitz par défaut
+    if(/^[\w-]+$/.test(input))
+      return'https://stackblitz.com/edit/'+input+'?embed=1&view=preview';
+    return'https://'+input;
+  }
+
+  // Mise à jour du hint en temps réel
+  if(rawInput2){
+    rawInput2.addEventListener('input',()=>{
+      if(!hintEl)return;
+      const resolved=_resolveURL(rawInput2.value);
+      if(resolved&&resolved!==rawInput2.value)
+        hintEl.textContent='→ '+resolved;
+      else hintEl.textContent='';
+    });
+  }
+
+  // Activation par raw URL global — supporte .sphere.js ET apps web externes
   const rawBtn=container.querySelector('#sphere-raw-btn');
   const rawInput=container.querySelector('#sphere-raw-url');
   if(rawBtn&&rawInput){
-    rawBtn.addEventListener('click',async()=>{
-      const url=rawInput.value.trim();if(!url)return;
+    const doActivate=async()=>{
+      const input=rawInput.value.trim();if(!input)return;
+      const url=_resolveURL(input);
+      if(!url){window.YM_toast?.('URL invalide','error');return;}
       rawBtn.textContent='…';rawBtn.disabled=true;
       try{
-        // Charge le code depuis l'URL et tente de l'exécuter
-        const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
-        if(!r.ok)throw new Error('HTTP '+r.status);
-        const code=await r.text();
-        // Détecte le nom du fichier depuis l'URL ou depuis window.YM_S
-        const fname=url.split('/').pop().replace(/\?.*$/,'');
-        const blob=new Blob([code],{type:'text/javascript'});
-        const blobUrl=URL.createObjectURL(blob);
-        await new Promise((res,rej)=>{
-          const s=document.createElement('script');s.src=blobUrl;
-          s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
-          s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
-          document.head.appendChild(s);
-        });
-        // Active la sphere trouvée dans YM_S
-        const sphereObj=window.YM_S&&window.YM_S[fname];
-        if(sphereObj&&window.YM){
-          await window.YM.activateSphere(fname,sphereObj);
-          rawInput.value='';
-          window.YM_toast?.('Sphere activée depuis raw URL','success');
-          renderSpheresContent(container);
+        const isExternal=!url.includes('.sphere.js')&&!url.includes('raw.githubusercontent.com');
+        if(isExternal){
+          // Nom = plateforme sélectionnée + input court, ou domaine
+          const selP=_selPlatform?PLATFORMS.find(x=>x.id===_selPlatform):null;
+          const sphereName=(selP?selP.label+' — ':'')+input.replace(/^https?:\/\//,'').split('/').slice(0,2).join('/');
+          const sphereObj=await window.YM.loadSphereFromURL(url, sphereName);
+          if(sphereObj&&window.YM){
+            await window.YM.activateSphere(sphereName, sphereObj);
+            rawInput.value='';
+            if(hintEl)hintEl.textContent='';
+            window.YM_toast?.('App ajoutée : '+sphereName,'success');
+            renderSpheresContent(container);
+          }else throw new Error('Impossible de charger l\'app');
         }else{
-          // Cherche n'importe quelle clé nouvellement ajoutée dans YM_S
-          const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
-          if(newKey&&window.YM){
-            await window.YM.activateSphere(newKey,window.YM_S[newKey]);
+          const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+          if(!r.ok)throw new Error('HTTP '+r.status);
+          const code=await r.text();
+          const fname=url.split('/').pop().replace(/\?.*$/,'');
+          const blob=new Blob([code],{type:'text/javascript'});
+          const blobUrl=URL.createObjectURL(blob);
+          await new Promise((res,rej)=>{
+            const s=document.createElement('script');s.src=blobUrl;
+            s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
+            s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
+            document.head.appendChild(s);
+          });
+          const sphereObj=window.YM_S&&window.YM_S[fname];
+          if(sphereObj&&window.YM){
+            await window.YM.activateSphere(fname,sphereObj);
             rawInput.value='';
             window.YM_toast?.('Sphere activée','success');
             renderSpheresContent(container);
-          }else throw new Error('Aucune sphere trouvée dans le code');
+          }else{
+            const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
+            if(newKey&&window.YM){
+              await window.YM.activateSphere(newKey,window.YM_S[newKey]);
+              rawInput.value='';
+              window.YM_toast?.('Sphere activée','success');
+              renderSpheresContent(container);
+            }else throw new Error('Aucune sphere trouvée dans le code');
+          }
         }
       }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
       rawBtn.textContent='▶';rawBtn.disabled=false;
-    });
+    };
+    rawBtn.addEventListener('click',doActivate);
+    rawInput.addEventListener('keydown',e=>{if(e.key==='Enter')doActivate();});
   }
 
   renderList(container);
