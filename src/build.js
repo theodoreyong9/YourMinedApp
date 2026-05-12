@@ -260,6 +260,7 @@ function renderBuildContent(body){
           '</div>'+
           '<textarea id="min-desc-main" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
           '<input id="min-url-main" class="ym-input" placeholder="Raw URL du vrai code (optionnel)" style="font-size:11px;margin-bottom:6px">'+
+          '<input id="min-owner-main" class="ym-input" placeholder="Transférer ownership à @github-user (optionnel)" style="font-size:11px;margin-bottom:6px">'+
           '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
       }else{
         codeAreaEl.innerHTML=
@@ -1053,6 +1054,7 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
         const cat=(codeAreaEl.querySelector('#min-cat-main')?.value||'').trim()||'Other';
         const desc=(codeAreaEl.querySelector('#min-desc-main')?.value||'').trim().slice(0,140);
         const rawUrl=(codeAreaEl.querySelector('#min-url-main')?.value||'').trim();
+        const newOwner=(codeAreaEl.querySelector('#min-owner-main')?.value||'').trim().replace('@','');
         codeUrl=rawUrl||codeUrl;
         sphereCode=rawUrl
           ? `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nconst _U='${rawUrl}';\nlet _ok=false;\nwindow.YM_S['${filename}']={name:'${nameRaw}',icon:'${icon}',category:'${cat}',description:'${desc}',${wip?'wip:true,':''}codeUrl:_U,\nasync activate(ctx){if(_ok)return;_ok=true;try{const r=await fetch(_U+'?t='+Date.now(),{cache:'no-store'});const code=await r.text();const b=new Blob([code],{type:'text/javascript'});const u=URL.createObjectURL(b);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>{URL.revokeObjectURL(u);res();};s.onerror=()=>{URL.revokeObjectURL(u);rej();};document.head.appendChild(s);});const real=window.YM_S&&window.YM_S['${filename}'];if(real&&real!==this&&real.activate)await real.activate(ctx);}catch(e){ctx.toast('Load error: '+e.message,'error');}},\ndeactivate(){_ok=false;},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px;text-align:center;color:var(--text3)\">Loading…</div>';},\n};\n})();`
