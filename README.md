@@ -12,6 +12,8 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 
 - [Architecture Overview](#architecture-overview)
 - [Sphere API Specification](#sphere-api-specification)
+- [Profile Hooks](#profile-hooks)
+- [Multiplayer](#multiplayer)
 - [Theme API Specification](#theme-api-specification)
 - [External Apps & Bridge API](#external-apps--bridge-api)
 - [Runtime Cycle & Lifecycle](#runtime-cycle--lifecycle)
@@ -100,14 +102,194 @@ ctx.loadProfile()             // returns current profile object
 
 ```js
 // Sending
-ctx.send('myevent:action', { payload: 'data' });          // broadcast
-ctx.send('myevent:action', { payload: 'data' }, peerId);  // direct
+ctx.send('myevent:action', { payload: 'data' });          // broadcast to all peers
+ctx.send('myevent:action', { payload: 'data' }, peerId);  // direct to one peer
 
 // Receiving
 ctx.onReceive((type, data, peerId) => {
   if (type === 'myevent:action') { /* handle */ }
 });
 ```
+
+---
+
+## Profile Hooks
+
+Spheres can inject UI into two places in the profile panel.
+
+### `profileSection(container)`
+
+Called when the user opens their own profile → Spheres tab. Use it to show sphere-specific settings, stats, or configuration.
+
+```js
+profileSection(container) {
+  container.innerHTML = '<div>My sphere settings here</div>';
+  // container is a div inside the accordion for this sphere
+}
+```
+
+### `peerSection(container, ctx)`
+
+Called when the user views another user's profile card, for each sphere in common. Use it to show peer-specific interactions (send message, challenge, trade, etc.).
+
+```js
+peerSection(container, ctx) {
+  // ctx = { uuid, isNear, isReciproc, profile }
+  // uuid      — peer's UUID
+  // isNear    — peer is currently nearby (P2P visible)
+  // isReciproc — both have each other as contacts
+  // profile   — peer's public profile object
+
+  if (!ctx.isNear) {
+    container.innerHTML = '<div style="color:var(--text3);font-size:11px">Not nearby</div>';
+    return;
+  }
+  const btn = document.createElement('button');
+  btn.className = 'ym-btn ym-btn-ghost';
+  btn.textContent = 'Challenge';
+  btn.onclick = () => {
+    ctx.send?.('mygame:challenge', { from: ctx.uuid });
+    // or use window.YM_sphereRegistry to get the sphere ctx
+  };
+  container.appendChild(btn);
+}
+```
+
+### Sphere Visibility
+
+Before broadcasting sphere presence to a peer, check if the user allows it:
+
+```js
+// In social/P2P code
+const visibleSpheres = myProfile.spheres.filter(s =>
+  window.YM_canSeeSphere(s, peerId)
+);
+ctx.send('social:pong', { spheres: visibleSpheres }, peerId);
+
+// API
+window.YM_canSeeSphere(sphereName, peerUUID) // → true | false
+window.YM_getSphereVisibility(sphereName)    // → 'all' | 'contacts' | uuid[]
+```
+
+---
+
+## Multiplayer
+
+YourMine's P2P layer (Nostr) enables real-time multiplayer without any backend.
+
+### Pattern: shared state
+
+```js
+window.YM_S['mygame.sphere.js'] = {
+  name: 'My Game', icon: '🎮',
+
+  activate(ctx) {
+    // Local state
+    const state = { players: {}, myPos: { x: 0, y: 0 } };
+
+    // Broadcast my position every 100ms
+    const interval = setInterval(() => {
+      ctx.send('mygame:pos', state.myPos);
+    }, 100);
+
+    // Receive other players' positions
+    ctx.onReceive((type, data, peerId) => {
+      if (type === 'mygame:pos') {
+        state.players[peerId] = data;
+        renderPlayers(state.players);
+      }
+      if (type === 'mygame:action') {
+        handleAction(data, peerId);
+      }
+    });
+
+    // Cleanup
+    ctx.deactivate = () => clearInterval(interval);
+  },
+
+  renderPanel(container) {
+    // Game UI here
+  }
+};
+```
+
+### Pattern: room / lobby
+
+```js
+activate(ctx) {
+  const myProfile = ctx.loadProfile();
+
+  // Announce presence
+  ctx.send('mygame:join', {
+    name: myProfile.name,
+    avatar: myProfile.avatar,
+  });
+
+  // Track who's in the room
+  const room = new Map();
+  ctx.onReceive((type, data, peerId) => {
+    if (type === 'mygame:join') {
+      room.set(peerId, data);
+      updateLobby(room);
+      // Welcome the new player
+      ctx.send('mygame:welcome', { players: [...room.values()] }, peerId);
+    }
+    if (type === 'mygame:leave') {
+      room.delete(peerId);
+      updateLobby(room);
+    }
+  });
+}
+```
+
+### Pattern: turn-based / authoritative
+
+For games needing a single source of truth, use the **oldest peer** as host:
+
+```js
+activate(ctx) {
+  let isHost = false;
+  let peers = new Map();
+  const myJoinTime = Date.now();
+
+  ctx.send('mygame:hello', { joinTime: myJoinTime });
+
+  ctx.onReceive((type, data, peerId) => {
+    if (type === 'mygame:hello') {
+      peers.set(peerId, data.joinTime);
+      // Host = peer with earliest joinTime
+      isHost = myJoinTime <= Math.min(...peers.values());
+    }
+    if (type === 'mygame:move' && isHost) {
+      // Validate and broadcast authoritative state
+      const newState = applyMove(gameState, data, peerId);
+      ctx.send('mygame:state', newState); // broadcast to all
+    }
+    if (type === 'mygame:state' && !isHost) {
+      applyState(data); // apply host's authoritative state
+    }
+  });
+}
+```
+
+### Rate limits
+
+- **10 P2P sends/second** — enforced by `app.js`
+- **Payload size** — keep under 4KB per message (Nostr relay limit)
+- **No persistent storage** on the network — use `ctx.storage` for local persistence
+
+### Bring your own infrastructure
+
+The default P2P uses public Nostr relays. A sphere can declare its own:
+
+```js
+// In activate(ctx) — connect to custom relay
+const customP2P = new WebSocket('wss://my-relay.example.com');
+// Handle messages independently of ctx.send/onReceive
+// ctx.send still works for the default Nostr layer
+```
+
+WebRTC direct connections are also possible — use the Nostr layer for signaling, then establish direct peer connections for low-latency data (games, voice, etc.).
 
 ---
 
