@@ -868,7 +868,7 @@
 
   let _sA = false;
   const _ACT_TIMEOUT    = 8000;
-  const MANDATORY_SPHERES = ['social.sphere.js'];
+  const MANDATORY_SPHERES = ['social.sphere.js', 'safety.sphere.js'];
 
   async function activateSphere(name, obj) {
     if (window.YM_sphereRegistry.has(name)) return;
@@ -903,7 +903,7 @@
   }
 
   function deactivateSphere(name) {
-    if (MANDATORY_SPHERES.includes(name)) { toast('Social sphere is mandatory', 'warn'); return; }
+    if (MANDATORY_SPHERES.includes(name)) { toast('This sphere is mandatory', 'warn'); return; }
     const s = window.YM_sphereRegistry.get(name);
     if (s) {
       if (s.deactivate) {
@@ -1287,6 +1287,12 @@
     if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
       try { await window.YM_Liste.activateSphereByName(_socId); }
       catch (e) { console.warn('[YM] social:', e.message); }
+    }
+
+    const _safId = 'safety.sphere.js';
+    if (window.YM_Liste && !window.YM_sphereRegistry.has(_safId)) {
+      try { await window.YM_Liste.activateSphereByName(_safId); }
+      catch (e) { console.warn('[YM] safety:', e.message); }
     }
 
     initP2P();
