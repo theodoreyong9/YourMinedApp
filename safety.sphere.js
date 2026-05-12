@@ -303,13 +303,16 @@ function renderPanel(container) {
             '<div id="safety-progress-fill" style="height:100%;background:linear-gradient(90deg,var(--accent,#f0a830),var(--cyan,#08e0f8));width:2%;transition:width .3s"></div>'+
           '</div>'+
           '<div id="safety-progress-text" style="font-size:10px;color:var(--text3)">Initializing…</div>';
-        _loading = true;
         const ok = await loadModel((p) => {
           const fill = statusCard.querySelector('#safety-progress-fill');
           const txt  = statusCard.querySelector('#safety-progress-text');
           if (fill) fill.style.width = Math.round((p.progress||0)*100)+'%';
           if (txt)  txt.textContent  = p.text || '';
           if (p.error){ if(txt) txt.style.color='#ff4560'; }
+        }).catch(e => {
+          console.error('[Safety] loadModel exception:', e);
+          statusCard.innerHTML += '<div style="color:#ff4560;font-size:10px;margin-top:6px;word-break:break-all">'+e.message+'</div>';
+          return false;
         });
         _loading = false;
         if (ok && _ready) { setupInterceptors(); renderPanel(container); }
