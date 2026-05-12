@@ -127,7 +127,33 @@ async function loadModel(onProgress) {
   return false;
 }
 
-// ── Analyse d'une action ───────────────────────────────────────────────────────
+// ── Toast Safety haute priorité ───────────────────────────────────────────────
+// Injecté directement dans body avec z-index maximal — aucun thème ne peut le couvrir
+function safetyToast(msg, level){
+  const t=document.createElement('div');
+  const colors={warn:'#f0a830',error:'#ff4560',info:'#08e0f8'};
+  const icons={warn:'⚠️',error:'🚨',info:'🛡️'};
+  t.style.cssText=
+    'position:fixed;top:16px;left:50%;transform:translateX(-50%);'+
+    'z-index:10002;'+  // au-dessus de TOUT y compris le bouton jaune (10000) et la modale (10001)
+    'background:rgba(6,6,18,.96);'+
+    'border:1px solid '+(colors[level]||colors.warn)+';'+
+    'color:#fff;font-size:13px;font-family:sans-serif;'+
+    'padding:10px 18px;border-radius:10px;'+
+    'box-shadow:0 4px 24px rgba(0,0,0,.5);'+
+    'display:flex;align-items:center;gap:8px;'+
+    'max-width:90vw;pointer-events:none;'+
+    'animation:_ym_sf_in .2s ease';
+  const style=document.createElement('style');
+  style.textContent='@keyframes _ym_sf_in{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+  t.appendChild(style);
+  t.innerHTML+='<span>'+icons[level]+'</span><span>'+msg+'</span>';
+  document.body.appendChild(t);
+  setTimeout(()=>{
+    t.style.transition='opacity .3s';t.style.opacity='0';
+    setTimeout(()=>t.remove(),300);
+  },4000);
+}
 async function analyze(actionType, context) {
   if (!_ready || !isEnabled()) return { risk: 'none', reason: '' };
 
@@ -157,7 +183,7 @@ function setupInterceptors(ctx) {
           const ok = await _confirm(`⚠️ High risk detected\n${result.reason}\n\nLoad anyway?`);
           if (!ok) return null;
         } else if (result.risk === 'medium') {
-          window.YM_toast?.(`⚠️ ${result.reason}`, 'warn');
+          safetyToast(result.reason,'warn');
         }
       }
       return _origLoadSphere(url, name);
@@ -171,9 +197,9 @@ function setupInterceptors(ctx) {
     const result = await analyze('sphere_code', { filename, author, code });
     if (result.risk === 'high') {
       e.preventDefault?.();
-      window.YM_toast?.(`🚨 Sphere blocked: ${result.reason}`, 'error');
+      safetyToast('Sphere blocked: '+result.reason,'error');
     } else if (result.risk === 'medium') {
-      window.YM_toast?.(`⚠️ ${result.reason}`, 'warn');
+      safetyToast(result.reason,'warn');
     }
   });
 
@@ -183,9 +209,9 @@ function setupInterceptors(ctx) {
     const result = await analyze('transaction', e.detail || {});
     if (result.risk === 'high') {
       e.preventDefault?.();
-      window.YM_toast?.(`🚨 Transaction blocked: ${result.reason}`, 'error');
+      safetyToast('Transaction blocked: '+result.reason,'error');
     } else if (result.risk === 'medium') {
-      window.YM_toast?.(`⚠️ ${result.reason}`, 'warn');
+      safetyToast(result.reason,'warn');
     }
   });
 }
