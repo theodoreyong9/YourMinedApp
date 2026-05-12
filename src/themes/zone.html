@@ -174,7 +174,7 @@ body.edit-mode .icon-body{animation:wob .4s ease-in-out infinite}
 .drag-ghost__body{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center}
 
 /* ── NAV BAR ── */
-#nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:rgba(4,1,10,.95);border-top:1px solid rgba(176,38,255,.25)}
+#nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:rgba(4,1,10,.5);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border-top:1px solid rgba(176,38,255,.25)}
 #nav-bar::before{content:'';position:absolute;top:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(176,38,255,.8) 25%,rgba(255,0,204,1) 50%,rgba(176,38,255,.8) 75%,transparent);box-shadow:var(--neon)}
 #nav-bar::after{content:'';position:absolute;bottom:calc(-1 * var(--safe-b));left:0;right:0;height:var(--safe-b);background:rgba(4,1,10,.95)}
 #nav-logo{display:none}
@@ -193,7 +193,7 @@ body.edit-mode .icon-body{animation:wob .4s ease-in-out infinite}
 #btn-back{font-size:32px;color:rgba(176,38,255,.5)}
 
 @media(hover:hover) and (pointer:fine){
-  #nav-bar{left:auto;right:0;top:0;bottom:0;height:auto;width:72px;flex-direction:column;border-top:none;border-left:1px solid rgba(176,38,255,.25);padding-bottom:0}
+  #nav-bar{left:auto;right:0;top:0;bottom:0;height:auto;width:72px;flex-direction:column;border-top:none;border-left:1px solid rgba(176,38,255,.25);padding-bottom:0;background:rgba(4,1,10,.5);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%)}
   #nav-bar::before{top:0;left:-1px;right:auto;bottom:0;width:1px;height:auto;background:linear-gradient(180deg,transparent,rgba(176,38,255,.8) 25%,rgba(255,0,204,1) 50%,rgba(176,38,255,.8) 75%,transparent)}
   #nav-bar::after{display:none}
   #nav-logo{width:100%;padding:14px 0 12px;display:flex;flex-direction:column;align-items:center;gap:4px;border-bottom:1px solid rgba(176,38,255,.1);flex-shrink:0}
@@ -585,7 +585,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
 <div class="ym-panel" id="panel-build">
   <div class="panel-handle"></div>
-  <div class="panel-head"><h2>Build</h2></div>
+  <div class="panel-head"><h2>Publish</h2></div>
   <div class="panel-body" id="panel-build-body">Loading...</div>
 </div>
 
