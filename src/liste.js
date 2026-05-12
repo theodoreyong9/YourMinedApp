@@ -614,6 +614,8 @@ function renderLinkContent(container){
           const sphereName=(selP?selP.label+' — ':'')+input.replace(/^https?:\/\//,'').split('/').slice(0,2).join('/');
           const sphereObj=await window.YM.loadSphereFromURL(url,sphereName);
           if(sphereObj&&window.YM){
+            // Dispatch pour Safety
+            window.dispatchEvent(new CustomEvent('ym:external-app-load',{detail:{url,name:sphereName}}));
             await window.YM.activateSphere(sphereName,sphereObj);
             inp.value='';hint.textContent='';
             window.YM_toast?.('App ajoutée : '+sphereName,'success');
@@ -626,6 +628,8 @@ function renderLinkContent(container){
           const fname=url.split('/').pop().replace(/\?.*$/,'');
           const blob=new Blob([code],{type:'text/javascript'});
           const blobUrl=URL.createObjectURL(blob);
+          // Garde le code source pour Safety
+          if(sphereObj) sphereObj._sourceCode = code.slice(0, 500);
           await new Promise((res,rej)=>{
             const s=document.createElement('script');s.src=blobUrl;
             s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
