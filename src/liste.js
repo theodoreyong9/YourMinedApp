@@ -1,4 +1,4 @@
-/* jshint esversion:11, -W033 */
+﻿/* jshint esversion:11, -W033 */
 // liste.js — YourMine Sphere List Manager
 (function(){
 'use strict';
@@ -176,7 +176,7 @@ async function render(containerArg){
     '<div style="display:flex;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0">'+
       '<div class="ym-tab'+(_listTab==='spheres'?' active':'')+'" data-ltab="spheres" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">⬡ Spheres</div>'+
       '<div class="ym-tab'+(_listTab==='themes'?' active':'')+'" data-ltab="themes" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🎨 Themes</div>'+
-      '<div class="ym-tab'+(_listTab==='link'?' active':'')+'" data-ltab="link" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🔗 Link</div>'+
+      '<div class="ym-tab'+(_listTab==='link'?' active':'')+'" data-ltab="link" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🔌 Plug</div>'+
     '</div>';
 
   const content=body.querySelector('#list-content');
