@@ -1,4 +1,4 @@
-<!--
+﻿<!--
   YourMine — Default Theme
   GitHub: theodoreyong9/YourMinedApp/src/themes/default.html
 -->
@@ -162,12 +162,13 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.45)}
   backdrop-filter:var(--blur-heavy);
   -webkit-backdrop-filter:var(--blur-heavy);
   border:none;z-index:301;
+  visibility:hidden;
   transform:translateY(calc(100% + 20px));
-  transition:transform .4s cubic-bezier(.32,.72,0,1);
+  transition:transform .4s cubic-bezier(.32,.72,0,1),visibility 0s .4s;
   display:flex;flex-direction:column;
   border-radius:30px 30px 0 0;overflow:hidden;
 }
-.ym-panel.open{transform:translateY(0)}
+.ym-panel.open{transform:translateY(0);visibility:visible;transition:transform .4s cubic-bezier(.32,.72,0,1),visibility 0s}
 .ym-panel::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 @media(hover:hover) and (pointer:fine){
   /* Desktop : slide depuis la droite, largeur auto plafonnée à 560px */
@@ -178,7 +179,7 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.45)}
     width:min(560px, calc(100vw - 72px));
     max-height:none;
     border-radius:0;
-    transform:translateX(100%); /* part hors écran à droite */
+    transform:translateX(calc(100% + 72px)); /* part hors écran à droite, dépasse la nav */
   }
   .ym-panel.open{transform:translateX(0)}
   /* Ligne lumineuse à gauche du panel (bord d'entrée) */
