@@ -363,8 +363,8 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 #ym-sign-box{background:var(--glass-heavy);border:1px solid rgba(255,69,96,.4);border-top:1px solid rgba(255,69,96,.6);border-radius:24px;padding:24px;width:min(320px,92vw);display:flex;flex-direction:column;gap:14px}
 .toast.success{border-color:rgba(34,217,138,.3);color:var(--green)}.toast.error{border-color:rgba(255,69,96,.3);color:var(--red)}.toast.info{border-color:rgba(8,224,248,.3);color:var(--cyan)}.toast.warn{border-color:rgba(240,168,48,.3);color:var(--gold)}
 @keyframes tin{from{opacity:0;transform:translateY(-12px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
-#ym-loader{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .5s}
-#ym-loader.hidden{opacity:0;pointer-events:none}
+#ym-loader{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .5s,visibility 0s .5s}
+#ym-loader.hidden{opacity:0;pointer-events:none;visibility:hidden}#ym-loader.hidden .ldr-fill,#ym-loader.hidden .ldr-logo{animation:none}
 .ldr-logo{font-family:var(--font-d);font-size:22px;font-weight:800;letter-spacing:10px;background:linear-gradient(90deg,var(--gold),rgba(255,255,255,.9),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200%;animation:titleshift 3s ease-in-out infinite}
 .ldr-bar{width:160px;height:2px;border-radius:1px;overflow:hidden;background:rgba(255,255,255,.05)}
 .ldr-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--cyan));animation:ldr 1.4s ease infinite}
