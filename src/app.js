@@ -1,4 +1,4 @@
-/**
+﻿/**
  * app.js — YourMine core logic
  * GitHub: theodoreyong9/YourMinedApp/src/app.js
  *
@@ -1056,8 +1056,10 @@
         setInterval(() => { if (!document.hidden) send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) {
-            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
-            window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: '_self_' } }));
+            requestAnimationFrame(() => {
+              send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+              window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: '_self_' } }));
+            });
           }
         });
         return;
