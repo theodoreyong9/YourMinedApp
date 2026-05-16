@@ -171,10 +171,9 @@ async function render(containerArg){
   body.innerHTML=
     '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
     '<div id="list-controls" style="padding:8px 12px 6px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:5px;flex-shrink:0;background:inherit">'+
-      '<div style="display:flex;gap:6px;align-items:center">'+
-        '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0"></div>'+
-        '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:10px;padding:4px 8px;min-width:0">'+
-      '</div>'+
+      '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
+      '<input id="list-search" class="ym-input" placeholder="Search…" style="width:100%;font-size:10px;padding:4px 8px;box-sizing:border-box">'+
+
       '<div id="list-cat-row" style="display:flex;gap:4px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-height:20px"></div>'+
       '<div id="list-wip-row" style="display:none"></div>'+
     '</div>';
