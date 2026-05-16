@@ -1,4 +1,4 @@
-// build.js — YourMine Build / Publish Panel
+﻿// build.js — YourMine Build / Publish Panel
 /* jshint esversion:11 */
 (function(){
 'use strict';
@@ -105,6 +105,8 @@ function _injectGithubBtn(){
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
+let _buildTab='rank';
+
 async function render(containerArg){
   const body=containerArg||document.getElementById('panel-build-body')||_lastContainer;
   if(!body)return;
@@ -112,7 +114,38 @@ async function render(containerArg){
   body.innerHTML='';
   body.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)';
   setTimeout(_injectGithubBtn,0);
-  renderBuildContent(body);
+
+  body.innerHTML=
+    '<div id="build-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
+    '<div style="display:flex;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0">'+
+      '<div class="ym-tab active" data-btab="rank" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">⬆ Rank</div>'+
+      '<div class="ym-tab" data-btab="plug" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🔌 Plug</div>'+
+    '</div>';
+
+  const buildContent=body.querySelector('#build-content');
+  _buildTab=_buildTab||'rank';
+
+  function switchBuildTab(tab){
+    _buildTab=tab;
+    body.querySelectorAll('[data-btab]').forEach(t=>t.classList.toggle('active',t.dataset.btab===tab));
+    buildContent.innerHTML='';
+    if(tab==='rank')renderBuildContent(buildContent);
+    else renderPlugContent(buildContent);
+  }
+
+  body.querySelectorAll('[data-btab]').forEach(t=>{
+    t.addEventListener('click',()=>switchBuildTab(t.dataset.btab));
+    if(t.dataset.btab===_buildTab)t.classList.add('active');
+    else t.classList.remove('active');
+  });
+
+  if(_buildTab==='rank')renderBuildContent(buildContent);
+  else renderPlugContent(buildContent);
+}
+
+function renderPlugContent(body){
+  if(window.YM_Liste?.renderPlugContent){window.YM_Liste.renderPlugContent(body);}
+  else{body.style.cssText='display:flex;align-items:center;justify-content:center;height:100%';body.innerHTML='<div style="color:var(--text3);font-size:12px">Loading…</div>';setTimeout(()=>{if(window.YM_Liste?.renderPlugContent)window.YM_Liste.renderPlugContent(body);},500);}
 }
 
 function renderBuildContent(body){

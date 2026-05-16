@@ -157,8 +157,10 @@ async function activateSphereByName(fileName){
   else console.warn('[Liste] sphere not found:',fileName);
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────────────
+// ── RENDER ───────────────────────────────────────────────────────────────────
 let _currentBody=null;
+let _listType='spheres';
+let _listShowWip=false;
 
 async function render(containerArg){
   const body=containerArg||_currentBody||document.getElementById('panel-spheres-body');
@@ -166,40 +168,44 @@ async function render(containerArg){
   _currentBody=body;
   body.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;padding:0;overflow:hidden';
 
-  // Sous-onglets Sphères / Thèmes
-  let _listTab=body._listTab||'spheres';
-
   body.innerHTML=
-    // Contenu principal
     '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
-    // Sous-onglets en bas
-    '<div style="display:flex;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0">'+
-      '<div class="ym-tab'+(_listTab==='spheres'?' active':'')+'" data-ltab="spheres" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">⬡ Spheres</div>'+
-      '<div class="ym-tab'+(_listTab==='themes'?' active':'')+'" data-ltab="themes" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🎨 Themes</div>'+
-      '<div class="ym-tab'+(_listTab==='link'?' active':'')+'" data-ltab="link" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🔌 Plug</div>'+
+    '<div id="list-controls" style="padding:8px 12px 6px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:5px;flex-shrink:0;background:inherit">'+
+      '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
+      '<div id="list-cat-row" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-height:20px"></div>'+
+      '<div id="list-wip-row" style="display:none"></div>'+
     '</div>';
 
   const content=body.querySelector('#list-content');
+  const typePillsEl=body.querySelector('#list-type-pills');
+  const catRow=body.querySelector('#list-cat-row');
+  const wipRow=body.querySelector('#list-wip-row');
 
-  function switchListTab(tab){
-    _listTab=tab;body._listTab=tab;
-    body.querySelectorAll('[data-ltab]').forEach(t=>t.classList.toggle('active',t.dataset.ltab===tab));
-    content.innerHTML='';
-    if(tab==='spheres')renderSpheresContent(content);
-    else if(tab==='themes')renderThemesContent(content);
-    else renderLinkContent(content);
+  function renderTypePills(){
+    typePillsEl.innerHTML='';
+    [{id:'spheres',label:'⬡ Sphere'},{id:'themes',label:'🎨 Theme'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}].forEach(opt=>{
+      const p=document.createElement('span');
+      p.className='pill'+(_listType===opt.id?' active':'');
+      p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+      p.textContent=opt.label;
+      p.addEventListener('click',()=>{if(_listType===opt.id)return;_listType=opt.id;renderTypePills();switchType();});
+      typePillsEl.appendChild(p);
+    });
   }
 
-  body.querySelectorAll('[data-ltab]').forEach(t=>{
-    t.addEventListener('click',()=>switchListTab(t.dataset.ltab));
-  });
+  function switchType(){
+    content.innerHTML='';catRow.innerHTML='';wipRow.innerHTML='';
+    wipRow.style.display=_listType==='spheres'?'block':'none';
+    if(_listType==='spheres')renderSpheresContent(content,catRow,wipRow);
+    else if(_listType==='themes')renderThemesContent(content,catRow);
+    else if(_listType==='photo')renderPhotoContent(content);
+    else if(_listType==='video')renderVideoContent(content);
+  }
 
+  renderTypePills();
   if(!_loaded)await fetchSphereList();
-
-  if(_listTab==='spheres')renderSpheresContent(content);
-  else renderThemesContent(content);
+  switchType();
 }
-
 // Themes registry : themes-files.json sur le repo PRINCIPAL (même logique que files.json pour spheres)
 // themes-files.json est à la RACINE du repo principal (pas dans src/)
 const THEMES_FILES_URL = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
@@ -254,112 +260,43 @@ async function fetchThemesList(force){
   }
 }
 
-async function renderThemesContent(container){
+async function renderThemesContent(container,catRow){
   const GH_BLOB_BASE='https://github.com/';
   const curThemeUrl=localStorage.getItem('ym_theme_url')||'';
-
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
   container.innerHTML=
     '<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
-    '</div>'+
-    '<div style="padding:8px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
-      '<div id="theme-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
-      '<div style="display:flex;gap:6px;align-items:center">'+
-        '<input class="ym-input" id="theme-search" placeholder="Search themes…" style="flex:1;font-size:11px">'+
-      '</div>'+
     '</div>';
-
-  // Toggle URL row
-  const urlToggle=container.querySelector('#theme-url-toggle');
-  const urlRow=container.querySelector('#theme-url-row');
-  if(urlToggle&&urlRow){
-    urlToggle.addEventListener('click',()=>{
-      const open=urlRow.style.display!=='none';
-      urlRow.style.display=open?'none':'flex';
-      urlRow.style.flexDirection='column';
-      urlToggle.style.color=open?'':'var(--cyan)';
-    });
+  if(catRow){
+    const inp=document.createElement('input');
+    inp.className='ym-input';inp.id='theme-search';inp.placeholder='Search themes…';
+    inp.style.cssText='flex:1;font-size:10px;padding:4px 8px;min-width:0';
+    catRow.appendChild(inp);
+    inp.addEventListener('input',e=>{_themeSearch=e.target.value.toLowerCase();_renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,_themesList);});
   }
-
-  // Platform pills pour themes
-  const themePillsEl=container.querySelector('#theme-platform-pills');
-  const themeHintEl=container.querySelector('#theme-raw-hint');
-  const themeRawInp=container.querySelector('#theme-raw-input');
-  if(themePillsEl){
-    PLATFORMS.forEach(p=>{
-      const pill=document.createElement('span');
-      pill.className='pill';
-      pill.style.cssText='cursor:pointer;font-size:10px';
-      pill.textContent=p.icon+' '+p.label;
-      pill.addEventListener('click',()=>{
-        const wasActive=pill.classList.contains('active');
-        themePillsEl.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
-        if(!wasActive){
-          pill.classList.add('active');
-          if(themeRawInp)themeRawInp.placeholder=p.hint;
-          if(themeHintEl){
-            const v=themeRawInp?.value.trim();
-            themeHintEl.textContent=v?'→ '+p.resolve(v):'';
-          }
-        }else{
-          if(themeRawInp)themeRawInp.placeholder='GitHub raw URL ou ID plateforme…';
-          if(themeHintEl)themeHintEl.textContent='';
-        }
-      });
-      themePillsEl.appendChild(pill);
-    });
-  }
-  if(themeRawInp&&themeHintEl){
-    themeRawInp.addEventListener('input',()=>{
-      const v=themeRawInp.value.trim();
-      if(!v){themeHintEl.textContent='';return;}
-      let resolved=v;
-      if(!/^https?:\/\//i.test(v))resolved='https://raw.githubusercontent.com/'+v;
-      themeHintEl.textContent=resolved!==v?'→ '+resolved:'';
-    });
-  }
-
-  container.querySelector('#theme-raw-btn')?.addEventListener('click',()=>{
-    const inp=container.querySelector('#theme-raw-input');
-    let url=(inp?inp.value:'').trim();
-    if(!url)return;
-    // Utilise _resolveExtURL pour supporter toutes les plateformes
-    url=_resolveExtURL(url)||url;
-    // Pour les thèmes .html GitHub : convertit les URLs blob en raw
-    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-    localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');
-    window.YM_toast?.('Thème — rechargement…','success');
-    setTimeout(()=>{if(window._YM_softReload)window._YM_softReload();else location.reload();},400);
-  });
-
-  // Pills types themes
-  const themeCatsEl=container.querySelector('#theme-cats');
-  if(themeCatsEl){
-    ['Theme','Photo','Video'].forEach(c=>{
-      const active=_themeFilterCat===c||(c==='Theme'&&_themeFilterCat==='Theme');
-      const p=document.createElement('span');
-      p.className='pill'+(active?' active':'');
-      p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
-      p.textContent=c;
-      p.addEventListener('click',()=>{
-        _themeFilterCat=c==='All'?'':c;
-        themeCatsEl.querySelectorAll('.pill').forEach(x=>x.classList.toggle('active',x.textContent===c));
-        _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,_themesList);
-      });
-      themeCatsEl.appendChild(p);
-    });
-  }
-
-  container.querySelector('#theme-search')?.addEventListener('input',e=>{
-    _themeSearch=e.target.value.toLowerCase();
-    _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,_themesList);
-  });
-
+  _themeFilterCat='Theme';
   const themes=await fetchThemesList();
   _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes);
 }
 
+async function renderPhotoContent(container){
+  const curThemeUrl=localStorage.getItem('ym_theme_url')||'';
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML='<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0"><div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div></div>';
+  _themeFilterCat='Photo';
+  const themes=await fetchThemesList();
+  _renderThemeCards(container,curThemeUrl,'https://github.com/',themes);
+}
+
+async function renderVideoContent(container){
+  const curThemeUrl=localStorage.getItem('ym_theme_url')||'';
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML='<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0"><div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div></div>';
+  _themeFilterCat='Video';
+  const themes=await fetchThemesList();
+  _renderThemeCards(container,curThemeUrl,'https://github.com/',themes);
+}
 
 function _addThemeIcon(theme, rawUrl){
   if(!window.YM_Desk || !window.YM_Desk.addIcon) return;
@@ -656,69 +593,46 @@ function renderLinkContent(container){
   btn.addEventListener('click',doActivate);
   inp.addEventListener('keydown',e=>{if(e.key==='Enter')doActivate();});
 }
-function renderSpheresContent(container){
+function renderSpheresContent(container,catRow,wipRow){
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
   container.innerHTML=
     '<div id="sphere-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
-    '</div>'+
-    '<div style="padding:8px 16px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
-      '<div id="sphere-cats" style="display:flex;flex-wrap:wrap;gap:4px"></div>'+
-      '<div style="display:flex;gap:6px;align-items:center">'+
-        '<input class="ym-input" id="sphere-search" placeholder="Search…" style="flex:1;font-size:11px">'+
-      '</div>'+
     '</div>';
 
-  container.querySelector('#sphere-search')?.addEventListener('input',e=>{
-    _filterText=e.target.value.toLowerCase();
-    renderList(container);
-  });
-
-  // Pills catégories prédéterminées
-  const catsEl=container.querySelector('#sphere-cats');
-  if(catsEl){
+  if(catRow){
     const FIXED_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent','Autres'];
-    const renderPills=()=>{
-      // "Actifs" = filtre spécial
-      const allPills=['All','Actifs',...FIXED_CATS];
-      catsEl.innerHTML=allPills.map(c=>{
-        const isActive=c==='All'?(!_filterCat&&!_filterActive)
-          :c==='Actifs'?_filterActive
-          :(!_filterActive&&_filterCat===c);
-        return'<span class="pill'+(isActive?' active':'')+'" style="cursor:pointer;font-size:10px;flex-shrink:0" data-cat="'+c+'">'+c+'</span>';
-      }).join('');
-      catsEl.querySelectorAll('.pill').forEach(p=>{
+    function renderCatPills(){
+      catRow.innerHTML='';
+      ['Tous','Actifs',...FIXED_CATS].forEach(c=>{
+        const isActive=c==='Tous'?(!_filterCat&&!_filterActive):c==='Actifs'?_filterActive:(!_filterActive&&_filterCat===c);
+        const p=document.createElement('span');
+        p.className='pill'+(isActive?' active':'');
+        p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+        p.textContent=c;
         p.addEventListener('click',()=>{
-          const cat=p.dataset.cat;
-          if(cat==='All'){_filterCat='';_filterActive=false;}
-          else if(cat==='Actifs'){_filterActive=!_filterActive;_filterCat='';}
-          else{_filterCat=cat;_filterActive=false;}
-          renderPills();
-          renderList(container);
+          if(c==='Tous'){_filterCat='';_filterActive=false;}
+          else if(c==='Actifs'){_filterActive=!_filterActive;_filterCat='';}
+          else{_filterCat=c;_filterActive=false;}
+          renderCatPills();renderList(container);
         });
+        catRow.appendChild(p);
       });
-    };
-    renderPills();
+    }
+    renderCatPills();
+  }
+
+  if(wipRow){
+    const wipBtn=document.createElement('span');
+    wipBtn.className='pill'+(_listShowWip?' active':'');
+    wipBtn.style.cssText='cursor:pointer;font-size:10px';
+    wipBtn.textContent='🚧 Under construction';
+    wipBtn.addEventListener('click',()=>{_listShowWip=!_listShowWip;wipBtn.classList.toggle('active',_listShowWip);renderList(container);});
+    wipRow.appendChild(wipBtn);
   }
 
   renderList(container);
   fetchSphereList().then(()=>renderList(container));
-}
-
-function renderCategories(container){
-  const cats=[...new Set(_sphereList.map(s=>normCat(s.category)||'Autres').filter(Boolean))];
-  const catsEl=container.querySelector('#sphere-cats');if(!catsEl)return;
-  catsEl.innerHTML=
-    '<span class="pill '+(!_filterCat&&!_filterActive?'active':'')+'" style="cursor:pointer" data-cat="" data-active="0">All</span>'+
-    cats.map(c=>'<span class="pill '+(_filterCat===c?'active':'')+'" style="cursor:pointer" data-cat="'+c+'" data-active="0">'+c+'</span>').join('')+
-    '<span class="pill '+(_filterActive?'active':'')+'" style="cursor:pointer;background:'+(_filterActive?'var(--green)':'')+'!important;border-color:'+(_filterActive?'var(--green)':'rgba(34,217,138,.4)')+'!important;color:'+(_filterActive?'#000':'var(--text3)')+'!important" data-cat="" data-active="1">✓ Active</span>';
-  catsEl.querySelectorAll('[data-cat]').forEach(el=>{
-    el.addEventListener('click',()=>{
-      if(el.dataset.active==='1'){_filterActive=!_filterActive;_filterCat='';}
-      else{_filterActive=false;_filterCat=el.dataset.cat;}
-      renderCategories(container);renderList(container);
-    });
-  });
 }
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -757,6 +671,7 @@ function renderList(body){
   if(_filterText)filtered=filtered.filter(s=>(s.name||'').toLowerCase().includes(_filterText)||(s.description||'').toLowerCase().includes(_filterText)||(s.ghAuthor||'').toLowerCase().includes(_filterText)||(s.category||'').toLowerCase().includes(_filterText));
   if(_filterCat)filtered=filtered.filter(s=>normCat(s.category||'')===_filterCat||(_filterCat==='Autres'&&!STD_CATS.includes(s.category||'')));
   if(_filterActive)filtered=filtered.filter(s=>isSphereActive(s.fileName));
+  if(_listShowWip)filtered=filtered.filter(s=>s.wip);
   if(!filtered.length){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No spheres found.</div>';return;}
 
   listEl.innerHTML='';
@@ -835,7 +750,7 @@ function renderList(body){
 
 function _setInactive(fileName){setActiveSpheres(getActiveSpheres().filter(s=>s!==fileName));}
 
-window.YM_Liste={render,fetchSphereList,activateSphereByName,isSphereActive,_setInactive,
+window.YM_Liste={render,fetchSphereList,activateSphereByName,isSphereActive,_setInactive,renderPlugContent:renderLinkContent,
   get _sphereList(){return _sphereList;},
   get _themesList(){return _themesList;},
   _forceRefresh(){_loaded=false;_sphereList=[];_fetchPromise=null;_themesList=null;_themesLoaded=false;},
