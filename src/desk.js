@@ -215,17 +215,7 @@ function goPage(n,anim){
   s.style.transform='translateX(calc('+(-curPg)+' * '+unit+'))';
   updateDots();window.dispatchEvent(new CustomEvent('ym:page-change',{detail:{page:curPg}}));
 }
-function autoCleanPages(){
-  const icons=LD();
-  let n=getPgCount();
-  while(n>1){
-    const p=n-1;
-    if(icons.some(i=>i.page===p))break;
-    if(isPageOccupiedByWidget(p))break;
-    n--;
-  }
-  if(n!==getPgCount()){setPgCount(n);if(curPg>=n)curPg=n-1;buildSlider();goPage(curPg,false);}
-}
+function autoCleanPages(){const icons=LD();const n=getPgCount();const occupied=new Set(icons.map(i=>i.page));for(const p of _widgetPages.values())occupied.add(p);occupied.add(0);const kept=[];for(let p=0;p<n;p++){if(occupied.has(p))kept.push(p);}if(kept.length===n)return;const remap=new Map();kept.forEach((oldP,newP)=>remap.set(oldP,newP));icons.forEach(i=>{if(remap.has(i.page))i.page=remap.get(i.page);});SD(icons);for(const[id,p] of _widgetPages){if(remap.has(p))_widgetPages.set(id,remap.get(p));}const newN=kept.length;setPgCount(newN);if(curPg>=newN)curPg=newN-1;buildSlider();goPage(curPg,false);}
 
 function iconsForPage(arr,p){return arr.filter(i=>i.page===p);}
 function renderPageInto(el,icons,isFolder){
