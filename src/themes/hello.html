@@ -1,4 +1,4 @@
-<!-- YourMine — Landing Theme (hello)
+﻿<!-- YourMine — Landing Theme (hello)
      Premier écran : présentation + bouton Start → default + bouton Readme
      Contient tout le DOM requis par app.js/desk.js (invisible).
 -->
@@ -21,7 +21,7 @@ window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine land
   --r:12px;--r-sm:8px;--r-lg:20px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{height:100%;overflow:hidden;background:var(--bg);scroll-behavior:smooth}
+html{height:100%;overflow:hidden;background:var(--bg)}
 body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b)}
 
 /* ── Cache tout le DOM fonctionnel ── */
@@ -69,33 +69,32 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   line-height:1;
   background:linear-gradient(135deg,var(--gold) 0%,#fff 45%,var(--cyan) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:40px;
+  margin-bottom:36px;
   width:100%;
 }
 
 .lp-lines{
   display:flex;flex-direction:column;
-  align-items:center;gap:10px;
+  align-items:center;gap:6px;
   margin-bottom:48px;
 }
 .lp-line{
   font-family:var(--font-b);
-  font-size:clamp(14px,2.2vw,19px);
+  font-size:clamp(13px,2vw,17px);
   color:var(--text2);
-  line-height:1.4;
+  line-height:1.5;
   opacity:0;
-  transform:translateY(10px);
-  animation:fadein .6s ease forwards;
+  transform:translateY(8px);
+  animation:fadein .5s ease forwards;
 }
 .lp-line:nth-child(1){animation-delay:.1s}
 .lp-line:nth-child(2){animation-delay:.25s}
-.lp-line:nth-child(3){animation-delay:.4s}
-.lp-line:nth-child(4){animation-delay:.55s;color:var(--text3);font-size:clamp(12px,1.6vw,15px)}
+.lp-line:nth-child(3){animation-delay:.4s;color:var(--text3);font-family:var(--font-m);font-size:clamp(10px,1.4vw,12px);letter-spacing:.08em}
 @keyframes fadein{to{opacity:1;transform:none}}
 
 .lp-ctas{
   display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
-  opacity:0;animation:fadein .5s .8s ease forwards;
+  opacity:0;animation:fadein .5s .65s ease forwards;
 }
 .lp-btn{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -120,8 +119,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
 /* ── BODY ── */
 .lp-body{
-  max-width:640px;margin:0 auto;
-  padding:0 32px 120px;
+  max-width:600px;margin:0 auto;
+  padding:0 28px 120px;
 }
 
 .lp-divider{
@@ -130,73 +129,83 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   margin:0 auto 60px;
 }
 
-.lp-block{
-  margin-bottom:64px;
+.lp-sep{
+  width:32px;height:1px;
+  background:rgba(255,255,255,.08);
+  margin:56px 0;
 }
 
-.lp-intro{
+.lp-block{margin-bottom:0}
+
+/* Paragraph */
+.lp-p{
   font-family:var(--font-b);
   font-size:clamp(14px,2vw,16px);
   color:var(--text2);
   line-height:1.85;
-  margin-bottom:24px;
   font-weight:400;
 }
-.lp-intro em{
-  font-style:normal;
-  color:var(--text);
-  font-weight:600;
-}
 
+/* Stanza — identity / ownership lines */
 .lp-stanza{
   display:flex;flex-direction:column;gap:2px;
-  margin-bottom:24px;
+  margin:20px 0;
 }
 .lp-stanza-line{
   font-family:var(--font-b);
-  font-size:clamp(13px,1.6vw,15px);
+  font-size:clamp(13px,1.7vw,15px);
   color:var(--text3);
   line-height:1.8;
   font-style:italic;
 }
-.lp-stanza-line.accent{color:var(--text2);font-style:normal;font-weight:500;}
+.lp-stanza-line.hi{color:var(--text);font-style:normal;font-weight:600;}
 
+/* Inline list */
 .lp-list-inline{
   display:flex;flex-wrap:wrap;gap:0;
-  margin:4px 0 20px;
+  margin:8px 0 0;
 }
 .lp-list-inline span{
   font-family:var(--font-m);
   font-size:11px;
   color:var(--text3);
-  letter-spacing:.04em;
+  letter-spacing:.05em;
 }
 .lp-list-inline span::after{content:' · ';color:rgba(255,255,255,.12)}
 .lp-list-inline span:last-child::after{content:''}
 
-.lp-negations{
-  display:flex;flex-direction:column;gap:6px;
-  margin:24px 0;
-}
-.lp-neg{
-  font-family:var(--font-b);
-  font-size:clamp(13px,1.5vw,14px);
-  color:var(--text3);
-  letter-spacing:.01em;
-}
-
+/* Statement — big line */
 .lp-statement{
   font-family:var(--font-d);
-  font-size:clamp(15px,2.2vw,20px);
+  font-size:clamp(16px,2.5vw,22px);
   font-weight:700;
   color:var(--text);
-  line-height:1.6;
-  margin:32px 0 20px;
+  line-height:1.55;
 }
 .lp-statement em{
   font-style:normal;
   background:linear-gradient(90deg,var(--gold),var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+
+/* Negations */
+.lp-negations{
+  display:flex;flex-direction:column;gap:6px;
+  margin-top:24px;
+}
+.lp-neg{
+  font-family:var(--font-b);
+  font-size:clamp(13px,1.5vw,14px);
+  color:var(--text3);
+}
+
+/* Solo closing line */
+.lp-solo{
+  font-family:var(--font-b);
+  font-size:clamp(14px,2vw,16px);
+  color:var(--text2);
+  font-style:italic;
+  line-height:1.7;
 }
 
 /* ── FOOTER WORDMARK ── */
@@ -235,13 +244,11 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   <div class="lp lp-hero">
     <div class="lp-logo">YOURMINE</div>
     <div class="lp-lines">
-      <div class="lp-line">Code anywhere.</div>
-      <div class="lp-line">Bridge any code instantly.</div>
-      <div class="lp-line">Build a borderless community.</div>
-      <div class="lp-line">A 100% user-driven web.</div>
+      <div class="lp-line">One prompt. One living web layer.</div>
+      <div class="lp-line">100% user-driven.</div>
     </div>
     <div class="lp-ctas">
-      <button class="lp-btn lp-btn-primary" id="lp-start-btn">▶ Start</button>
+      <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
       <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">readme</a>
     </div>
   </div>
@@ -251,31 +258,25 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-divider"></div>
 
+    <!-- Block 1 -->
     <div class="lp-block">
-      <p class="lp-intro">
-        YourMine is a <em>decentralized universal runtime</em> built on a self-regulated execution and discovery layer.
-      </p>
+      <p class="lp-p">YourMine is a decentralized universal runtime for the open web.</p>
+      <p class="lp-p" style="margin-top:10px">A living meta-layer for builder networks, applications, and communities.</p>
       <div class="lp-stanza">
         <div class="lp-stanza-line">Identity does not matter.</div>
         <div class="lp-stanza-line">Ownership does not matter.</div>
-        <div class="lp-stanza-line accent">Only participation.</div>
+        <div class="lp-stanza-line hi">Only participation.</div>
       </div>
-      <p class="lp-intro">
-        Participation generates value — continuously redistributed within the system through an embedded Solana-based protocol.
-      </p>
+      <p class="lp-p">Participation generates value — continuously redistributed through a built-in protocol.</p>
     </div>
 
+    <div class="lp-sep"></div>
+
+    <!-- Block 2 -->
     <div class="lp-block">
-      <p class="lp-intro">
-        Build your own web environments, realities, and executables exactly as you imagine them.
-      </p>
-      <div class="lp-stanza">
-        <div class="lp-stanza-line accent">One API. One prompt.</div>
-      </div>
-      <p class="lp-intro">
-        Connect instantly to a shared infrastructure for:
-      </p>
-      <div class="lp-list-inline">
+      <p class="lp-p">Build web environments, applications, and executables exactly as you imagine them.</p>
+      <p class="lp-p" style="margin-top:16px">Connect instantly to a shared layer for:</p>
+      <div class="lp-list-inline" style="margin-top:10px">
         <span>scaling</span>
         <span>interoperability</span>
         <span>propagation</span>
@@ -283,27 +284,33 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
       </div>
     </div>
 
+    <div class="lp-sep"></div>
+
+    <!-- Block 3 -->
     <div class="lp-block">
-      <div class="lp-statement">Coders or non-coders.<br>The web is no longer something you use.<br>It is something you <em>shape</em> — even from your smartphone.</div>
+      <div class="lp-statement">Any code. Any app. Any community.</div>
+      <p class="lp-p" style="margin-top:16px">One prompt is enough to bring it into the network.</p>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- Block 4 -->
+    <div class="lp-block">
+      <div class="lp-statement">The web is no longer something you use.<br>It is something you <em>shape</em> — in real time.</div>
       <div class="lp-negations">
         <div class="lp-neg">No central authority.</div>
-        <div class="lp-neg">No company.</div>
         <div class="lp-neg">No platform dependency.</div>
         <div class="lp-neg">No fixed reality.</div>
       </div>
     </div>
 
+    <div class="lp-sep"></div>
+
+    <!-- Block 5 -->
     <div class="lp-block">
-      <div class="lp-stanza">
-        <div class="lp-stanza-line">A new layer has emerged.</div>
-        <div class="lp-stanza-line">You are already inside it.</div>
-        <div class="lp-stanza-line accent">Welcome to YourMine.</div>
-      </div>
+      <p class="lp-solo">You are already inside it.</p>
     </div>
 
-    <div class="lp-ctas" style="justify-content:flex-start;opacity:1">
-      <button class="lp-btn lp-btn-primary" id="lp-start-btn2">▶ Start</button>
-    </div>
   </div>
 
   <!-- FOOTER -->
@@ -374,9 +381,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   }
 
   var s1=document.getElementById('lp-start-btn');
-  var s2=document.getElementById('lp-start-btn2');
   if(s1)s1.addEventListener('click',goDefault);
-  if(s2)s2.addEventListener('click',goDefault);
 
   function blockDesk(){
     if(window.YM_Desk){
