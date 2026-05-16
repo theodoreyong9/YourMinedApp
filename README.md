@@ -1053,4 +1053,88 @@ All peers join a shared room `ym-main` on app ID `yourmine-v1`. Messages are sco
 
 ---
 
+## Mining, Score & Ranking
+
+### Mining Formula
+
+A user burns an amount **S** of SOL and selects a patience rate **T**. The immediate reward is **S(1−T) YM**. The rest grows over time as a claimable bonus. Every burn or claim resets the miner's personal clock.
+
+```
+       S · t^α
+─────────────────────────────
+[ln(A^β(1−T) + C)]^γ
+```
+
+**Computationally safe form** (avoids overflow, identical dynamics):
+
+```
+           S · t^α
+──────────────────────────────────────────────────────
+[β(1−T)·ln(A) + ln(1 + C / A^β(1−T))]^γ
+```
+
+| Variable | Meaning |
+|----------|---------|
+| `S` | Amount of the last burn |
+| `t` | Time elapsed since last action (Solana slots) |
+| `T` | Patience rate chosen by the user (0–1) |
+| `A` | Protocol age (Solana block height) |
+| `C` | Stabilisation constant |
+| `α` | Temporal growth exponent |
+| `β` | Patience / age interaction |
+| `γ` | Concentration compression |
+
+The formula integrates four distribution laws:
+- **Pareto** — power-law economic distributions, stabilised by the protocol
+- **Zipf** — rank hierarchy emerges naturally from participation
+- **Boltzmann** — exponential outputs compressed by the logarithm
+- **Odum** — time-based damping for long-term sustainability
+
+**Token model:**
+- **Soulbound position** — non-transferable; holds burn amount, patience rate, personal clock, production rights
+- **Liquid token** — claimed YM rewards become standard transferable tokens, exchangeable and usable across apps
+
+---
+
+### Permission Score
+
+Access to publishing is not granted by an authority — it is earned through participation. The mining formula produces a score that gates new sphere submissions.
+
+**Condition to publish a new sphere:**
+
+```
+(score_now + 1) / (laps_now + 1)  >  (score_last + 1) / (laps_last + 1)
+```
+
+- `score` = claimable YM at the time of submission
+- `laps` = Solana slots elapsed since last action
+
+Rules:
+- **First publication**: always allowed (no prior ratio exists)
+- **New sphere**: ratio must strictly improve on last publication
+- **Updating an existing sphere**: only requires GitHub or wallet ownership — no score check
+
+This prevents spam and rewards consistency. Improvement is always accessible; new slots require demonstrated commitment.
+
+---
+
+### Ranking
+
+Spheres and themes are ordered by **score descending**. No editorial curation, no advertising, no sponsored placement.
+
+```
+rank = score / laps
+```
+
+The ratio of claimable YM to time elapsed. A high-burn, patient miner who publishes at peak efficiency ranks highest.
+
+Rules:
+- Score is computed from the mining formula **at time of publication**
+- Score is **frozen at merge time** — it represents effort at the moment of contribution
+- Updating a sphere resets its score to the current mining state
+- Higher burn + patience + elapsed time = higher score = higher rank
+- Gaming is structurally penalised (publishing too early lowers the ratio)
+
+---
+
 *YourMine is open source and open by design. There is no central authority. Fork it, improve it, run it.*

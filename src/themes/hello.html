@@ -3,7 +3,6 @@
      Contient tout le DOM requis par app.js/desk.js (invisible).
 -->
 <script>
-// Métadonnées du thème (lues par desk.js pour l'icône bureau)
 window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine landing page theme"};
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,8 +11,8 @@ window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine land
 
 <style>
 :root{
-  --bg:#06060e;--text:#e4e6f4;--text2:rgba(228,230,244,.6);--text3:rgba(228,230,244,.3);
-  --gold:#f0a830;--cyan:#08e0f8;--red:#ff4560;--green:#22d98a;
+  --bg:#06060e;--text:#e4e6f4;--text2:rgba(228,230,244,.6);--text3:rgba(228,230,244,.28);
+  --gold:#f0a830;--cyan:#08e0f8;
   --font-d:'Syne',sans-serif;--font-b:'Space Grotesk',sans-serif;--font-m:'JetBrains Mono',monospace;
   --dock-h:0px;--safe-b:env(safe-area-inset-bottom,0px);
   --cols:4;--rows:6;
@@ -30,6 +29,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 #panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
 .ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
 #desktop-slider .icon-wrap{display:none!important}
+.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill{display:none!important}
 
 /* ── Landing ── */
 #ym-landing{
@@ -37,14 +37,15 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   background:var(--bg);
   z-index:10;
+  padding-bottom:env(safe-area-inset-bottom,0px);
 }
-/* Fond subtil */
+
+/* Ambient glow */
 #ym-landing::before{
-  content:'';position:fixed;inset:0;pointer-events:none;
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(ellipse 80% 50% at 70% 10%,rgba(8,224,248,.06),transparent 60%),
-    radial-gradient(ellipse 60% 60% at 20% 90%,rgba(240,168,48,.05),transparent 60%);
-  z-index:0;
+    radial-gradient(ellipse 60% 40% at 80% 5%,rgba(8,224,248,.05),transparent 60%),
+    radial-gradient(ellipse 50% 50% at 10% 95%,rgba(240,168,48,.04),transparent 60%);
 }
 
 .lp{position:relative;z-index:1;}
@@ -52,591 +53,273 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 /* ── HERO ── */
 .lp-hero{
   min-height:100dvh;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:60px 24px 40px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:80px 32px 60px;
   text-align:center;
+  gap:0;
 }
+
+.lp-wordmark{
+  font-family:var(--font-d);
+  font-size:clamp(11px,1.8vw,14px);
+  font-weight:700;
+  letter-spacing:.5em;
+  text-transform:uppercase;
+  color:var(--text3);
+  margin-bottom:28px;
+}
+
 .lp-logo{
-  font-family:var(--font-d);font-size:clamp(36px,8vw,72px);font-weight:800;
-  letter-spacing:.08em;
-  background:linear-gradient(135deg,var(--gold) 0%,#fff 50%,var(--cyan) 100%);
+  font-family:var(--font-d);
+  font-size:clamp(52px,12vw,110px);
+  font-weight:800;
+  letter-spacing:.04em;
+  line-height:1;
+  background:linear-gradient(135deg,var(--gold) 0%,#fff 45%,var(--cyan) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:20px;
+  margin-bottom:36px;
 }
-.lp-tagline{
-  font-family:var(--font-b);font-size:clamp(14px,2.5vw,20px);
-  color:var(--text2);line-height:1.6;max-width:560px;margin:0 auto 12px;
+
+.lp-lines{
+  display:flex;flex-direction:column;
+  align-items:center;gap:10px;
+  margin-bottom:48px;
 }
-.lp-sub{
-  font-family:var(--font-m);font-size:clamp(10px,1.5vw,13px);
-  color:var(--text3);letter-spacing:.05em;margin-bottom:40px;
+.lp-line{
+  font-family:var(--font-b);
+  font-size:clamp(14px,2.2vw,19px);
+  color:var(--text2);
+  line-height:1.4;
+  opacity:0;
+  transform:translateY(10px);
+  animation:fadein .6s ease forwards;
 }
-.lp-ctas{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+.lp-line:nth-child(1){animation-delay:.1s}
+.lp-line:nth-child(2){animation-delay:.25s}
+.lp-line:nth-child(3){animation-delay:.4s}
+.lp-line:nth-child(4){animation-delay:.55s;color:var(--text3);font-size:clamp(12px,1.6vw,15px)}
+@keyframes fadein{to{opacity:1;transform:none}}
+
+.lp-ctas{
+  display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
+  opacity:0;animation:fadein .5s .8s ease forwards;
+}
 .lp-btn{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  padding:14px 28px;border-radius:14px;
-  font-family:var(--font-d);font-size:13px;font-weight:700;
-  letter-spacing:2px;text-transform:uppercase;
+  padding:14px 32px;border-radius:14px;
+  font-family:var(--font-d);font-size:12px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;
   cursor:pointer;border:none;text-decoration:none;
   transition:all .22s;
 }
 .lp-btn-primary{
-  background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.8));
-  color:#000;box-shadow:0 4px 24px rgba(240,168,48,.3);
+  background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.75));
+  color:#06060e;
+  box-shadow:0 4px 32px rgba(240,168,48,.25);
 }
-.lp-btn-primary:hover{box-shadow:0 8px 40px rgba(240,168,48,.5);transform:translateY(-2px)}
+.lp-btn-primary:hover{box-shadow:0 8px 48px rgba(240,168,48,.45);transform:translateY(-2px)}
 .lp-btn-secondary{
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.12);
-  color:var(--text2);
+  background:transparent;
+  border:1px solid rgba(255,255,255,.1);
+  color:var(--text3);
 }
-.lp-btn-secondary:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(8,224,248,.05)}
-.lp-scroll-hint{
-  margin-top:48px;font-family:var(--font-m);font-size:10px;
-  color:var(--text3);letter-spacing:2px;
-  animation:bounce 2s ease-in-out infinite;
-}
-@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+.lp-btn-secondary:hover{border-color:rgba(255,255,255,.25);color:var(--text2)}
 
-/* ── SECTIONS ── */
-.lp-section{
-  padding:80px 24px;
-  max-width:760px;margin:0 auto;
+/* ── BODY ── */
+.lp-body{
+  max-width:640px;margin:0 auto;
+  padding:0 32px 120px;
 }
-.lp-section-label{
-  font-family:var(--font-m);font-size:10px;font-weight:400;
-  letter-spacing:4px;text-transform:uppercase;
-  color:var(--gold);opacity:.7;margin-bottom:12px;
+
+.lp-divider{
+  width:1px;height:60px;
+  background:linear-gradient(180deg,transparent,rgba(240,168,48,.3),transparent);
+  margin:0 auto 60px;
 }
-.lp-section-title{
-  font-family:var(--font-d);font-size:clamp(22px,4vw,38px);font-weight:700;
-  line-height:1.2;margin-bottom:28px;
-  background:linear-gradient(135deg,#fff 60%,var(--text2));
+
+.lp-block{
+  margin-bottom:64px;
+}
+
+.lp-intro{
+  font-family:var(--font-b);
+  font-size:clamp(15px,2vw,18px);
+  color:var(--text);
+  line-height:1.85;
+  margin-bottom:40px;
+}
+.lp-intro em{
+  font-style:normal;
+  color:var(--gold);
+}
+
+.lp-stanza{
+  display:flex;flex-direction:column;gap:8px;
+  margin-bottom:36px;
+}
+.lp-stanza-line{
+  font-family:var(--font-b);
+  font-size:clamp(13px,1.7vw,15px);
+  color:var(--text2);
+  line-height:1.6;
+  padding-left:20px;
+  border-left:1px solid rgba(240,168,48,.2);
+}
+.lp-stanza-line.accent{color:var(--text);font-weight:500;border-left-color:rgba(240,168,48,.5)}
+
+.lp-list-inline{
+  display:flex;flex-direction:column;gap:4px;
+  margin:12px 0 12px 20px;
+}
+.lp-list-inline span{
+  font-family:var(--font-m);
+  font-size:12px;
+  color:var(--cyan);
+  letter-spacing:.03em;
+}
+
+.lp-negations{
+  display:flex;flex-direction:column;gap:10px;
+  margin:32px 0;
+}
+.lp-neg{
+  font-family:var(--font-b);
+  font-size:clamp(13px,1.6vw,15px);
+  color:var(--text3);
+  display:flex;align-items:center;gap:12px;
+}
+.lp-neg::before{content:'×';color:rgba(240,168,48,.35);font-family:var(--font-m);font-size:14px}
+
+.lp-statement{
+  font-family:var(--font-d);
+  font-size:clamp(16px,2.5vw,22px);
+  font-weight:700;
+  color:var(--text);
+  line-height:1.5;
+  margin:40px 0 24px;
+}
+.lp-statement em{
+  font-style:normal;
+  background:linear-gradient(90deg,var(--gold),var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
-.lp-p{font-size:clamp(13px,1.8vw,16px);color:var(--text2);line-height:1.8;margin-bottom:16px;}
-.lp-strong{color:var(--text);font-weight:600;}
 
-/* Liste à puces stylée */
-.lp-list{list-style:none;display:flex;flex-direction:column;gap:10px;margin:16px 0 24px;}
-.lp-list li{
-  display:flex;align-items:flex-start;gap:12px;
-  font-size:clamp(12px,1.6vw,14px);color:var(--text2);line-height:1.6;
+/* ── FOOTER WORDMARK ── */
+.lp-footer{
+  text-align:center;
+  padding:60px 32px 80px;
 }
-.lp-list li::before{
-  content:'·';color:var(--gold);font-size:20px;line-height:1;flex-shrink:0;margin-top:-1px;
-}
-
-/* Grid features */
-.lp-grid{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
-  gap:16px;margin:24px 0;
-}
-.lp-card{
-  background:rgba(255,255,255,.025);
-  border:1px solid rgba(255,255,255,.07);
-  border-top:1px solid rgba(240,168,48,.2);
-  border-radius:16px;padding:20px;
-}
-.lp-card-icon{font-size:24px;margin-bottom:10px;}
-.lp-card-title{font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
-.lp-card-text{font-size:12px;color:var(--text3);line-height:1.7;}
-
-/* Séparateur */
-.lp-sep{
-  height:1px;
-  background:linear-gradient(90deg,transparent,rgba(240,168,48,.25),rgba(8,224,248,.2),transparent);
-  margin:0 24px;
-}
-
-/* Formule */
-.lp-formula-box{
-  background:rgba(240,168,48,.04);
-  border:1px solid rgba(240,168,48,.2);
-  border-radius:16px;padding:28px;
-  text-align:center;margin:24px 0;
-}
-.lp-formula{
-  font-family:var(--font-m);font-size:clamp(16px,3vw,26px);
-  color:var(--gold);line-height:2.2;letter-spacing:.05em;
-  margin-bottom:8px;
-}
-.lp-formula-frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin:0 4px;}
-.lp-formula-num{border-bottom:1px solid var(--gold);padding:0 8px 4px;}
-.lp-formula-den{padding:4px 8px 0;}
-
-/* Vars table */
-.lp-vars{
-  display:grid;grid-template-columns:auto 1fr;gap:6px 16px;
-  font-size:12px;margin:16px 0;text-align:left;
-}
-.lp-var-k{font-family:var(--font-m);color:var(--gold);font-size:13px;}
-.lp-var-v{color:var(--text3);line-height:1.5;}
-
-/* Principles */
-.lp-principles{
-  display:flex;flex-direction:column;gap:8px;margin:20px 0;
-}
-.lp-principle{
-  display:flex;align-items:center;gap:12px;
-  padding:12px 16px;
-  background:rgba(255,255,255,.02);
-  border:1px solid rgba(255,255,255,.06);
-  border-radius:10px;
-  font-size:13px;color:var(--text2);
-}
-.lp-principle::before{content:'✦';color:var(--gold);font-size:10px;flex-shrink:0;}
-
-/* CTA final */
-.lp-cta-final{
-  padding:80px 24px;text-align:center;
-  background:linear-gradient(180deg,transparent,rgba(240,168,48,.04));
-}
-.lp-cta-title{
-  font-family:var(--font-d);font-size:clamp(20px,4vw,36px);font-weight:800;
-  letter-spacing:.04em;margin-bottom:16px;
+.lp-footer-logo{
+  font-family:var(--font-d);
+  font-size:clamp(28px,5vw,48px);
+  font-weight:800;
+  letter-spacing:.06em;
   background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:10px;
 }
-.lp-cta-sub{font-size:14px;color:var(--text3);margin-bottom:12px;line-height:1.7;}
-.lp-cta-taglines{
-  display:flex;flex-wrap:wrap;justify-content:center;gap:8px;
-  margin:24px 0 40px;
+.lp-footer-sub{
+  font-family:var(--font-m);
+  font-size:11px;
+  color:var(--text3);
+  letter-spacing:.25em;
+  text-transform:uppercase;
+  margin-bottom:6px;
 }
-.lp-tagline-pill{
-  font-family:var(--font-m);font-size:10px;letter-spacing:2px;
-  color:var(--text3);padding:6px 14px;
-  border:1px solid rgba(255,255,255,.07);border-radius:20px;
+.lp-footer-tag{
+  font-family:var(--font-m);
+  font-size:10px;
+  color:rgba(240,168,48,.35);
+  letter-spacing:.15em;
 }
-
-/* ── HACK: composants requis par app.js/desk.js ── */
-.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill{display:none!important}
 </style>
 
 <div id="ym-landing">
+
   <!-- HERO -->
   <div class="lp lp-hero">
+    <div class="lp-wordmark">YOURMINE</div>
     <div class="lp-logo">YOURMINE</div>
-    <div class="lp-tagline">Hybrid decentralised app distribution and execution protocol for a web 100% user-driven.</div>
-    <div class="lp-sub">Open source · Forkable · Instant deploy</div>
+    <div class="lp-lines">
+      <div class="lp-line">Code anywhere.</div>
+      <div class="lp-line">Bridge any code instantly.</div>
+      <div class="lp-line">Build a borderless community.</div>
+      <div class="lp-line">A 100% user-driven web.</div>
+    </div>
     <div class="lp-ctas">
       <button class="lp-btn lp-btn-primary" id="lp-start-btn">▶ Start</button>
-      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">📄 Readme</a>
-    </div>
-    <div class="lp-scroll-hint">↓ scroll</div>
-  </div>
-
-  
-  <!-- ENCADRÉ INTRO -->
-  <div class="lp lp-section" style="padding:40px 24px">
-    <div style="background:linear-gradient(135deg,rgba(240,168,48,.08),rgba(8,224,248,.05));border:1px solid rgba(240,168,48,.25);border-radius:20px;padding:28px 24px;text-align:center">
-      <div style="font-family:var(--font-m);font-size:10px;letter-spacing:4px;text-transform:uppercase;color:var(--gold);margin-bottom:16px">Currently on Devnet</div>
-      <div style="font-family:var(--font-d);font-size:clamp(16px,3vw,26px);font-weight:700;color:var(--text);margin-bottom:12px;line-height:1.3">An open protocol.<br>Running right now. In your browser.</div>
-      <div style="font-size:14px;color:var(--text2);max-width:520px;margin:0 auto 20px;line-height:1.7">YourMine is not a concept. It is running. Apps are deployed. Value is being generated. Identity is being established. You are already participating by being here.</div>
-      <div class="lp-ctas" style="justify-content:center">
-        <button class="lp-btn lp-btn-primary" id="lp-start-btn3">▶ Open YourMine</button>
-        <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp" target="_blank" rel="noopener">⌥ Fork on GitHub</a>
-      </div>
+      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">readme</a>
     </div>
   </div>
 
-  <div class="lp-sep"></div>
-<div class="lp-sep"></div>
+  <!-- BODY -->
+  <div class="lp lp-body">
 
-  <!-- WHAT IS YOURMINE -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">A new layer of the web</div>
-    <p class="lp-p">YourMine is not a platform. It is a <span class="lp-strong">distributed layer for applications and value</span>. Instead of centralized services, YourMine enables a network where:</p>
-    <ul class="lp-list">
-      <li>Applications are distributed, not hosted</li>
-      <li>Value is generated through participation</li>
-      <li>Identity is unique and non-transferable</li>
-      <li>Proof of participation defines access and rewards</li>
-    </ul>
-    <p class="lp-p">There is no single system state. Only connected realities.</p>
+    <div class="lp-divider"></div>
 
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-icon">⬡</div>
-        <div class="lp-card-title">Open by design</div>
-        <div class="lp-card-text">Anyone can copy it, deploy it, and run their own instance — instantly. Every instance can remain independent, or connect with others.</div>
+    <div class="lp-block">
+      <p class="lp-intro">
+        YourMine is a <em>decentralized universal runtime</em> built on a self-regulated execution and discovery layer.
+      </p>
+      <div class="lp-stanza">
+        <div class="lp-stanza-line">Identity does not matter.</div>
+        <div class="lp-stanza-line">Ownership does not matter.</div>
+        <div class="lp-stanza-line accent">Only participation.</div>
       </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">⚙</div>
-        <div class="lp-card-title">Built to evolve</div>
-        <div class="lp-card-text">You can build, modify, experiment, break and improve. Exploration is part of the system. Improvement emerges from it.</div>
+      <p class="lp-intro">
+        Participation generates value — continuously redistributed within the system through an embedded Solana-based protocol.
+      </p>
+    </div>
+
+    <div class="lp-block">
+      <p class="lp-intro">
+        Build your own web environments, realities, and executables exactly as you imagine them.
+      </p>
+      <div class="lp-stanza">
+        <div class="lp-stanza-line accent">One API. One prompt.</div>
       </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🔒</div>
-        <div class="lp-card-title">Safe by structure</div>
-        <div class="lp-card-text">Actions are local. Effects are contained. Systems are modular. You can push the system without breaking others.</div>
+      <p class="lp-intro">
+        Connect instantly to a shared infrastructure for:
+      </p>
+      <div class="lp-list-inline">
+        <span>scaling</span>
+        <span>interoperability</span>
+        <span>propagation</span>
+        <span>safety</span>
       </div>
+    </div>
+
+    <div class="lp-block">
+      <div class="lp-statement">Coders or non-coders.<br>The web is no longer something you use.<br>It is something you <em>shape</em> — even from your smartphone.</div>
+      <div class="lp-negations">
+        <div class="lp-neg">No central authority.</div>
+        <div class="lp-neg">No company.</div>
+        <div class="lp-neg">No platform dependency.</div>
+        <div class="lp-neg">No fixed reality.</div>
+      </div>
+    </div>
+
+    <div class="lp-block">
+      <div class="lp-stanza">
+        <div class="lp-stanza-line">A new layer has emerged.</div>
+        <div class="lp-stanza-line">You are already inside it.</div>
+        <div class="lp-stanza-line accent">Welcome to YourMine.</div>
+      </div>
+    </div>
+
+    <div class="lp-ctas" style="justify-content:flex-start;opacity:1">
+      <button class="lp-btn lp-btn-primary" id="lp-start-btn2">▶ Start</button>
     </div>
   </div>
 
-  <div class="lp-sep"></div>
-
-  <!-- ZERO INFRASTRUCTURE -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Zero infrastructure cost. Forever.</div>
-    <p class="lp-p">Most platforms burn millions in infrastructure before they have a single user. YourMine runs a complete app distribution system, a universal runtime, a P2P network, and an economic layer — for <span class="lp-strong">zero fixed cost</span>.</p>
-
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-icon">🔥</div>
-        <div class="lp-card-title">Firebase</div>
-        <div class="lp-card-text">Serves one file: index.html. That's it. A glorified CDN. Free tier. Always will be.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🐙</div>
-        <div class="lp-card-title">GitHub</div>
-        <div class="lp-card-text">Hosts the registries and sphere code — in the authors' own forks. Every contributor hosts their own part. Free.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">📡</div>
-        <div class="lp-card-title">Nostr</div>
-        <div class="lp-card-text">Public relays maintained by the community. P2P networking with no central server. Free.</div>
-      </div>
-    </div>
-
-    <div class="lp-formula-box" style="margin-top:24px">
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:16px">THE SCALING PROPERTY</div>
-      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px;text-align:center">
-        <div>
-          <div style="font-family:var(--font-d);font-size:clamp(13px,2vw,18px);font-weight:700;color:var(--text);margin-bottom:6px">Traditional platform</div>
-          <div style="font-family:var(--font-m);font-size:11px;color:var(--red)">more users → more cost</div>
-        </div>
-        <div style="font-size:24px;color:var(--text3)">vs</div>
-        <div>
-          <div style="font-family:var(--font-d);font-size:clamp(13px,2vw,18px);font-weight:700;color:var(--text);margin-bottom:6px">YourMine</div>
-          <div style="font-family:var(--font-m);font-size:11px;color:var(--green)">more contributors → more infrastructure</div>
-        </div>
-      </div>
-    </div>
-
-    <p class="lp-p" style="margin-top:24px">Twitter, YouTube, Spotify — their fundamental problem is that every additional user costs money. Here it is the opposite. <span class="lp-strong">Every contributor adds infrastructure.</span> Growth is free. Scaling is structural.</p>
-    <p class="lp-p">This is not a web3 project. This is not a startup. This is a <span class="lp-strong">protocol</span> — and protocols don't have server bills.</p>
+  <!-- FOOTER -->
+  <div class="lp lp-footer">
+    <div class="lp-footer-logo">YOURMINE</div>
+    <div class="lp-footer-sub">Code. Connect. Emerge.</div>
+    <div class="lp-footer-tag">No limits.</div>
   </div>
 
-  <div class="lp-sep"></div>
-
-  <!-- SAFETY -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Open by design. Safe by participation.</div>
-    <p class="lp-p">YourMine is fundamentally open — any sphere runs, any app loads, any theme applies. This is not a bug. It is the architecture. <span class="lp-strong">Openness is the protocol.</span></p>
-    <p class="lp-p">Security in YourMine is not enforced by a central authority. It is built as a sphere — optional, participatory, improvable by anyone.</p>
-
-    <div class="lp-formula-box">
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:16px">SAFETY SPHERE — LOCAL AI MONITOR</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:left">
-        <div style="font-size:12px;color:var(--text2);line-height:1.8">
-          <div style="color:var(--green);margin-bottom:4px">✓ Runs entirely locally</div>
-          <div style="color:var(--green);margin-bottom:4px">✓ No cloud. No data sharing</div>
-          <div style="color:var(--green);margin-bottom:4px">✓ WebGPU — UI never blocked</div>
-          <div style="color:var(--green)">✓ User always has final say</div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.8">
-          <div style="margin-bottom:4px">🌐 External app URLs</div>
-          <div style="margin-bottom:4px">⬡ Sphere code patterns</div>
-          <div style="margin-bottom:4px">💸 Solana transactions</div>
-          <div>👤 Profile sharing</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="lp-grid" style="margin-top:20px">
-      <div class="lp-card">
-        <div class="lp-card-icon">🤖</div>
-        <div class="lp-card-title">Today</div>
-        <div class="lp-card-text">Llama 3.2 1B running locally via WebGPU. Detects naive threats, phishing patterns, suspicious code. Downloaded once, cached permanently.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🎯</div>
-        <div class="lp-card-title">Tomorrow</div>
-        <div class="lp-card-text">A fine-tuned model specialized on web malware patterns. 50MB. More accurate than a 500MB general model on this specific task.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🌐</div>
-        <div class="lp-card-title">The vision</div>
-        <div class="lp-card-text">Users report dangerous spheres via P2P. Network consensus builds a decentralized reputation system. Security becomes a collective good — scored, ranked, improved by participation.</div>
-      </div>
-    </div>
-
-    <p class="lp-p" style="margin-top:20px">The safety sphere is itself a sphere. Anyone can fork it, improve the model, submit a better version, and have it scored by the mining system. <span class="lp-strong">Security of the network becomes a participatory commons.</span></p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- SOULNET -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">A network of identity and participation</div>
-    <p class="lp-p">YourMine is built on a <span class="lp-strong">Soulnet</span> — a network where identity and proof cannot be transferred or copied. This creates a system where:</p>
-    <ul class="lp-list">
-      <li>Every user is uniquely bound to their actions</li>
-      <li>Participation has permanent attribution</li>
-      <li>Rewards cannot be detached from behavior</li>
-      <li>Sybil and duplication are structurally constrained</li>
-    </ul>
-    <p class="lp-p">The network does not trust accounts. It trusts participation.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- DISTRIBUTED APP LAYER -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Apps that move through the network</div>
-    <p class="lp-p">Applications in YourMine are not installed from a store. They are <span class="lp-strong">distributed through the network itself</span>.</p>
-    <ul class="lp-list">
-      <li>Apps are modular and peer-to-peer</li>
-      <li>They propagate across nodes</li>
-      <li>Execution happens locally</li>
-      <li>Users decide what becomes active</li>
-    </ul>
-    <p class="lp-p">The app layer is not centralized. It is emergent.</p>
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-icon">⬡</div>
-        <div class="lp-card-title">Spheres</div>
-        <div class="lp-card-text">Native JS apps living in the network. They run locally, share state via P2P, and expose a desktop icon and panel. Published via Build, scored by mining.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🎨</div>
-        <div class="lp-card-title">Themes</div>
-        <div class="lp-card-text">Full visual environments. Each theme owns its wallpaper collection, color system, and grid layout. Switchable via URL — <span style="font-family:var(--font-m);font-size:11px">/neural.theme</span>.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">⚡</div>
-        <div class="lp-card-title">External Apps</div>
-        <div class="lp-card-text">Any web app — Bolt, Replit, Vercel, GitHub Pages — becomes a sphere instantly. Paste the URL. It runs in an isolated frame with full access to the YourMine bridge.</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- APP RUNTIME + BRIDGE -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">A universal app runtime</div>
-    <p class="lp-p">YourMine is a <span class="lp-strong">runtime layer</span> for the open web. Any app hosted anywhere can connect to it and access identity, P2P networking, and persistent storage — without touching the YourMine codebase.</p>
-    <div class="lp-formula-box">
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:16px">BRIDGE API — FROM YOUR APP</div>
-      <div style="text-align:left;font-family:var(--font-m);font-size:clamp(10px,1.4vw,12px);color:var(--text2);line-height:2">
-        <span style="color:var(--text3)">// Detect YourMine</span><br>
-        <span style="color:var(--cyan)">const</span> inYM = window.parent !== window;<br><br>
-        <span style="color:var(--text3)">// Receive profile on load</span><br>
-        window.addEventListener(<span style="color:var(--gold)">'message'</span>, e => {<br>
-        &nbsp;&nbsp;<span style="color:var(--cyan)">if</span> (e.data?.type === <span style="color:var(--gold)">'ym:ready'</span>)<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;console.log(e.data.profile);<br>
-        });<br><br>
-        <span style="color:var(--text3)">// Toast, storage, P2P</span><br>
-        window.parent.postMessage({type:<span style="color:var(--gold)">'ym:toast'</span>, msg:<span style="color:var(--gold)">'Hello!'</span>}, <span style="color:var(--gold)">'*'</span>);<br>
-        window.parent.postMessage({type:<span style="color:var(--gold)">'ym:storage:set'</span>, key:<span style="color:var(--gold)">'score'</span>, value:<span style="color:var(--gold)">'42'</span>}, <span style="color:var(--gold)">'*'</span>);<br>
-        window.parent.postMessage({type:<span style="color:var(--gold)">'ym:p2p:broadcast'</span>, data:{x:1,y:2}}, <span style="color:var(--gold)">'*'</span>);
-      </div>
-    </div>
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-icon">👤</div>
-        <div class="lp-card-title">Identity</div>
-        <div class="lp-card-text">The app receives the user's YourMine profile on load — UUID, name, avatar, active spheres. Read-only. The user controls what is shared.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">📡</div>
-        <div class="lp-card-title">P2P</div>
-        <div class="lp-card-text">Broadcast and receive messages across the YourMine P2P network. Your app becomes a real-time multiplayer experience without any backend.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">💾</div>
-        <div class="lp-card-title">Storage</div>
-        <div class="lp-card-text">Isolated key-value storage per app, scoped to the user's YourMine instance. Persistent across sessions. No database needed.</div>
-      </div>
-    </div>
-    <p class="lp-p" style="margin-top:16px">The bridge is silent outside YourMine. <span class="lp-strong">Your app runs normally everywhere else.</span> No SDK to install. No account to create. Paste a URL — it works.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- VALUE SYSTEM -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Participation becomes value</div>
-    <p class="lp-p">Value in YourMine is not extracted from users. It is <span class="lp-strong">generated by them</span>.</p>
-    <ul class="lp-list">
-      <li>Actions are recorded as proof of participation</li>
-      <li>Proof is non-transferable</li>
-      <li>Rewards are tied to identity permanently</li>
-      <li>Contribution defines economic presence</li>
-    </ul>
-    <p class="lp-p">There is no passive ownership. Only active participation.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- REALITY LAYERS -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Multiple connected realities</div>
-    <p class="lp-p">YourMine does not enforce a single global state. Instead, it operates through <span class="lp-strong">interconnected spheres</span>:</p>
-    <ul class="lp-list">
-      <li>Each user experiences a contextual system view</li>
-      <li>Different realities coexist simultaneously</li>
-      <li>Applications and data evolve locally</li>
-      <li>The system is consistent, not uniform</li>
-    </ul>
-    <p class="lp-p">Reality is not fixed. It is distributed.</p>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- CORE PRINCIPLES -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">The foundations of YourMine</div>
-    <div class="lp-principles">
-      <div class="lp-principle">Identity is non-transferable</div>
-      <div class="lp-principle">Proof is non-transferable</div>
-      <div class="lp-principle">Participation is the source of value</div>
-      <div class="lp-principle">Applications are distributed, not owned</div>
-      <div class="lp-principle">The system has no central authority</div>
-    </div>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- MINING FORMULA -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Help us test YourMine's deterministic, disinflationary mining formula</div>
-    <p class="lp-p">A user burns an amount <span class="lp-strong">x</span> of SOL and selects a patience rate <span class="lp-strong">T</span>. The immediate reward is <span class="lp-strong">x(1−T) YM</span>. The rest grows over time as a claimable bonus. Every burn or claim resets the miner's personal clock. We take 0.1% of each burn to sustain the project.</p>
-
-    <div class="lp-formula-box">
-      <div class="lp-formula">
-        <span class="lp-formula-frac">
-          <span class="lp-formula-num">S · t<sup>α</sup></span>
-          <span class="lp-formula-den">[ln(A<sup>β(1−T)</sup> + C)]<sup>γ</sup></span>
-        </span>
-      </div>
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);margin-top:8px;letter-spacing:1px">The YourMine Formula</div>
-    </div>
-
-    <div class="lp-vars">
-      <span class="lp-var-k">S</span><span class="lp-var-v">amount of the last burn</span>
-      <span class="lp-var-k">t</span><span class="lp-var-v">time elapsed since last action</span>
-      <span class="lp-var-k">T</span><span class="lp-var-v">patience rate chosen</span>
-      <span class="lp-var-k">A</span><span class="lp-var-v">protocol age (Solana block height)</span>
-      <span class="lp-var-k">C</span><span class="lp-var-v">stabilisation constant</span>
-      <span class="lp-var-k">α</span><span class="lp-var-v">temporal growth</span>
-      <span class="lp-var-k">β</span><span class="lp-var-v">patience / age interaction</span>
-      <span class="lp-var-k">γ</span><span class="lp-var-v">concentration compression</span>
-    </div>
-
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-title">Pareto</div>
-        <div class="lp-card-text">Economic distributions follow a power law. The protocol integrates this dynamic while stabilising it.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-title">Zipf</div>
-        <div class="lp-card-text">In self-organised systems, ranks follow a 1/r<sup>k</sup> hierarchy. Miner hierarchies emerge naturally.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-title">Boltzmann</div>
-        <div class="lp-card-text">Exponential distributions are naturally compressed by the logarithm — hence the logarithmic compression.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-title">Odum</div>
-        <div class="lp-card-text">In energy systems, efficiency decreases with age. A sustainable system must integrate time-based damping.</div>
-      </div>
-    </div>
-
-    <div class="lp-formula-box" style="margin-top:16px">
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:12px">COMPUTATIONALLY SAFE FORM</div>
-      <div class="lp-formula" style="font-size:clamp(12px,2vw,16px)">
-        <span class="lp-formula-frac">
-          <span class="lp-formula-num">S · t<sup>α</sup></span>
-          <span class="lp-formula-den">[β(1−T)·ln(A) + ln(1 + C/A<sup>β(1−T)</sup>)]<sup>γ</sup></span>
-        </span>
-      </div>
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);margin-top:12px">Avoids overflow · Identical economic dynamics · Stable on-chain execution</div>
-    </div>
-
-    <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div class="lp-card" style="border-top-color:rgba(240,168,48,.4)">
-        <div class="lp-card-title">Soulbound position</div>
-        <div class="lp-card-text">Non-transferable. Holds the last burn, patience rate, personal clock, and production rights. Represents the capacity to produce YM.</div>
-      </div>
-      <div class="lp-card" style="border-top-color:rgba(8,224,248,.4)">
-        <div class="lp-card-title">Liquid tokens</div>
-        <div class="lp-card-text">Claimed rewards become standard transferable tokens. Exchangeable, usable in other apps, freely transferable.</div>
-      </div>
-    </div>
-    <p class="lp-p" style="text-align:center;margin-top:12px;font-family:var(--font-m);font-size:11px;color:var(--text3)">soulbound (production) + liquid token (circulation)</p>
-  </div>
-
-
-  <div class="lp-sep"></div>
-
-  <!-- PERMISSION SCORE -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Permission through score</div>
-    <p class="lp-p">In YourMine, access is not granted by an authority. It is <span class="lp-strong">earned through participation</span>. The mining formula produces a score that determines permission levels across the network.</p>
-    <div class="lp-grid">
-      <div class="lp-card">
-        <div class="lp-card-icon">📊</div>
-        <div class="lp-card-title">Score = participation proof</div>
-        <div class="lp-card-text">Your score is derived from the amount burned, the patience rate chosen, and time elapsed. It is public, verifiable, and non-transferable.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🚪</div>
-        <div class="lp-card-title">Score gates publishing</div>
-        <div class="lp-card-text">Publishing a new sphere requires a score above a threshold. The ratio (score+1)/(laps+1) must exceed your last publication. This prevents spam and rewards consistency.</div>
-      </div>
-      <div class="lp-card">
-        <div class="lp-card-icon">🔄</div>
-        <div class="lp-card-title">Upgrades always allowed</div>
-        <div class="lp-card-text">Updating an existing sphere only requires GitHub or wallet ownership. No score check. Improvement is always accessible.</div>
-      </div>
-    </div>
-    <div class="lp-formula-box" style="margin-top:20px">
-      <div style="font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:2px;margin-bottom:12px">PERMISSION CONDITION (new sphere)</div>
-      <div style="font-family:var(--font-m);font-size:clamp(13px,2vw,18px);color:var(--gold)">
-        (score<sub>now</sub> + 1) / (laps<sub>now</sub> + 1) &gt; (score<sub>last</sub> + 1) / (laps<sub>last</sub> + 1)
-      </div>
-    </div>
-  </div>
-
-  <div class="lp-sep"></div>
-
-  <!-- RANKING -->
-  <div class="lp lp-section">
-    <div class="lp-section-title">Ranking and discovery</div>
-    <p class="lp-p">Spheres and themes in YourMine are ordered by <span class="lp-strong">score descending</span>. The highest-participation builders appear first. There is no editorial curation, no advertising, no sponsored placement.</p>
-    <ul class="lp-list">
-      <li>Score is computed from the mining formula at time of publication</li>
-      <li>Higher burn + patience + elapsed time = higher score = higher rank</li>
-      <li>Score is frozen at merge time — it represents the effort at the moment of contribution</li>
-      <li>Updating a sphere resets its score to the current mining state</li>
-    </ul>
-    <div class="lp-card" style="margin-top:16px;border-top-color:rgba(8,224,248,.3)">
-      <div class="lp-card-title" style="color:var(--cyan)">The ranking formula</div>
-      <div class="lp-card-text" style="font-family:var(--font-m);font-size:12px;color:var(--text2)">rank = score ÷ laps — the ratio of claimable YM to time elapsed. A high-burn, patient miner who publishes at peak efficiency ranks highest. Gaming is structurally penalised.</div>
-    </div>
-  </div>
-
-  <!-- FINAL CTA -->
-  <div class="lp lp-cta-final">
-    <div class="lp-cta-title">Build. Participate.<br>Become part of the network.</div>
-    <p class="lp-cta-sub">YourMine is not something you use.<br>It is something you participate in.</p>
-    <div class="lp-cta-taglines">
-      <span class="lp-tagline-pill">Distribution totalement libre</span>
-      <span class="lp-tagline-pill">Runtime sans contrainte</span>
-      <span class="lp-tagline-pill">Volonté infiniment récompensée</span>
-      <span class="lp-tagline-pill">Système sans fermeture</span>
-      <span class="lp-tagline-pill">Fondation sans autorité</span>
-    </div>
-    <p class="lp-p" style="font-family:var(--font-m);font-size:13px;color:var(--gold);margin-bottom:32px">Giving is receiving.</p>
-    <div class="lp-ctas">
-      <button class="lp-btn lp-btn-primary" id="lp-start-btn2">▶ Start YourMine</button>
-      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">📄 Readme</a>
-    </div>
-    <div style="height:60px"></div>
-  </div>
 </div>
 
 <!-- DOM fonctionnel invisible requis par app.js / desk.js -->
@@ -697,15 +380,11 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     location.reload();
   }
 
-  // Boutons Start
   var s1=document.getElementById('lp-start-btn');
   var s2=document.getElementById('lp-start-btn2');
-  var s3=document.getElementById('lp-start-btn3');
   if(s1)s1.addEventListener('click',goDefault);
   if(s2)s2.addEventListener('click',goDefault);
-  if(s3)s3.addEventListener('click',goDefault);
 
-  // Neutralise desk et widgets
   function blockDesk(){
     if(window.YM_Desk){
       window.YM_Desk.addIcon=function(){};
@@ -715,7 +394,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   blockDesk();
   window.addEventListener('ym:sphere-activated',blockDesk);
 
-  // Masque les widgets créés dynamiquement
   var obs=new MutationObserver(function(muts){
     muts.forEach(function(m){
       m.addedNodes.forEach(function(n){
@@ -727,16 +405,9 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   });
   obs.observe(document.body,{childList:true});
 
-  // bg-dlg minimal pour ne pas crasher desk.js
   var bgDlg=document.getElementById('bg-dlg');
   if(bgDlg)bgDlg.addEventListener('click',function(e){if(e.target===bgDlg)bgDlg.classList.remove('open');});
-  var wpBtn=document.getElementById('bg-wp');
-  var rmBtn=document.getElementById('bg-remove');
-  var sphBtn=document.getElementById('bg-spheres');
   var thBtn=document.getElementById('theme-custom-btn');
-  if(wpBtn)wpBtn.addEventListener('click',function(){});
-  if(rmBtn)rmBtn.addEventListener('click',function(){});
-  if(sphBtn)sphBtn.addEventListener('click',function(){});
   if(thBtn)thBtn.addEventListener('click',function(){
     var inp=document.getElementById('theme-custom-input');
     var url=(inp?inp.value:'').trim();
