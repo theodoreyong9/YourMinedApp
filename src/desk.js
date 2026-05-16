@@ -568,7 +568,7 @@ function setupDrag(wrap,ic,isFolder){
     }
     if(!dragStarted)return;
     e.preventDefault();
-    ghost.style.left=e.clientX-26+'px';ghost.style.top=e.clientY-33+'px';
+    ghost.style.left=Math.max(0,Math.min(e.clientX-26,window.innerWidth-54))+'px';ghost.style.top=Math.max(0,Math.min(e.clientY-33,window.innerHeight-54))+'px';
     if(!isFolder){
       const vw=window.innerWidth,ew=vw*0.14;
       if(e.clientX<ew&&curPg>0){

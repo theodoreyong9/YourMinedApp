@@ -46,7 +46,7 @@ window.YM_WALLPAPER_PRESETS = [
 html{height:100%;overflow:hidden;overscroll-behavior:none;background:#06060e}
 body{height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--text);font-family:var(--font-b);padding-top:env(safe-area-inset-top,0px)}
 body::before{content:"";position:fixed;top:0;left:0;width:100%;height:env(safe-area-inset-top,0px);background:#06060e;z-index:9999;pointer-events:none}
-*{scrollbar-width:thin;scrollbar-color:rgba(240,168,48,.18) transparent}
+body *{scrollbar-width:thin;scrollbar-color:rgba(240,168,48,.18) transparent}
 ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:rgba(240,168,48,.18);border-radius:1px}
 #ym-wp{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat}
 #ym-bg{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:var(--bg)}
