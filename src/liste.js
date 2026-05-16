@@ -170,12 +170,11 @@ async function render(containerArg){
 
   body.innerHTML=
     '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
-    '<div id="list-controls" style="padding:8px 12px 6px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:5px;flex-shrink:0;background:inherit">'+
+    '<div id="list-controls" style="padding:8px 12px 8px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
       '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
-      '<input id="list-search" class="ym-input" placeholder="Search…" style="width:100%;font-size:10px;padding:4px 8px;box-sizing:border-box">'+
-
       '<div id="list-cat-row" style="display:flex;gap:4px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-height:20px"></div>'+
       '<div id="list-wip-row" style="display:none"></div>'+
+      '<input id="list-search" class="ym-input" placeholder="Search…" style="width:100%;font-size:12px;padding:7px 10px;box-sizing:border-box">'+
     '</div>';
 
   const content=body.querySelector('#list-content');
@@ -188,7 +187,10 @@ async function render(containerArg){
     const v=e.target.value.toLowerCase();
     _filterText=v;_themeSearch=v;
     if(_listType==='spheres')renderList(content);
-    else if(_listType==='themes'){const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
+    else if(_listType==='themes'||_listType==='photo'||_listType==='video'){
+      const cu=localStorage.getItem('ym_theme_url')||'';
+      _renderThemeCards(content,cu,'https://github.com/',_themesList);
+    }
   });
 
   function renderTypePills(){
@@ -198,15 +200,35 @@ async function render(containerArg){
       p.className='pill'+(_listType===opt.id?' active':'');
       p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
       p.textContent=opt.label;
-      p.addEventListener('click',()=>{if(_listType===opt.id)return;_listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';renderTypePills();switchType();});
+      p.addEventListener('click',()=>{
+        if(_listType===opt.id)return;
+        _listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';
+        renderTypePills();switchType();
+      });
       typePillsEl.appendChild(p);
     });
   }
 
+  function buildWipToggle(){
+    wipRow.innerHTML='';
+    wipRow.style.display='block';
+    const wipBtn=document.createElement('span');
+    wipBtn.className='pill'+(_listShowWip?' active':'');
+    wipBtn.style.cssText='cursor:pointer;font-size:10px';
+    wipBtn.textContent='🚧 Under construction';
+    wipBtn.addEventListener('click',()=>{
+      _listShowWip=!_listShowWip;
+      wipBtn.classList.toggle('active',_listShowWip);
+      if(_listType==='spheres')renderList(content);
+      else{const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
+    });
+    wipRow.appendChild(wipBtn);
+  }
+
   function switchType(){
-    content.innerHTML='';catRow.innerHTML='';wipRow.innerHTML='';
-    wipRow.style.display=_listType==='spheres'?'block':'none';
-    if(_listType==='spheres')renderSpheresContent(content,catRow,wipRow);
+    content.innerHTML='';catRow.innerHTML='';
+    buildWipToggle();
+    if(_listType==='spheres')renderSpheresContent(content,catRow);
     else if(_listType==='themes')renderThemesContent(content,catRow);
     else if(_listType==='photo')renderPhotoContent(content);
     else if(_listType==='video')renderVideoContent(content);
@@ -278,13 +300,6 @@ async function renderThemesContent(container,catRow){
     '<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
       '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
     '</div>';
-  if(catRow){
-    const inp=document.createElement('input');
-    inp.className='ym-input';inp.id='theme-search';inp.placeholder='Search themes…';
-    inp.style.cssText='flex:1;font-size:10px;padding:4px 8px;min-width:0';
-    catRow.appendChild(inp);
-    inp.addEventListener('input',e=>{_themeSearch=e.target.value.toLowerCase();_renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,_themesList);});
-  }
   _themeFilterCat='Theme';
   const themes=await fetchThemesList();
   _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes);
@@ -603,7 +618,7 @@ function renderLinkContent(container){
   btn.addEventListener('click',doActivate);
   inp.addEventListener('keydown',e=>{if(e.key==='Enter')doActivate();});
 }
-function renderSpheresContent(container,catRow,wipRow){
+function renderSpheresContent(container,catRow){
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
   container.innerHTML=
     '<div id="sphere-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
@@ -630,15 +645,6 @@ function renderSpheresContent(container,catRow,wipRow){
       });
     }
     renderCatPills();
-  }
-
-  if(wipRow){
-    const wipBtn=document.createElement('span');
-    wipBtn.className='pill'+(_listShowWip?' active':'');
-    wipBtn.style.cssText='cursor:pointer;font-size:10px';
-    wipBtn.textContent='🚧 Under construction';
-    wipBtn.addEventListener('click',()=>{_listShowWip=!_listShowWip;wipBtn.classList.toggle('active',_listShowWip);renderList(container);});
-    wipRow.appendChild(wipBtn);
   }
 
   renderList(container);
