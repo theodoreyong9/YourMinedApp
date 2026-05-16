@@ -171,8 +171,11 @@ async function render(containerArg){
   body.innerHTML=
     '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
     '<div id="list-controls" style="padding:8px 12px 6px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:5px;flex-shrink:0;background:inherit">'+
-      '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
-      '<div id="list-cat-row" style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-height:20px"></div>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0"></div>'+
+        '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:10px;padding:4px 8px;min-width:0">'+
+      '</div>'+
+      '<div id="list-cat-row" style="display:flex;gap:4px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-height:20px"></div>'+
       '<div id="list-wip-row" style="display:none"></div>'+
     '</div>';
 
@@ -180,6 +183,14 @@ async function render(containerArg){
   const typePillsEl=body.querySelector('#list-type-pills');
   const catRow=body.querySelector('#list-cat-row');
   const wipRow=body.querySelector('#list-wip-row');
+  const searchInput=body.querySelector('#list-search');
+
+  searchInput.addEventListener('input',e=>{
+    const v=e.target.value.toLowerCase();
+    _filterText=v;_themeSearch=v;
+    if(_listType==='spheres')renderList(content);
+    else if(_listType==='themes'){const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
+  });
 
   function renderTypePills(){
     typePillsEl.innerHTML='';
@@ -188,7 +199,7 @@ async function render(containerArg){
       p.className='pill'+(_listType===opt.id?' active':'');
       p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
       p.textContent=opt.label;
-      p.addEventListener('click',()=>{if(_listType===opt.id)return;_listType=opt.id;renderTypePills();switchType();});
+      p.addEventListener('click',()=>{if(_listType===opt.id)return;_listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';renderTypePills();switchType();});
       typePillsEl.appendChild(p);
     });
   }
