@@ -566,6 +566,7 @@ function setupDrag(wrap,ic,isFolder){
       ghost.style.display='block';wrap.style.opacity='0';
     }
     if(!dragStarted)return;
+    e.preventDefault();
     ghost.style.left=e.clientX-26+'px';ghost.style.top=e.clientY-33+'px';
     if(!isFolder){
       const vw=window.innerWidth,ew=vw*0.14;
