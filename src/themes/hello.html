@@ -60,25 +60,16 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   gap:0;
 }
 
-.lp-wordmark{
-  font-family:var(--font-d);
-  font-size:clamp(11px,1.8vw,14px);
-  font-weight:700;
-  letter-spacing:.5em;
-  text-transform:uppercase;
-  color:var(--text3);
-  margin-bottom:28px;
-}
-
 .lp-logo{
   font-family:var(--font-d);
-  font-size:clamp(52px,12vw,110px);
+  font-size:min(11vw,110px);
   font-weight:800;
   letter-spacing:.04em;
   line-height:1;
   background:linear-gradient(135deg,var(--gold) 0%,#fff 45%,var(--cyan) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:36px;
+  margin-bottom:40px;
+  max-width:100%;
 }
 
 .lp-lines{
@@ -144,52 +135,59 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
 .lp-intro{
   font-family:var(--font-b);
-  font-size:clamp(15px,2vw,18px);
-  color:var(--text);
-  line-height:1.85;
-  margin-bottom:40px;
+  font-size:clamp(15px,2vw,17px);
+  color:var(--text2);
+  line-height:1.9;
+  margin-bottom:32px;
+  font-weight:300;
 }
 .lp-intro em{
   font-style:normal;
-  color:var(--gold);
+  color:var(--text);
+  font-weight:500;
 }
 
 .lp-stanza{
-  display:flex;flex-direction:column;gap:8px;
-  margin-bottom:36px;
+  display:flex;flex-direction:column;gap:0;
+  margin-bottom:32px;
+  border-left:1px solid rgba(240,168,48,.18);
+  padding-left:20px;
 }
 .lp-stanza-line{
   font-family:var(--font-b);
   font-size:clamp(13px,1.7vw,15px);
-  color:var(--text2);
-  line-height:1.6;
-  padding-left:20px;
-  border-left:1px solid rgba(240,168,48,.2);
+  color:var(--text3);
+  line-height:1.8;
 }
-.lp-stanza-line.accent{color:var(--text);font-weight:500;border-left-color:rgba(240,168,48,.5)}
+.lp-stanza-line.accent{color:var(--gold);font-weight:500;}
 
 .lp-list-inline{
-  display:flex;flex-direction:column;gap:4px;
-  margin:12px 0 12px 20px;
+  display:flex;flex-wrap:wrap;gap:8px;
+  margin:16px 0 24px;
 }
 .lp-list-inline span{
   font-family:var(--font-m);
-  font-size:12px;
+  font-size:11px;
   color:var(--cyan);
-  letter-spacing:.03em;
+  letter-spacing:.06em;
+  padding:5px 12px;
+  border:1px solid rgba(8,224,248,.2);
+  border-radius:20px;
+  background:rgba(8,224,248,.04);
 }
 
 .lp-negations{
-  display:flex;flex-direction:column;gap:10px;
-  margin:32px 0;
+  display:flex;flex-direction:column;gap:6px;
+  margin:28px 0;
 }
 .lp-neg{
-  font-family:var(--font-b);
-  font-size:clamp(13px,1.6vw,15px);
+  font-family:var(--font-m);
+  font-size:clamp(12px,1.4vw,13px);
   color:var(--text3);
-  display:flex;align-items:center;gap:12px;
+  display:flex;align-items:center;gap:10px;
+  letter-spacing:.03em;
 }
-.lp-neg::before{content:'×';color:rgba(240,168,48,.35);font-family:var(--font-m);font-size:14px}
+.lp-neg::before{content:'—';color:rgba(240,168,48,.3);}
 
 .lp-statement{
   font-family:var(--font-d);
@@ -239,7 +237,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
   <!-- HERO -->
   <div class="lp lp-hero">
-    <div class="lp-wordmark">YOURMINE</div>
     <div class="lp-logo">YOURMINE</div>
     <div class="lp-lines">
       <div class="lp-line">Code anywhere.</div>
