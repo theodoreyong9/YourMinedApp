@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // YOURMINE — DESK.JS v2
 // ============================================================
 /* jshint esversion:11 */
@@ -538,6 +538,7 @@ function renderDeskFromDataCtx(data,skipId,isFolder){
 
 const ghost=document.getElementById('drag-ghost');
 let _edgeT=null,_liveLayout=null,_livePrevCell=null,_folderT=null,_folderPending=false,_baseLayout=null;
+function _blockTouchScroll(e){e.preventDefault();}
 
 function setupDrag(wrap,ic,isFolder){
   let sx=0,sy=0,pDown=false,longT=null,dragStarted=false,hasMoved=false;
@@ -553,7 +554,7 @@ function setupDrag(wrap,ic,isFolder){
     if(!hasMoved){hasMoved=true;clearTimeout(longT);longT=null;}
     if(!isPC()&&!dragStarted&&Math.abs(dx)>Math.abs(dy)*1.4&&dist>12){pDown=false;return;}
     if(!dragStarted&&dist>8){
-      dragStarted=true;isDragging=true;
+      dragStarted=true;isDragging=true;document.addEventListener('touchmove',_blockTouchScroll,{passive:false});
       _baseLayout=isFolder ?
         (folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic&&folderStack[folderStack.length-1].ic.folderItems||[]).map(x=>Object.assign({},x)) :
         LD();
@@ -620,7 +621,7 @@ function setupDrag(wrap,ic,isFolder){
     clearTimeout(longT);longT=null;clearTimeout(_edgeT);_edgeT=null;clearTimeout(_folderT);_folderT=null;
     if(!pDown)return;pDown=false;
     if(dragStarted){
-      dragStarted=false;ghost.style.display='none';removeHL();wrap.style.opacity='';
+      dragStarted=false;document.removeEventListener('touchmove',_blockTouchScroll);ghost.style.display='none';removeHL();wrap.style.opacity='';
       const cx=e.clientX,cy=e.clientY;
       requestAnimationFrame(()=>{
         const activePg=isFolder?0:curPg;
@@ -673,7 +674,7 @@ function setupDrag(wrap,ic,isFolder){
   });
   wrap.addEventListener('pointercancel',()=>{
     clearTimeout(longT);longT=null;clearTimeout(_edgeT);_edgeT=null;clearTimeout(_folderT);_folderT=null;
-    pDown=false;dragStarted=false;isDragging=false;_folderPending=false;
+    pDown=false;dragStarted=false;isDragging=false;_folderPending=false;document.removeEventListener('touchmove',_blockTouchScroll);
     ghost.style.display='none';removeHL();wrap.style.opacity='';
     if(_baseLayout){
       if(isFolder)saveFolderItems(_baseLayout);else SD(_baseLayout);
