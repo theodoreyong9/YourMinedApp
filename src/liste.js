@@ -18,6 +18,7 @@ let _loaded     = false;
 let _filterText   = '';
 let _filterCat    = '';
 let _filterActive = false;
+let _filterSocial = null; // 'near' | 'contacts' | null — zone mode only
 
 function _readCache(){
   try{const raw=localStorage.getItem(CACHE_KEY);if(!raw)return null;const c=JSON.parse(raw);if(Date.now()-c.ts>CACHE_TTL)return null;return c;}catch{return null;}
@@ -262,7 +263,18 @@ async function render(containerArg){
     else if(_listType==='video')renderVideoContent(content);
   }
 
-  renderTypePills();
+  // Zone config: sphere-only, no rank/plug
+  const zoneCfg=window.YM_ZONE_CONFIG;
+  if(zoneCfg?.spheresOnly){
+    _listType='spheres';
+    typePillsEl.style.display='none';
+    wipRow.style.display='none';
+    // Hide + button (no publish in zone)
+    addBtn.style.display='none';
+  }else{
+    renderTypePills();
+  }
+
   if(!_loaded)await fetchSphereList();
   switchType();
 }
@@ -648,20 +660,36 @@ function renderSpheresContent(container,catRow){
     const FIXED_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent','Autres'];
     function renderCatPills(){
       catRow.innerHTML='';
-      ['Tous','Actifs',...FIXED_CATS].forEach(c=>{
-        const isActive=c==='Tous'?(!_filterCat&&!_filterActive):c==='Actifs'?_filterActive:(!_filterActive&&_filterCat===c);
-        const p=document.createElement('span');
-        p.className='pill'+(isActive?' active':'');
-        p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
-        p.textContent=c;
-        p.addEventListener('click',()=>{
-          if(c==='Tous'){_filterCat='';_filterActive=false;}
-          else if(c==='Actifs'){_filterActive=!_filterActive;_filterCat='';}
-          else{_filterCat=c;_filterActive=false;}
-          renderCatPills();renderList(container);
+      if(window.YM_ZONE_CONFIG?.socialFilters){
+        // Zone mode: Near / Contacts only
+        [{id:'near',label:'Near'},{id:'contacts',label:'Contacts'}].forEach(opt=>{
+          const isActive=_filterSocial===opt.id;
+          const p=document.createElement('span');
+          p.className='pill'+(isActive?' active':'');
+          p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+          p.textContent=opt.label;
+          p.addEventListener('click',()=>{
+            _filterSocial=isActive?null:opt.id;
+            renderCatPills();renderList(container);
+          });
+          catRow.appendChild(p);
         });
-        catRow.appendChild(p);
-      });
+      }else{
+        ['Tous','Actifs',...FIXED_CATS].forEach(c=>{
+          const isActive=c==='Tous'?(!_filterCat&&!_filterActive):c==='Actifs'?_filterActive:(!_filterActive&&_filterCat===c);
+          const p=document.createElement('span');
+          p.className='pill'+(isActive?' active':'');
+          p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+          p.textContent=c;
+          p.addEventListener('click',()=>{
+            if(c==='Tous'){_filterCat='';_filterActive=false;}
+            else if(c==='Actifs'){_filterActive=!_filterActive;_filterCat='';}
+            else{_filterCat=c;_filterActive=false;}
+            renderCatPills();renderList(container);
+          });
+          catRow.appendChild(p);
+        });
+      }
     }
     renderCatPills();
   }
@@ -707,6 +735,19 @@ function renderList(body){
   if(_filterCat)filtered=filtered.filter(s=>normCat(s.category||'')===_filterCat||(_filterCat==='Autres'&&!STD_CATS.includes(s.category||'')));
   if(_filterActive)filtered=filtered.filter(s=>isSphereActive(s.fileName));
   if(_listShowWip)filtered=filtered.filter(s=>s.wip);
+  if(_filterSocial==='near'){
+    // window._ymNearSpheres = Set of sphere fileNames that nearby peers use (populated by social.sphere.js)
+    const near=window._ymNearSpheres;
+    if(!near||!near.size){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px 0;text-align:center">No nearby peers detected.</div>';return;}
+    filtered=filtered.filter(s=>near.has(s.fileName));
+  }
+  if(_filterSocial==='contacts'){
+    // Collect sphere lists from profile contacts
+    const contactSpheres=new Set();
+    try{const p=JSON.parse(localStorage.getItem('ym_profile_v1')||'{}');(p.contacts||[]).forEach(c=>(c.spheres||[]).forEach(s=>contactSpheres.add(s)));}catch{}
+    if(!contactSpheres.size){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px 0;text-align:center">No contacts with shared spheres.</div>';return;}
+    filtered=filtered.filter(s=>contactSpheres.has(s.fileName));
+  }
   if(!filtered.length){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No spheres found.</div>';return;}
 
   listEl.innerHTML='';
