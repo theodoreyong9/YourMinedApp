@@ -228,53 +228,70 @@ function renderUnlocked(body){
   inner.style.cssText='width:100%;max-width:400px;margin:0 auto;display:flex;flex-direction:column;gap:8px';
 
   inner.innerHTML=
-  '<div '+S('display:flex;align-items:center;justify-content:space-between;gap:6px')+'>'+
+  // ── Address bar
+  '<div '+S('display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px')+'>'+
     '<div '+S('display:flex;align-items:center;gap:6px')+'>'+
-      '<div '+S('width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent,#f0a830),#e08020);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0')+'">⛏</div>'+
-      '<span id="mine-addr" '+S('font-family:var(--font-m);font-size:11px;color:var(--text2);cursor:pointer;letter-spacing:.5px')+'" title="Copy">'+short+'</span>'+
+      '<div '+S('width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--accent,#f0a830),#e08020);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0')+'">⛏</div>'+
+      '<span id="mine-addr" '+S('font-family:var(--font-m);font-size:10px;color:var(--text2);cursor:pointer;letter-spacing:.5px')+'" title="Copy">'+short+'</span>'+
     '</div>'+
     '<div '+S('display:flex;gap:4px')+'>'+
       '<button class="ym-btn ym-btn-ghost" id="mine-copy" '+S('padding:3px 8px;font-size:11px')+'">⧉</button>'+
       '<button class="ym-btn ym-btn-danger" id="mine-lock" '+S('padding:3px 8px;font-size:11px')+'">🔒</button>'+
     '</div>'+
   '</div>'+
-  '<div '+S('display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px')+'>'+
-    _tile('SOL','mine-sol',_state.sol.toFixed(3),'#60a5fa')+
+  // ── Balances
+  '<div '+S('display:grid;grid-template-columns:1fr 1fr;gap:5px')+'>'+
+    _tile('SOL','mine-sol',_state.sol.toFixed(4),'#60a5fa')+
     _tile('YRM','mine-yrm',_state.ym.toFixed(2),'var(--accent,#f0a830)')+
-    _tile('Claim','mine-cval',c.toFixed(4),'#22d3ee')+
   '</div>'+
-  '<div '+S('display:flex;gap:4px;flex-wrap:wrap')+'>'+
-    _badge('Slot','mine-slot',_state.currentSlot||'—')+
-    _badge('Burn',null,_state.lastBurnAmount?(_state.lastBurnAmount/1e9).toFixed(3)+' SOL':'—')+
-    _badge('τ',null,_state.taxRate+'%')+
-  '</div>'+
-  '<div '+S('border:1px solid var(--border,rgba(255,255,255,.08));border-radius:var(--r-sm,8px);padding:8px 10px')+'>'+
-    '<div '+S('display:flex;align-items:center;gap:6px;margin-bottom:6px')+'>'+
-      '<input class="ym-input" id="mine-bamt" type="number" min="'+MIN_BURN+'" step="0.001" placeholder="SOL" '+S('flex:1;min-width:0;font-size:11px')+'"/>'+
-      '<span '+S('font-size:10px;color:var(--text3)')+'">τ</span>'+
-      '<span class="ym-stat-value" id="mine-rlbl" '+S('font-size:11px;color:var(--accent,#f0a830);min-width:26px')+'">20%</span>'+
-      '<button class="ym-btn ym-btn-accent" id="mine-burn-btn" '+S('padding:5px 12px;font-size:11px')+'">🔥</button>'+
-      '<button class="ym-btn ym-btn-ghost" id="mine-claim-btn" '+S('padding:5px 12px;font-size:11px;color:var(--cyan);border-color:rgba(34,211,238,.3)')+'">⚡</button>'+
+  // ── Claim card
+  '<div '+S('background:linear-gradient(135deg,rgba(34,211,238,.08),rgba(34,211,238,.04));border:1px solid rgba(34,211,238,.22);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px')+'>'+
+    '<div '+S('display:flex;align-items:baseline;justify-content:space-between')+'>'+
+      '<span '+S('font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(34,211,238,.6);font-family:var(--font-m)')+'">Claimable</span>'+
+      '<div '+S('display:flex;align-items:baseline;gap:5px')+'>'+
+        '<span id="mine-cval" '+S('font-size:22px;font-weight:700;color:#22d3ee;font-family:var(--font-m);letter-spacing:-1px')+'">'+c.toFixed(4)+'</span>'+
+        '<span '+S('font-size:11px;color:rgba(34,211,238,.5);font-family:var(--font-m)')+'">YRM</span>'+
+      '</div>'+
     '</div>'+
-    '<input class="ym-slider" id="mine-rslider" type="range" min="0" max="40" step="1" value="20" '+S('width:100%;margin-bottom:2px')+'"/>'+
-    '<div '+S('display:flex;justify-content:space-between;font-size:9px;color:var(--text3)')+'"><span>instant</span><span>Fee: <span id="mine-fee">—</span> SOL</span><span>patient</span></div>'+
-    '<div id="mine-txmsg" class="ym-notice" '+S('display:none;margin-top:6px')+'"></div>'+
+    '<button class="ym-btn ym-btn-accent" id="mine-claim-btn" '+S('width:100%;font-size:13px;font-weight:700;padding:10px;background:linear-gradient(135deg,#22d3ee,#0ea5e9);box-shadow:0 4px 20px rgba(34,211,238,.3);border:none')+'">⚡ Claim</button>'+
   '</div>'+
+  // ── Burn card
+  '<div '+S('background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px')+'>'+
+    '<div '+S('display:flex;align-items:center;justify-content:space-between')+'>'+
+      '<span '+S('font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(240,168,48,.55);font-family:var(--font-m)')+'">Burn</span>'+
+      '<span '+S('font-size:9px;color:var(--text3);font-family:var(--font-m)')+'">Last: '+((_state.lastBurnAmount/1e9)||0).toFixed(3)+' SOL · τ '+_state.taxRate+'%</span>'+
+    '</div>'+
+    '<div '+S('display:flex;gap:6px;align-items:center')+'>'+
+      '<input class="ym-input" id="mine-bamt" type="number" min="'+MIN_BURN+'" step="0.001" placeholder="Amount SOL" '+S('flex:1;font-size:12px')+'"/>'+
+      '<span class="ym-stat-value" id="mine-rlbl" '+S('font-size:12px;color:var(--accent,#f0a830);min-width:30px;text-align:right;font-family:var(--font-m)')+'">20%</span>'+
+    '</div>'+
+    '<input class="ym-slider" id="mine-rslider" type="range" min="0" max="40" step="1" value="20" '+S('width:100%')+'"/>'+
+    '<div '+S('display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:-4px')+'"><span>instant</span><span>Fee: <span id="mine-fee">—</span> SOL</span><span>patient</span></div>'+
+    '<button class="ym-btn ym-btn-accent" id="mine-burn-btn" '+S('width:100%;font-size:13px;font-weight:700;padding:10px;box-shadow:0 4px 20px rgba(240,168,48,.28)')+'">🔥 Burn</button>'+
+    '<div id="mine-txmsg" class="ym-notice" '+S('display:none')+'"></div>'+
+  '</div>'+
+  // ── Send / Receive
   '<div '+S('display:grid;grid-template-columns:auto 1fr;gap:8px')+'>'+
-    '<div '+S('display:flex;flex-direction:column;align-items:center;gap:4px;background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:var(--r-sm,8px);padding:8px')+'>'+
-      '<div '+S('font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);align-self:flex-start')+'">Receive</div>'+
-      '<div id="mine-qr" '+S('background:#fff;padding:4px;border-radius:5px')+'"></div>'+
+    '<div '+S('display:flex;flex-direction:column;align-items:center;gap:4px;background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:10px;padding:8px')+'>'+
+      '<div '+S('font-size:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text3);align-self:flex-start;font-family:var(--font-m)')+'">Receive</div>'+
+      '<div id="mine-qr" '+S('background:#fff;padding:4px;border-radius:4px')+'"></div>'+
     '</div>'+
-    '<div '+S('display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:var(--r-sm,8px);padding:8px')+'>'+
-      '<div '+S('font-family:var(--font-d);font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3)')+'">Send SOL</div>'+
+    '<div '+S('display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:10px;padding:8px')+'>'+
+      '<div '+S('font-size:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text3);font-family:var(--font-m)')+'">Send SOL</div>'+
       '<input class="ym-input" id="mine-sto" placeholder="Address" '+S('font-size:11px')+'"/>'+
       '<input class="ym-input" id="mine-samt" type="number" step="0.001" placeholder="Amount" '+S('font-size:11px')+'"/>'+
-      '<button class="ym-btn ym-btn-accent" id="mine-send-btn" '+S('font-size:11px;padding:5px')+'">Send ↗</button>'+
+      '<button class="ym-btn ym-btn-accent" id="mine-send-btn" '+S('font-size:11px;padding:6px')+'">Send ↗</button>'+
     '</div>'+
   '</div>'+
-  '<div '+S('display:flex;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border,rgba(255,255,255,.08));align-items:center')+'>'+
-    FAUCETS.map(f=>'<a href="'+f.url+'" target="_blank" rel="noopener" '+S('font-size:10px;color:var(--cyan);text-decoration:none;opacity:.7')+'">↗ '+f.label+'</a>').join('')+
-    '<span '+S('margin-left:auto;font-size:9px;color:var(--text3);font-family:var(--font-m)')+'">S·t<sup>α</sup>/[ln(A<sup>β</sup>+C)]<sup>γ</sup></span>'+
+  // ── Footer
+  '<div '+S('display:flex;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border,rgba(255,255,255,.06));align-items:center')+'>'+
+    '<div '+S('display:flex;gap:4px;flex-wrap:wrap;flex:1')+'>'+
+      FAUCETS.map(f=>'<a href="'+f.url+'" target="_blank" rel="noopener" '+S('font-size:10px;color:var(--cyan);text-decoration:none;opacity:.65')+'">↗ '+f.label+'</a>').join('')+
+    '</div>'+
+    '<span '+S('font-size:9px;color:var(--text3);font-family:var(--font-m);white-space:nowrap')+'">S·t<sup>α</sup>/[ln(A<sup>β</sup>+C)]<sup>γ</sup></span>'+
+    '<div '+S('display:flex;gap:4px;flex-basis:100%')+'>'+
+      _badge('Slot','mine-slot',_state.currentSlot||'—')+
+    '</div>'+
   '</div>';
 
   wrap.appendChild(inner);
