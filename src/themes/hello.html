@@ -38,14 +38,12 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 }
 .lp{position:relative;z-index:1;}
 
-/* HERO */
 .lp-hero{
   min-height:100dvh;
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
   padding:80px 28px 56px;
-  text-align:center;
-  overflow:hidden;
+  text-align:center;overflow:hidden;
 }
 .lp-logo{
   font-family:var(--font-d);
@@ -58,10 +56,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-tagline{
   font-family:var(--font-m);
   font-size:clamp(13px,2.2vw,18px);
-  color:var(--text2);
-  letter-spacing:.02em;
-  margin-bottom:48px;
-  line-height:1.5;
+  color:var(--text2);letter-spacing:.02em;
+  margin-bottom:48px;line-height:1.5;
   opacity:0;animation:fi .6s .15s ease forwards;
 }
 .lp-tagline .prompt{color:var(--gold);margin-right:6px;}
@@ -83,27 +79,21 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-btn-secondary{background:transparent;border:1px solid rgba(255,255,255,.1);color:var(--text3);}
 .lp-btn-secondary:hover{border-color:rgba(255,255,255,.22);color:var(--text2)}
 
-/* BODY */
 .lp-body{max-width:580px;margin:0 auto;padding:0 28px 120px;}
-
 .lp-divider{width:1px;height:56px;background:linear-gradient(180deg,transparent,rgba(240,168,48,.28),transparent);margin:0 auto 56px;}
 .lp-sep{width:28px;height:1px;background:rgba(255,255,255,.07);margin:52px 0;}
 
-/* Section label */
 .lp-label{
   font-family:var(--font-m);font-size:9px;
   color:var(--gold);letter-spacing:.22em;text-transform:uppercase;
   margin-bottom:14px;opacity:.8;
 }
-
-/* Paragraph */
 .lp-p{
   font-family:var(--font-b);font-size:clamp(14px,2vw,16px);
   color:var(--text2);line-height:1.85;font-weight:400;
 }
 .lp-p+.lp-p{margin-top:12px;}
 
-/* Big statement */
 .lp-statement{
   font-family:var(--font-d);font-size:clamp(17px,2.8vw,24px);
   font-weight:700;color:var(--text);line-height:1.45;
@@ -114,7 +104,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
 
-/* Stanza */
 .lp-stanza{display:flex;flex-direction:column;gap:1px;margin:18px 0;}
 .lp-stanza-line{
   font-family:var(--font-b);font-size:clamp(13px,1.7vw,15px);
@@ -122,7 +111,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 }
 .lp-stanza-line.hi{color:var(--text);font-style:normal;font-weight:600;}
 
-/* Inline list — connectable / executable… */
 .lp-words{display:flex;flex-direction:column;gap:4px;margin:16px 0 4px;}
 .lp-word{
   font-family:var(--font-m);font-size:12px;
@@ -131,17 +119,14 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 }
 .lp-word::before{content:'—';position:absolute;left:0;color:rgba(240,168,48,.3);}
 
-/* Dot list — interoperability / scaling… */
 .lp-list-inline{display:flex;flex-wrap:wrap;gap:0;margin:10px 0 4px;}
 .lp-list-inline span{font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:.05em;}
 .lp-list-inline span::after{content:' · ';color:rgba(255,255,255,.1)}
 .lp-list-inline span:last-child::after{content:''}
 
-/* No lines */
 .lp-negations{display:flex;flex-direction:column;gap:5px;margin:4px 0;}
 .lp-neg{font-family:var(--font-b);font-size:clamp(13px,1.5vw,14px);color:var(--text3);}
 
-/* What it is not — grid */
 .lp-not-grid{display:flex;flex-direction:column;gap:3px;margin:4px 0;}
 .lp-not-item{
   font-family:var(--font-b);font-size:clamp(12px,1.5vw,14px);
@@ -149,11 +134,9 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 }
 .lp-not-item::before{content:'✕';position:absolute;left:0;font-size:10px;color:rgba(255,69,96,.4);top:1px;}
 
-/* Solo closing */
 .lp-solo{font-family:var(--font-b);font-size:clamp(14px,2vw,16px);color:var(--text2);font-style:italic;line-height:1.7;}
 .lp-solo.bold{font-style:normal;font-weight:600;color:var(--text);}
 
-/* FOOTER */
 .lp-footer{text-align:center;padding:56px 28px 80px;}
 .lp-footer-logo{
   font-family:var(--font-d);font-size:clamp(26px,5vw,44px);font-weight:800;
@@ -168,7 +151,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
 <div id="ym-landing">
 
-  <!-- HERO -->
   <div class="lp lp-hero">
     <div class="lp-logo">YOURMINE</div>
     <div class="lp-tagline"><span class="prompt">&gt;</span> One prompt. One web.</div>
@@ -178,31 +160,27 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     </div>
   </div>
 
-  <!-- BODY -->
   <div class="lp lp-body">
 
     <div class="lp-divider"></div>
 
-    <!-- 1 -->
     <div>
-      <p class="lp-p">One living interaction layer for the open web.</p>
-      <p class="lp-p" style="margin-top:14px">YourMine is a web execution and coordination layer that lets you connect, deploy, and structure any system instantly — through simple actions, prompts, or interface.</p>
+      <p class="lp-p">One living context layer for the open web.</p>
+      <p class="lp-p" style="margin-top:14px">YourMine lets you inject a living layer of interaction, participation, and coordination into any application, interface, or system.</p>
+      <p class="lp-p" style="margin-top:10px">Instantly. From anywhere.</p>
     </div>
 
     <div class="lp-sep"></div>
 
-    <!-- 2 -->
     <div>
-      <div class="lp-statement">What if the web was not something you used&hellip;<br>but something you could <em>assemble</em>?</div>
-      <p class="lp-p" style="margin-top:16px">From anywhere.</p>
+      <div class="lp-statement">What if a single prompt could connect any code to a borderless web of <em>development, execution, and participation</em>?</div>
     </div>
 
     <div class="lp-sep"></div>
 
-    <!-- 3 -->
     <div>
       <p class="lp-p">Build connected systems, not isolated apps.</p>
-      <p class="lp-p" style="margin-top:10px">YourMine turns fragmented web services into composable, interactive environments.</p>
+      <p class="lp-p" style="margin-top:10px">YourMine transforms fragmented services and applications into composable, interactive environments.</p>
       <p class="lp-p" style="margin-top:14px">Anything can become:</p>
       <div class="lp-words">
         <div class="lp-word">connectable</div>
@@ -214,10 +192,9 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- 4 -->
     <div>
       <p class="lp-p">One action is enough.</p>
-      <p class="lp-p" style="margin-top:10px">A single trigger connects your code or application to a shared web layer for:</p>
+      <p class="lp-p" style="margin-top:10px">A single signal connects your code or application to a shared living layer for:</p>
       <div class="lp-list-inline" style="margin-top:10px">
         <span>interoperability</span>
         <span>scaling</span>
@@ -233,7 +210,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- 5 — Core principle -->
     <div>
       <div class="lp-label">Core principle</div>
       <div class="lp-stanza">
@@ -246,7 +222,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- 6 -->
     <div>
       <div class="lp-negations">
         <div class="lp-neg">No central authority.</div>
@@ -257,36 +232,27 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- 7 — What it is not -->
     <div>
-      <div class="lp-label">What it is not</div>
-      <div class="lp-not-grid">
-        <div class="lp-not-item">A platform</div>
-        <div class="lp-not-item">A social network</div>
-        <div class="lp-not-item">A framework</div>
-        <div class="lp-not-item">A closed ecosystem</div>
-      </div>
+      <div class="lp-statement">The web is no longer something you use.<br>It becomes something you <em>shape</em>.</div>
+      <p class="lp-p" style="margin-top:16px">A living system of connected code, interactions, environments, and communities.</p>
     </div>
 
     <div class="lp-sep"></div>
 
-    <!-- 8 — What it is -->
     <div>
       <div class="lp-label">What it is</div>
-      <p class="lp-p">A living web layer where any system can be connected, extended, and composed in real time.</p>
+      <p class="lp-p">A living interaction and execution layer where systems become composable in real time.</p>
     </div>
 
     <div class="lp-sep"></div>
 
-    <!-- 9 -->
     <div>
       <p class="lp-solo bold">A new layer of the web is already active.</p>
-      <p class="lp-solo" style="margin-top:6px">You are inside it.</p>
+      <p class="lp-solo" style="margin-top:6px">You are already inside it.</p>
     </div>
 
   </div>
 
-  <!-- FOOTER -->
   <div class="lp lp-footer">
     <div class="lp-footer-logo">YOURMINE</div>
     <div class="lp-footer-sub">Code. Connect. Emerge.</div>
