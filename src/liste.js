@@ -493,73 +493,149 @@ function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
 function renderLinkContent(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden;padding:16px;gap:10px';
 
-  const inp=document.createElement('input');
-  inp.className='ym-input';
-  inp.placeholder='https://…/name.sphere.js  or  .theme.js';
-  inp.style.cssText='font-size:11px;width:100%;box-sizing:border-box';
-  container.appendChild(inp);
-
-  const hint=document.createElement('div');
-  hint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
-  container.appendChild(hint);
-
-  const btn=document.createElement('button');
-  btn.className='ym-btn ym-btn-accent';
-  btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
-  btn.textContent='▶ Plug';
-  container.appendChild(btn);
-
-  inp.addEventListener('input',()=>{
-    const v=inp.value.trim();
-    if(v.endsWith('.sphere.js'))hint.textContent='⬡ Sphere détectée';
-    else if(v.endsWith('.theme.js'))hint.textContent='🎨 Thème détecté';
-    else if(v)hint.textContent='URL doit finir par .sphere.js ou .theme.js';
-    else hint.textContent='';
+  // Tabs
+  let _mode='url'; // 'url' | 'code'
+  const tabs=document.createElement('div');
+  tabs.style.cssText='display:flex;gap:4px';
+  ['url','code'].forEach(m=>{
+    const t=document.createElement('button');
+    t.className='ym-btn '+(_mode===m?'ym-btn-accent':'ym-btn-ghost');
+    t.style.cssText='font-size:10px;flex:1';
+    t.textContent=m==='url'?'🔗 URL':'</> Code';
+    t.onclick=()=>{_mode=m;renderMode();};
+    tabs.appendChild(t);
   });
+  container.appendChild(tabs);
 
-  const doPlug=async()=>{
-    const url=inp.value.trim();
-    if(!url)return;
-    if(!url.endsWith('.sphere.js')&&!url.endsWith('.theme.js')){
-      window.YM_toast?.('URL doit finir par .sphere.js ou .theme.js','error');return;
-    }
-    btn.textContent='…';btn.disabled=true;
-    try{
-      if(url.endsWith('.theme.js')){
-        localStorage.setItem('ym_theme_url',url);
-        localStorage.removeItem('ym_theme_cache');
-        window.YM_toast?.('Thème — rechargement…','success');
-        setTimeout(()=>location.reload(),400);
-      }else{
-        const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
-        if(!r.ok)throw new Error('HTTP '+r.status);
-        const code=await r.text();
-        const fname=url.split('/').pop().replace(/\?.*$/,'');
-        const blob=new Blob([code],{type:'text/javascript'});
-        const blobUrl=URL.createObjectURL(blob);
-        await new Promise((res,rej)=>{
-          const s=document.createElement('script');s.src=blobUrl;
-          s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
-          s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
-          document.head.appendChild(s);
-        });
-        let sphereObj=window.YM_S?.[fname];
-        if(!sphereObj){
-          const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
-          if(newKey)sphereObj=window.YM_S[newKey];
+  const body=document.createElement('div');
+  body.style.cssText='display:flex;flex-direction:column;gap:10px;flex:1;min-height:0';
+  container.appendChild(body);
+
+  function setTabStyles(){
+    tabs.querySelectorAll('button').forEach((t,i)=>{
+      t.className='ym-btn '+((i===0&&_mode==='url')||(i===1&&_mode==='code')?'ym-btn-accent':'ym-btn-ghost');
+    });
+  }
+
+  // Shared: run code blob as sphere
+  async function execSphereCode(code){
+    const blob=new Blob([code],{type:'text/javascript'});
+    const blobUrl=URL.createObjectURL(blob);
+    const before=new Set(Object.keys(window.YM_S||{}));
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');s.src=blobUrl;
+      s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
+      s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
+      document.head.appendChild(s);
+    });
+    const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!before.has(k));
+    const sphereObj=newKey?window.YM_S[newKey]:null;
+    if(sphereObj&&window.YM){
+      await window.YM.activateSphere(newKey,sphereObj);
+      window.YM_toast?.('Sphere activée','success');
+    }else throw new Error('Sphere non trouvée dans le code');
+  }
+
+  function renderMode(){
+    setTabStyles();
+    body.innerHTML='';
+    if(_mode==='url'){
+      const inp=document.createElement('input');
+      inp.className='ym-input';
+      inp.placeholder='https://…/name.sphere.js  or  .theme.js';
+      inp.style.cssText='font-size:11px;width:100%;box-sizing:border-box';
+      const hint=document.createElement('div');
+      hint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-accent';
+      btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
+      btn.textContent='▶ Plug';
+      body.appendChild(inp);body.appendChild(hint);body.appendChild(btn);
+
+      inp.addEventListener('input',()=>{
+        const v=inp.value.trim();
+        if(v.endsWith('.sphere.js'))hint.textContent='⬡ Sphere détectée';
+        else if(v.endsWith('.theme.js'))hint.textContent='🎨 Thème détecté';
+        else if(v)hint.textContent='URL doit finir par .sphere.js ou .theme.js';
+        else hint.textContent='';
+      });
+
+      const doPlug=async()=>{
+        const url=inp.value.trim();if(!url)return;
+        if(!url.endsWith('.sphere.js')&&!url.endsWith('.theme.js')){
+          window.YM_toast?.('URL doit finir par .sphere.js ou .theme.js','error');return;
         }
-        if(sphereObj&&window.YM){
-          const key=Object.keys(window.YM_S).find(k=>window.YM_S[k]===sphereObj)||fname;
-          await window.YM.activateSphere(key,sphereObj);
-          inp.value='';hint.textContent='';
-          window.YM_toast?.('Sphere activée','success');
-        }else throw new Error('Sphere non trouvée dans le code');
-      }
-    }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
-    btn.textContent='▶ Plug';btn.disabled=false;
-  };
-  btn.addEventListener('click',doPlug);
-  inp.addEventListener('keydown',e=>{if(e.key==='Enter')doPlug();});
+        btn.textContent='…';btn.disabled=true;
+        try{
+          if(url.endsWith('.theme.js')){
+            localStorage.setItem('ym_theme_url',url);
+            localStorage.removeItem('ym_theme_cache');
+            window.YM_toast?.('Thème — rechargement…','success');
+            setTimeout(()=>location.reload(),400);
+          }else{
+            const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+            if(!r.ok)throw new Error('HTTP '+r.status);
+            await execSphereCode(await r.text());
+            inp.value='';hint.textContent='';
+          }
+        }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
+        btn.textContent='▶ Plug';btn.disabled=false;
+      };
+      btn.addEventListener('click',doPlug);
+      inp.addEventListener('keydown',e=>{if(e.key==='Enter')doPlug();});
+
+    }else{
+      // Code mode
+      let _codeType='sphere';
+      const typeRow=document.createElement('div');
+      typeRow.style.cssText='display:flex;gap:4px';
+      ['sphere','theme'].forEach(t=>{
+        const b=document.createElement('button');
+        b.className='ym-btn '+(_codeType===t?'ym-btn-accent':'ym-btn-ghost');
+        b.style.cssText='font-size:10px;flex:1';
+        b.textContent=t==='sphere'?'⬡ Sphere':'🎨 Thème';
+        b.onclick=()=>{
+          _codeType=t;
+          typeRow.querySelectorAll('button').forEach((x,i)=>{
+            x.className='ym-btn '+((i===0&&t==='sphere')||(i===1&&t==='theme')?'ym-btn-accent':'ym-btn-ghost');
+          });
+        };
+        typeRow.appendChild(b);
+      });
+
+      const ta=document.createElement('textarea');
+      ta.className='ym-input';
+      ta.placeholder='Colle ton code ici…';
+      ta.style.cssText='font-size:10px;font-family:monospace;flex:1;min-height:120px;resize:none;width:100%;box-sizing:border-box';
+
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-accent';
+      btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
+      btn.textContent='▶ Plug';
+
+      body.appendChild(typeRow);body.appendChild(ta);body.appendChild(btn);
+
+      btn.addEventListener('click',async()=>{
+        const code=ta.value.trim();if(!code)return;
+        btn.textContent='…';btn.disabled=true;
+        try{
+          if(_codeType==='theme'){
+            const blob=new Blob([code],{type:'text/javascript'});
+            const blobUrl=URL.createObjectURL(blob);
+            localStorage.setItem('ym_theme_url',blobUrl);
+            localStorage.removeItem('ym_theme_cache');
+            window.YM_toast?.('Thème — rechargement…','success');
+            setTimeout(()=>location.reload(),400);
+          }else{
+            await execSphereCode(code);
+            ta.value='';
+          }
+        }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
+        btn.textContent='▶ Plug';btn.disabled=false;
+      });
+    }
+  }
+  renderMode();
 }
 function renderSpheresContent(container,catRow){
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
