@@ -491,160 +491,75 @@ const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Medi
 function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
 
 function renderLinkContent(container){
-  container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden;padding:16px;gap:12px';
+  container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden;padding:16px;gap:10px';
 
-  // Section type
-  let _linkType='sphere'; // 'sphere' | 'theme'
-  const typeRow=document.createElement('div');
-  typeRow.style.cssText='display:flex;gap:6px';
-  ['sphere','theme'].forEach(t=>{
-    const btn=document.createElement('button');
-    btn.className='ym-btn '+(_linkType===t?'ym-btn-accent':'ym-btn-ghost');
-    btn.style.cssText='font-size:10px;flex:1';
-    btn.textContent=t==='sphere'?'⬡ Sphere':'🎨 Theme';
-    btn.onclick=()=>{
-      _linkType=t;
-      typeRow.querySelectorAll('button').forEach((b,i)=>{
-        b.className='ym-btn '+(i===(t==='sphere'?0:1)?'ym-btn-accent':'ym-btn-ghost');
-      });
-      updateHint();
-    };
-    typeRow.appendChild(btn);
-  });
-  container.appendChild(typeRow);
-
-  // Platform pills
-  const pillsWrap=document.createElement('div');
-  pillsWrap.style.cssText='display:flex;gap:5px;flex-wrap:wrap';
-  // GitHub Raw pill spécifique pour les .sphere.js et .theme.html
-  const allPills=[
-    {id:'ghraw', label:'GitHub Raw', icon:'🐙', hint:'user/repo/branch/file.sphere.js',
-     resolve:id=>'https://raw.githubusercontent.com/'+id},
-    ...PLATFORMS
-  ];
-  allPills.forEach(p=>{
-    const pill=document.createElement('span');
-    pill.className='pill'+(_selPlatform===p.id?' active':'');
-    pill.style.cssText='cursor:pointer;font-size:10px';
-    pill.textContent=p.icon+' '+p.label;
-    pill.onclick=()=>{
-      const was=pill.classList.contains('active');
-      pillsWrap.querySelectorAll('.pill').forEach(x=>x.classList.remove('active'));
-      _selPlatform=was?null:p.id;
-      if(!was){pill.classList.add('active');inp.placeholder=p.hint;}
-      else inp.placeholder='URL, raw GitHub, ID…';
-      updateHint();inp.focus();
-    };
-    pillsWrap.appendChild(pill);
-  });
-  container.appendChild(pillsWrap);
-
-  // Input + bouton
-  const row=document.createElement('div');
-  row.style.cssText='display:flex;gap:6px;align-items:center';
   const inp=document.createElement('input');
   inp.className='ym-input';
-  inp.placeholder='URL, raw GitHub, ID…';
-  inp.style.cssText='flex:1;font-size:11px';
-  const btn=document.createElement('button');
-  btn.className='ym-btn ym-btn-accent';
-  btn.style.cssText='font-size:11px;padding:6px 14px;flex-shrink:0;font-weight:700';
-  btn.textContent='▶';
-  row.appendChild(inp);row.appendChild(btn);
-  container.appendChild(row);
+  inp.placeholder='https://…/name.sphere.js  or  .theme.js';
+  inp.style.cssText='font-size:11px;width:100%;box-sizing:border-box';
+  container.appendChild(inp);
 
   const hint=document.createElement('div');
   hint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
   container.appendChild(hint);
 
-  function resolveURL(input){
-    input=(input||'').trim();if(!input)return null;
-    if(_selPlatform){
-      const p=allPills.find(x=>x.id===_selPlatform);
-      if(p)return p.resolve(input);
-    }
-    if(/^https?:\/\//i.test(input))return input;
-    // Détection auto
-    if(input.includes('raw.githubusercontent.com'))return input;
-    if(/^[\w-]+\/[\w-]+\/[\w-]+\/.+$/.test(input))return'https://raw.githubusercontent.com/'+input;
-    if(input.includes('stackblitz.com')||input.includes('bolt.new'))return input+'?embed=1&view=preview';
-    if(input.includes('replit.com')||input.includes('.repl.co'))return input;
-    if(input.includes('codesandbox.io'))return input.replace('/s/','/embed/');
-    if(/^@?[\w-]+\/[\w-]+$/.test(input)){const p2=input.split('/');return'https://'+p2[0].replace('@','')+'.github.io/'+p2[1];}
-    if(/^[\w-]+$/.test(input))return'https://stackblitz.com/edit/'+input+'?embed=1&view=preview';
-    return'https://'+input;
-  }
+  const btn=document.createElement('button');
+  btn.className='ym-btn ym-btn-accent';
+  btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
+  btn.textContent='▶ Plug';
+  container.appendChild(btn);
 
-  function updateHint(){
+  inp.addEventListener('input',()=>{
     const v=inp.value.trim();
-    const resolved=v?resolveURL(v):null;
-    hint.textContent=(resolved&&resolved!==v)?'→ '+resolved:'';
-  }
-  inp.addEventListener('input',updateHint);
+    if(v.endsWith('.sphere.js'))hint.textContent='⬡ Sphere détectée';
+    else if(v.endsWith('.theme.js'))hint.textContent='🎨 Thème détecté';
+    else if(v)hint.textContent='URL doit finir par .sphere.js ou .theme.js';
+    else hint.textContent='';
+  });
 
-  const doActivate=async()=>{
-    const input=inp.value.trim();if(!input)return;
-    const url=resolveURL(input);
-    if(!url){window.YM_toast?.('URL invalide','error');return;}
+  const doPlug=async()=>{
+    const url=inp.value.trim();
+    if(!url)return;
+    if(!url.endsWith('.sphere.js')&&!url.endsWith('.theme.js')){
+      window.YM_toast?.('URL doit finir par .sphere.js ou .theme.js','error');return;
+    }
     btn.textContent='…';btn.disabled=true;
     try{
-      if(_linkType==='theme'){
-        // Applique le thème
-        let themeUrl=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-        localStorage.setItem('ym_theme_url',themeUrl);
+      if(url.endsWith('.theme.js')){
+        localStorage.setItem('ym_theme_url',url);
         localStorage.removeItem('ym_theme_cache');
         window.YM_toast?.('Thème — rechargement…','success');
         setTimeout(()=>location.reload(),400);
       }else{
-        // Charge comme sphère
-        const isSphereJS=url.includes('.sphere.js')||url.includes('raw.githubusercontent.com');
-        if(!isSphereJS){
-          // App externe → iframe sphere
-          const selP=_selPlatform?allPills.find(x=>x.id===_selPlatform):null;
-          const sphereName=(selP?selP.label+' — ':'')+input.replace(/^https?:\/\//,'').split('/').slice(0,2).join('/');
-          const sphereObj=await window.YM.loadSphereFromURL(url,sphereName);
-          if(sphereObj&&window.YM){
-            // Dispatch pour Safety
-            window.dispatchEvent(new CustomEvent('ym:external-app-load',{detail:{url,name:sphereName}}));
-            await window.YM.activateSphere(sphereName,sphereObj);
-            inp.value='';hint.textContent='';
-            window.YM_toast?.('App ajoutée : '+sphereName,'success');
-          }else throw new Error('Impossible de charger');
-        }else{
-          // Sphère .sphere.js → exécution JS
-          const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
-          if(!r.ok)throw new Error('HTTP '+r.status);
-          const code=await r.text();
-          const fname=url.split('/').pop().replace(/\?.*$/,'');
-          const blob=new Blob([code],{type:'text/javascript'});
-          const blobUrl=URL.createObjectURL(blob);
-          // Garde le code source pour Safety
-          if(sphereObj) sphereObj._sourceCode = code.slice(0, 500);
-          await new Promise((res,rej)=>{
-            const s=document.createElement('script');s.src=blobUrl;
-            s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
-            s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
-            document.head.appendChild(s);
-          });
-          // Cherche dans YM_S
-          let sphereObj=window.YM_S&&window.YM_S[fname];
-          if(!sphereObj){
-            const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
-            if(newKey)sphereObj=window.YM_S[newKey];
-          }
-          if(sphereObj&&window.YM){
-            const key=Object.keys(window.YM_S).find(k=>window.YM_S[k]===sphereObj)||fname;
-            await window.YM.activateSphere(key,sphereObj);
-            inp.value='';
-            window.YM_toast?.('Sphere activée','success');
-          }else throw new Error('Sphere non trouvée dans le code');
+        const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const code=await r.text();
+        const fname=url.split('/').pop().replace(/\?.*$/,'');
+        const blob=new Blob([code],{type:'text/javascript'});
+        const blobUrl=URL.createObjectURL(blob);
+        await new Promise((res,rej)=>{
+          const s=document.createElement('script');s.src=blobUrl;
+          s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
+          s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('exec failed'));};
+          document.head.appendChild(s);
+        });
+        let sphereObj=window.YM_S?.[fname];
+        if(!sphereObj){
+          const newKey=window.YM_S&&Object.keys(window.YM_S).find(k=>!window.YM_sphereRegistry?.has(k));
+          if(newKey)sphereObj=window.YM_S[newKey];
         }
+        if(sphereObj&&window.YM){
+          const key=Object.keys(window.YM_S).find(k=>window.YM_S[k]===sphereObj)||fname;
+          await window.YM.activateSphere(key,sphereObj);
+          inp.value='';hint.textContent='';
+          window.YM_toast?.('Sphere activée','success');
+        }else throw new Error('Sphere non trouvée dans le code');
       }
     }catch(e){window.YM_toast?.('Erreur: '+e.message,'error');}
-    btn.textContent='▶';btn.disabled=false;
+    btn.textContent='▶ Plug';btn.disabled=false;
   };
-  btn.addEventListener('click',doActivate);
-  inp.addEventListener('keydown',e=>{if(e.key==='Enter')doActivate();});
+  btn.addEventListener('click',doPlug);
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')doPlug();});
 }
 function renderSpheresContent(container,catRow){
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
