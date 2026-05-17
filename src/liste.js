@@ -174,7 +174,7 @@ async function render(containerArg){
       '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
       '<div id="list-cat-row" style="display:flex;gap:4px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-height:20px"></div>'+
       '<div id="list-wip-row" style="display:none"></div>'+
-      '<div style="display:flex;gap:6px;align-items:center">'+
+      '<div id="list-search-row" style="display:flex;gap:6px;align-items:center">'+
         '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:12px;padding:7px 10px">'+
         '<button id="list-add-btn" title="Publish" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:#06060e;font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s">+</button>'+
       '</div>'+
@@ -205,11 +205,13 @@ async function render(containerArg){
       body.querySelector('#list-type-pills')?.style.setProperty('display','flex');
       body.querySelector('#list-cat-row')?.style.setProperty('display','flex');
       ['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});
+      const sr=body.querySelector('#list-search-row');if(sr)sr.style.display='flex';
       switchType();
     }else{
       _publishOpen=true;
       addBtn.textContent='× Fermer';addBtn.style.cssText='width:100%;height:34px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text2);font-size:11px;letter-spacing:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-sizing:border-box';
       ['#list-type-pills','#list-cat-row','#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='none';});
+      const sr=body.querySelector('#list-search-row');if(sr)sr.style.display='block';
       content.innerHTML='';
       content.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
       const dt=_listType==='spheres'?'sphere':'theme';
@@ -228,7 +230,7 @@ async function render(containerArg){
       p.addEventListener('click',()=>{
         if(_listType===opt.id)return;
         _listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';
-        if(_publishOpen){_publishOpen=false;addBtn.textContent='+';addBtn.style.cssText='flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:#06060e;font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s';body.querySelector('#list-type-pills')?.style.setProperty('display','flex');body.querySelector('#list-cat-row')?.style.setProperty('display','flex');['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});}
+        if(_publishOpen){_publishOpen=false;addBtn.textContent='+';addBtn.style.cssText='flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:#06060e;font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s';body.querySelector('#list-type-pills')?.style.setProperty('display','flex');body.querySelector('#list-cat-row')?.style.setProperty('display','flex');['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});const sr2=body.querySelector('#list-search-row');if(sr2)sr2.style.display='flex';}
         renderTypePills();switchType();
       });
       typePillsEl.appendChild(p);
