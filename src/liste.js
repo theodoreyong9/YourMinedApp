@@ -176,7 +176,7 @@ async function render(containerArg){
       '<div id="list-wip-row" style="display:none"></div>'+
       '<div id="list-search-row" style="display:flex;gap:6px;align-items:center">'+
         '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:12px;padding:7px 10px">'+
-        '<button id="list-add-btn" title="Publish" style="flex-shrink:0;width:44px;height:44px;border-radius:50%;background:var(--gold);border:none;color:#06060e;font-size:28px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;box-shadow:0 2px 16px rgba(240,168,48,.35)">+</button>'+
+        '<button id="list-add-btn" title="Publish" style="flex-shrink:0;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#f0a830,#ffcc55);border:none;color:#06060e;font-size:34px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .2s;box-shadow:0 0 18px 4px rgba(240,168,48,.55),0 4px 24px rgba(240,168,48,.4)">+</button>'+
       '</div>'+
     '</div>';
 
@@ -201,7 +201,7 @@ async function render(containerArg){
   addBtn.addEventListener('click',()=>{
     if(_publishOpen){
       _publishOpen=false;
-      addBtn.textContent='+';addBtn.style.cssText='flex-shrink:0;width:44px;height:44px;border-radius:50%;background:var(--gold);border:none;color:#06060e;font-size:28px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;box-shadow:0 2px 16px rgba(240,168,48,.35)';
+      addBtn.textContent='+';addBtn.style.cssText='flex-shrink:0;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#f0a830,#ffcc55);border:none;color:#06060e;font-size:34px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .2s;box-shadow:0 0 18px 4px rgba(240,168,48,.55),0 4px 24px rgba(240,168,48,.4)';
       body.querySelector('#list-type-pills')?.style.setProperty('display','flex');
       body.querySelector('#list-cat-row')?.style.setProperty('display','flex');
       ['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});
@@ -230,7 +230,7 @@ async function render(containerArg){
       p.addEventListener('click',()=>{
         if(_listType===opt.id)return;
         _listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';
-        if(_publishOpen){_publishOpen=false;addBtn.textContent='+';addBtn.style.cssText='flex-shrink:0;width:44px;height:44px;border-radius:50%;background:var(--gold);border:none;color:#06060e;font-size:28px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s;box-shadow:0 2px 16px rgba(240,168,48,.35)';body.querySelector('#list-type-pills')?.style.setProperty('display','flex');body.querySelector('#list-cat-row')?.style.setProperty('display','flex');['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});const sr2=body.querySelector('#list-search-row');if(sr2)sr2.style.display='flex';}
+        if(_publishOpen){_publishOpen=false;addBtn.textContent='+';addBtn.style.cssText='flex-shrink:0;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#f0a830,#ffcc55);border:none;color:#06060e;font-size:34px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .2s;box-shadow:0 0 18px 4px rgba(240,168,48,.55),0 4px 24px rgba(240,168,48,.4)';body.querySelector('#list-type-pills')?.style.setProperty('display','flex');body.querySelector('#list-cat-row')?.style.setProperty('display','flex');['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});const sr2=body.querySelector('#list-search-row');if(sr2)sr2.style.display='flex';}
         renderTypePills();switchType();
       });
       typePillsEl.appendChild(p);
