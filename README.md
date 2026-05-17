@@ -18,7 +18,7 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [External Apps & Bridge API](#external-apps--bridge-api)
 - [Runtime Cycle & Lifecycle](#runtime-cycle--lifecycle)
 - [Safety System](#safety-system)
-- [Link Tab](#link-tab)
+- [Plug](#plug)
 - [Ownership Transfer](#ownership-transfer)
 - [URL Routing](#url-routing)
 - [Permissions & Security Model](#permissions--security-model)
@@ -660,39 +660,39 @@ Safety uses **Llama 3.2 1B** running locally via WebGPU (loaded by `index.html` 
 
 ---
 
-## Link Tab
+## Plug
 
-The **Link** tab in the sphere list (`liste.js`) handles loading any URL as a sphere or theme directly, without going through the PR/merge flow.
+The **Plug** tab (`liste.js`) loads spheres and themes directly from outside the registry — no PR, no merge, no score required. Two modes:
 
-### Sphere from raw GitHub URL
+### URL mode
 
-```
-Tab: Link → Type: Sphere → Pill: 🐙 GitHub Raw
-Input: theodoreyong9/YourMinedApp/main/src/social.sphere.js
-→ resolved: https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/social.sphere.js
-```
-
-The sphere JS is fetched, executed, registered in `window.YM_S`, and activated via `YM.activateSphere()`.
-
-### External app as sphere
+Paste a direct URL ending in `.sphere.js` or `.theme.js`. The extension determines the type automatically.
 
 ```
-Tab: Link → Type: Sphere → Pill: ⚡ Bolt
-Input: sb1-abc123
-→ resolved: https://stackblitz.com/edit/sb1-abc123?embed=1&view=preview
+https://raw.githubusercontent.com/user/repo/main/mysphere.sphere.js  → Sphere
+https://raw.githubusercontent.com/user/repo/main/mytheme.theme.js    → Theme
 ```
 
-An iframe sphere is created automatically. The app runs in an isolated frame with access to the YourMine bridge.
+- **Sphere**: fetched, executed as a script, registered in `window.YM_S`, activated via `YM.activateSphere()` — behaves exactly like a ranked sphere
+- **Theme**: stored in `localStorage.ym_theme_url`, page reloads — behaves exactly like a ranked theme
 
-### Theme from URL
+### Code mode
 
-```
-Tab: Link → Type: Theme → Pill: 🐙 GitHub Raw
-Input: keanuji/YourMinedApp/main/src/themes/neural.html
-→ sets ym_theme_url, reloads
-```
+Select **Sphere** or **Theme**, then paste raw JS code directly into the textarea. No URL needed.
 
-**Supported platforms:** Bolt/StackBlitz, Replit, CodeSandbox, GitHub Pages, GitHub Raw, direct URL.
+- **Sphere**: executed inline via Blob URL, then activated exactly like a URL-loaded sphere
+- **Theme**: Blob URL created from the pasted code, stored in `localStorage.ym_theme_url`, page reloads
+
+### Plug vs Rank
+
+| | Plug | Rank |
+|---|---|---|
+| Registry entry | No — ephemeral | Yes — `files.json` / `themes-files.json` |
+| Direct activation URL | No | Yes — `/name.theme`, `/name.sphere` |
+| Score / ranking | No | Yes |
+| Mining score required | No | Yes (new spheres only) |
+
+Plug is for testing, private sharing, or loading content from outside the ecosystem. Rank is for publishing to the shared registry.
 
 ---
 
@@ -1134,6 +1134,25 @@ Rules:
 - Updating a sphere resets its score to the current mining state
 - Higher burn + patience + elapsed time = higher score = higher rank
 - Gaming is structurally penalised (publishing too early lowers the ratio)
+
+### Direct activation URLs
+
+Publishing a sphere or theme via **Rank** registers it in `files.json` / `themes-files.json`. This makes it accessible via a permanent, shareable URL:
+
+```
+/name.theme           → applies that theme and reloads
+/name.sphere          → activates that sphere and opens its panel
+```
+
+These segments are **composable**:
+
+```
+/neural.theme/social.sphere
+```
+
+`index.html` applies the theme first, preserves the sphere segment across the reload, then `checkURLRoute` activates the sphere once the page is back up. Any number of spheres can be chained this way.
+
+Every ranked sphere and theme gets a deep-linkable URL that can be bookmarked, shared, or embedded directly — without opening the app UI first.
 
 ---
 
