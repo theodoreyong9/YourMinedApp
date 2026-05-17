@@ -174,7 +174,10 @@ async function render(containerArg){
       '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
       '<div id="list-cat-row" style="display:flex;gap:4px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-height:20px"></div>'+
       '<div id="list-wip-row" style="display:none"></div>'+
-      '<input id="list-search" class="ym-input" placeholder="Search…" style="width:100%;font-size:12px;padding:7px 10px;box-sizing:border-box">'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:12px;padding:7px 10px">'+
+        '<button id="list-add-btn" title="Publish" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:#06060e;font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .15s">+</button>'+
+      '</div>'+
     '</div>';
 
   const content=body.querySelector('#list-content');
@@ -193,6 +196,24 @@ async function render(containerArg){
     }
   });
 
+  let _publishOpen=false;
+  const addBtn=body.querySelector('#list-add-btn');
+  addBtn.addEventListener('click',()=>{
+    if(_publishOpen){
+      _publishOpen=false;
+      addBtn.textContent='+';addBtn.style.background='var(--gold)';addBtn.style.color='#06060e';addBtn.style.fontSize='20px';
+      switchType();
+    }else{
+      _publishOpen=true;
+      addBtn.textContent='×';addBtn.style.background='rgba(255,255,255,.1)';addBtn.style.color='var(--text)';addBtn.style.fontSize='16px';
+      content.innerHTML='';
+      content.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
+      const dt=_listType==='spheres'?'sphere':'theme';
+      if(window.YM_Build?.renderPublishForm){window.YM_Build.renderPublishForm(content,dt);}
+      else{content.innerHTML='<div style="padding:20px;color:var(--text3);font-size:12px;text-align:center">Chargement…</div>';const iv=setInterval(()=>{if(window.YM_Build?.renderPublishForm){clearInterval(iv);content.innerHTML='';window.YM_Build.renderPublishForm(content,dt);}},300);}
+    }
+  });
+
   function renderTypePills(){
     typePillsEl.innerHTML='';
     [{id:'spheres',label:'⬡ Sphere'},{id:'themes',label:'🎨 Theme'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}].forEach(opt=>{
@@ -203,6 +224,7 @@ async function render(containerArg){
       p.addEventListener('click',()=>{
         if(_listType===opt.id)return;
         _listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';
+        if(_publishOpen){_publishOpen=false;addBtn.textContent='+';addBtn.style.background='var(--gold)';addBtn.style.color='#06060e';addBtn.style.fontSize='20px';}
         renderTypePills();switchType();
       });
       typePillsEl.appendChild(p);

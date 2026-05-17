@@ -107,39 +107,34 @@ function _injectGithubBtn(){
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
 let _buildTab='rank';
 
-async function render(containerArg){
+async function render(containerArg,presetType){
   const body=containerArg||document.getElementById('panel-build-body')||_lastContainer;
   if(!body)return;
   _lastContainer=body;
   body.innerHTML='';
   body.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)';
   setTimeout(_injectGithubBtn,0);
-
   body.innerHTML=
     '<div id="build-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
     '<div style="display:flex;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0">'+
       '<div class="ym-tab active" data-btab="rank" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">⬆ Rank</div>'+
       '<div class="ym-tab" data-btab="plug" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🔌 Plug</div>'+
     '</div>';
-
   const buildContent=body.querySelector('#build-content');
   _buildTab=_buildTab||'rank';
-
   function switchBuildTab(tab){
     _buildTab=tab;
     body.querySelectorAll('[data-btab]').forEach(t=>t.classList.toggle('active',t.dataset.btab===tab));
     buildContent.innerHTML='';
-    if(tab==='rank')renderBuildContent(buildContent);
+    if(tab==='rank')renderBuildContent(buildContent,presetType);
     else renderPlugContent(buildContent);
   }
-
   body.querySelectorAll('[data-btab]').forEach(t=>{
     t.addEventListener('click',()=>switchBuildTab(t.dataset.btab));
     if(t.dataset.btab===_buildTab)t.classList.add('active');
     else t.classList.remove('active');
   });
-
-  if(_buildTab==='rank')renderBuildContent(buildContent);
+  if(_buildTab==='rank')renderBuildContent(buildContent,presetType);
   else renderPlugContent(buildContent);
 }
 
@@ -148,7 +143,7 @@ function renderPlugContent(body){
   else{body.style.cssText='display:flex;align-items:center;justify-content:center;height:100%';body.innerHTML='<div style="color:var(--text3);font-size:12px">Loading…</div>';setTimeout(()=>{if(window.YM_Liste?.renderPlugContent)window.YM_Liste.renderPlugContent(body);},500);}
 }
 
-function renderBuildContent(body){
+function renderBuildContent(body,presetType){
   body.innerHTML='';
   body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0';
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
@@ -320,6 +315,7 @@ function renderBuildContent(body){
   body.appendChild(submitWrap);
 
   submitWrap.querySelector('#pub-submit-main').addEventListener('click',()=>submitUnified(body,codeAreaEl,nameTypeStep,_pubType,_mode));
+  if(presetType==='theme')setTimeout(()=>nameTypeStep.querySelector('#type-theme')?.click(),0);
 }
 
 // ── ONGLET SPHERE ─────────────────────────────────────────────
@@ -1283,5 +1279,5 @@ window.addEventListener('ym:switch-mine-tab',e=>{
   if(window.app_switchMineTab)window.app_switchMineTab(tab);
 });
 
-window.YM_Build={render};
+window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t)};
 })();
