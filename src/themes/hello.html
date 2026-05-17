@@ -1,7 +1,4 @@
-﻿<!-- YourMine — Landing Theme (hello)
-     Premier écran : présentation + bouton Start → default + bouton Readme
-     Contient tout le DOM requis par app.js/desk.js (invisible).
--->
+﻿<!-- YourMine — Landing Theme (hello) -->
 <script>
 window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine landing page theme"};
 </script>
@@ -16,171 +13,100 @@ window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine land
   --font-d:'Syne',sans-serif;--font-b:'Space Grotesk',sans-serif;--font-m:'JetBrains Mono',monospace;
   --dock-h:0px;--safe-b:env(safe-area-inset-bottom,0px);
   --cols:4;--rows:6;
-  --glass-heavy:rgba(6,6,18,.9);--blur-heavy:blur(40px);--blur-mid:blur(20px);
-  --border:rgba(255,255,255,.08);--accent:#f0a830;--surface:rgba(255,255,255,.03);
-  --r:12px;--r-sm:8px;--r-lg:20px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{height:100%;overflow:hidden;background:var(--bg)}
 body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b)}
 
-/* ── Cache tout le DOM fonctionnel ── */
 #ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
 #panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
 .ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
 #desktop-slider .icon-wrap{display:none!important}
 .ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill{display:none!important}
 
-/* ── Landing ── */
 #ym-landing{
   position:fixed;inset:0;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
-  background:var(--bg);
-  z-index:10;
+  background:var(--bg);z-index:10;
   padding-bottom:env(safe-area-inset-bottom,0px);
 }
-
-/* Ambient glow */
 #ym-landing::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(ellipse 60% 40% at 80% 5%,rgba(8,224,248,.05),transparent 60%),
-    radial-gradient(ellipse 50% 50% at 10% 95%,rgba(240,168,48,.04),transparent 60%);
+    radial-gradient(ellipse 70% 50% at 85% 0%,rgba(8,224,248,.055),transparent 55%),
+    radial-gradient(ellipse 55% 55% at 5% 100%,rgba(240,168,48,.045),transparent 55%);
 }
-
 .lp{position:relative;z-index:1;}
 
-/* ── HERO ── */
+/* HERO */
 .lp-hero{
   min-height:100dvh;
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
-  padding:80px 24px 60px;
+  padding:80px 28px 56px;
   text-align:center;
-  gap:0;
   overflow:hidden;
 }
-
 .lp-logo{
   font-family:var(--font-d);
-  font-size:clamp(28px,9vw,100px);
-  font-weight:800;
-  letter-spacing:.03em;
-  line-height:1;
+  font-size:clamp(30px,9.5vw,108px);
+  font-weight:800;letter-spacing:.03em;line-height:1;
   background:linear-gradient(135deg,var(--gold) 0%,#fff 45%,var(--cyan) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:36px;
-  width:100%;
+  margin-bottom:28px;
 }
-
-.lp-lines{
-  display:flex;flex-direction:column;
-  align-items:center;gap:6px;
-  margin-bottom:48px;
-}
-.lp-line{
-  font-family:var(--font-b);
-  font-size:clamp(13px,2vw,17px);
+.lp-tagline{
+  font-family:var(--font-m);
+  font-size:clamp(13px,2.2vw,18px);
   color:var(--text2);
+  letter-spacing:.02em;
+  margin-bottom:48px;
   line-height:1.5;
-  opacity:0;
-  transform:translateY(8px);
-  animation:fadein .5s ease forwards;
+  opacity:0;animation:fi .6s .15s ease forwards;
 }
-.lp-line:nth-child(1){animation-delay:.1s}
-.lp-line:nth-child(2){animation-delay:.25s}
-.lp-line:nth-child(3){animation-delay:.4s;color:var(--text3);font-family:var(--font-m);font-size:clamp(10px,1.4vw,12px);letter-spacing:.08em}
-@keyframes fadein{to{opacity:1;transform:none}}
+.lp-tagline .prompt{color:var(--gold);margin-right:6px;}
+@keyframes fi{to{opacity:1;transform:none}}
 
 .lp-ctas{
   display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
-  opacity:0;animation:fadein .5s .65s ease forwards;
+  opacity:0;animation:fi .5s .4s ease forwards;
 }
 .lp-btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  padding:14px 32px;border-radius:14px;
-  font-family:var(--font-d);font-size:12px;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:13px 30px;border-radius:12px;
+  font-family:var(--font-d);font-size:11px;font-weight:700;
   letter-spacing:3px;text-transform:uppercase;
-  cursor:pointer;border:none;text-decoration:none;
-  transition:all .22s;
+  cursor:pointer;border:none;text-decoration:none;transition:all .2s;
 }
-.lp-btn-primary{
-  background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.75));
-  color:#06060e;
-  box-shadow:0 4px 32px rgba(240,168,48,.25);
-}
-.lp-btn-primary:hover{box-shadow:0 8px 48px rgba(240,168,48,.45);transform:translateY(-2px)}
-.lp-btn-secondary{
-  background:transparent;
-  border:1px solid rgba(255,255,255,.1);
-  color:var(--text3);
-}
-.lp-btn-secondary:hover{border-color:rgba(255,255,255,.25);color:var(--text2)}
+.lp-btn-primary{background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.72));color:#06060e;box-shadow:0 4px 28px rgba(240,168,48,.22);}
+.lp-btn-primary:hover{box-shadow:0 8px 44px rgba(240,168,48,.42);transform:translateY(-2px)}
+.lp-btn-secondary{background:transparent;border:1px solid rgba(255,255,255,.1);color:var(--text3);}
+.lp-btn-secondary:hover{border-color:rgba(255,255,255,.22);color:var(--text2)}
 
-/* ── BODY ── */
-.lp-body{
-  max-width:600px;margin:0 auto;
-  padding:0 28px 120px;
-}
+/* BODY */
+.lp-body{max-width:580px;margin:0 auto;padding:0 28px 120px;}
 
-.lp-divider{
-  width:1px;height:60px;
-  background:linear-gradient(180deg,transparent,rgba(240,168,48,.3),transparent);
-  margin:0 auto 60px;
-}
+.lp-divider{width:1px;height:56px;background:linear-gradient(180deg,transparent,rgba(240,168,48,.28),transparent);margin:0 auto 56px;}
+.lp-sep{width:28px;height:1px;background:rgba(255,255,255,.07);margin:52px 0;}
 
-.lp-sep{
-  width:32px;height:1px;
-  background:rgba(255,255,255,.08);
-  margin:56px 0;
+/* Section label */
+.lp-label{
+  font-family:var(--font-m);font-size:9px;
+  color:var(--gold);letter-spacing:.22em;text-transform:uppercase;
+  margin-bottom:14px;opacity:.8;
 }
-
-.lp-block{margin-bottom:0}
 
 /* Paragraph */
 .lp-p{
-  font-family:var(--font-b);
-  font-size:clamp(14px,2vw,16px);
-  color:var(--text2);
-  line-height:1.85;
-  font-weight:400;
+  font-family:var(--font-b);font-size:clamp(14px,2vw,16px);
+  color:var(--text2);line-height:1.85;font-weight:400;
 }
+.lp-p+.lp-p{margin-top:12px;}
 
-/* Stanza — identity / ownership lines */
-.lp-stanza{
-  display:flex;flex-direction:column;gap:2px;
-  margin:20px 0;
-}
-.lp-stanza-line{
-  font-family:var(--font-b);
-  font-size:clamp(13px,1.7vw,15px);
-  color:var(--text3);
-  line-height:1.8;
-  font-style:italic;
-}
-.lp-stanza-line.hi{color:var(--text);font-style:normal;font-weight:600;}
-
-/* Inline list */
-.lp-list-inline{
-  display:flex;flex-wrap:wrap;gap:0;
-  margin:8px 0 0;
-}
-.lp-list-inline span{
-  font-family:var(--font-m);
-  font-size:11px;
-  color:var(--text3);
-  letter-spacing:.05em;
-}
-.lp-list-inline span::after{content:' · ';color:rgba(255,255,255,.12)}
-.lp-list-inline span:last-child::after{content:''}
-
-/* Statement — big line */
+/* Big statement */
 .lp-statement{
-  font-family:var(--font-d);
-  font-size:clamp(16px,2.5vw,22px);
-  font-weight:700;
-  color:var(--text);
-  line-height:1.55;
+  font-family:var(--font-d);font-size:clamp(17px,2.8vw,24px);
+  font-weight:700;color:var(--text);line-height:1.45;
 }
 .lp-statement em{
   font-style:normal;
@@ -188,54 +114,56 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
 
-/* Negations */
-.lp-negations{
-  display:flex;flex-direction:column;gap:6px;
-  margin-top:24px;
+/* Stanza */
+.lp-stanza{display:flex;flex-direction:column;gap:1px;margin:18px 0;}
+.lp-stanza-line{
+  font-family:var(--font-b);font-size:clamp(13px,1.7vw,15px);
+  color:var(--text3);line-height:1.85;font-style:italic;
 }
-.lp-neg{
-  font-family:var(--font-b);
-  font-size:clamp(13px,1.5vw,14px);
-  color:var(--text3);
-}
+.lp-stanza-line.hi{color:var(--text);font-style:normal;font-weight:600;}
 
-/* Solo closing line */
-.lp-solo{
-  font-family:var(--font-b);
-  font-size:clamp(14px,2vw,16px);
-  color:var(--text2);
-  font-style:italic;
-  line-height:1.7;
+/* Inline list — connectable / executable… */
+.lp-words{display:flex;flex-direction:column;gap:4px;margin:16px 0 4px;}
+.lp-word{
+  font-family:var(--font-m);font-size:12px;
+  color:var(--text3);letter-spacing:.06em;
+  padding-left:14px;position:relative;
 }
+.lp-word::before{content:'—';position:absolute;left:0;color:rgba(240,168,48,.3);}
 
-/* ── FOOTER WORDMARK ── */
-.lp-footer{
-  text-align:center;
-  padding:60px 32px 80px;
+/* Dot list — interoperability / scaling… */
+.lp-list-inline{display:flex;flex-wrap:wrap;gap:0;margin:10px 0 4px;}
+.lp-list-inline span{font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:.05em;}
+.lp-list-inline span::after{content:' · ';color:rgba(255,255,255,.1)}
+.lp-list-inline span:last-child::after{content:''}
+
+/* No lines */
+.lp-negations{display:flex;flex-direction:column;gap:5px;margin:4px 0;}
+.lp-neg{font-family:var(--font-b);font-size:clamp(13px,1.5vw,14px);color:var(--text3);}
+
+/* What it is not — grid */
+.lp-not-grid{display:flex;flex-direction:column;gap:3px;margin:4px 0;}
+.lp-not-item{
+  font-family:var(--font-b);font-size:clamp(12px,1.5vw,14px);
+  color:var(--text3);padding-left:18px;position:relative;
 }
+.lp-not-item::before{content:'✕';position:absolute;left:0;font-size:10px;color:rgba(255,69,96,.4);top:1px;}
+
+/* Solo closing */
+.lp-solo{font-family:var(--font-b);font-size:clamp(14px,2vw,16px);color:var(--text2);font-style:italic;line-height:1.7;}
+.lp-solo.bold{font-style:normal;font-weight:600;color:var(--text);}
+
+/* FOOTER */
+.lp-footer{text-align:center;padding:56px 28px 80px;}
 .lp-footer-logo{
-  font-family:var(--font-d);
-  font-size:clamp(28px,5vw,48px);
-  font-weight:800;
+  font-family:var(--font-d);font-size:clamp(26px,5vw,44px);font-weight:800;
   letter-spacing:.06em;
   background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
   margin-bottom:10px;
 }
-.lp-footer-sub{
-  font-family:var(--font-m);
-  font-size:11px;
-  color:var(--text3);
-  letter-spacing:.25em;
-  text-transform:uppercase;
-  margin-bottom:6px;
-}
-.lp-footer-tag{
-  font-family:var(--font-m);
-  font-size:10px;
-  color:rgba(240,168,48,.35);
-  letter-spacing:.15em;
-}
+.lp-footer-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.25em;text-transform:uppercase;margin-bottom:6px;}
+.lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.35);letter-spacing:.15em;}
 </style>
 
 <div id="ym-landing">
@@ -243,10 +171,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   <!-- HERO -->
   <div class="lp lp-hero">
     <div class="lp-logo">YOURMINE</div>
-    <div class="lp-lines">
-      <div class="lp-line">One prompt. One living web layer.</div>
-      <div class="lp-line">100% user-driven.</div>
-    </div>
+    <div class="lp-tagline"><span class="prompt">&gt;</span> One prompt. One web.</div>
     <div class="lp-ctas">
       <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
       <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">readme</a>
@@ -258,10 +183,59 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-divider"></div>
 
-    <!-- Block 1 -->
-    <div class="lp-block">
-      <p class="lp-p">YourMine is a decentralized universal runtime for the open web.</p>
-      <p class="lp-p" style="margin-top:10px">A living meta-layer for builder networks, applications, and communities.</p>
+    <!-- 1 -->
+    <div>
+      <p class="lp-p">One living interaction layer for the open web.</p>
+      <p class="lp-p" style="margin-top:14px">YourMine is a web execution and coordination layer that lets you connect, deploy, and structure any system instantly — through simple actions, prompts, or interface.</p>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- 2 -->
+    <div>
+      <div class="lp-statement">What if the web was not something you used&hellip;<br>but something you could <em>assemble</em>?</div>
+      <p class="lp-p" style="margin-top:16px">From anywhere.</p>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- 3 -->
+    <div>
+      <p class="lp-p">Build connected systems, not isolated apps.</p>
+      <p class="lp-p" style="margin-top:10px">YourMine turns fragmented web services into composable, interactive environments.</p>
+      <p class="lp-p" style="margin-top:14px">Anything can become:</p>
+      <div class="lp-words">
+        <div class="lp-word">connectable</div>
+        <div class="lp-word">executable</div>
+        <div class="lp-word">interoperable</div>
+        <div class="lp-word">participatory</div>
+      </div>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- 4 -->
+    <div>
+      <p class="lp-p">One action is enough.</p>
+      <p class="lp-p" style="margin-top:10px">A single trigger connects your code or application to a shared web layer for:</p>
+      <div class="lp-list-inline" style="margin-top:10px">
+        <span>interoperability</span>
+        <span>scaling</span>
+        <span>propagation</span>
+        <span>interaction</span>
+      </div>
+      <div class="lp-negations" style="margin-top:20px">
+        <div class="lp-neg">No setup.</div>
+        <div class="lp-neg">No platform lock-in.</div>
+        <div class="lp-neg">No deployment friction.</div>
+      </div>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- 5 — Core principle -->
+    <div>
+      <div class="lp-label">Core principle</div>
       <div class="lp-stanza">
         <div class="lp-stanza-line">Identity does not matter.</div>
         <div class="lp-stanza-line">Ownership does not matter.</div>
@@ -272,31 +246,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- Block 2 -->
-    <div class="lp-block">
-      <p class="lp-p">Build web environments, applications, and executables exactly as you imagine them.</p>
-      <p class="lp-p" style="margin-top:16px">Connect instantly to a shared layer for:</p>
-      <div class="lp-list-inline" style="margin-top:10px">
-        <span>scaling</span>
-        <span>interoperability</span>
-        <span>propagation</span>
-        <span>safety</span>
-      </div>
-    </div>
-
-    <div class="lp-sep"></div>
-
-    <!-- Block 3 -->
-    <div class="lp-block">
-      <div class="lp-statement">Any code. Any app. Any community.</div>
-      <p class="lp-p" style="margin-top:16px">One prompt is enough to bring it into the network.</p>
-    </div>
-
-    <div class="lp-sep"></div>
-
-    <!-- Block 4 -->
-    <div class="lp-block">
-      <div class="lp-statement">The web is no longer something you use.<br>It is something you <em>shape</em> — in real time.</div>
+    <!-- 6 -->
+    <div>
       <div class="lp-negations">
         <div class="lp-neg">No central authority.</div>
         <div class="lp-neg">No platform dependency.</div>
@@ -306,9 +257,31 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- Block 5 -->
-    <div class="lp-block">
-      <p class="lp-solo">You are already inside it.</p>
+    <!-- 7 — What it is not -->
+    <div>
+      <div class="lp-label">What it is not</div>
+      <div class="lp-not-grid">
+        <div class="lp-not-item">A platform</div>
+        <div class="lp-not-item">A social network</div>
+        <div class="lp-not-item">A framework</div>
+        <div class="lp-not-item">A closed ecosystem</div>
+      </div>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- 8 — What it is -->
+    <div>
+      <div class="lp-label">What it is</div>
+      <p class="lp-p">A living web layer where any system can be connected, extended, and composed in real time.</p>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- 9 -->
+    <div>
+      <p class="lp-solo bold">A new layer of the web is already active.</p>
+      <p class="lp-solo" style="margin-top:6px">You are inside it.</p>
     </div>
 
   </div>
@@ -321,7 +294,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   </div>
 
 </div>
-
 <!-- DOM fonctionnel invisible requis par app.js / desk.js -->
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div>
