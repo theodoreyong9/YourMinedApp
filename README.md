@@ -15,6 +15,8 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [Profile Hooks](#profile-hooks)
 - [Multiplayer](#multiplayer)
 - [Theme API Specification](#theme-api-specification)
+- [System Themes](#system-themes)
+- [Theme Configuration API](#theme-configuration-api)
 - [External Apps & Bridge API](#external-apps--bridge-api)
 - [Runtime Cycle & Lifecycle](#runtime-cycle--lifecycle)
 - [Safety System](#safety-system)
@@ -22,6 +24,10 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [Ownership Transfer](#ownership-transfer)
 - [URL Routing](#url-routing)
 - [Permissions & Security Model](#permissions--security-model)
+- [Profile Structure](#profile-structure)
+- [Wallet & Encryption](#wallet--encryption)
+- [Global API Reference](#global-api-reference)
+- [Storage Reference](#storage-reference)
 - [File Format Standards](#file-format-standards)
 - [Deployment](#deployment)
 - [Token GitHub Security Note](#token-github-security-note)
@@ -771,6 +777,149 @@ The profile JSON backup (`💾` button in Profile) saves:
 
 ---
 
+## Profile Structure
+
+Profile is stored in `localStorage` key `ym_profile_v1` as JSON.
+
+```json
+{
+  "uuid":     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "name":     "Alice",
+  "bio":      "Short bio",
+  "avatar":   "https://... or data:image/...",
+  "networks": { "twitter": "@alice", "github": "alice" },
+  "pubkey":   "SolanaBase58PublicKey...",
+  "spheres":  ["social.sphere.js", "mygame.sphere.js"],
+  "contacts": [
+    {
+      "uuid":     "peer-uuid",
+      "nickname": "Bob",
+      "profile":  { "name": "Bob", "avatar": "..." },
+      "spheres":  ["social.sphere.js", "chess.sphere.js"]
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `uuid` | Permanent Soulnet identity — generated once, never transferred, excluded from backup restore |
+| `spheres` | Active sphere filenames — restored on boot to re-activate spheres |
+| `contacts[].spheres` | Spheres the contact is known to use — used by the **Contacts** social filter in `liste.js` |
+| `pubkey` | Solana wallet public key — set when wallet is unlocked |
+
+**Activity log** is stored separately in `ym_activity_v1` — capped at 200 entries, not exported in backup.
+
+---
+
+## Wallet & Encryption
+
+`mine.js` manages a Solana keypair stored encrypted in `localStorage`.
+
+### Key derivation
+
+| Standard | Value |
+|----------|-------|
+| Mnemonic | BIP39 — 12 or 24 words |
+| Derivation path | SLIP-10: `m/44'/501'/0'/0'` (Solana standard) |
+| Curve | Ed25519 |
+| Encoding | Base58 |
+
+### Storage encryption
+
+The keypair is never stored in plaintext. `ym_wallet_v1` contains:
+
+```json
+{ "salt": "hex", "iv": "hex", "ct": "hex", "hint": "optional hint" }
+```
+
+- **KDF:** PBKDF2 (SHA-256, 200 000 iterations)
+- **Cipher:** AES-256-GCM
+- The private key is only in memory while the wallet is unlocked — cleared on `deactivate`
+
+### Constants
+
+| Constant | Value |
+|----------|-------|
+| `MIN_BURN` | 0.0001 SOL |
+| Network | Solana Devnet |
+| `YRM_DECIMALS` | 1e18 |
+
+### Exposed wallet APIs (read-only for spheres)
+
+```js
+window.YM_Mine_sign(message)   // → Promise<{signature, pubkey}> — always shows confirmation dialog
+window.YM_Mine_pubkey()        // → string | null — current public key (Base58)
+window.YM_calcClaimable()      // → number — claimable YM at current slot
+window._mineState              // read-only state snapshot: { pubkey, solBalance, yrmBalance, ... }
+```
+
+The private key and seed phrase are **never exposed** outside `mine.js`.
+
+---
+
+## Global API Reference
+
+All globals exposed by the runtime. Spheres should treat anything not listed here as internal.
+
+| Global | Set by | Description |
+|--------|--------|-------------|
+| `window.YM` | `app.js` | Main runtime API — `activateSphere`, `deactivateSphere`, `openPanel` |
+| `window.YM_Desk` | `desk.js` | Desktop API — `addIcon`, `removeIcon`, `setNotif`, `GRID` |
+| `window.YM_S` | spheres | Sphere registry — `{ 'name.sphere.js': { name, icon, activate, … } }` |
+| `window.YM_P2P` | `app.js` | Raw P2P object (Trystero) — prefer `ctx.send`/`ctx.onReceive` |
+| `window.YM_Mine` | `mine.js` | Wallet API object |
+| `window.YM_Mine_sign(msg)` | `mine.js` | Sign a message — triggers confirmation dialog |
+| `window.YM_Mine_pubkey()` | `mine.js` | Returns current Solana public key or null |
+| `window.YM_calcClaimable()` | `mine.js` | Returns claimable YM based on current mining state |
+| `window._mineState` | `mine.js` | Read-only wallet state snapshot |
+| `window.YM_Liste` | `liste.js` | Sphere list API |
+| `window.YM_Build` | `build.js` | Build/publish API |
+| `window.YM_toast(msg, type, ms?)` | `app.js` | Show a toast. `type`: `success/error/info/warn` |
+| `window.YM_escHtml(str)` | `app.js` | HTML-escape a string — use before inserting user content |
+| `window.YM_canSeeSphere(name, uuid)` | `profile.js` | Returns `true` if peer `uuid` can see sphere `name` |
+| `window.YM_getSphereVisibility(name)` | `profile.js` | Returns `'all'` \| `'contacts'` \| `uuid[]` |
+| `window.YM_THEME_META` | theme | `{ name, icon, description }` — declared by the active theme |
+| `window.YM_WALLPAPER_PRESETS` | theme | Array of `{ label, url }` wallpaper presets |
+| `window.YM_ZONE_CONFIG` | theme | Optional — `{ spheresOnly, socialFilters }` — see [Theme Configuration API](#theme-configuration-api) |
+| `window._ymNearSpheres` | `social.sphere.js` | `Set<filename>` of spheres seen on nearby peers |
+| `window.__webllm` | `index.html` | WebLLM instance (Llama 3.2 1B via WebGPU) — used by safety sphere |
+| `window._pwaPrompt` | `index.html` | Deferred `beforeinstallprompt` event for PWA install |
+| `window._YM_GH_RAW` | `index.html` | GitHub raw base URL — `https://raw.githubusercontent.com/…/main/src/` |
+| `window.app_switchMineTab(tab)` | `app.js` | Switch Mine panel tab — `'wallet'` \| `'build'` \| `'liste'` \| `'formula'` |
+| `window.YM_sphereRegistry` | `app.js` | Map of active sphere names → their `ctx` objects |
+
+---
+
+## Storage Reference
+
+### `localStorage` keys
+
+| Key | Owner | Content |
+|-----|-------|---------|
+| `ym_theme_url` | `index.html` | URL of the active theme HTML |
+| `ym_theme_cache` | `index.html` | Cached theme HTML content (cleared on theme change) |
+| `ym_profile_v1` | `app.js` | Profile JSON (see [Profile Structure](#profile-structure)) |
+| `ym_activity_v1` | `app.js` | Activity log array — max 200 entries |
+| `ym_desktop_v1` | `desk.js` | Desktop icon array |
+| `ym_pages` | `desk.js` | Number of desktop pages |
+| `ym_wallpaper` | `desk.js` | Wallpaper as data URL (resized to < 2 MB JPEG) |
+| `ym_wallet_v1` | `mine.js` | Encrypted keypair `{ salt, iv, ct, hint }` |
+| `ym_contacts_v1` | `profile.js` | Contacts array (also embedded in `ym_profile_v1`) |
+| `ym_fav_contacts` | `profile.js` | Array of favourite contact UUIDs |
+| `ym_sphere_visibility` | `profile.js` | Per-sphere visibility `{ 'name.sphere.js': 'all' \| 'contacts' \| uuid[] }` |
+| `ym_liste_cache_v4` | `liste.js` | Sphere registry cache — TTL 5 minutes |
+| `ym_active_spheres` | `liste.js` | Array of currently active sphere filenames |
+| `ym_s\|name\|*` | spheres | Sphere-scoped storage — `ctx.storage.get/set/del` maps to this namespace |
+
+### `sessionStorage` keys
+
+| Key | Owner | Content |
+|-----|-------|---------|
+| `ym_build_token` | `build.js` | `{ value, username }` — GitHub token; cleared when tab closes, never in `localStorage` |
+
+---
+
 ## File Format Standards
 
 ### `files.json` — Sphere registry
@@ -933,6 +1082,83 @@ icon-splash-dark.png
 # 2. Enable GitHub Pages (Settings → Pages → Branch: main)
 # 3. Your instance runs at https://yourusername.github.io/YourMinedApp
 # 4. Customize themes, publish spheres, connect to the same Nostr relays
+```
+
+---
+
+## System Themes
+
+Three themes ship with the main repo under `src/themes/`. They are special: their `codeUrl` points to the main repo itself (not a fork), and they set global configuration that affects core modules.
+
+### `default.html` — System default
+
+- **Icon:** 🏠
+- **Layout:** nav bar right side (72px) on desktop, bottom dock on mobile
+- **Wallpapers:** 11 Unsplash presets (Night City, Tokyo, Aurora, Galaxy, Nebula…)
+- **Design:** dark glassmorphism, gold/cyan gradients, icon skew animations
+- **Special:** defines `window.YM_WALLPAPER_PRESETS` — used as fallback by `desk.js` when no other theme is active
+
+### `zone.html` — Minimal social explorer
+
+- **Icon:** ◈
+- **Layout:** 4-button custom nav (Desk / Profile / Wallet / Zone) with inline SVG icons
+- **Wallpapers:** 6 presets (Blue Hour, Indigo Fog, Deep Ocean, Dusk City, Aurora, Milky Way)
+- **Special:** sets `window.YM_ZONE_CONFIG = { spheresOnly: true, socialFilters: true }` which modifies `liste.js` behaviour (see [Theme Configuration API](#theme-configuration-api))
+- **Mine panel:** Wallet tab only — Build and Apps tabs hidden
+- **`spheres-build-btn`** hidden via `display:none`
+- The fourth nav button (`btn-wallet`) is wired inline in the theme script — `app.js` only knows `btn-back`, `btn-profile`, `btn-figure`
+
+### `hello.html` — Landing page
+
+- **Icon:** ✦
+- **Layout:** full-screen scrollable landing page — no desktop, no panels, no dock
+- **Special:** hides all system chrome via CSS (`display:none !important`) — desktop, nav-bar, all panels, all widgets
+- **MutationObserver** blocks any widget injected by spheres during the landing session
+- **`Start` buttons** navigate to default theme via `localStorage.setItem('ym_theme_url', DEF_THEME)` + reload
+- **Scroll reveal** implemented with `IntersectionObserver` on `.reveal` elements
+- **`btn-back`** (yellow edge button) also navigates to default theme when on this theme
+
+---
+
+## Theme Configuration API
+
+Themes can modify `liste.js` behaviour by setting `window.YM_ZONE_CONFIG` **before** `liste.js` reads it (i.e. in a `<script>` tag at the top of the theme).
+
+```js
+window.YM_ZONE_CONFIG = {
+  spheresOnly:   true,  // lock liste to sphere tab — hides type pills, WIP row, add button
+  socialFilters: true,  // add Near / Contacts filter pills above the sphere list
+};
+```
+
+### `spheresOnly`
+
+When `true`, `liste.js` forces `_listType = 'spheres'` and hides:
+- Type selection pills
+- WIP row
+- Add/import button
+
+### `socialFilters`
+
+When `true`, two extra filter pills appear at the top of the sphere list: **Near** and **Contacts**.
+
+| Filter | Data source | Behaviour |
+|--------|-------------|-----------|
+| **Near** | `window._ymNearSpheres` (a `Set<filename>`) | Shows only spheres whose filename is in the Set |
+| **Contacts** | `ym_profile_v1` → `contacts[].spheres[]` | Shows only spheres shared by at least one contact |
+
+### `window._ymNearSpheres`
+
+A `Set<string>` of sphere filenames. Convention: **`social.sphere.js` is responsible for populating it** based on what nearby P2P peers broadcast. `liste.js` reads it on filter activation — it never writes to it.
+
+```js
+// social.sphere.js — populate when peer data arrives
+window._ymNearSpheres = window._ymNearSpheres || new Set();
+ctx.onReceive((type, data) => {
+  if (type === 'social:pong') {
+    (data.spheres || []).forEach(s => window._ymNearSpheres.add(s));
+  }
+});
 ```
 
 ---
