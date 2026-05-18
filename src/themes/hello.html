@@ -235,6 +235,10 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div>
       <div class="lp-statement">The web is no longer something you use.<br>It becomes something you <em>shape</em>.</div>
       <p class="lp-solo bold" style="margin-top:16px">Welcome to Yourmine.</p>
+      <div class="lp-ctas" style="margin-top:20px">
+        <button class="lp-btn lp-btn-primary" id="lp-start-btn-2">&#9654; Start</button>
+        <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">prompt</a>
+      </div>
     </div>
 
   </div>
@@ -305,6 +309,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
   var s1=document.getElementById('lp-start-btn');
   if(s1)s1.addEventListener('click',goDefault);
+  var s2=document.getElementById('lp-start-btn-2');
+  if(s2)s2.addEventListener('click',goDefault);
 
   function blockDesk(){
     if(window.YM_Desk){
