@@ -16,6 +16,7 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [Profile Hooks](#profile-hooks)
 - [Multiplayer](#multiplayer)
 - [Theme API Specification](#theme-api-specification)
+- [CSS Custom Properties Reference](#css-custom-properties-reference)
 - [System Themes](#system-themes)
 - [Theme Configuration API](#theme-configuration-api)
 - [External Apps & Bridge API](#external-apps--bridge-api)
@@ -27,6 +28,7 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [Permissions & Security Model](#permissions--security-model)
 - [Profile Structure](#profile-structure)
 - [Wallet & Encryption](#wallet--encryption)
+- [Runtime Events](#runtime-events)
 - [Global API Reference](#global-api-reference)
 - [Storage Reference](#storage-reference)
 - [File Format Standards](#file-format-standards)
@@ -96,7 +98,63 @@ There is no central profile editor. There is no profile schema. The living layer
 
 ## Sphere API Specification
 
-A sphere is a self-contained JavaScript module. It must set `window.YM_S['name.sphere.js']` with the following structure:
+### Minimal working sphere (copy-paste starting point)
+
+This is the complete, correct file structure. Every sphere must use this IIFE wrapper and the exact key format.
+
+```js
+/* jshint esversion:11 */
+// mysphere.sphere.js
+(function(){
+'use strict';
+window.YM_S = window.YM_S || {};
+
+let _ctx = null;
+let _timer = null;
+
+window.YM_S['mysphere.sphere.js'] = {
+  name:        'My Sphere',
+  icon:        '🔮',
+  category:    'Tools',
+  description: 'What it does. Keep under 140 chars.',
+
+  activate(ctx) {
+    _ctx = ctx;
+    // Fire-and-forget any slow network call — never await here
+    // _timer = setInterval(() => { ... }, 5000);
+  },
+
+  deactivate() {
+    // Cleanup is on the top-level method — never assign ctx.deactivate
+    if (_timer) { clearInterval(_timer); _timer = null; }
+    _ctx = null;
+  },
+
+  renderPanel(container) {
+    container.innerHTML = `
+      <div style="padding:16px">
+        <div class="ym-card">
+          <div class="ym-card-title">My Sphere</div>
+          <p style="color:var(--text2);font-size:13px">Hello world</p>
+          <button class="ym-btn ym-btn-accent" style="width:100%;margin-top:12px">
+            Do something
+          </button>
+        </div>
+      </div>`;
+  },
+};
+})();
+```
+
+**Critical rules:**
+- The key in `window.YM_S[...]` must match the filename exactly (used by `files.json`)
+- Always use an IIFE `(function(){ ... })()` — no top-level variables that could conflict
+- `deactivate()` is a top-level method on the object — never `ctx.deactivate = ...`
+- Never `await` slow network calls inside `activate()` — use fire-and-forget
+
+---
+
+### Full sphere object shape
 
 ```js
 window.YM_S['mysphere.sphere.js'] = {
@@ -108,14 +166,15 @@ window.YM_S['mysphere.sphere.js'] = {
 
   // ── Lifecycle ─────────────────────────────────────────────
   activate(ctx) { /* called once when user activates */ },
-  deactivate()  { /* called when user deactivates — cleanup timers, listeners */ },
+  deactivate()  { /* cleanup timers, DOM nodes, event listeners */ },
 
   // ── Rendering ─────────────────────────────────────────────
   renderPanel(container) { /* builds sphere UI into container div */ },
 
   // ── Optional ──────────────────────────────────────────────
-  profileSection(container) { /* renders compact UI in profile tab */ },
-  peerSection(container, ctx) { /* renders UI for a peer's profile card */ },
+  profileSection(container) { /* compact UI in own profile → Spheres tab */ },
+  peerSection(container, ctx) { /* UI injected into a peer's profile card */ },
+  broadcastData() { /* extra data merged into the social presence packet */ },
 
   // ── Metadata ──────────────────────────────────────────────
   emit:    ['event:type'],  // P2P events this sphere sends
@@ -136,33 +195,85 @@ ctx.toast(msg, type)          // type: 'success' | 'error' | 'info' | 'warn'
 ctx.openPanel(renderFn)       // opens panel-sphere and calls renderFn(container)
 ctx.setNotification(n)        // sets badge count on desktop icon
 
-ctx.send(type, data, peerId?) // broadcast or send to specific peer (rate-limited)
+ctx.send(type, data)          // broadcast to all peers (rate-limited: 10/s)
 ctx.onReceive(callback)       // callback(type, data, peerId) — auto-cleaned on deactivate
 
 ctx.saveProfile(data)         // merges data into YourMine profile
 ctx.loadProfile()             // returns current profile object
+
+// Navigation (use window.YM directly — clearer intent)
+window.YM?.openSpherePanel?.('mysphere.sphere.js') // open this sphere's panel
+window.YM?.openProfilePanel?.(profileObject)        // open a peer's profile card
+window.YM?.openPanel?.('panel-profile')             // open the system profile panel
 ```
 
 ### Runtime Contract
 
 - `activate()` must complete within **8 seconds** (enforced timeout)
-- `deactivate()` must be synchronous or return a Promise — used for cleanup
+- `deactivate()` is a **top-level method** on the sphere object — never assign `ctx.deactivate = ...` inside `activate()`
 - Spheres **must not** modify `window.YM`, `window.YM_Desk`, `window.fetch` directly
-- Spheres **must not** access `localStorage` keys outside their `ym_s|name|*` namespace
+- Spheres **must not** access `localStorage` keys outside their `ym_s|name|*` namespace (exception: reading `ym_contacts_v1` is tolerated for contact-aware spheres)
 - Rate limits: 3 toasts per 5s, 10 P2P sends per second
 
 ### P2P Events
 
 ```js
-// Sending
-ctx.send('myevent:action', { payload: 'data' });          // broadcast to all peers
-ctx.send('myevent:action', { payload: 'data' }, peerId);  // direct to one peer
+// Sending via ctx (broadcast — scoped to your sphere automatically)
+ctx.send('myevent:action', { payload: 'data' });
 
-// Receiving
+// Receiving via ctx
 ctx.onReceive((type, data, peerId) => {
   if (type === 'myevent:action') { /* handle */ }
 });
 ```
+
+### Direct P2P (targeted messages)
+
+`ctx.send` always broadcasts. For direct peer-to-peer messages, bypass ctx and use `window.YM_P2P` directly:
+
+```js
+// Send to a specific peer by peerId
+window.YM_P2P?.sendTo(peerId, {
+  sphere: 'mysphere.sphere.js',  // required — identifies receiver
+  type:   'myevent:action',
+  data:   { payload: 'data' }
+});
+
+// Broadcast via raw P2P (equivalent to ctx.send)
+window.YM_P2P?.broadcast({
+  sphere: 'mysphere.sphere.js',
+  type:   'myevent:action',
+  data:   { payload: 'data' }
+});
+```
+
+To get a peer's `peerId` from their UUID:
+
+```js
+const peerId = window.YM_Social?._nearUsers.get(uuid)?.peerId ?? null;
+```
+
+`window.YM_Social._nearUsers` is a `Map<uuid, {profile, ts, peerId}>` maintained by the social sphere. It is non-null only when `social.sphere.js` is active (it always is — it is mandatory).
+
+### `broadcastData()` — inject data into social presence
+
+If your sphere wants to attach extra data to the user's social presence packet (broadcast to nearby peers every 5s by `social.sphere.js`), implement `broadcastData()`:
+
+```js
+window.YM_S['mysphere.sphere.js'] = {
+  // ...
+  broadcastData() {
+    // Called by social.sphere.js before each broadcast
+    // Return an object — it is merged into the presence packet
+    return {
+      myStatus: 'playing',
+      myScore: 42,
+    };
+  },
+};
+```
+
+Peers receive this merged data in their `social:presence` handler via `ctx.onReceive`. The `activity.sphere.js` uses this to broadcast GPS anchors. Keep the payload small (< 500 bytes).
 
 ---
 
@@ -183,30 +294,44 @@ profileSection(container) {
 
 ### `peerSection(container, ctx)`
 
-Called when the user views another user's profile card, for each sphere in common. Use it to show peer-specific interactions (send message, challenge, trade, etc.).
+Called when the user views another user's profile card, for each sphere both users have active. Use it to show peer-specific interactions (challenge, message, trade, etc.).
 
 ```js
-peerSection(container, ctx) {
-  // ctx = { uuid, isNear, isReciproc, profile }
+peerSection(container, peerCtx) {
+  // peerCtx = { uuid, isNear, isReciproc, profile }
   // uuid      — peer's UUID
   // isNear    — peer is currently nearby (P2P visible)
   // isReciproc — both have each other as contacts
   // profile   — peer's public profile object
 
-  if (!ctx.isNear) {
+  if (!peerCtx.isNear) {
     container.innerHTML = '<div style="color:var(--text3);font-size:11px">Not nearby</div>';
     return;
   }
+
   const btn = document.createElement('button');
   btn.className = 'ym-btn ym-btn-ghost';
-  btn.textContent = 'Challenge';
-  btn.onclick = () => {
-    ctx.send?.('mygame:challenge', { from: ctx.uuid });
-    // or use window.YM_sphereRegistry to get the sphere ctx
-  };
+  btn.style.cssText = 'width:100%;font-size:12px';
+  btn.textContent = '⚡ Challenge';
+  btn.addEventListener('click', () => {
+    // peerCtx does NOT have ctx.send — it is not the sphere's activation context
+    // Get the peer's transport peerId from social.sphere's nearUsers map
+    const peerId = window.YM_Social?._nearUsers.get(peerCtx.uuid)?.peerId;
+    if (peerId) {
+      window.YM_P2P?.sendTo(peerId, {
+        sphere: 'mysphere.sphere.js',
+        type:   'mygame:challenge',
+        data:   { from: window.YM_sphereRegistry?.get?.('mysphere.sphere.js')?.loadProfile?.()?.uuid }
+      });
+    }
+    // Then navigate to your sphere's panel
+    window.YM?.openSpherePanel?.('mysphere.sphere.js');
+  });
   container.appendChild(btn);
 }
 ```
+
+**Important:** `peerCtx` in `peerSection` is **not** the `ctx` from `activate()`. It has no `.send()`, no `.storage`, no `.toast()`. To send a P2P message from peerSection, use `window.YM_P2P.sendTo()` as shown above. To access your sphere's own ctx, use `window.YM_sphereRegistry.get('mysphere.sphere.js')`.
 
 ### Sphere Visibility
 
@@ -239,13 +364,10 @@ window.YM_S['mygame.sphere.js'] = {
   activate(ctx) {
     // Local state
     const state = { players: {}, myPos: { x: 0, y: 0 } };
-
-    // Broadcast my position every 100ms
-    const interval = setInterval(() => {
+    _interval = setInterval(() => {
       ctx.send('mygame:pos', state.myPos);
     }, 100);
 
-    // Receive other players' positions
     ctx.onReceive((type, data, peerId) => {
       if (type === 'mygame:pos') {
         state.players[peerId] = data;
@@ -255,9 +377,12 @@ window.YM_S['mygame.sphere.js'] = {
         handleAction(data, peerId);
       }
     });
+    // ctx.onReceive listeners are cleaned up automatically on deactivate
+  },
 
-    // Cleanup
-    ctx.deactivate = () => clearInterval(interval);
+  deactivate() {
+    // Cleanup goes here — NOT ctx.deactivate = ...
+    if (_interval) { clearInterval(_interval); _interval = null; }
   },
 
   renderPanel(container) {
@@ -438,6 +563,53 @@ These class names are used by `desk.js` and must be styled or at minimum declare
 | `body.edit-mode .icon-del` | Delete mode |
 | `body.edit-mode .folder-body>.icon-del` | Must be `display:none!important` |
 | `body.has-wallpaper` | Wallpaper active state |
+
+### CSS Custom Properties reference
+
+Spheres must use CSS variables for all colors and dimensions to stay visually consistent across themes. The following variables are available — themes may override them; always provide fallbacks for variables not guaranteed by all themes.
+
+**Guaranteed by all themes (safe to use without fallback):**
+
+| Variable | Default value | Description |
+|---|---|---|
+| `--bg` | `#06060e` | Page background |
+| `--text` | `#e4e6f4` | Primary text |
+| `--text2` | `rgba(228,230,244,.52)` | Secondary/muted text |
+| `--text3` | `rgba(228,230,244,.26)` | Placeholder/disabled text |
+| `--gold` | `#f0a830` | Primary gold accent (default theme) |
+| `--cyan` | `#08e0f8` | Secondary accent |
+| `--red` | `#ff4560` | Danger/error |
+| `--green` | `#22d98a` | Success |
+| `--font-d` | `'Syne', sans-serif` | Display font |
+| `--font-b` | `'Space Grotesk', sans-serif` | Body font |
+| `--font-m` | `'JetBrains Mono', monospace` | Monospace font |
+
+**Available in some themes — always use fallback:**
+
+```css
+background: var(--surface2,  #12121e);         /* panel/card background */
+background: var(--surface3,  rgba(255,255,255,.06)); /* input/avatar bg */
+border:     1px solid var(--border,  rgba(255,255,255,.08));
+border-radius: var(--r,    12px);              /* standard radius */
+border-radius: var(--r-sm, 8px);               /* small radius */
+border-radius: var(--r-lg, 16px);              /* large radius */
+color:      var(--accent, var(--gold, #f0a830)); /* theme accent (blue in zone, gold in default) */
+```
+
+**`--accent` vs `--gold`:** `--accent` is defined by the zone theme as blue-purple (`#5b78f5`). The default theme has no `--accent` — use `var(--accent, var(--gold))` so spheres work correctly on both themes.
+
+**Pattern used by system code:**
+
+```js
+div.style.cssText = `
+  background: var(--surface2, #12121e);
+  border: 1px solid var(--border, rgba(255,255,255,.08));
+  border-radius: var(--r-sm, 8px);
+  color: var(--text2);
+`;
+```
+
+---
 
 ### Theme Metadata (required)
 
@@ -902,16 +1074,58 @@ The private key and seed phrase are **never exposed** outside `mine.js`.
 
 ---
 
+## Runtime Events
+
+System events dispatched on `window` that spheres can listen to.
+
+| Event | Detail | Dispatched by | When |
+|-------|--------|---------------|------|
+| `ym:peer-join` | `{ peerId }` | `app.js` | A new P2P peer connects to the room |
+| `ym:sphere-before-activate` | `{ filename, author, code }` | `app.js` | Before any non-mandatory sphere activates |
+| `ym:sphere-activated` | `{ name }` | `app.js` | After a sphere activates successfully |
+| `ym:sphere-deactivated` | `{ name }` | `app.js` | After a sphere deactivates |
+| `ym:external-app-load` | `{ url, name }` | `liste.js` | Before an external app iframe loads |
+| `ym:before-transaction` | `{ amount, destination, program }` | `mine.js` | Before signing a Solana transaction |
+| `ym:webllm-ready` | — | `index.html` | WebLLM engine is ready in `window.__webllm` |
+
+**Usage example:**
+
+```js
+activate(ctx) {
+  const onPeerJoin = (e) => {
+    const { peerId } = e.detail;
+    // Sync state with new peer
+    window.YM_P2P?.sendTo(peerId, {
+      sphere: 'mysphere.sphere.js',
+      type: 'mygame:sync',
+      data: getCurrentState()
+    });
+  };
+  window.addEventListener('ym:peer-join', onPeerJoin);
+  // Store ref for cleanup
+  this._onPeerJoin = onPeerJoin;
+},
+
+deactivate() {
+  window.removeEventListener('ym:peer-join', this._onPeerJoin);
+},
+```
+
+---
+
 ## Global API Reference
 
 All globals exposed by the runtime. Spheres should treat anything not listed here as internal.
 
 | Global | Set by | Description |
 |--------|--------|-------------|
-| `window.YM` | `app.js` | Main runtime API — `activateSphere`, `deactivateSphere`, `openPanel` |
+| `window.YM` | `app.js` | Main runtime API — `activateSphere`, `deactivateSphere`, `openPanel`, `openProfilePanel(profile)`, `openSpherePanel(name)` |
 | `window.YM_Desk` | `desk.js` | Desktop API — `addIcon`, `removeIcon`, `setNotif`, `GRID` |
 | `window.YM_S` | spheres | Sphere registry — `{ 'name.sphere.js': { name, icon, activate, … } }` |
-| `window.YM_P2P` | `app.js` | Raw P2P object (Trystero) — prefer `ctx.send`/`ctx.onReceive` |
+| `window.YM_P2P` | `app.js` | Raw P2P — `broadcast({sphere,type,data})`, `sendTo(peerId,{sphere,type,data})` |
+| `window.YM_Social` | `social.sphere.js` | Social API — `_nearUsers: Map<uuid,{profile,ts,peerId}>`, `openProfile(uuid)`, `isReciprocal(uuid)` |
+| `window.YM_Messenger` | `messenger.sphere.js` | Messenger API — `openConv(uuid)` — opens or focuses a chat |
+| `window.YM_Call` | `call.sphere.js` | Call API — `startVoiceCall(uuid)`, `hangUp()` |
 | `window.YM_Mine` | `mine.js` | Wallet API object |
 | `window.YM_Mine_sign(msg)` | `mine.js` | Sign a message — triggers confirmation dialog |
 | `window.YM_Mine_pubkey()` | `mine.js` | Returns current Solana public key or null |
