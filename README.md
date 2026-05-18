@@ -1,4 +1,4 @@
-# YourMine
+# YourMine Prompt
 
 **A Soulnet for apps and value.**
 
@@ -11,6 +11,7 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [The Living Profile](#the-living-profile)
 - [Sphere API Specification](#sphere-api-specification)
 - [Profile Hooks](#profile-hooks)
 - [Multiplayer](#multiplayer)
@@ -47,6 +48,49 @@ files.json          Registry — list of published spheres with metadata and cod
 ```
 
 **Key design constraint:** sphere code is never hosted on the main repo. It lives in the author's GitHub fork. `files.json` contains only the `codeUrl` pointing to the fork. This is the "loader unique" architecture.
+
+---
+
+## The Living Profile
+
+The central concept of YourMine is not the P2P layer, not the wallet, not the sphere registry. It is the **living profile** — a profile that has no fixed form, because it is not declared: it emerges from participation.
+
+### How it works
+
+A profile in YourMine is a surface that **composes itself differently for every pair of people**, based on the spheres they share.
+
+When user A views user B's profile card, `app.js` iterates over every sphere both users have active and calls `peerSection(container, ctx)` on each one. Each sphere injects its own UI into that card — a challenge button, a shared track, a trade interface, a game state. The result is a profile that is:
+
+- **Unique to each relationship** — what you see in someone's profile depends on what you both participate in
+- **Dynamic** — it changes the moment either person activates or deactivates a sphere
+- **Designed by no one** — no one designed "the profile page". It emerged from the composition of independent spheres
+
+### The primitive
+
+```js
+peerSection(container, ctx) {
+  // ctx.uuid      — peer's UUID
+  // ctx.isNear    — peer is currently reachable via P2P
+  // ctx.isReciproc — you are mutual contacts
+  // ctx.profile   — peer's public profile object
+
+  // This sphere controls what appears in this peer's profile card
+  // for users who share this sphere
+}
+```
+
+This single method is what makes the system "living". Without it, YourMine would be a P2P messaging layer with a wallet. With it, identity becomes relational — **you are the intersection of every sphere you share with every person nearby**.
+
+### Why this matters
+
+Every other social system defines the profile as a page: a fixed set of fields (name, bio, followers, posts). YourMine defines the profile as a **composition function**: `profile(A, B) = union of peerSections of shared spheres(A, B)`.
+
+This means:
+- Two people who share only a chess sphere see each other as chess players
+- Two people who share a chess sphere and a music sphere see a richer surface
+- Adding a new sphere doesn't update "your profile" — it updates every relationship where the other person also has that sphere
+
+There is no central profile editor. There is no profile schema. The living layer is this: a web of intersecting participation contexts, each pair of users seeing a version of each other that no one explicitly designed.
 
 ---
 
