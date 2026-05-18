@@ -639,11 +639,25 @@ function renderLinkContent(container){
       ta.className='ym-input';
       ta.placeholder='Colle ton code ici…';
       ta.style.cssText='font-size:10px;font-family:monospace;flex:1;min-height:120px;resize:none;width:100%;box-sizing:border-box';
+      const codeHint=document.createElement('div');
+      codeHint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
       const btn=document.createElement('button');
       btn.className='ym-btn ym-btn-accent';
       btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
       btn.textContent='▶ Plug';
-      body.appendChild(typeRow);body.appendChild(ta);body.appendChild(btn);
+      body.appendChild(typeRow);body.appendChild(ta);body.appendChild(codeHint);body.appendChild(btn);
+
+      function detectCodeType(code){
+        const s=code.trimStart();
+        if(s.includes('window.YM_S['))return 'sphere';
+        if(s.includes('window.YM_THEME_META')||s.startsWith('<'))return 'theme';
+        return null;
+      }
+      ta.addEventListener('input',()=>{
+        const t=detectCodeType(ta.value);
+        if(t){typeRow._setCur(t);codeHint.textContent=t==='sphere'?'⬡ Sphere détectée':'🎨 Thème détecté';}
+        else{codeHint.textContent='';}
+      });
 
       btn.addEventListener('click',async()=>{
         const code=ta.value.trim();if(!code)return;
