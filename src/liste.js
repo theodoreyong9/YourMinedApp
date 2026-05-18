@@ -528,11 +528,10 @@ function renderLinkContent(container){
     });
   }
 
-  // Detect type from URL extension — null = unknown
+  // Extension determines type unambiguously
   function detectType(url){
-    if(url.endsWith('.sphere.js'))return 'sphere';
-    if(url.endsWith('.theme.js')||url.endsWith('.html'))return 'theme';
     if(url.endsWith('.js'))return 'sphere';
+    if(url.endsWith('.html'))return 'theme';
     return null;
   }
 
@@ -589,10 +588,9 @@ function renderLinkContent(container){
     setTabStyles();
     body.innerHTML='';
     if(_mode==='url'){
-      const typeRow=makeTypeToggle('sphere',()=>{});
       const inp=document.createElement('input');
       inp.className='ym-input';
-      inp.placeholder='https://… (.js ou .html)';
+      inp.placeholder='https://… (.js → sphere, .html → thème)';
       inp.style.cssText='font-size:11px;width:100%;box-sizing:border-box';
       const hint=document.createElement('div');
       hint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
@@ -600,22 +598,25 @@ function renderLinkContent(container){
       btn.className='ym-btn ym-btn-accent';
       btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
       btn.textContent='▶ Plug';
-      body.appendChild(typeRow);body.appendChild(inp);body.appendChild(hint);body.appendChild(btn);
+      body.appendChild(inp);body.appendChild(hint);body.appendChild(btn);
 
       inp.addEventListener('input',()=>{
         const v=inp.value.trim();
-        const auto=detectType(v);
-        if(auto){typeRow._setCur(auto);hint.textContent='';}
-        else if(v){hint.textContent='Extension non reconnue — sélectionne le type manuellement';}
-        else{hint.textContent='';}
+        const t=detectType(v);
+        if(t==='sphere')hint.textContent='⬡ Sphere';
+        else if(t==='theme')hint.textContent='🎨 Thème';
+        else if(v)hint.textContent='Extension non reconnue — utilise .js ou .html';
+        else hint.textContent='';
       });
 
       const doPlug=async()=>{
         const url=inp.value.trim();if(!url)return;
         if(!/^https?:\/\//i.test(url)){window.YM_toast?.('URL invalide','error');return;}
+        const type=detectType(url);
+        if(!type){window.YM_toast?.('Extension non reconnue — utilise .js ou .html','error');return;}
         btn.textContent='…';btn.disabled=true;
         try{
-          if(typeRow._getCur()==='theme'){
+          if(type==='theme'){
             localStorage.setItem('ym_theme_url',url);
             localStorage.removeItem('ym_theme_cache');
             window.YM_toast?.('Thème — rechargement…','success');
@@ -649,7 +650,7 @@ function renderLinkContent(container){
         btn.textContent='…';btn.disabled=true;
         try{
           if(typeRow._getCur()==='theme'){
-            const blob=new Blob([code],{type:'text/javascript'});
+            const blob=new Blob([code],{type:'text/html'});
             const blobUrl=URL.createObjectURL(blob);
             localStorage.setItem('ym_theme_url',blobUrl);
             localStorage.removeItem('ym_theme_cache');
