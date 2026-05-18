@@ -1,18 +1,16 @@
-﻿<!-- YourMine — Landing Theme (hello) -->
+<!-- YourMine — Landing Theme (hello) -->
 <script>
 window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine landing page theme"};
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=block" rel="stylesheet">
 
 <style>
 :root{
-  --bg:#06060e;--text:#e4e6f4;--text2:rgba(228,230,244,.6);--text3:rgba(228,230,244,.28);
-  --gold:#f0a830;--cyan:#08e0f8;
-  --font-d:'Syne',sans-serif;--font-b:'Space Grotesk',sans-serif;--font-m:'JetBrains Mono',monospace;
-  --dock-h:0px;--safe-b:env(safe-area-inset-bottom,0px);
-  --cols:4;--rows:6;
+  --bg:#050507;--text:#f0f0f8;--text2:rgba(240,240,248,.52);--text3:rgba(240,240,248,.2);
+  --gold:#f0a830;--cyan:#22d3ee;--purple:#a78bfa;
+  --font-d:'Syne',sans-serif;--font-b:'Inter',sans-serif;--font-m:'JetBrains Mono',monospace;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{height:100%;overflow:hidden;background:var(--bg)}
@@ -28,132 +26,212 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   position:fixed;inset:0;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   background:var(--bg);z-index:10;
-  padding-bottom:env(safe-area-inset-bottom,0px);
 }
 #ym-landing::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(ellipse 70% 50% at 85% 0%,rgba(8,224,248,.055),transparent 55%),
-    radial-gradient(ellipse 55% 55% at 5% 100%,rgba(240,168,48,.045),transparent 55%);
+    radial-gradient(ellipse 80% 55% at 95% -5%,rgba(34,211,238,.045),transparent 60%),
+    radial-gradient(ellipse 65% 60% at -5% 110%,rgba(240,168,48,.035),transparent 60%),
+    radial-gradient(ellipse 45% 45% at 50% 55%,rgba(167,139,250,.018),transparent 70%);
 }
+
+/* scroll reveal */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .65s ease,transform .65s ease;}
+.reveal.visible{opacity:1;transform:none;}
+
 .lp{position:relative;z-index:1;}
 
+/* ── HERO ──────────────────────────────────────────────── */
 .lp-hero{
   min-height:100dvh;
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
-  padding:80px 28px 56px;
-  text-align:center;overflow:hidden;
+  padding:100px 28px 80px;text-align:center;
 }
+
+.lp-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--font-m);font-size:11px;letter-spacing:.07em;
+  color:var(--gold);
+  background:rgba(240,168,48,.07);
+  border:1px solid rgba(240,168,48,.18);
+  border-radius:100px;padding:7px 15px;
+  margin-bottom:28px;
+  opacity:0;animation:fadeUp .55s .05s ease forwards;
+}
+.lp-badge-dot{
+  width:5px;height:5px;border-radius:50%;flex-shrink:0;
+  background:var(--gold);box-shadow:0 0 7px var(--gold);
+  animation:pulse 2s ease infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
 .lp-logo{
   font-family:var(--font-d);
-  font-size:clamp(30px,9.5vw,108px);
-  font-weight:800;letter-spacing:.03em;line-height:1;
-  background:linear-gradient(135deg,var(--gold) 0%,#fff 45%,var(--cyan) 100%);
+  font-size:clamp(52px,14vw,148px);
+  font-weight:800;letter-spacing:-.015em;line-height:.95;
+  background:linear-gradient(140deg,var(--gold) 0%,#fff 38%,var(--cyan) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:28px;
+  margin-bottom:44px;
+  opacity:0;animation:fadeUp .7s .15s ease forwards;
 }
-.lp-tagline{
-  font-family:var(--font-m);
-  font-size:clamp(13px,2.2vw,18px);
-  color:var(--text2);letter-spacing:.02em;
-  margin-bottom:48px;line-height:1.5;
-  opacity:0;animation:fi .6s .15s ease forwards;
-}
-.lp-tagline .prompt{color:var(--gold);margin-right:6px;}
-@keyframes fi{to{opacity:1;transform:none}}
 
 .lp-ctas{
-  display:flex;gap:12px;flex-wrap:wrap;justify-content:center;
-  opacity:0;animation:fi .5s .4s ease forwards;
+  display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
+  opacity:0;animation:fadeUp .55s .32s ease forwards;
 }
 .lp-btn{
-  display:inline-flex;align-items:center;justify-content:center;
-  padding:13px 30px;border-radius:12px;
-  font-family:var(--font-d);font-size:11px;font-weight:700;
-  letter-spacing:3px;text-transform:uppercase;
-  cursor:pointer;border:none;text-decoration:none;transition:all .2s;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:12px 26px;border-radius:10px;
+  font-family:var(--font-b);font-size:13px;font-weight:600;letter-spacing:.01em;
+  cursor:pointer;border:none;text-decoration:none;transition:all .18s ease;
 }
-.lp-btn-primary{background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.72));color:#06060e;box-shadow:0 4px 28px rgba(240,168,48,.22);}
-.lp-btn-primary:hover{box-shadow:0 8px 44px rgba(240,168,48,.42);transform:translateY(-2px)}
-.lp-btn-secondary{background:transparent;border:1px solid rgba(255,255,255,.1);color:var(--text3);}
-.lp-btn-secondary:hover{border-color:rgba(255,255,255,.22);color:var(--text2)}
+.lp-btn-primary{
+  background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.75));color:#05030a;
+  box-shadow:0 0 0 1px rgba(240,168,48,.28),0 4px 22px rgba(240,168,48,.18);
+}
+.lp-btn-primary:hover{box-shadow:0 0 0 1px rgba(240,168,48,.5),0 8px 34px rgba(240,168,48,.32);transform:translateY(-1px)}
+.lp-btn-secondary{
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--text3);
+}
+.lp-btn-secondary:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15);color:var(--text2)}
 
-.lp-body{max-width:580px;margin:0 auto;padding:0 28px 120px;}
-.lp-divider{width:1px;height:56px;background:linear-gradient(180deg,transparent,rgba(240,168,48,.28),transparent);margin:0 auto 56px;}
-.lp-sep{width:28px;height:1px;background:rgba(255,255,255,.07);margin:52px 0;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+/* ── BODY ──────────────────────────────────────────────── */
+.lp-body{max-width:600px;margin:0 auto;padding:0 28px 120px;}
+
+.lp-vline{
+  width:1px;height:64px;
+  background:linear-gradient(180deg,transparent,rgba(255,255,255,.07),transparent);
+  margin:0 auto 64px;
+}
+.lp-sep{height:72px;}
+.lp-sep-sm{height:28px;}
 
 .lp-label{
   font-family:var(--font-m);font-size:9px;
-  color:var(--gold);letter-spacing:.22em;text-transform:uppercase;
-  margin-bottom:14px;opacity:.8;
+  color:var(--gold);letter-spacing:.24em;text-transform:uppercase;
+  margin-bottom:18px;opacity:.65;
 }
-.lp-p{
-  font-family:var(--font-b);font-size:clamp(14px,2vw,16px);
-  color:var(--text2);line-height:1.85;font-weight:400;
-}
-.lp-p+.lp-p{margin-top:12px;}
 
-.lp-statement{
-  font-family:var(--font-d);font-size:clamp(17px,2.8vw,24px);
-  font-weight:700;color:var(--text);line-height:1.45;
+/* Large display heading */
+.lp-h{
+  font-family:var(--font-d);
+  font-size:clamp(26px,5vw,52px);
+  font-weight:800;letter-spacing:-.02em;line-height:1.1;
+  color:var(--text);margin-bottom:20px;
 }
-.lp-statement em{
+.lp-h em{
   font-style:normal;
   background:linear-gradient(90deg,var(--gold),var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
 
-.lp-stanza{display:flex;flex-direction:column;gap:1px;margin:18px 0;}
-.lp-stanza-line{
-  font-family:var(--font-b);font-size:clamp(13px,1.7vw,15px);
-  color:var(--text3);line-height:1.85;font-style:italic;
+/* Body text */
+.lp-p{
+  font-size:clamp(14px,1.9vw,16px);color:var(--text2);line-height:1.82;
 }
-.lp-stanza-line.hi{color:var(--text);font-style:normal;font-weight:600;}
+.lp-p+.lp-p{margin-top:10px;}
 
-.lp-words{display:flex;flex-direction:column;gap:4px;margin:16px 0 4px;}
-.lp-word{
-  font-family:var(--font-m);font-size:12px;
-  color:var(--text3);letter-spacing:.06em;
-  padding-left:14px;position:relative;
+/* Tags */
+.lp-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;}
+.lp-tag{
+  font-family:var(--font-b);font-size:13px;font-weight:500;
+  color:var(--text2);letter-spacing:.01em;
+  background:rgba(255,255,255,.035);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:8px;padding:8px 14px;
+  transition:border-color .15s,color .15s;
 }
-.lp-word::before{content:'—';position:absolute;left:0;color:rgba(240,168,48,.3);}
+.lp-tag:hover{border-color:rgba(255,255,255,.14);color:var(--text)}
 
-.lp-list-inline{display:flex;flex-wrap:wrap;gap:0;margin:10px 0 4px;}
-.lp-list-inline span{font-family:var(--font-m);font-size:10px;color:var(--text3);letter-spacing:.05em;}
-.lp-list-inline span::after{content:' · ';color:rgba(255,255,255,.1)}
-.lp-list-inline span:last-child::after{content:''}
-
-.lp-negations{display:flex;flex-direction:column;gap:5px;margin:4px 0;}
-.lp-neg{font-family:var(--font-b);font-size:clamp(13px,1.5vw,14px);color:var(--text3);}
-
-.lp-not-grid{display:flex;flex-direction:column;gap:3px;margin:4px 0;}
-.lp-not-item{
-  font-family:var(--font-b);font-size:clamp(12px,1.5vw,14px);
-  color:var(--text3);padding-left:18px;position:relative;
+/* Quote */
+.lp-quote{
+  font-family:var(--font-d);
+  font-size:clamp(17px,3vw,26px);
+  font-weight:700;line-height:1.4;color:var(--text);
+  border-left:2px solid rgba(240,168,48,.38);
+  padding-left:18px;margin-bottom:22px;
 }
-.lp-not-item::before{content:'✕';position:absolute;left:0;font-size:10px;color:rgba(255,69,96,.4);top:1px;}
 
-.lp-solo{font-family:var(--font-b);font-size:clamp(14px,2vw,16px);color:var(--text2);font-style:italic;line-height:1.7;}
-.lp-solo.bold{font-style:normal;font-weight:600;color:var(--text);}
+/* Stanza */
+.lp-stanza{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+.lp-line{font-size:clamp(13px,1.8vw,15px);color:var(--text3);line-height:1.75;}
+.lp-line.hi{color:var(--text);font-weight:600;}
 
-.lp-footer{text-align:center;padding:56px 28px 80px;}
+/* 2×2 grid */
+.lp-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:20px 0;}
+.lp-gitem{
+  padding:15px 17px;border-radius:11px;
+  background:rgba(255,255,255,.025);
+  border:1px solid rgba(255,255,255,.065);
+  font-family:var(--font-m);font-size:11px;letter-spacing:.05em;
+  color:var(--text2);
+}
+.lp-gitem:nth-child(1){border-left-color:rgba(34,211,238,.25);}
+.lp-gitem:nth-child(2){border-left-color:rgba(240,168,48,.25);}
+.lp-gitem:nth-child(3){border-left-color:rgba(167,139,250,.25);}
+.lp-gitem:nth-child(4){border-left-color:rgba(34,211,238,.18);}
+
+/* Instantly */
+.lp-instant{
+  font-family:var(--font-d);
+  font-size:clamp(18px,3.5vw,32px);
+  font-weight:800;letter-spacing:.01em;
+  color:var(--cyan);margin:20px 0;
+}
+
+/* Negations */
+.lp-negs{display:flex;flex-direction:column;gap:7px;margin:16px 0;}
+.lp-neg{font-size:clamp(13px,1.7vw,15px);color:var(--text3);}
+.lp-neg::before{content:'— ';color:rgba(255,69,96,.35);}
+
+/* Card */
+.lp-card{
+  background:rgba(255,255,255,.022);
+  border:1px solid rgba(255,255,255,.068);
+  border-radius:16px;padding:28px 22px;
+}
+.lp-card-lines{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;}
+.lp-card-line{font-size:clamp(14px,1.9vw,16px);color:var(--text3);line-height:1.65;}
+.lp-card-line.hi{
+  font-weight:600;
+  background:linear-gradient(90deg,var(--gold),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+
+/* Welcome */
+.lp-welcome{
+  font-family:var(--font-d);
+  font-size:clamp(24px,4.5vw,44px);
+  font-weight:800;letter-spacing:-.01em;
+  color:var(--text);margin-bottom:28px;
+}
+
+/* ── FOOTER ──────────────────────────────────────────── */
+.lp-footer{
+  text-align:center;
+  padding:72px 28px calc(72px + env(safe-area-inset-bottom,0px));
+  border-top:1px solid rgba(255,255,255,.05);
+}
 .lp-footer-logo{
-  font-family:var(--font-d);font-size:clamp(26px,5vw,44px);font-weight:800;
-  letter-spacing:.06em;
+  font-family:var(--font-d);font-size:clamp(22px,5vw,40px);font-weight:800;
+  letter-spacing:.05em;
   background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
   margin-bottom:10px;
 }
-.lp-footer-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.25em;text-transform:uppercase;margin-bottom:6px;}
-.lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.35);letter-spacing:.15em;}
+.lp-footer-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
+.lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.3);letter-spacing:.15em;}
 </style>
 
 <div id="ym-landing">
 
+  <!-- Hero -->
   <div class="lp lp-hero">
+    <div class="lp-badge"><span class="lp-badge-dot"></span>&gt; One prompt. One web.</div>
     <div class="lp-logo">YOURMINE</div>
-    <div class="lp-tagline"><span class="prompt">&gt;</span> One prompt. One web.</div>
     <div class="lp-ctas">
       <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
       <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">prompt</a>
@@ -162,68 +240,74 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
   <div class="lp lp-body">
 
-    <div class="lp-divider"></div>
+    <div class="lp-vline"></div>
 
-    <div>
-      <p class="lp-p">One living context layer for the open web.</p>
-      <p class="lp-p" style="margin-top:14px">YourMine lets you inject a living layer of interaction, participation, and coordination into any application, interface, or system.</p>
-      <p class="lp-p" style="margin-top:10px">Instantly. From anywhere.</p>
-    </div>
-
-    <div class="lp-sep"></div>
-
-    <div>
-      <div class="lp-statement">What if a single prompt could connect any code to a borderless web of <em>development, execution, and participation</em>?</div>
-    </div>
-
-    <div class="lp-sep"></div>
-
-    <div>
-      <p class="lp-p">Build connected systems, not isolated apps.</p>
-      <p class="lp-p" style="margin-top:10px">YourMine transforms fragmented services and applications into composable, interactive environments.</p>
-      <p class="lp-p" style="margin-top:14px">Anything can become:</p>
-      <div class="lp-words">
-        <div class="lp-word">connectable</div>
-        <div class="lp-word">executable</div>
-        <div class="lp-word">interoperable</div>
-        <div class="lp-word">participatory</div>
+    <!-- Playground -->
+    <div class="reveal">
+      <div class="lp-label">The open web playground</div>
+      <div class="lp-h">Build weird things.<br>Shape the web.</div>
+      <div class="lp-tags">
+        <span class="lp-tag">Build weird things</span>
+        <span class="lp-tag">Connect anything</span>
+        <span class="lp-tag">Remix interactions</span>
+        <span class="lp-tag">Fork realities</span>
+        <span class="lp-tag">Create worlds together</span>
       </div>
     </div>
 
     <div class="lp-sep"></div>
 
-    <div>
-      <p class="lp-p">One action is enough.</p>
-      <p class="lp-p" style="margin-top:10px">A single signal connects your code or application to a shared living layer for:</p>
-      <div class="lp-list-inline" style="margin-top:10px">
-        <span>interoperability</span>
-        <span>scaling</span>
-        <span>propagation</span>
-        <span>interaction</span>
-      </div>
-      <div class="lp-negations" style="margin-top:20px">
-        <div class="lp-neg">No setup.</div>
-        <div class="lp-neg">No platform lock-in.</div>
-        <div class="lp-neg">No deployment friction.</div>
-      </div>
-    </div>
-
-    <div class="lp-sep"></div>
-
-    <div>
-      <div class="lp-label">Core principle</div>
+    <!-- Shared context -->
+    <div class="reveal">
+      <div class="lp-quote">Give a prompt anywhere —<br>even from your phone.</div>
       <div class="lp-stanza">
-        <div class="lp-stanza-line">Identity does not matter.</div>
-        <div class="lp-stanza-line">Ownership does not matter.</div>
-        <div class="lp-stanza-line hi">Only participation.</div>
+        <div class="lp-line">You enter a shared context of creation.</div>
+        <div class="lp-line">Where giving is receiving.</div>
+        <div class="lp-line">Without intermediaries.</div>
+        <div class="lp-line hi">Forever.</div>
       </div>
-      <p class="lp-p">Participation generates value — continuously redistributed through a built-in protocol.</p>
     </div>
 
     <div class="lp-sep"></div>
 
-    <div>
-      <div class="lp-negations">
+    <!-- One action -->
+    <div class="reveal">
+      <div class="lp-h">One action is enough.</div>
+      <p class="lp-p">A single prompt — or a single line — can connect your code to a living layer of:</p>
+      <div class="lp-grid">
+        <div class="lp-gitem">interaction</div>
+        <div class="lp-gitem">participation</div>
+        <div class="lp-gitem">propagation</div>
+        <div class="lp-gitem">interoperability</div>
+      </div>
+      <div class="lp-instant">Instantly.</div>
+      <div class="lp-negs">
+        <div class="lp-neg">No setup.</div>
+        <div class="lp-neg">No deployment friction.</div>
+        <div class="lp-neg">No platform lock-in.</div>
+      </div>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- Core principle -->
+    <div class="reveal">
+      <div class="lp-label">Core principle</div>
+      <div class="lp-card">
+        <div class="lp-card-lines">
+          <div class="lp-card-line">Identity does not matter.</div>
+          <div class="lp-card-line">Ownership does not matter.</div>
+          <div class="lp-card-line hi">Only participation.</div>
+        </div>
+        <p class="lp-p">Participation generates value — continuously redistributed through a built-in protocol.</p>
+      </div>
+    </div>
+
+    <div class="lp-sep"></div>
+
+    <!-- No limits -->
+    <div class="reveal">
+      <div class="lp-negs">
         <div class="lp-neg">No central authority.</div>
         <div class="lp-neg">No platform dependency.</div>
         <div class="lp-neg">No fixed reality.</div>
@@ -232,10 +316,10 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <div>
-      <div class="lp-statement">The web is no longer something you use.<br>It becomes something you <em>shape</em>.</div>
-      <p class="lp-solo bold" style="margin-top:16px">Welcome to Yourmine.</p>
-      <div class="lp-ctas" style="margin-top:20px">
+    <!-- Welcome CTA -->
+    <div class="reveal" style="text-align:center">
+      <div class="lp-welcome">Welcome to YourMine.</div>
+      <div class="lp-ctas" style="justify-content:center">
         <button class="lp-btn lp-btn-primary" id="lp-start-btn-2">&#9654; Start</button>
         <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">prompt</a>
       </div>
@@ -243,13 +327,15 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
   </div>
 
+  <!-- Footer -->
   <div class="lp lp-footer">
     <div class="lp-footer-logo">YOURMINE</div>
-    <div class="lp-footer-sub">Code. Connect. Emerge.</div>
+    <div class="lp-footer-sub">Code. Remix. Connect. Repeat.</div>
     <div class="lp-footer-tag">No limits.</div>
   </div>
 
 </div>
+
 <!-- DOM fonctionnel invisible requis par app.js / desk.js -->
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div>
@@ -312,6 +398,14 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   var s2=document.getElementById('lp-start-btn-2');
   if(s2)s2.addEventListener('click',goDefault);
 
+  // Scroll reveal
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}
+    });
+  },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
+
   function blockDesk(){
     if(window.YM_Desk){
       window.YM_Desk.addIcon=function(){};
@@ -325,8 +419,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     muts.forEach(function(m){
       m.addedNodes.forEach(function(n){
         if(n.nodeType!==1)return;
-        var id=n.id||'';
-        if(id.indexOf('widget')>=0){n.style.cssText='display:none!important';}
+        if((n.id||'').indexOf('widget')>=0){n.style.cssText='display:none!important';}
       });
     });
   });
