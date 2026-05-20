@@ -194,168 +194,86 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     // ── RENDER AI TAB CONTENT ─────────────────────────────────────────────────
   function renderAIContent(body) {
     body.innerHTML = '';
-    body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:0';
+    body.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;min-height:0;position:relative;overflow:hidden;background:transparent';
 
-    let _type = 'sphere';
-    let _engine = 'pollinations';
-    let _modelId = 'qwen';
+    // Perlin noise canvas — same as hello theme
+    const cv = document.createElement('canvas');
+    cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0';
+    body.appendChild(cv);
 
-    // Helper: find element within body (avoids global ID conflicts)
-    const $ = id => body.querySelector('#' + id);
+    const ctx = cv.getContext('2d');
+    let W, H, OW, OH, offscreen, offCtx, imgData, buf32;
+    let timeAcc = 0, lastT = 0, raf;
 
-    // ── Engine + model row ────────────────────────────────────────────────
-    const engRow = document.createElement('div');
-    engRow.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px';
-    engRow.innerHTML =
-      '<div data-dot style="width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s"></div>' +
-      '<span data-label style="font-size:9px;color:var(--text3);flex:1">Detecting…</span>' +
-      '<select data-model style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:11px;padding:4px 8px;cursor:pointer;max-width:160px"><option value="qwen">Detecting…</option></select>';
-    body.appendChild(engRow);
+    const PERM = new Uint8Array(512);
+    (function(){
+      const p = new Uint8Array(256);
+      for(let i=0;i<256;i++) p[i]=i;
+      for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=p[i];p[i]=p[j];p[j]=t;}
+      for(let i=0;i<512;i++) PERM[i]=p[i&255];
+    })();
 
-    const dot    = engRow.querySelector('[data-dot]');
-    const label  = engRow.querySelector('[data-label]');
-    const selEl  = engRow.querySelector('[data-model]');
-
-    selEl.addEventListener('change', () => { _modelId = selEl.value; });
-
-    detectEngine().then(({ engine, models }) => {
-      _engine  = engine;
-      _modelId = models[0]?.id || 'qwen';
-      const NAMES = { webllm: 'WebLLM (local)', lemonade: 'Lemonade (local)', ollama: 'Ollama (local)', none: 'No engine — install Lemonade or Ollama' };
-      dot.style.background   = engine === 'none' ? 'var(--red,#ff4560)' : engine === 'webllm' || engine === 'lemonade' || engine === 'ollama' ? 'var(--green)' : 'var(--gold)';
-      label.textContent      = NAMES[engine] || engine;
-      selEl.innerHTML        = models.map(m => '<option value="'+m.id+'">'+m.label+'</option>').join('');
-      selEl.value            = _modelId;
-    });
-
-    // ── Type toggle ───────────────────────────────────────────────────────
-    const typeRow = document.createElement('div');
-    typeRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    typeRow.innerHTML =
-      '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Generate</div>' +
-      '<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden">' +
-        '<button data-ts style="background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer">⬡ Sphere</button>' +
-        '<button data-tt style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Thème</button>' +
-      '</div>';
-    body.appendChild(typeRow);
-
-    const sBtnEl = typeRow.querySelector('[data-ts]');
-    const tBtnEl = typeRow.querySelector('[data-tt]');
-
-    function setType(t) {
-      _type = t;
-      if (t === 'sphere') {
-        sBtnEl.style.cssText = 'background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer';
-        tBtnEl.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
-      } else {
-        tBtnEl.style.cssText = 'background:rgba(8,224,248,.12);border:none;color:var(--cyan);font-size:10px;padding:5px 12px;cursor:pointer';
-        sBtnEl.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
-      }
+    function fade(t){return t*t*t*(t*(t*6-15)+10);}
+    function lerp(a,b,t){return a+(b-a)*t;}
+    function grad2(h,x,y){const hh=h&3;const u=hh<2?x:y;const v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
+    function noise2(x,y){
+      const xi=Math.floor(x)&255,yi=Math.floor(y)&255;
+      const xf=x-Math.floor(x),yf=y-Math.floor(y);
+      const u=fade(xf),v=fade(yf);
+      const aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];
+      return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);
     }
-    sBtnEl.addEventListener('click', () => setType('sphere'));
-    tBtnEl.addEventListener('click', () => setType('theme'));
+    function fbm(x,y){return noise2(x,y)*0.5+noise2(x*2.1,y*2.1)*0.3+noise2(x*4.3,y*4.3)*0.2;}
 
-    // ── Prompt ────────────────────────────────────────────────────────────
-    const promptWrap = document.createElement('div');
-    promptWrap.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    promptWrap.innerHTML =
-      '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Prompt</div>' +
-      '<textarea data-prompt rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text,#e4e6f4);padding:10px 12px;outline:none" placeholder="Describe what to generate…"></textarea>';
-    body.appendChild(promptWrap);
+    function resize(){
+      W=cv.width=body.offsetWidth||300;
+      H=cv.height=body.offsetHeight||400;
+      OW=Math.ceil(W/3);OH=Math.ceil(H/3);
+      offscreen=document.createElement('canvas');
+      offscreen.width=OW;offscreen.height=OH;
+      offCtx=offscreen.getContext('2d');
+      imgData=offCtx.createImageData(OW,OH);
+      buf32=new Uint32Array(imgData.data.buffer);
+    }
 
-    const promptEl = promptWrap.querySelector('[data-prompt]');
-
-    // ── Generate button ───────────────────────────────────────────────────
-    const genWrap = document.createElement('div');
-    genWrap.style.cssText = 'padding:10px 14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)';
-    genWrap.innerHTML =
-      '<button data-gen style="width:100%;font-size:13px;padding:12px;background:linear-gradient(135deg,var(--gold,#f0a830),rgba(240,168,48,.75));color:#05030a;border:none;border-radius:10px;font-weight:700;cursor:pointer;transition:opacity .2s">✦ Generate</button>' +
-      '<div data-prog style="font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;text-align:center"></div>';
-    body.appendChild(genWrap);
-
-    const genBtn = genWrap.querySelector('[data-gen]');
-    const progEl = genWrap.querySelector('[data-prog]');
-
-    // ── Output ────────────────────────────────────────────────────────────
-    const outWrap = document.createElement('div');
-    outWrap.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;padding:10px 14px 0';
-    outWrap.innerHTML =
-      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-shrink:0">' +
-        '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Output</div>' +
-        '<button data-copy style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(240,240,248,.52);font-size:9px;padding:3px 9px;cursor:pointer">⎘ Copy</button>' +
-      '</div>' +
-      '<textarea data-out style="flex:1;min-height:180px;font-family:monospace;font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text,#e4e6f4);padding:10px 12px;outline:none" placeholder="Generated code appears here…" spellcheck="false"></textarea>';
-    body.appendChild(outWrap);
-
-    const outEl  = outWrap.querySelector('[data-out]');
-    const copyBtn = outWrap.querySelector('[data-copy]');
-
-    // ── Generate handler ──────────────────────────────────────────────────
-    genBtn.addEventListener('click', async () => {
-      const prompt = (promptEl.value || '').trim();
-      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
-
-      const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
-      const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/, '');
-      const filename = slug + ext;
-
-      const userPrompt = [
-        'Generate a YourMine ' + _type + ' file.',
-        'Filename: ' + filename,
-        '',
-        'Requirements:',
-        prompt,
-      ].join('\n');
-
-      genBtn.disabled = true;
-      genBtn.style.opacity = '0.5';
-      genBtn.textContent = '⏳ Generating…';
-      outEl.value = '';
-      progEl.textContent = 'Starting ' + _engine + ' / ' + _modelId + '…';
-
-      let fullCode = '';
-      let tokenCount = 0;
-      const t0 = Date.now();
-
-      try {
-        for await (const chunk of streamGenerate(SYSTEM_SPHERE, userPrompt, _engine, _modelId)) {
-          fullCode += chunk;
-          tokenCount++;
-          outEl.value = fullCode;
-          outEl.scrollTop = outEl.scrollHeight;
-          if (tokenCount % 20 === 0) {
-            const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-            progEl.textContent = elapsed + 's…';
-          }
+    function draw(ts){
+      raf=requestAnimationFrame(draw);
+      const dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;
+      const t=timeAcc*0.00018;
+      let idx=0;
+      for(let py=0;py<OH;py++){
+        const fy=py*0.0052+t*0.6;
+        for(let px=0;px<OW;px++){
+          const fx=px*0.0048+t*0.4;
+          const n=fbm(fx,fy),n2=fbm(fx+t*0.3,fy+0.7);
+          const v=(n*0.6+n2*0.4)*0.5+0.5;
+          const hv=fbm(fx*0.5+1.3,fy*0.5+t*0.2)*0.5+0.5;
+          let r,g,b;
+          if(hv<0.5){const tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
+          else{const tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
+          const a=Math.min(0.52,v*v*0.52);
+          buf32[idx++]=((a*255|0)<<24)|(b<<16)|(g<<8)|r;
         }
-        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        progEl.innerHTML = '<span style="color:var(--green,#22d98a)">✓ Done in ' + elapsed + 's</span>';
-        toast('Code generated!', 'success');
-      } catch (e) {
-        progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ ' + esc(e.message) + '</span>';
-        toast(e.message, 'error');
-      } finally {
-        genBtn.disabled = false;
-        genBtn.style.opacity = '1';
-        genBtn.textContent = '✦ Generate';
       }
-    });
+      offCtx.putImageData(imgData,0,0);
+      ctx.clearRect(0,0,W,H);
+      ctx.drawImage(offscreen,0,0,W,H);
+    }
 
-    // ── Copy handler ──────────────────────────────────────────────────────
-    copyBtn.addEventListener('click', () => {
-      const code = outEl.value || '';
-      if (!code) { toast('Nothing to copy', 'warn'); return; }
-      navigator.clipboard?.writeText(code)
-        .then(() => toast('Copied!', 'success'))
-        .catch(() => {
-          const ta = document.createElement('textarea');
-          ta.value = code; ta.style.cssText = 'position:fixed;opacity:0';
-          document.body.appendChild(ta); ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          toast('Copied!', 'success');
-        });
+    resize();
+    raf = requestAnimationFrame(draw);
+
+    // Cleanup when tab switches
+    const obs = new MutationObserver(() => {
+      if (!document.body.contains(cv)) { cancelAnimationFrame(raf); obs.disconnect(); }
     });
+    obs.observe(body, { childList: true });
+
+    // SOON label
+    const soon = document.createElement('div');
+    soon.style.cssText = 'position:relative;z-index:1;font-family:Syne,var(--font-d,sans-serif);font-size:clamp(48px,12vw,96px);font-weight:800;letter-spacing:.05em;background:linear-gradient(140deg,#f0a830 0%,#fff 45%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;user-select:none;pointer-events:none';
+    soon.textContent = 'SOON';
+    body.appendChild(soon);
   }
 
     // ── INJECT AI TAB ─────────────────────────────────────────────────────────
