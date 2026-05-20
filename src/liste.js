@@ -791,9 +791,11 @@ function _updateCardInPlace(card,sphere,active){
       const b=document.createElement('span');b.className='pill active';b.textContent='active';nameLine.appendChild(b);
     }else if(!active&&badge)badge.remove();
   }
-  // refresh activate button label in bar
-  const actBtn=card.querySelector('[data-action-id="activate"]');
-  if(actBtn){actBtn.textContent=active?'✓ Actif':'▶ Activer';actBtn.style.cssText=active?BTN_GHOST:BTN_ACCENT;}
+  // close bar so it rebuilds fresh on next open
+  const openBar=card.querySelector('[data-bar-el]');
+  if(openBar){openBar.style.display='none';}
+  const chev=card.querySelector('[data-chevron]');
+  if(chev){chev.style.transform='';chev.textContent='›';}
 }
 
 function renderList(body){
@@ -867,22 +869,21 @@ function renderList(body){
       {icon:'</>', label:'Code', style:BTN_CYAN, id:'code', onClick:()=>{
         window.open(ghAuthorUrl,'_blank','noopener');
       }},
-      {icon: active?'✓':'▶', label:active?'Actif':'Activer', style:active?BTN_GHOST:BTN_ACCENT, id:'activate', onClick:async(btn)=>{
-        if(active){
-          // already active — open panel
-          window.YM?.openSpherePanel?.(sphere.fileName);
-          return;
-        }
+      ...(active && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼', label:'Off', style:BTN_DANGER, id:'activate', onClick:async(btn)=>{
+        btn.innerHTML='…';btn.style.pointerEvents='none';
+        await deactivateSphere(sphere);
+        _updateCardInPlace(card,sphere,false);
+        card.style.borderColor='';
+        window.dispatchEvent(new CustomEvent('ym:sphere-deactivated',{detail:{name:sphere.fileName}}));
+      }}] : !active ? [{icon:'▶', label:'Activer', style:BTN_ACCENT, id:'activate', onClick:async(btn)=>{
         btn.innerHTML='…';btn.style.pointerEvents='none';
         card.style.opacity='.6';
         await activateSphere(sphere);
         card.style.opacity='1';btn.style.pointerEvents='';
         const nowActive=isSphereActive(sphere.fileName);
         _updateCardInPlace(card,sphere,nowActive);
-        btn.innerHTML=(nowActive?'✓ Actif':'▶ Activer');
-        btn.style.cssText=nowActive?BTN_GHOST:BTN_ACCENT;
         window.dispatchEvent(new CustomEvent('ym:sphere-activated',{detail:{name:sphere.fileName}}));
-      }},
+      }}] : []),
     ]);
     bar.style.display='none';
     card.appendChild(bar);
