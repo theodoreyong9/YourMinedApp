@@ -246,7 +246,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     raf=requestAnimationFrame(draw);
     var dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;
     scrollVel+=(0-scrollVel)*0.12;
-    var t=timeAcc*0.00018,st=scrollY*0.00055,velBoost=Math.min(1,Math.abs(scrollVel)*0.022);
+    var t=timeAcc*0.00018,st=scrollY*0.00055;
     var scaleX=0.0048,scaleY=0.0052,idx=0;
     for(var py=0;py<OH;py++){
       var fy=py*scaleY+t*0.6+st;
@@ -258,7 +258,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
         var r,g,b;
         if(hv<0.5){var tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
         else{var tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
-        var a=Math.min(0.52,v*v*(0.32+velBoost*0.28));
+        var a=Math.min(0.52,v*v*0.52);
         var ai=(a*255)|0;
         buf32[idx++]=(ai<<24)|(b<<16)|(g<<8)|r;
       }
