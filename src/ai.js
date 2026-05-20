@@ -322,21 +322,33 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       progEl.textContent = 'Loading WebLLM…';
 
       try {
-        // WebLLM is an ES module — load via dynamic import
-        if (!window.webllm) {
-          const m = await import('https://esm.sh/@mlc-ai/web-llm@0.2.73');
-          window.webllm = m;
+        // WebLLM — inject a module script that stores engine on window
+        if (!window._webllmReady) {
+          progEl.textContent = 'Loading WebLLM…';
+          await new Promise((res, rej) => {
+            const s = document.createElement('script');
+            s.type = 'module';
+            s.textContent = `
+              import { CreateMLCEngine } from 'https://esm.sh/@mlc-ai/web-llm';
+              window._webllmCreate = CreateMLCEngine;
+              window._webllmReady = true;
+              window.dispatchEvent(new Event('webllm:ready'));
+            `;
+            document.head.appendChild(s);
+            const onReady = () => { window.removeEventListener('webllm:ready', onReady); res(); };
+            window.addEventListener('webllm:ready', onReady);
+            setTimeout(() => rej(new Error('WebLLM load timeout — requires Chrome/Edge with WebGPU')), 15000);
+          });
         }
-        if (!window.webllm?.CreateMLCEngine) throw new Error('WebLLM not available — requires Chrome/Edge desktop with WebGPU enabled');
 
         webllmBtn.textContent = '⏳ Downloading model…';
-        progEl.textContent = 'Downloading Qwen 1.5B (first time ~800MB, cached after)…';
+        progEl.textContent = 'Downloading Qwen 1.5B (~800MB, cached after first download)…';
 
-        _webllmEngine = await window.webllm.CreateMLCEngine(
+        _webllmEngine = await window._webllmCreate(
           'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
           { initProgressCallback: p => {
             const pct = Math.round((p.progress||0)*100);
-            progEl.textContent = (p.text || ('Downloading… ' + pct + '%'));
+            progEl.textContent = p.text || ('Downloading… ' + pct + '%');
             webllmBtn.textContent = '⏳ ' + pct + '%';
           }}
         );
