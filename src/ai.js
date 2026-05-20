@@ -194,86 +194,232 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     // ── RENDER AI TAB CONTENT ─────────────────────────────────────────────────
   function renderAIContent(body) {
     body.innerHTML = '';
-    body.style.cssText = 'flex:1;display:flex;align-items:center;justify-content:center;min-height:0;position:relative;overflow:hidden;background:transparent';
+    body.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;position:relative;overflow:hidden;background:transparent';
 
-    // Perlin noise canvas — same as hello theme
+    // ── Perlin background ─────────────────────────────────────────────────
     const cv = document.createElement('canvas');
     cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0';
     body.appendChild(cv);
-
-    const ctx = cv.getContext('2d');
-    let W, H, OW, OH, offscreen, offCtx, imgData, buf32;
-    let timeAcc = 0, lastT = 0, raf;
-
-    const PERM = new Uint8Array(512);
-    (function(){
-      const p = new Uint8Array(256);
-      for(let i=0;i<256;i++) p[i]=i;
-      for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=p[i];p[i]=p[j];p[j]=t;}
-      for(let i=0;i<512;i++) PERM[i]=p[i&255];
-    })();
-
+    const ctx2d = cv.getContext('2d');
+    let W,H,OW,OH,offscreen,offCtx,imgData,buf32,timeAcc=0,lastT=0,rafId;
+    const PERM=new Uint8Array(512);
+    (function(){const p=new Uint8Array(256);for(let i=0;i<256;i++)p[i]=i;for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=p[i];p[i]=p[j];p[j]=t;}for(let i=0;i<512;i++)PERM[i]=p[i&255];})();
     function fade(t){return t*t*t*(t*(t*6-15)+10);}
     function lerp(a,b,t){return a+(b-a)*t;}
     function grad2(h,x,y){const hh=h&3;const u=hh<2?x:y;const v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
-    function noise2(x,y){
-      const xi=Math.floor(x)&255,yi=Math.floor(y)&255;
-      const xf=x-Math.floor(x),yf=y-Math.floor(y);
-      const u=fade(xf),v=fade(yf);
-      const aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];
-      return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);
-    }
+    function noise2(x,y){const xi=Math.floor(x)&255,yi=Math.floor(y)&255,xf=x-Math.floor(x),yf=y-Math.floor(y),u=fade(xf),v=fade(yf),aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);}
     function fbm(x,y){return noise2(x,y)*0.5+noise2(x*2.1,y*2.1)*0.3+noise2(x*4.3,y*4.3)*0.2;}
+    function resizeCanvas(){W=cv.width=body.offsetWidth||300;H=cv.height=body.offsetHeight||400;OW=Math.ceil(W/3);OH=Math.ceil(H/3);offscreen=document.createElement('canvas');offscreen.width=OW;offscreen.height=OH;offCtx=offscreen.getContext('2d');imgData=offCtx.createImageData(OW,OH);buf32=new Uint32Array(imgData.data.buffer);}
+    function drawNoise(ts){rafId=requestAnimationFrame(drawNoise);const dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;const t=timeAcc*0.00018;let idx=0;for(let py=0;py<OH;py++){const fy=py*0.0052+t*0.6;for(let px=0;px<OW;px++){const fx=px*0.0048+t*0.4,n=fbm(fx,fy),n2=fbm(fx+t*0.3,fy+0.7),v=(n*0.6+n2*0.4)*0.5+0.5,hv=fbm(fx*0.5+1.3,fy*0.5+t*0.2)*0.5+0.5;let r,g,b;if(hv<0.5){const tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}else{const tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}const a=Math.min(0.52,v*v*0.52);buf32[idx++]=((a*255|0)<<24)|(b<<16)|(g<<8)|r;}}offCtx.putImageData(imgData,0,0);ctx2d.clearRect(0,0,W,H);ctx2d.drawImage(offscreen,0,0,W,H);}
+    resizeCanvas();rafId=requestAnimationFrame(drawNoise);
+    const cleanObs=new MutationObserver(()=>{if(!document.body.contains(cv)){cancelAnimationFrame(rafId);cleanObs.disconnect();}});
+    cleanObs.observe(body,{childList:true});
 
-    function resize(){
-      W=cv.width=body.offsetWidth||300;
-      H=cv.height=body.offsetHeight||400;
-      OW=Math.ceil(W/3);OH=Math.ceil(H/3);
-      offscreen=document.createElement('canvas');
-      offscreen.width=OW;offscreen.height=OH;
-      offCtx=offscreen.getContext('2d');
-      imgData=offCtx.createImageData(OW,OH);
-      buf32=new Uint32Array(imgData.data.buffer);
-    }
+    // ── Content (above canvas) ────────────────────────────────────────────
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;z-index:1;flex:1;display:flex;flex-direction:column;min-height:0;overflow-y:auto;padding:20px 16px';
+    body.appendChild(wrap);
 
-    function draw(ts){
-      raf=requestAnimationFrame(draw);
-      const dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;
-      const t=timeAcc*0.00018;
-      let idx=0;
-      for(let py=0;py<OH;py++){
-        const fy=py*0.0052+t*0.6;
-        for(let px=0;px<OW;px++){
-          const fx=px*0.0048+t*0.4;
-          const n=fbm(fx,fy),n2=fbm(fx+t*0.3,fy+0.7);
-          const v=(n*0.6+n2*0.4)*0.5+0.5;
-          const hv=fbm(fx*0.5+1.3,fy*0.5+t*0.2)*0.5+0.5;
-          let r,g,b;
-          if(hv<0.5){const tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
-          else{const tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
-          const a=Math.min(0.52,v*v*0.52);
-          buf32[idx++]=((a*255|0)<<24)|(b<<16)|(g<<8)|r;
-        }
+    let _type = 'sphere';
+    let _engine = null;
+    let _modelId = null;
+    let _webllmEngine = null;
+    let _loadingModel = false;
+
+    // ── Engine status ─────────────────────────────────────────────────────
+    const statusEl = document.createElement('div');
+    statusEl.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:8px 12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:10px;flex-shrink:0';
+    statusEl.innerHTML = '<div data-dot style="width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0"></div><span data-label style="font-size:10px;color:var(--text3);flex:1">Detecting…</span>';
+    wrap.appendChild(statusEl);
+    const dot   = statusEl.querySelector('[data-dot]');
+    const label = statusEl.querySelector('[data-label]');
+
+    detectEngine().then(({ engine, models }) => {
+      _engine  = engine;
+      _modelId = models[0]?.id || null;
+      const NAMES = { webllm:'WebLLM (local)', lemonade:'Lemonade (local)', ollama:'Ollama (local)', none:'No local engine' };
+      dot.style.background = engine === 'none' ? 'var(--text3)' : 'var(--green,#22d98a)';
+      label.textContent    = NAMES[engine] || engine;
+      if (engine !== 'none' && models.length > 1) {
+        const sel = document.createElement('select');
+        sel.style.cssText = 'background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:10px;padding:3px 6px;cursor:pointer;max-width:140px';
+        sel.innerHTML = models.map(m=>'<option value="'+m.id+'">'+m.label+'</option>').join('');
+        sel.addEventListener('change', ()=>{ _modelId = sel.value; });
+        statusEl.appendChild(sel);
       }
-      offCtx.putImageData(imgData,0,0);
-      ctx.clearRect(0,0,W,H);
-      ctx.drawImage(offscreen,0,0,W,H);
-    }
-
-    resize();
-    raf = requestAnimationFrame(draw);
-
-    // Cleanup when tab switches
-    const obs = new MutationObserver(() => {
-      if (!document.body.contains(cv)) { cancelAnimationFrame(raf); obs.disconnect(); }
     });
-    obs.observe(body, { childList: true });
 
-    // SOON label
-    const soon = document.createElement('div');
-    soon.style.cssText = 'position:relative;z-index:1;font-family:Syne,var(--font-d,sans-serif);font-size:clamp(48px,12vw,96px);font-weight:800;letter-spacing:.05em;background:linear-gradient(140deg,#f0a830 0%,#fff 45%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;user-select:none;pointer-events:none';
-    soon.textContent = 'SOON';
-    body.appendChild(soon);
+    // ── Type toggle ───────────────────────────────────────────────────────
+    const typeRow = document.createElement('div');
+    typeRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-shrink:0';
+    typeRow.innerHTML =
+      '<span style="font-size:10px;color:var(--text3);flex:1">Generate</span>' +
+      '<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden">' +
+        '<button data-ts style="background:rgba(240,168,48,.12);border:none;color:var(--gold,#f0a830);font-size:10px;padding:5px 12px;cursor:pointer">⬡ Sphere</button>' +
+        '<button data-tt style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Thème</button>' +
+      '</div>';
+    wrap.appendChild(typeRow);
+    const sBtnEl=typeRow.querySelector('[data-ts]'),tBtnEl=typeRow.querySelector('[data-tt]');
+    function setType(t){_type=t;if(t==='sphere'){sBtnEl.style.cssText='background:rgba(240,168,48,.12);border:none;color:var(--gold,#f0a830);font-size:10px;padding:5px 12px;cursor:pointer';tBtnEl.style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';}else{tBtnEl.style.cssText='background:rgba(34,211,238,.12);border:none;color:var(--cyan,#22d3ee);font-size:10px;padding:5px 12px;cursor:pointer';sBtnEl.style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';}}
+    sBtnEl.addEventListener('click',()=>setType('sphere'));
+    tBtnEl.addEventListener('click',()=>setType('theme'));
+
+    // ── Prompt ────────────────────────────────────────────────────────────
+    const promptEl = document.createElement('textarea');
+    promptEl.rows = 5;
+    promptEl.placeholder = 'Describe what to generate…';
+    promptEl.style.cssText = 'width:100%;box-sizing:border-box;resize:vertical;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:10px;color:var(--text,#f0f0f8);font-size:12px;font-family:inherit;line-height:1.5;padding:10px 12px;outline:none;margin-bottom:10px;flex-shrink:0';
+    wrap.appendChild(promptEl);
+
+    // ── Progress ──────────────────────────────────────────────────────────
+    const progEl = document.createElement('div');
+    progEl.style.cssText = 'font-size:10px;color:var(--text3);min-height:14px;text-align:center;margin-bottom:8px;flex-shrink:0';
+    wrap.appendChild(progEl);
+
+    // ── Action buttons ────────────────────────────────────────────────────
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;flex-shrink:0;flex-wrap:wrap';
+    btnRow.innerHTML =
+      // Try in browser (WebLLM)
+      '<button data-webllm style="flex:1;min-width:120px;padding:10px;background:linear-gradient(135deg,var(--gold,#f0a830),rgba(240,168,48,.75));color:#05030a;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer">⚡ Try in browser</button>' +
+      // Generate (local engine)
+      '<button data-gen style="flex:1;min-width:120px;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text2);border-radius:10px;font-size:12px;cursor:pointer">▶ Generate</button>';
+    wrap.appendChild(btnRow);
+
+    // Download README link
+    const readmeLink = document.createElement('a');
+    readmeLink.href = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/README.md';
+    readmeLink.target = '_blank';
+    readmeLink.rel = 'noopener';
+    readmeLink.style.cssText = 'display:block;text-align:center;font-size:10px;color:var(--text3);text-decoration:none;margin-bottom:14px;flex-shrink:0;opacity:.7';
+    readmeLink.textContent = '↓ Download README to prompt your own AI';
+    wrap.appendChild(readmeLink);
+
+    // ── Output ────────────────────────────────────────────────────────────
+    const outWrap = document.createElement('div');
+    outWrap.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:120px';
+    outWrap.innerHTML =
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-shrink:0">' +
+        '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;flex:1">Output</span>' +
+        '<button data-copy style="background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text3);font-size:9px;padding:3px 9px;cursor:pointer">⎘ Copy</button>' +
+      '</div>' +
+      '<textarea data-out style="flex:1;min-height:120px;font-family:monospace;font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text,#f0f0f8);padding:10px 12px;outline:none" placeholder="Generated code appears here…" spellcheck="false"></textarea>';
+    wrap.appendChild(outWrap);
+    const outEl  = outWrap.querySelector('[data-out]');
+    const copyBtn = outWrap.querySelector('[data-copy]');
+
+    // ── WebLLM button ─────────────────────────────────────────────────────
+    const webllmBtn = btnRow.querySelector('[data-webllm]');
+    webllmBtn.addEventListener('click', async () => {
+      const prompt = promptEl.value.trim();
+      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
+      if (_loadingModel) return;
+
+      // Load WebLLM lib if not present
+      if (!window.webllm) {
+        progEl.textContent = 'Loading WebLLM library…';
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'https://esm.run/@mlc-ai/web-llm';
+          s.type = 'module';
+          // esm.run module — use dynamic import instead
+          s.remove();
+          import('https://esm.run/@mlc-ai/web-llm').then(m => { window.webllm = m; res(); }).catch(rej);
+        }).catch(e => { progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ WebLLM load failed: ' + esc(e.message) + '</span>'; });
+        if (!window.webllm) return;
+      }
+
+      _loadingModel = true;
+      webllmBtn.disabled = true;
+      webllmBtn.textContent = '⏳ Loading model…';
+
+      try {
+        if (!_webllmEngine) {
+          const engine = await window.webllm.CreateMLCEngine(
+            'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+            {
+              initProgressCallback: (p) => {
+                progEl.textContent = p.text || ('Loading: ' + Math.round((p.progress||0)*100) + '%');
+              }
+            }
+          );
+          _webllmEngine = engine;
+        }
+
+        webllmBtn.textContent = '⏳ Generating…';
+        progEl.textContent = 'Generating…';
+        outEl.value = '';
+
+        const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
+        const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/,'');
+        const userPrompt = ['Generate a YourMine ' + _type + ' file.','Filename: '+slug+ext,'','Requirements:',prompt].join('\n');
+
+        const stream = await _webllmEngine.chat.completions.create({
+          messages: [{ role:'system', content: SYSTEM_SPHERE }, { role:'user', content: userPrompt }],
+          temperature: 0.3, max_tokens: 4096, stream: true,
+        });
+
+        let full = '', t0 = Date.now(), toks = 0;
+        for await (const chunk of stream) {
+          const d = chunk.choices?.[0]?.delta?.content || '';
+          if (d) { full += d; toks++; outEl.value = full; outEl.scrollTop = outEl.scrollHeight; }
+          if (toks % 20 === 0) progEl.textContent = ((Date.now()-t0)/1000).toFixed(1) + 's…';
+        }
+        const elapsed = ((Date.now()-t0)/1000).toFixed(1);
+        progEl.innerHTML = '<span style="color:var(--green,#22d98a)">✓ Done in ' + elapsed + 's</span>';
+        toast('Code generated!', 'success');
+      } catch(e) {
+        progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ ' + esc(e.message) + '</span>';
+        toast(e.message, 'error');
+      } finally {
+        _loadingModel = false;
+        webllmBtn.disabled = false;
+        webllmBtn.textContent = '⚡ Try in browser';
+      }
+    });
+
+    // ── Generate button (local engine) ────────────────────────────────────
+    const genBtn = btnRow.querySelector('[data-gen]');
+    genBtn.addEventListener('click', async () => {
+      const prompt = promptEl.value.trim();
+      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
+      if (!_engine || _engine === 'none') { toast('No local engine detected', 'warn'); return; }
+
+      const ext  = _type === 'sphere' ? '.sphere.js' : '.theme.html';
+      const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/,'');
+      const userPrompt = ['Generate a YourMine ' + _type + ' file.','Filename: '+slug+ext,'','Requirements:',prompt].join('\n');
+
+      genBtn.disabled = true; genBtn.style.opacity = '.5';
+      genBtn.textContent = '⏳ Generating…';
+      outEl.value = ''; progEl.textContent = 'Starting…';
+
+      let full='', toks=0, t0=Date.now();
+      try {
+        for await (const chunk of streamGenerate(SYSTEM_SPHERE, userPrompt, _engine, _modelId)) {
+          full += chunk; toks++;
+          outEl.value = full; outEl.scrollTop = outEl.scrollHeight;
+          if (toks%20===0) progEl.textContent = ((Date.now()-t0)/1000).toFixed(1) + 's…';
+        }
+        progEl.innerHTML = '<span style="color:var(--green,#22d98a)">✓ Done in ' + ((Date.now()-t0)/1000).toFixed(1) + 's</span>';
+        toast('Code generated!', 'success');
+      } catch(e) {
+        progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ ' + esc(e.message) + '</span>';
+        toast(e.message, 'error');
+      } finally {
+        genBtn.disabled=false; genBtn.style.opacity='1'; genBtn.textContent='▶ Generate';
+      }
+    });
+
+    // ── Copy ──────────────────────────────────────────────────────────────
+    copyBtn.addEventListener('click', () => {
+      const code = outEl.value || '';
+      if (!code) { toast('Nothing to copy', 'warn'); return; }
+      navigator.clipboard?.writeText(code).then(()=>toast('Copied!','success')).catch(()=>{
+        const ta=document.createElement('textarea');ta.value=code;ta.style.cssText='position:fixed;opacity:0';
+        document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+        toast('Copied!','success');
+      });
+    });
   }
 
     // ── INJECT AI TAB ─────────────────────────────────────────────────────────
