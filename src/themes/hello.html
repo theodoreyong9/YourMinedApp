@@ -1,4 +1,4 @@
-<!-- YourMine — Landing Theme (hello) -->
+<!-- YourMine — Landing Theme (hello) + Particle Network -->
 <script>
 window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine landing page theme"};
 </script>
@@ -22,10 +22,19 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 #desktop-slider .icon-wrap{display:none!important}
 .ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill{display:none!important}
 
+/* ── PARTICLE CANVAS ─────────────────────────────────── */
+#ym-particles{
+  position:fixed;inset:0;z-index:0;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity 1.2s ease;
+}
+#ym-particles.ready{opacity:1}
+
 #ym-landing{
   position:fixed;inset:0;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
-  background:var(--bg);z-index:10;
+  background:transparent;z-index:10;
 }
 #ym-landing::before{
   content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
@@ -35,7 +44,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     radial-gradient(ellipse 45% 45% at 50% 55%,rgba(167,139,250,.018),transparent 70%);
 }
 
-/* scroll reveal — staggered children */
+/* scroll reveal */
 .reveal>*{
   opacity:0;transform:translateY(26px);
   transition:opacity .55s cubic-bezier(.22,.61,.36,1),transform .55s cubic-bezier(.22,.61,.36,1);
@@ -47,7 +56,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .reveal>*:nth-child(5){transition-delay:.4s}
 .reveal.visible>*{opacity:1;transform:none;}
 
-/* stanza lines appear left→right one by one */
 .lp-stanza .lp-line{
   opacity:0;transform:translateX(-14px);
   transition:opacity .45s ease,transform .45s ease;
@@ -58,7 +66,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-stanza .lp-line:nth-child(4){transition-delay:.54s}
 .reveal.visible .lp-stanza .lp-line{opacity:1;transform:none;}
 
-/* grid items pop in */
 .lp-grid .lp-gitem{
   opacity:0;transform:translateY(16px) scale(.97);
   transition:opacity .4s ease,transform .4s ease;
@@ -69,7 +76,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-grid .lp-gitem:nth-child(4){transition-delay:.5s}
 .reveal.visible .lp-grid .lp-gitem{opacity:1;transform:none;}
 
-/* tags drift in */
 .lp-tags .lp-tag{
   opacity:0;transform:translateY(10px);
   transition:opacity .35s ease,transform .35s ease;
@@ -81,7 +87,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-tags .lp-tag:nth-child(5){transition-delay:.42s}
 .reveal.visible .lp-tags .lp-tag{opacity:1;transform:none;}
 
-/* card lines */
 .lp-card .lp-card-line{
   opacity:0;transform:translateY(12px);
   transition:opacity .4s ease,transform .4s ease;
@@ -91,7 +96,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-card .lp-card-line:nth-child(3){transition-delay:.34s}
 .reveal.visible .lp-card .lp-card-line{opacity:1;transform:none;}
 
-/* negations */
 .lp-negs .lp-neg{
   opacity:0;transform:translateX(-10px);
   transition:opacity .38s ease,transform .38s ease;
@@ -178,8 +182,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   color:var(--gold);letter-spacing:.24em;text-transform:uppercase;
   margin-bottom:18px;opacity:.65;
 }
-
-/* Large display heading */
 .lp-h{
   font-family:var(--font-d);
   font-size:clamp(26px,5vw,52px);
@@ -191,14 +193,10 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   background:linear-gradient(90deg,var(--gold),var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
-
-/* Body text */
 .lp-p{
   font-size:clamp(14px,1.9vw,16px);color:var(--text2);line-height:1.82;
 }
 .lp-p+.lp-p{margin-top:10px;}
-
-/* Tags */
 .lp-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;}
 .lp-tag{
   font-family:var(--font-b);font-size:13px;font-weight:500;
@@ -209,8 +207,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   transition:border-color .15s,color .15s;
 }
 .lp-tag:hover{border-color:rgba(255,255,255,.14);color:var(--text)}
-
-/* Quote */
 .lp-quote{
   font-family:var(--font-d);
   font-size:clamp(17px,3vw,26px);
@@ -218,13 +214,9 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   border-left:2px solid rgba(240,168,48,.38);
   padding-left:18px;margin-bottom:22px;
 }
-
-/* Stanza */
 .lp-stanza{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
 .lp-line{font-size:clamp(13px,1.8vw,15px);color:var(--text3);line-height:1.75;}
 .lp-line.hi{color:var(--text);font-weight:600;}
-
-/* 2×2 grid */
 .lp-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:20px 0;}
 .lp-gitem{
   padding:15px 17px;border-radius:11px;
@@ -237,21 +229,15 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-gitem:nth-child(2){border-left-color:rgba(240,168,48,.25);}
 .lp-gitem:nth-child(3){border-left-color:rgba(167,139,250,.25);}
 .lp-gitem:nth-child(4){border-left-color:rgba(34,211,238,.18);}
-
-/* Instantly */
 .lp-instant{
   font-family:var(--font-d);
   font-size:clamp(18px,3.5vw,32px);
   font-weight:800;letter-spacing:.01em;
   color:var(--cyan);margin:20px 0;
 }
-
-/* Negations */
 .lp-negs{display:flex;flex-direction:column;gap:7px;margin:16px 0;}
 .lp-neg{font-size:clamp(13px,1.7vw,15px);color:var(--text3);}
 .lp-neg::before{content:'— ';color:rgba(255,69,96,.35);}
-
-/* Card */
 .lp-card{
   background:rgba(255,255,255,.022);
   border:1px solid rgba(255,255,255,.068);
@@ -264,16 +250,12 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   background:linear-gradient(90deg,var(--gold),var(--cyan));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
-
-/* Welcome */
 .lp-welcome{
   font-family:var(--font-d);
   font-size:clamp(24px,4.5vw,44px);
   font-weight:800;letter-spacing:-.01em;
   color:var(--text);margin-bottom:28px;
 }
-
-/* ── FOOTER ──────────────────────────────────────────── */
 .lp-footer{
   text-align:center;
   padding:72px 28px calc(72px + env(safe-area-inset-bottom,0px));
@@ -288,11 +270,30 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 }
 .lp-footer-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
 .lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.3);letter-spacing:.15em;}
+
+/* ── PROMPT PULSE — hero hint ──────────────────────────── */
+.lp-prompt-hint{
+  margin-top:28px;
+  font-family:var(--font-m);font-size:11px;
+  color:var(--text3);letter-spacing:.06em;
+  opacity:0;animation:fadeUp .5s .55s ease forwards;
+  display:flex;align-items:center;gap:8px;
+}
+.lp-prompt-hint::before{
+  content:'';display:block;width:28px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(240,168,48,.4));
+}
+.lp-prompt-hint::after{
+  content:'';display:block;width:28px;height:1px;
+  background:linear-gradient(90deg,rgba(34,211,238,.4),transparent);
+}
 </style>
+
+<!-- Particle canvas sits behind everything -->
+<canvas id="ym-particles"></canvas>
 
 <div id="ym-landing">
 
-  <!-- Hero -->
   <div class="lp lp-hero">
     <div class="lp-badge"><span class="lp-badge-dot"></span>&gt; One prompt. One web.</div>
     <div class="lp-logo">YOURMINE</div>
@@ -300,13 +301,13 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
       <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
       <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">prompt</a>
     </div>
+    <div class="lp-prompt-hint">connect from anywhere</div>
   </div>
 
   <div class="lp lp-body">
 
     <div class="lp-vline"></div>
 
-    <!-- Playground -->
     <div class="reveal">
       <div class="lp-label">The open web playground</div>
       <div class="lp-h">Build weird things.<br>Shape the web.</div>
@@ -320,7 +321,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- Shared context -->
     <div class="reveal">
       <div class="lp-quote">Give a prompt anywhere —<br>even from your phone.</div>
       <div class="lp-stanza">
@@ -333,7 +333,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- One action -->
     <div class="reveal">
       <div class="lp-h">One action is enough.</div>
       <p class="lp-p">A single prompt — or a single line — can connect your code to a living layer of:</p>
@@ -353,7 +352,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- Core principle -->
     <div class="reveal">
       <div class="lp-label">Core principle</div>
       <div class="lp-card">
@@ -368,7 +366,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- No limits -->
     <div class="reveal">
       <div class="lp-negs">
         <div class="lp-neg">No central authority.</div>
@@ -379,7 +376,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
     <div class="lp-sep"></div>
 
-    <!-- Welcome CTA -->
     <div class="reveal" style="text-align:center">
       <div class="lp-welcome">Welcome to YourMine.</div>
       <div class="lp-ctas" style="justify-content:center">
@@ -390,7 +386,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
   </div>
 
-  <!-- Footer -->
   <div class="lp lp-footer">
     <div class="lp-footer-logo">YOURMINE</div>
     <div class="lp-footer-sub">Code. Remix. Connect. Repeat.</div>
@@ -444,6 +439,257 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 <button id="pwa-install-btn" style="display:none"></button>
 
 <script>
+/* ═══════════════════════════════════════════════════════════
+   PARTICLE NETWORK — living web of interconnection
+   Concept: nodes = endpoints, edges = live connections.
+   A "prompt pulse" ripples outward from a random node,
+   re-wiring the network as it travels.
+   ═══════════════════════════════════════════════════════════ */
+(function(){
+  var canvas = document.getElementById('ym-particles');
+  var ctx = canvas.getContext('2d');
+
+  /* ── palette (matches CSS vars) ── */
+  var C_GOLD   = {r:240,g:168,b:48};
+  var C_CYAN   = {r:34, g:211,b:238};
+  var C_PURPLE = {r:167,g:139,b:250};
+  var PALETTE  = [C_GOLD, C_CYAN, C_PURPLE];
+
+  /* ── config ── */
+  var NODE_COUNT    = 90;
+  var EDGE_DIST     = 160;   /* px — connection threshold */
+  var SPEED_BASE    = 0.18;
+  var PULSE_SPEED   = 2.8;   /* px/frame along edge */
+  var PULSE_INTERVAL= 2200;  /* ms between new pulses */
+  var FADE_MARGIN   = 80;    /* px — nodes fade near edges */
+
+  var W, H;
+  var nodes = [];
+  var pulses = [];   /* active edge-pulses */
+  var lastPulseTime = 0;
+  var raf;
+
+  /* ── resize ── */
+  function resize(){
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  /* ── node factory ── */
+  function makeNode(i){
+    var c = PALETTE[i % PALETTE.length];
+    return {
+      x:  Math.random() * W,
+      y:  Math.random() * H,
+      vx: (Math.random() - 0.5) * SPEED_BASE * 2,
+      vy: (Math.random() - 0.5) * SPEED_BASE * 2,
+      r:  Math.random() * 1.4 + 0.8,
+      cr: c.r, cg: c.g, cb: c.b,
+      phase: Math.random() * Math.PI * 2,
+      /* "active" glow when a pulse visits */
+      glow: 0
+    };
+  }
+
+  function init(){
+    nodes = [];
+    for(var i = 0; i < NODE_COUNT; i++) nodes.push(makeNode(i));
+  }
+
+  /* ── edge alpha (distance-based) ── */
+  function edgeAlpha(d){ return Math.max(0, 1 - d / EDGE_DIST); }
+
+  /* ── border fade for nodes ── */
+  function nodeFade(n){
+    var fx = Math.min(n.x, W - n.x) / FADE_MARGIN;
+    var fy = Math.min(n.y, H - n.y) / FADE_MARGIN;
+    return Math.min(1, Math.min(fx, fy));
+  }
+
+  /* ── spawn a pulse from a random node ── */
+  function spawnPulse(){
+    /* pick a random node as source */
+    var si = Math.floor(Math.random() * NODE_COUNT);
+    var sn = nodes[si];
+    /* find its nearest neighbour */
+    var bestDist = Infinity, bestIdx = -1;
+    for(var j = 0; j < NODE_COUNT; j++){
+      if(j === si) continue;
+      var dx = nodes[j].x - sn.x;
+      var dy = nodes[j].y - sn.y;
+      var d  = Math.sqrt(dx*dx + dy*dy);
+      if(d < EDGE_DIST && d < bestDist){ bestDist = d; bestIdx = j; }
+    }
+    if(bestIdx < 0) return;
+    var c = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+    pulses.push({
+      si: si, ti: bestIdx,
+      t:  0,           /* 0→1 progress */
+      cr: c.r, cg: c.g, cb: c.b
+    });
+  }
+
+  /* ── main draw loop ── */
+  function draw(ts){
+    raf = requestAnimationFrame(draw);
+
+    ctx.clearRect(0, 0, W, H);
+
+    /* ── update nodes ── */
+    for(var i = 0; i < NODE_COUNT; i++){
+      var n = nodes[i];
+      n.x += n.vx;
+      n.y += n.vy;
+      /* soft bounce */
+      if(n.x < 0){ n.x = 0; n.vx = Math.abs(n.vx); }
+      if(n.x > W){ n.x = W; n.vx = -Math.abs(n.vx); }
+      if(n.y < 0){ n.y = 0; n.vy = Math.abs(n.vy); }
+      if(n.y > H){ n.y = H; n.vy = -Math.abs(n.vy); }
+      /* decay glow */
+      if(n.glow > 0) n.glow = Math.max(0, n.glow - 0.018);
+    }
+
+    /* ── draw edges ── */
+    for(var a = 0; a < NODE_COUNT; a++){
+      var na = nodes[a];
+      var fa = nodeFade(na);
+      if(fa <= 0) continue;
+      for(var b = a + 1; b < NODE_COUNT; b++){
+        var nb = nodes[b];
+        var fb = nodeFade(nb);
+        if(fb <= 0) continue;
+        var dx = nb.x - na.x;
+        var dy = nb.y - na.y;
+        var d  = Math.sqrt(dx*dx + dy*dy);
+        if(d >= EDGE_DIST) continue;
+        var ea = edgeAlpha(d) * Math.min(fa, fb) * 0.32;
+        /* blend edge colour between the two node colours */
+        var er = (na.cr + nb.cr) >> 1;
+        var eg = (na.cg + nb.cg) >> 1;
+        var eb = (na.cb + nb.cb) >> 1;
+        ctx.beginPath();
+        ctx.moveTo(na.x, na.y);
+        ctx.lineTo(nb.x, nb.y);
+        ctx.strokeStyle = 'rgba('+er+','+eg+','+eb+','+ea.toFixed(3)+')';
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+
+    /* ── spawn new pulses ── */
+    if(ts - lastPulseTime > PULSE_INTERVAL){
+      spawnPulse();
+      /* occasionally fire 2 at once for a burst feel */
+      if(Math.random() < 0.3) spawnPulse();
+      lastPulseTime = ts;
+    }
+
+    /* ── update & draw pulses ── */
+    var alive = [];
+    for(var p = 0; p < pulses.length; p++){
+      var pl = pulses[p];
+      var sn = nodes[pl.si];
+      var tn = nodes[pl.ti];
+      var dx = tn.x - sn.x;
+      var dy = tn.y - sn.y;
+      var len = Math.sqrt(dx*dx + dy*dy);
+      if(len < 1){ continue; } /* skip degenerate */
+      pl.t += PULSE_SPEED / len;
+      if(pl.t >= 1){
+        /* arrived — light up target */
+        tn.glow = 1.0;
+        /* chain: fire another pulse from target */
+        var bestDist2 = Infinity, bestIdx2 = -1;
+        for(var j2 = 0; j2 < NODE_COUNT; j2++){
+          if(j2 === pl.ti || j2 === pl.si) continue;
+          var dx2 = nodes[j2].x - tn.x;
+          var dy2 = nodes[j2].y - tn.y;
+          var d2  = Math.sqrt(dx2*dx2 + dy2*dy2);
+          if(d2 < EDGE_DIST && d2 < bestDist2){ bestDist2 = d2; bestIdx2 = j2; }
+        }
+        if(bestIdx2 >= 0){
+          alive.push({ si: pl.ti, ti: bestIdx2, t: 0, cr: pl.cr, cg: pl.cg, cb: pl.cb });
+        }
+        continue;
+      }
+      alive.push(pl);
+
+      /* draw pulse dot */
+      var px = sn.x + dx * pl.t;
+      var py = sn.y + dy * pl.t;
+      var pr = 2.5;
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba('+pl.cr+','+pl.cg+','+pl.cb+',0.9)';
+      ctx.fill();
+      /* halo */
+      var grad = ctx.createRadialGradient(px,py,0,px,py,pr*4);
+      grad.addColorStop(0,'rgba('+pl.cr+','+pl.cg+','+pl.cb+',0.25)');
+      grad.addColorStop(1,'rgba('+pl.cr+','+pl.cg+','+pl.cb+',0)');
+      ctx.beginPath();
+      ctx.arc(px, py, pr*4, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+    pulses = alive;
+
+    /* ── draw nodes ── */
+    for(var i = 0; i < NODE_COUNT; i++){
+      var n = nodes[i];
+      var fa = nodeFade(n);
+      if(fa <= 0) continue;
+      /* pulse breathing */
+      var breathe = 1 + 0.25 * Math.sin(ts * 0.001 + n.phase);
+      var nr = n.r * breathe;
+      var baseAlpha = (0.45 + n.glow * 0.55) * fa;
+
+      /* glow ring when node is hot */
+      if(n.glow > 0.05){
+        var glowR = nr * (3 + n.glow * 5);
+        var ggrad = ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,glowR);
+        ggrad.addColorStop(0,'rgba('+n.cr+','+n.cg+','+n.cb+','+(n.glow*0.35).toFixed(3)+')');
+        ggrad.addColorStop(1,'rgba('+n.cr+','+n.cg+','+n.cb+',0)');
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2);
+        ctx.fillStyle = ggrad;
+        ctx.fill();
+      }
+
+      /* core dot */
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, nr, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba('+n.cr+','+n.cg+','+n.cb+','+baseAlpha.toFixed(3)+')';
+      ctx.fill();
+    }
+  }
+
+  /* ── boot ── */
+  resize();
+  init();
+  canvas.classList.add('ready');
+  raf = requestAnimationFrame(draw);
+
+  /* seed a few pulses immediately */
+  for(var s = 0; s < 4; s++) spawnPulse();
+
+  window.addEventListener('resize', function(){
+    resize();
+    /* reposition nodes proportionally */
+    for(var i = 0; i < nodes.length; i++){
+      nodes[i].x = Math.random() * W;
+      nodes[i].y = Math.random() * H;
+    }
+  }, {passive:true});
+
+  /* pause when tab hidden */
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden){ cancelAnimationFrame(raf); }
+    else { lastPulseTime = 0; raf = requestAnimationFrame(draw); }
+  });
+})();
+</script>
+
+<script>
 (function(){
   var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
   var DEF_THEME=GH_RAW+'themes/default.html';
@@ -461,7 +707,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   var s2=document.getElementById('lp-start-btn-2');
   if(s2)s2.addEventListener('click',goDefault);
 
-  // Scroll reveal
   var io=new IntersectionObserver(function(entries){
     entries.forEach(function(e){
       if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}
