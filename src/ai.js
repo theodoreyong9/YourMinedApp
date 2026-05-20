@@ -159,13 +159,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '<textarea id="ai-prompt" class="ym-input" rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical" placeholder="Describe what to generate…"></textarea>';
     body.appendChild(promptWrap);
 
-    // ── Category ──────────────────────────────────────────────────────────
-    const optsWrap = document.createElement('div');
-    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    optsWrap.innerHTML =
-      '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
-      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">';
-    body.appendChild(optsWrap);
+
 
     // ── Generate button ───────────────────────────────────────────────────
     const genWrap = document.createElement('div');
@@ -181,7 +175,6 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     outWrap.innerHTML =
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-shrink:0">' +
         '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Output</div>' +
-        '<span id="ai-chars" style="font-size:9px;color:var(--text3)">0 chars</span>' +
         '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
       '</div>' +
       '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:14px" placeholder="Generated code appears here…" spellcheck="false"></textarea>';
@@ -206,10 +199,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     // ── Generate ─────────────────────────────────────────────────────────
     body.querySelector('#ai-generate').addEventListener('click', async () => {
       const prompt  = (body.querySelector('#ai-prompt')?.value || '').trim();
-      const cat     = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
       const outEl   = body.querySelector('#ai-output');
       const progEl  = body.querySelector('#ai-progress');
-      const charsEl = body.querySelector('#ai-chars');
       const genBtn  = body.querySelector('#ai-generate');
 
       if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
@@ -221,7 +212,6 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const userPrompt = [
         'Generate a YourMine ' + _type + ' file.',
         'Filename: ' + filename,
-        'Category: ' + cat,
         '',
         'Requirements:',
         prompt,
@@ -243,14 +233,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           tokenCount++;
           outEl.value = fullCode;
           outEl.scrollTop = outEl.scrollHeight;
-          charsEl.textContent = fullCode.length + ' chars';
           if (tokenCount % 20 === 0) {
             const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-            progEl.textContent = fullCode.length + ' chars · ' + elapsed + 's';
+            progEl.textContent = elapsed + 's…';
           }
         }
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's — ' + fullCode.length + ' chars</span>';
+        progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's</span>';
         toast('Code generated!', 'success');
       } catch (e) {
         progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + '</span>';
