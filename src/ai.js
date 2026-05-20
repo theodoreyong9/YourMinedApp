@@ -57,10 +57,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
   // ── ENGINES ──────────────────────────────────────────────────────────────────
-  // Priority: 1. WebLLM (local WebGPU)  2. Lemonade (local daemon)  3. Anthropic (proxy)
+  // All local, all free, no API key.
+  // Priority: 1. WebLLM  2. Lemonade (localhost:13305)  3. Ollama (localhost:11434)
 
   const LEMONADE_BASE = 'http://localhost:13305/v1';
   const LEMONADE_KEY  = 'lemonade';
+  const OLLAMA_BASE   = 'http://localhost:11434';
 
   async function detectEngine() {
     // 1. WebLLM
@@ -84,8 +86,20 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       }
     } catch { /* offline */ }
 
-    // 3. Anthropic (proxy — works when app is served via claude.ai or compatible host)
-    return { engine: 'anthropic', models: [{ id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' }] };
+    // 3. Ollama
+    try {
+      const r = await fetch(OLLAMA_BASE + '/api/tags', {
+        signal: AbortSignal.timeout(1500),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const models = (data.models || []).map(m => ({ id: m.name, label: m.name }));
+        if (models.length)
+          return { engine: 'ollama', models };
+      }
+    } catch { /* offline */ }
+
+    return { engine: 'none', models: [{ id: 'none', label: 'No engine found' }] };
   }
 
   async function* streamGenerate(systemPrompt, userPrompt, engine, modelId) {
@@ -118,32 +132,41 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       return;
     }
 
-    // 3. Anthropic — non-streaming (SSE blocked by CORS on some hosts)
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: modelId || 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'Anthropic error ' + resp.status);
+    // 3. Ollama
+    if (engine === 'ollama') {
+      const resp = await fetch(OLLAMA_BASE + '/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+          stream: true,
+        }),
+      });
+      if (!resp.ok) throw new Error('Ollama HTTP ' + resp.status);
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const ev = JSON.parse(line);
+            const d = ev.message?.content || '';
+            if (d) yield d;
+            if (ev.done) return;
+          } catch { /* skip */ }
+        }
+      }
+      return;
     }
-    const data = await resp.json();
-    const text = (data.content || []).map(b => b.text || '').join('');
-    const CHUNK = 60;
-    for (let i = 0; i < text.length; i += CHUNK) {
-      yield text.slice(i, i + CHUNK);
-      await new Promise(r => setTimeout(r, 6));
-    }
+
+    throw new Error('No local AI engine found. Install Lemonade or Ollama to use this feature.');
   }
 
   async function* _readSSE(resp) {
@@ -198,8 +221,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     detectEngine().then(({ engine, models }) => {
       _engine  = engine;
       _modelId = models[0]?.id || 'qwen';
-      const NAMES = { webllm: 'WebLLM (local)', lemonade: 'Lemonade (local)', pollinations: 'Pollinations (cloud)' };
-      dot.style.background   = engine === 'pollinations' ? 'var(--gold)' : 'var(--green)';
+      const NAMES = { webllm: 'WebLLM (local)', lemonade: 'Lemonade (local)', ollama: 'Ollama (local)', none: 'No engine — install Lemonade or Ollama' };
+      dot.style.background   = engine === 'none' ? 'var(--red,#ff4560)' : engine === 'webllm' || engine === 'lemonade' || engine === 'ollama' ? 'var(--green)' : 'var(--gold)';
       label.textContent      = NAMES[engine] || engine;
       selEl.innerHTML        = models.map(m => '<option value="'+m.id+'">'+m.label+'</option>').join('');
       selEl.value            = _modelId;
