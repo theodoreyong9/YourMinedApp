@@ -57,25 +57,17 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
   // ── ENGINES ──────────────────────────────────────────────────────────────────
-  // 1. WebLLM  — local WebGPU (auto)
-  // 2. Lemonade — local daemon localhost:13305 (auto-detect + model list)
-  // 3. Pollinations — cloud, free, no key, no CORS (fallback)
+  // Priority: 1. WebLLM (local WebGPU)  2. Lemonade (local daemon)  3. Anthropic (proxy)
 
   const LEMONADE_BASE = 'http://localhost:13305/v1';
   const LEMONADE_KEY  = 'lemonade';
 
-  const POLLINATIONS_MODELS = [
-    { id: 'deepseek-r1', label: 'DeepSeek R1' },
-    { id: 'qwen',        label: 'Qwen 2.5'    },
-    { id: 'mistral',     label: 'Mistral'      },
-    { id: 'llama',       label: 'Llama 3'      },
-  ];
-
-  // Returns { engine: 'webllm'|'lemonade'|'pollinations', models: [{id,label}] }
   async function detectEngine() {
+    // 1. WebLLM
     if (window.__webllm && typeof window.__webllm.chat?.completions?.create === 'function')
       return { engine: 'webllm', models: [{ id: 'webllm', label: 'WebLLM (local)' }] };
 
+    // 2. Lemonade
     try {
       const r = await fetch(LEMONADE_BASE + '/models', {
         headers: { Authorization: 'Bearer ' + LEMONADE_KEY },
@@ -92,7 +84,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       }
     } catch { /* offline */ }
 
-    return { engine: 'pollinations', models: POLLINATIONS_MODELS };
+    // 3. Anthropic (proxy — works when app is served via claude.ai or compatible host)
+    return { engine: 'anthropic', models: [{ id: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' }] };
   }
 
   async function* streamGenerate(systemPrompt, userPrompt, engine, modelId) {
@@ -109,7 +102,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       return;
     }
 
-    // 2. Lemonade (OpenAI-compatible)
+    // 2. Lemonade (OpenAI-compatible SSE)
     if (engine === 'lemonade') {
       const resp = await fetch(LEMONADE_BASE + '/chat/completions', {
         method: 'POST',
@@ -125,21 +118,32 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       return;
     }
 
-    // 3. Pollinations
-    const resp = await fetch('https://text.pollinations.ai/openai', {
+    // 3. Anthropic — non-streaming (SSE blocked by CORS on some hosts)
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
       body: JSON.stringify({
-        model: modelId || 'qwen',
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-        stream: true, seed: 42, private: true,
+        model: modelId || 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
       }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'Pollinations error ' + resp.status);
+      throw new Error(err.error?.message || 'Anthropic error ' + resp.status);
     }
-    yield* _readSSE(resp);
+    const data = await resp.json();
+    const text = (data.content || []).map(b => b.text || '').join('');
+    const CHUNK = 60;
+    for (let i = 0; i < text.length; i += CHUNK) {
+      yield text.slice(i, i + CHUNK);
+      await new Promise(r => setTimeout(r, 6));
+    }
   }
 
   async function* _readSSE(resp) {
@@ -164,7 +168,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     }
   }
 
-  // ── RENDER AI TAB CONTENT ─────────────────────────────────────────────────
+    // ── RENDER AI TAB CONTENT ─────────────────────────────────────────────────
   function renderAIContent(body) {
     body.innerHTML = '';
     body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:0';
