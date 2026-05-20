@@ -56,62 +56,93 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
-  // ── ENGINES (no API key, no CORS) ───────────────────────────────────────────
-  // Pollinations.ai — free, no key, browser-safe
-  // Models available: openai, mistral, llama, qwen, deepseek-r1, etc.
-  const ENGINES = [
-    { id: 'deepseek-r1',  label: 'DeepSeek R1',   provider: 'pollinations' },
-    { id: 'qwen',         label: 'Qwen 2.5',       provider: 'pollinations' },
-    { id: 'mistral',      label: 'Mistral',         provider: 'pollinations' },
-    { id: 'llama',        label: 'Llama 3',         provider: 'pollinations' },
-    { id: 'openai',       label: 'OpenAI (proxy)',  provider: 'pollinations' },
+  // ── ENGINES ──────────────────────────────────────────────────────────────────
+  // 1. WebLLM  — local WebGPU (auto)
+  // 2. Lemonade — local daemon localhost:13305 (auto-detect + model list)
+  // 3. Pollinations — cloud, free, no key, no CORS (fallback)
+
+  const LEMONADE_BASE = 'http://localhost:13305/v1';
+  const LEMONADE_KEY  = 'lemonade';
+
+  const POLLINATIONS_MODELS = [
+    { id: 'deepseek-r1', label: 'DeepSeek R1' },
+    { id: 'qwen',        label: 'Qwen 2.5'    },
+    { id: 'mistral',     label: 'Mistral'      },
+    { id: 'llama',       label: 'Llama 3'      },
   ];
 
-  async function* streamGenerate(systemPrompt, userPrompt, modelId) {
-    // 1. WebLLM local (WebGPU) — if available
-    const llm = window.__webllm;
-    if (llm && typeof llm.chat?.completions?.create === 'function') {
-      try {
-        const stream = await llm.chat.completions.create({
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user',   content: userPrompt },
-          ],
-          temperature: 0.3,
-          max_tokens: 4096,
-          stream: true,
-        });
-        for await (const chunk of stream) {
-          const delta = chunk.choices?.[0]?.delta?.content || '';
-          if (delta) yield delta;
-        }
-        return;
-      } catch (e) {
-        console.warn('[AI] WebLLM failed:', e.message);
+  // Returns { engine: 'webllm'|'lemonade'|'pollinations', models: [{id,label}] }
+  async function detectEngine() {
+    if (window.__webllm && typeof window.__webllm.chat?.completions?.create === 'function')
+      return { engine: 'webllm', models: [{ id: 'webllm', label: 'WebLLM (local)' }] };
+
+    try {
+      const r = await fetch(LEMONADE_BASE + '/models', {
+        headers: { Authorization: 'Bearer ' + LEMONADE_KEY },
+        signal: AbortSignal.timeout(1500),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        const SKIP = new Set(['image','tts','transcription','embeddings','reranking']);
+        const models = (data.data || [])
+          .filter(m => m.downloaded && !(m.labels||[]).some(l => SKIP.has(l)))
+          .map(m => ({ id: m.id, label: m.id + (m.size ? ' · ' + m.size + 'GB' : '') }));
+        if (models.length)
+          return { engine: 'lemonade', models };
       }
+    } catch { /* offline */ }
+
+    return { engine: 'pollinations', models: POLLINATIONS_MODELS };
+  }
+
+  async function* streamGenerate(systemPrompt, userPrompt, engine, modelId) {
+    // 1. WebLLM
+    if (engine === 'webllm') {
+      const stream = await window.__webllm.chat.completions.create({
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+        temperature: 0.3, max_tokens: 4096, stream: true,
+      });
+      for await (const chunk of stream) {
+        const d = chunk.choices?.[0]?.delta?.content || '';
+        if (d) yield d;
+      }
+      return;
     }
 
-    // 2. Pollinations.ai — no key, no CORS
-    const model = modelId || 'qwen';
+    // 2. Lemonade (OpenAI-compatible)
+    if (engine === 'lemonade') {
+      const resp = await fetch(LEMONADE_BASE + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + LEMONADE_KEY },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+          temperature: 0.3, max_tokens: 4096, stream: true,
+        }),
+      });
+      if (!resp.ok) throw new Error('Lemonade HTTP ' + resp.status);
+      yield* _readSSE(resp);
+      return;
+    }
+
+    // 3. Pollinations
     const resp = await fetch('https://text.pollinations.ai/openai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user',   content: userPrompt },
-        ],
-        stream: true,
-        seed: 42,
-        private: true,
+        model: modelId || 'qwen',
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+        stream: true, seed: 42, private: true,
       }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       throw new Error(err.error?.message || 'Pollinations error ' + resp.status);
     }
+    yield* _readSSE(resp);
+  }
 
+  async function* _readSSE(resp) {
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
@@ -126,40 +157,49 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         const raw = line.slice(6).trim();
         if (raw === '[DONE]') return;
         try {
-          const delta = JSON.parse(raw).choices?.[0]?.delta?.content || '';
-          if (delta) yield delta;
-        } catch { /* skip malformed */ }
+          const d = JSON.parse(raw).choices?.[0]?.delta?.content || '';
+          if (d) yield d;
+        } catch { /* skip */ }
       }
     }
   }
 
-  // ── RENDER AI TAB CONTENT  ─────────────────────────────────────────────────
+  // ── RENDER AI TAB CONTENT ─────────────────────────────────────────────────
   function renderAIContent(body) {
     body.innerHTML = '';
     body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:0';
 
     let _type = 'sphere';
+    let _engine = 'pollinations';
+    let _modelId = 'qwen';
 
-    // ── Engine indicator ──────────────────────────────────────────────────
-    const engBadge = document.createElement('div');
-    engBadge.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:6px';
-    const hasWebLLM = !!(window.__webllm && typeof window.__webllm.chat?.completions?.create === 'function');
-    engBadge.innerHTML =
-      '<div style="width:6px;height:6px;border-radius:50%;background:' + (hasWebLLM ? 'var(--green)' : 'var(--gold)') + ';flex-shrink:0"></div>' +
-      '<span style="font-size:9px;color:var(--text3)">' +
-        (hasWebLLM ? 'WebLLM local (WebGPU)' : 'Claude API') +
-      '</span>';
-    body.appendChild(engBadge);
+    // Helper: find element within body (avoids global ID conflicts)
+    const $ = id => body.querySelector('#' + id);
 
-    // ── Model selector ────────────────────────────────────────────────────
-    const modelRow = document.createElement('div');
-    modelRow.style.cssText = 'padding:6px 14px 8px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px';
-    modelRow.innerHTML =
-      '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;flex-shrink:0">Model</span>' +
-      '<select id="ai-model" style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:11px;padding:5px 8px;cursor:pointer;font-family:var(--font-b)">' +
-        ENGINES.map(e => '<option value="'+e.id+'">'+e.label+'</option>').join('') +
-      '</select>';
-    body.appendChild(modelRow);
+    // ── Engine + model row ────────────────────────────────────────────────
+    const engRow = document.createElement('div');
+    engRow.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px';
+    engRow.innerHTML =
+      '<div data-dot style="width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s"></div>' +
+      '<span data-label style="font-size:9px;color:var(--text3);flex:1">Detecting…</span>' +
+      '<select data-model style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:11px;padding:4px 8px;cursor:pointer;max-width:160px"><option value="qwen">Detecting…</option></select>';
+    body.appendChild(engRow);
+
+    const dot    = engRow.querySelector('[data-dot]');
+    const label  = engRow.querySelector('[data-label]');
+    const selEl  = engRow.querySelector('[data-model]');
+
+    selEl.addEventListener('change', () => { _modelId = selEl.value; });
+
+    detectEngine().then(({ engine, models }) => {
+      _engine  = engine;
+      _modelId = models[0]?.id || 'qwen';
+      const NAMES = { webllm: 'WebLLM (local)', lemonade: 'Lemonade (local)', pollinations: 'Pollinations (cloud)' };
+      dot.style.background   = engine === 'pollinations' ? 'var(--gold)' : 'var(--green)';
+      label.textContent      = NAMES[engine] || engine;
+      selEl.innerHTML        = models.map(m => '<option value="'+m.id+'">'+m.label+'</option>').join('');
+      selEl.value            = _modelId;
+    });
 
     // ── Type toggle ───────────────────────────────────────────────────────
     const typeRow = document.createElement('div');
@@ -167,28 +207,47 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     typeRow.innerHTML =
       '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Generate</div>' +
       '<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden">' +
-        '<button id="ai-type-sphere" style="background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer">⬡ Sphere</button>' +
-        '<button id="ai-type-theme"  style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Thème</button>' +
+        '<button data-ts style="background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer">⬡ Sphere</button>' +
+        '<button data-tt style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Thème</button>' +
       '</div>';
     body.appendChild(typeRow);
+
+    const sBtnEl = typeRow.querySelector('[data-ts]');
+    const tBtnEl = typeRow.querySelector('[data-tt]');
+
+    function setType(t) {
+      _type = t;
+      if (t === 'sphere') {
+        sBtnEl.style.cssText = 'background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer';
+        tBtnEl.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
+      } else {
+        tBtnEl.style.cssText = 'background:rgba(8,224,248,.12);border:none;color:var(--cyan);font-size:10px;padding:5px 12px;cursor:pointer';
+        sBtnEl.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
+      }
+    }
+    sBtnEl.addEventListener('click', () => setType('sphere'));
+    tBtnEl.addEventListener('click', () => setType('theme'));
 
     // ── Prompt ────────────────────────────────────────────────────────────
     const promptWrap = document.createElement('div');
     promptWrap.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
     promptWrap.innerHTML =
       '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Prompt</div>' +
-      '<textarea id="ai-prompt" class="ym-input" rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical" placeholder="Describe what to generate…"></textarea>';
+      '<textarea data-prompt rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text,#e4e6f4);padding:10px 12px;outline:none" placeholder="Describe what to generate…"></textarea>';
     body.appendChild(promptWrap);
 
-
+    const promptEl = promptWrap.querySelector('[data-prompt]');
 
     // ── Generate button ───────────────────────────────────────────────────
     const genWrap = document.createElement('div');
     genWrap.style.cssText = 'padding:10px 14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)';
     genWrap.innerHTML =
-      '<button id="ai-generate" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">✦ Generate</button>' +
-      '<div id="ai-progress" style="font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;text-align:center"></div>';
+      '<button data-gen style="width:100%;font-size:13px;padding:12px;background:linear-gradient(135deg,var(--gold,#f0a830),rgba(240,168,48,.75));color:#05030a;border:none;border-radius:10px;font-weight:700;cursor:pointer;transition:opacity .2s">✦ Generate</button>' +
+      '<div data-prog style="font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;text-align:center"></div>';
     body.appendChild(genWrap);
+
+    const genBtn = genWrap.querySelector('[data-gen]');
+    const progEl = genWrap.querySelector('[data-prog]');
 
     // ── Output ────────────────────────────────────────────────────────────
     const outWrap = document.createElement('div');
@@ -196,38 +255,21 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     outWrap.innerHTML =
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-shrink:0">' +
         '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Output</div>' +
-        '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
+        '<button data-copy style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(240,240,248,.52);font-size:9px;padding:3px 9px;cursor:pointer">⎘ Copy</button>' +
       '</div>' +
-      '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:14px" placeholder="Generated code appears here…" spellcheck="false"></textarea>';
+      '<textarea data-out style="flex:1;min-height:180px;font-family:monospace;font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--text,#e4e6f4);padding:10px 12px;outline:none" placeholder="Generated code appears here…" spellcheck="false"></textarea>';
     body.appendChild(outWrap);
 
-    // ── Type toggle wiring ────────────────────────────────────────────────
-    function setType(t) {
-      _type = t;
-      const sBtn  = typeRow.querySelector('#ai-type-sphere');
-      const thBtn = typeRow.querySelector('#ai-type-theme');
-      if (t === 'sphere') {
-        sBtn.style.cssText  = 'background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer';
-        thBtn.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
-      } else {
-        thBtn.style.cssText = 'background:rgba(8,224,248,.12);border:none;color:var(--cyan);font-size:10px;padding:5px 12px;cursor:pointer';
-        sBtn.style.cssText  = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
-      }
-    }
-    typeRow.querySelector('#ai-type-sphere').addEventListener('click', () => setType('sphere'));
-    typeRow.querySelector('#ai-type-theme').addEventListener('click',  () => setType('theme'));
+    const outEl  = outWrap.querySelector('[data-out]');
+    const copyBtn = outWrap.querySelector('[data-copy]');
 
-    // ── Generate ─────────────────────────────────────────────────────────
-    body.querySelector('#ai-generate').addEventListener('click', async () => {
-      const prompt  = (body.querySelector('#ai-prompt')?.value || '').trim();
-      const outEl   = body.querySelector('#ai-output');
-      const progEl  = body.querySelector('#ai-progress');
-      const genBtn  = body.querySelector('#ai-generate');
-
+    // ── Generate handler ──────────────────────────────────────────────────
+    genBtn.addEventListener('click', async () => {
+      const prompt = (promptEl.value || '').trim();
       if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
 
       const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
-      const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/,'');
+      const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/, '');
       const filename = slug + ext;
 
       const userPrompt = [
@@ -239,18 +281,17 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       ].join('\n');
 
       genBtn.disabled = true;
+      genBtn.style.opacity = '0.5';
       genBtn.textContent = '⏳ Generating…';
       outEl.value = '';
-      charsEl.textContent = '0 chars';
-      progEl.textContent = 'Starting…';
+      progEl.textContent = 'Starting ' + _engine + ' / ' + _modelId + '…';
 
       let fullCode = '';
       let tokenCount = 0;
       const t0 = Date.now();
 
       try {
-        const selectedModel = body.querySelector('#ai-model')?.value || 'qwen';
-      for await (const chunk of streamGenerate(SYSTEM_SPHERE, userPrompt, selectedModel)) {
+        for await (const chunk of streamGenerate(SYSTEM_SPHERE, userPrompt, _engine, _modelId)) {
           fullCode += chunk;
           tokenCount++;
           outEl.value = fullCode;
@@ -261,20 +302,21 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           }
         }
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's</span>';
+        progEl.innerHTML = '<span style="color:var(--green,#22d98a)">✓ Done in ' + elapsed + 's</span>';
         toast('Code generated!', 'success');
       } catch (e) {
-        progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + '</span>';
+        progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ ' + esc(e.message) + '</span>';
         toast(e.message, 'error');
       } finally {
         genBtn.disabled = false;
+        genBtn.style.opacity = '1';
         genBtn.textContent = '✦ Generate';
       }
     });
 
-    // ── Copy ─────────────────────────────────────────────────────────────
-    body.querySelector('#ai-copy').addEventListener('click', () => {
-      const code = body.querySelector('#ai-output')?.value || '';
+    // ── Copy handler ──────────────────────────────────────────────────────
+    copyBtn.addEventListener('click', () => {
+      const code = outEl.value || '';
       if (!code) { toast('Nothing to copy', 'warn'); return; }
       navigator.clipboard?.writeText(code)
         .then(() => toast('Copied!', 'success'))
@@ -289,7 +331,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     });
   }
 
-  // ── INJECT AI TAB ─────────────────────────────────────────────────────────
+    // ── INJECT AI TAB ─────────────────────────────────────────────────────────
   function _injectAITab(body) {
     if (!body) return;
     if (body.querySelector('[data-btab="ai"]')) return;
