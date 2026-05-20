@@ -309,72 +309,87 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     const copyBtn = outWrap.querySelector('[data-copy]');
 
     // ── WebLLM button ─────────────────────────────────────────────────────
+    // Phase 1: Load lib + download model (no prompt needed)
+    // Phase 2: Generate (prompt needed)
     const webllmBtn = btnRow.querySelector('[data-webllm]');
-    webllmBtn.addEventListener('click', async () => {
-      const prompt = promptEl.value.trim();
-      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
-      if (_loadingModel) return;
 
-      // Load WebLLM lib if not present
-      if (!window.webllm) {
-        progEl.textContent = 'Loading WebLLM library…';
-        await new Promise((res, rej) => {
-          const s = document.createElement('script');
-          s.src = 'https://esm.run/@mlc-ai/web-llm';
-          s.type = 'module';
-          // esm.run module — use dynamic import instead
-          s.remove();
-          import('https://esm.run/@mlc-ai/web-llm').then(m => { window.webllm = m; res(); }).catch(rej);
-        }).catch(e => { progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ WebLLM load failed: ' + esc(e.message) + '</span>'; });
-        if (!window.webllm) return;
-      }
-
+    async function loadWebLLM() {
+      if (_webllmEngine) return true;
+      if (_loadingModel) return false;
       _loadingModel = true;
       webllmBtn.disabled = true;
-      webllmBtn.textContent = '⏳ Loading model…';
+      webllmBtn.textContent = '⏳ Loading library…';
+      progEl.textContent = 'Loading WebLLM…';
 
       try {
-        if (!_webllmEngine) {
-          const engine = await window.webllm.CreateMLCEngine(
-            'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
-            {
-              initProgressCallback: (p) => {
-                progEl.textContent = p.text || ('Loading: ' + Math.round((p.progress||0)*100) + '%');
-              }
-            }
-          );
-          _webllmEngine = engine;
+        // WebLLM is an ES module — load via dynamic import
+        if (!window.webllm) {
+          const m = await import('https://esm.sh/@mlc-ai/web-llm@0.2.73');
+          window.webllm = m;
         }
+        if (!window.webllm?.CreateMLCEngine) throw new Error('WebLLM not available — requires Chrome/Edge desktop with WebGPU enabled');
 
-        webllmBtn.textContent = '⏳ Generating…';
-        progEl.textContent = 'Generating…';
-        outEl.value = '';
+        webllmBtn.textContent = '⏳ Downloading model…';
+        progEl.textContent = 'Downloading Qwen 1.5B (first time ~800MB, cached after)…';
 
-        const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
-        const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/,'');
-        const userPrompt = ['Generate a YourMine ' + _type + ' file.','Filename: '+slug+ext,'','Requirements:',prompt].join('\n');
+        _webllmEngine = await window.webllm.CreateMLCEngine(
+          'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+          { initProgressCallback: p => {
+            const pct = Math.round((p.progress||0)*100);
+            progEl.textContent = (p.text || ('Downloading… ' + pct + '%'));
+            webllmBtn.textContent = '⏳ ' + pct + '%';
+          }}
+        );
+        progEl.innerHTML = '<span style="color:var(--green,#22d98a)">✓ Model ready</span>';
+        webllmBtn.textContent = '⚡ Generate';
+        webllmBtn.disabled = false;
+        _loadingModel = false;
+        return true;
+      } catch(e) {
+        progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ ' + esc(e.message) + '</span>';
+        webllmBtn.textContent = '⚡ Try in browser';
+        webllmBtn.disabled = false;
+        _loadingModel = false;
+        return false;
+      }
+    }
 
+    webllmBtn.addEventListener('click', async () => {
+      // If model not loaded yet — just load it
+      if (!_webllmEngine) { await loadWebLLM(); return; }
+
+      // Model ready — generate
+      const prompt = promptEl.value.trim();
+      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
+
+      webllmBtn.disabled = true;
+      webllmBtn.textContent = '⏳ Generating…';
+      outEl.value = '';
+      progEl.textContent = 'Generating…';
+
+      const ext  = _type === 'sphere' ? '.sphere.js' : '.theme.html';
+      const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/,'');
+      const userPrompt = ['Generate a YourMine ' + _type + ' file.','Filename: '+slug+ext,'','Requirements:',prompt].join('\n');
+
+      let full='', toks=0, t0=Date.now();
+      try {
         const stream = await _webllmEngine.chat.completions.create({
           messages: [{ role:'system', content: SYSTEM_SPHERE }, { role:'user', content: userPrompt }],
           temperature: 0.3, max_tokens: 4096, stream: true,
         });
-
-        let full = '', t0 = Date.now(), toks = 0;
         for await (const chunk of stream) {
           const d = chunk.choices?.[0]?.delta?.content || '';
-          if (d) { full += d; toks++; outEl.value = full; outEl.scrollTop = outEl.scrollHeight; }
-          if (toks % 20 === 0) progEl.textContent = ((Date.now()-t0)/1000).toFixed(1) + 's…';
+          if (d) { full+=d; toks++; outEl.value=full; outEl.scrollTop=outEl.scrollHeight; }
+          if (toks%20===0) progEl.textContent = ((Date.now()-t0)/1000).toFixed(1)+'s…';
         }
-        const elapsed = ((Date.now()-t0)/1000).toFixed(1);
-        progEl.innerHTML = '<span style="color:var(--green,#22d98a)">✓ Done in ' + elapsed + 's</span>';
+        progEl.innerHTML = '<span style="color:var(--green,#22d98a)">✓ Done in '+((Date.now()-t0)/1000).toFixed(1)+'s</span>';
         toast('Code generated!', 'success');
       } catch(e) {
-        progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ ' + esc(e.message) + '</span>';
+        progEl.innerHTML = '<span style="color:var(--red,#ff4560)">✗ '+esc(e.message)+'</span>';
         toast(e.message, 'error');
       } finally {
-        _loadingModel = false;
         webllmBtn.disabled = false;
-        webllmBtn.textContent = '⚡ Try in browser';
+        webllmBtn.textContent = '⚡ Generate';
       }
     });
 
