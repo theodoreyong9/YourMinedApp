@@ -322,22 +322,23 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       progEl.textContent = 'Loading WebLLM…';
 
       try {
-        // WebLLM — inject a module script that stores engine on window
+        // WebLLM — load from official CDN (browser-native build)
         if (!window._webllmReady) {
           progEl.textContent = 'Loading WebLLM…';
           await new Promise((res, rej) => {
             const s = document.createElement('script');
             s.type = 'module';
             s.textContent = `
-              import { CreateMLCEngine } from 'https://esm.sh/@mlc-ai/web-llm';
+              import { CreateMLCEngine } from 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.73/+esm';
               window._webllmCreate = CreateMLCEngine;
               window._webllmReady = true;
               window.dispatchEvent(new Event('webllm:ready'));
             `;
+            s.onerror = () => rej(new Error('WebLLM script error'));
             document.head.appendChild(s);
             const onReady = () => { window.removeEventListener('webllm:ready', onReady); res(); };
             window.addEventListener('webllm:ready', onReady);
-            setTimeout(() => rej(new Error('WebLLM load timeout — requires Chrome/Edge with WebGPU')), 15000);
+            setTimeout(() => rej(new Error('WebLLM load timeout — requires Chrome/Edge with WebGPU')), 20000);
           });
         }
 
