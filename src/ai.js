@@ -1,10 +1,8 @@
 /* jshint esversion:11 */
 // ai.js — YourMine AI Code Generator
-// Ajoute l'onglet "✦ AI" entre Rank et Plug dans le panel Build.
 (function () {
   'use strict';
 
-  // ── SYSTEM PROMPT ──────────────────────────────────────────────────────────
   const SYSTEM_SPHERE = `You are an expert YourMine developer. Output ONLY the complete file code. No explanation, no markdown fences, no preamble.
 
 ## SPHERE FILE (filename.sphere.js)
@@ -20,13 +18,6 @@ window.YM_S['FILENAME'] = {
 
   activate(ctx) {
     _ctx = ctx;
-    // ctx.storage.get/set/del(key)
-    // ctx.toast(msg, 'success'|'error'|'info'|'warn')
-    // ctx.send(type, data)
-    // ctx.onReceive((type, data, peerId) => {})
-    // ctx.openPanel(renderFn)
-    // ctx.setNotification(n)
-    // ctx.saveProfile(obj) / ctx.loadProfile()
   },
 
   deactivate() {
@@ -49,10 +40,8 @@ Fallbacks: var(--surface2,#12121e) var(--border,rgba(255,255,255,.08)) var(--r,1
 ## UI CLASSES
 .ym-card .ym-card-title
 .ym-btn .ym-btn-accent .ym-btn-ghost .ym-btn-danger
-.ym-input
-.ym-notice .info/.success/.error/.warn
-.ym-tabs .ym-tab .ym-tab.active
-.pill .pill.active
+.ym-input .ym-notice .info/.success/.error/.warn
+.ym-tabs .ym-tab .ym-tab.active .pill .pill.active
 
 ## RULES
 - IIFE wrapper always — no top-level vars
@@ -62,16 +51,15 @@ Fallbacks: var(--surface2,#12121e) var(--border,rgba(255,255,255,.08)) var(--r,1
 
 Output ONLY the complete file content. No explanation, no markdown fences.`;
 
-  // ── HELPERS ────────────────────────────────────────────────────────────────
   function esc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
-  // ── STREAMING GENERATION ───────────────────────────────────────────────────
-  // 1. WebLLM (WebGPU local) → 2. Anthropic API (cloud fallback)
+  // ── GENERATION ────────────────────────────────────────────────────────────
+  // Uses the Anthropic API proxy (no CORS, no key needed inside claude.ai)
   async function* streamGenerate(systemPrompt, userPrompt) {
-    // 1. WebLLM
+    // 1. WebLLM local (WebGPU)
     const llm = window.__webllm;
     if (llm && typeof llm.chat?.completions?.create === 'function') {
       try {
@@ -90,11 +78,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         }
         return;
       } catch (e) {
-        console.warn('[AI] WebLLM failed, falling back to Anthropic:', e.message);
+        console.warn('[AI] WebLLM failed:', e.message);
       }
     }
 
-    // 2. Anthropic API
+    // 2. Anthropic API (proxy — no key, no CORS)
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -106,7 +94,10 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         stream: true,
       }),
     });
-    if (!resp.ok) throw new Error('Anthropic API HTTP ' + resp.status);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'API error ' + resp.status);
+    }
 
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
@@ -123,7 +114,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         if (raw === '[DONE]') return;
         try {
           const ev = JSON.parse(raw);
-          const delta = ev.delta?.text || '';
+          // Anthropic SSE format: content_block_delta with delta.text
+          const delta = ev.delta?.text || ev.choices?.[0]?.delta?.content || '';
           if (delta) yield delta;
         } catch { /* skip malformed */ }
       }
@@ -144,7 +136,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     engBadge.innerHTML =
       '<div style="width:6px;height:6px;border-radius:50%;background:' + (hasWebLLM ? 'var(--green)' : 'var(--gold)') + ';flex-shrink:0"></div>' +
       '<span style="font-size:9px;color:var(--text3)">' +
-        (hasWebLLM ? 'WebLLM local (WebGPU)' : 'Claude API (cloud)') +
+        (hasWebLLM ? 'WebLLM local (WebGPU)' : 'Claude API') +
       '</span>';
     body.appendChild(engBadge);
 
@@ -164,30 +156,15 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     promptWrap.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
     promptWrap.innerHTML =
       '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Prompt</div>' +
-      '<textarea id="ai-prompt" class="ym-input" rows="5" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical" placeholder="Describe what to generate…"></textarea>' +
-      '<div id="ai-chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px"></div>';
+      '<textarea id="ai-prompt" class="ym-input" rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical" placeholder="Describe what to generate…"></textarea>';
     body.appendChild(promptWrap);
 
-    // ── Options ───────────────────────────────────────────────────────────
+    // ── Category ──────────────────────────────────────────────────────────
     const optsWrap = document.createElement('div');
-    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;flex-direction:column;gap:6px';
+    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
     optsWrap.innerHTML =
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
-        '<div>' +
-          '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Filename</div>' +
-          '<div style="display:flex;align-items:center;gap:4px">' +
-            '<input id="ai-filename" class="ym-input" placeholder="my-sphere" style="flex:1;font-size:11px">' +
-            '<span id="ai-ext" style="font-size:10px;color:var(--text3);flex-shrink:0">.sphere.js</span>' +
-          '</div>' +
-        '</div>' +
-        '<div>' +
-          '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
-          '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">' +
-        '</div>' +
-      '</div>' +
-      '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">' +
-        '<input type="checkbox" id="ai-wip" checked> 🚧 Mark as Under Construction' +
-      '</label>';
+      '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
+      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">';
     body.appendChild(optsWrap);
 
     // ── Generate button ───────────────────────────────────────────────────
@@ -204,53 +181,24 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     outWrap.innerHTML =
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-shrink:0">' +
         '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Output</div>' +
-        '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
-        '<button id="ai-send-build" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">→ Build</button>' +
-      '</div>' +
-      '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
-      '<div style="display:flex;justify-content:flex-end;margin-top:4px;margin-bottom:14px;flex-shrink:0">' +
         '<span id="ai-chars" style="font-size:9px;color:var(--text3)">0 chars</span>' +
-      '</div>';
+        '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
+      '</div>' +
+      '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:14px" placeholder="Generated code appears here…" spellcheck="false"></textarea>';
     body.appendChild(outWrap);
-
-    // ── Chips ─────────────────────────────────────────────────────────────
-    const CHIPS = {
-      sphere: ['Timer / countdown widget','Weather with geolocation','P2P whiteboard with peers','Crypto price tracker'],
-      theme:  ['Dark glassmorphism + gold','Minimal brutalist B&W','Cyberpunk neon grid','Soft pastel / organic'],
-    };
-
-    function refreshChips() {
-      const el = promptWrap.querySelector('#ai-chips');
-      if (!el) return;
-      el.innerHTML = '';
-      CHIPS[_type].forEach(label => {
-        const c = document.createElement('span');
-        c.style.cssText = 'display:inline-flex;align-items:center;font-size:10px;color:var(--text3);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:3px 10px;cursor:pointer;transition:border-color .15s,color .15s;flex-shrink:0';
-        c.textContent = label;
-        c.addEventListener('mouseenter', () => { c.style.borderColor='rgba(240,168,48,.4)'; c.style.color='var(--text2)'; });
-        c.addEventListener('mouseleave', () => { c.style.borderColor='rgba(255,255,255,.1)'; c.style.color='var(--text3)'; });
-        c.addEventListener('click', () => { const ta=body.querySelector('#ai-prompt'); if(ta) ta.value=label; });
-        el.appendChild(c);
-      });
-    }
-    refreshChips();
 
     // ── Type toggle wiring ────────────────────────────────────────────────
     function setType(t) {
       _type = t;
-      const extEl = body.querySelector('#ai-ext');
       const sBtn  = typeRow.querySelector('#ai-type-sphere');
       const thBtn = typeRow.querySelector('#ai-type-theme');
       if (t === 'sphere') {
-        if (extEl) extEl.textContent = '.sphere.js';
         sBtn.style.cssText  = 'background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer';
         thBtn.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
       } else {
-        if (extEl) extEl.textContent = '.theme.html';
         thBtn.style.cssText = 'background:rgba(8,224,248,.12);border:none;color:var(--cyan);font-size:10px;padding:5px 12px;cursor:pointer';
         sBtn.style.cssText  = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
       }
-      refreshChips();
     }
     typeRow.querySelector('#ai-type-sphere').addEventListener('click', () => setType('sphere'));
     typeRow.querySelector('#ai-type-theme').addEventListener('click',  () => setType('theme'));
@@ -258,9 +206,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     // ── Generate ─────────────────────────────────────────────────────────
     body.querySelector('#ai-generate').addEventListener('click', async () => {
       const prompt  = (body.querySelector('#ai-prompt')?.value || '').trim();
-      const fnRaw   = (body.querySelector('#ai-filename')?.value || '').trim();
       const cat     = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
-      const wip     = body.querySelector('#ai-wip')?.checked !== false;
       const outEl   = body.querySelector('#ai-output');
       const progEl  = body.querySelector('#ai-progress');
       const charsEl = body.querySelector('#ai-chars');
@@ -269,18 +215,17 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
 
       const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
-      const slug     = fnRaw ? fnRaw.replace(/\.(sphere\.js|theme\.html)$/, '') : 'my-' + _type;
+      const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,24).replace(/-$/,'');
       const filename = slug + ext;
 
       const userPrompt = [
         'Generate a YourMine ' + _type + ' file.',
         'Filename: ' + filename,
         'Category: ' + cat,
-        wip ? 'Mark wip:true in the metadata.' : '',
         '',
         'Requirements:',
         prompt,
-      ].filter(Boolean).join('\n');
+      ].join('\n');
 
       genBtn.disabled = true;
       genBtn.textContent = '⏳ Generating…';
@@ -331,35 +276,16 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           toast('Copied!', 'success');
         });
     });
-
-    // ── Send to Build ─────────────────────────────────────────────────────
-    body.querySelector('#ai-send-build').addEventListener('click', () => {
-      const code = (body.querySelector('#ai-output')?.value || '').trim();
-      const fn   = (body.querySelector('#ai-filename')?.value || '').trim();
-      if (!code) { toast('Generate code first', 'warn'); return; }
-      window._ymAITransfer = { code, filename: fn, type: _type };
-      const rankTab = document.querySelector('[data-btab="rank"]');
-      if (rankTab) rankTab.click();
-      setTimeout(() => {
-        const codeTA = document.querySelector('#pub-code-main') || document.querySelector('#pub-code');
-        if (codeTA) { codeTA.value = code; codeTA.dispatchEvent(new Event('input')); }
-        const nameInput = document.querySelector('#pub-name-main') || document.querySelector('#pub-name');
-        if (nameInput && fn) { nameInput.value = fn.replace(/\.(sphere\.js|theme\.html)$/, ''); nameInput.dispatchEvent(new Event('input')); }
-        toast('Transferred to Build ✦', 'success');
-      }, 350);
-    });
   }
 
   // ── INJECT AI TAB ─────────────────────────────────────────────────────────
   function _injectAITab(body) {
     if (!body) return;
     if (body.querySelector('[data-btab="ai"]')) return;
-
     const plugTab = body.querySelector('[data-btab="plug"]');
     if (!plugTab) return;
     const tabBar = plugTab.parentElement;
     if (!tabBar) return;
-
     const buildContent = body.querySelector('#build-content');
     if (!buildContent) return;
 
@@ -368,7 +294,6 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     aiTab.dataset.btab = 'ai';
     aiTab.style.cssText = 'flex:1;padding:10px 4px;font-size:10px;cursor:pointer';
     aiTab.textContent = '✦ AI';
-
     tabBar.insertBefore(aiTab, plugTab);
 
     aiTab.addEventListener('click', () => {
