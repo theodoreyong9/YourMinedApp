@@ -1,4 +1,4 @@
-﻿/* jshint esversion:11, -W033 */
+/* jshint esversion:11, -W033 */
 // liste.js — YourMine Sphere List Manager
 (function(){
 'use strict';
@@ -7,7 +7,6 @@ const REPO_OWNER  = 'theodoreyong9';
 const REPO_NAME   = 'YourMinedApp';
 const REPO_BRANCH = 'main';
 const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/';
-// Les fichiers .sphere.js sont dans le fork de l'auteur, pas dans le repo principal
 const FILES_JSON_URL = RAW_BASE+'files.json';
 
 const CACHE_KEY = 'ym_liste_cache_v4';
@@ -18,7 +17,7 @@ let _loaded     = false;
 let _filterText   = '';
 let _filterCat    = '';
 let _filterActive = false;
-let _filterSocial = null; // 'near' | 'contacts' | null — zone mode only
+let _filterSocial = null;
 
 function _readCache(){
   try{const raw=localStorage.getItem(CACHE_KEY);if(!raw)return null;const c=JSON.parse(raw);if(Date.now()-c.ts>CACHE_TTL)return null;return c;}catch{return null;}
@@ -158,6 +157,35 @@ async function activateSphereByName(fileName){
   else console.warn('[Liste] sphere not found:',fileName);
 }
 
+// ── INLINE ACTION BAR ────────────────────────────────────────────────────────
+// Shared style for all action buttons in the bar
+const BTN_BASE = 'display:inline-flex;align-items:center;gap:4px;padding:6px 11px;border-radius:7px;font-size:11px;font-weight:500;cursor:pointer;border:none;transition:background .15s,color .15s;line-height:1;';
+const BTN_GHOST = BTN_BASE+'background:rgba(255,255,255,.05);color:rgba(240,240,248,.55);';
+const BTN_ACCENT = BTN_BASE+'background:rgba(240,168,48,.15);color:#f0a830;';
+const BTN_DANGER = BTN_BASE+'background:rgba(255,69,96,.1);color:rgba(255,69,96,.8);';
+const BTN_CYAN   = BTN_BASE+'background:rgba(34,211,238,.1);color:#22d3ee;';
+
+function _makeActionBar(btns){
+  // btns: [{icon, label, style, onClick, id}]
+  const bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;padding:10px 0 2px 0;animation:ymBarIn .15s ease';
+  // inject keyframe once
+  if(!document.getElementById('ym-bar-style')){
+    const st=document.createElement('style');st.id='ym-bar-style';
+    st.textContent='@keyframes ymBarIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}';
+    document.head.appendChild(st);
+  }
+  btns.forEach(b=>{
+    const btn=document.createElement('button');
+    btn.style.cssText=b.style||BTN_GHOST;
+    btn.innerHTML=(b.icon?'<span>'+b.icon+'</span> ':'')+b.label;
+    if(b.id)btn.dataset.actionId=b.id;
+    btn.addEventListener('click',e=>{e.stopPropagation();b.onClick(btn);});
+    bar.appendChild(btn);
+  });
+  return bar;
+}
+
 // ── RENDER ───────────────────────────────────────────────────────────────────
 let _currentBody=null;
 let _listType='spheres';
@@ -263,13 +291,11 @@ async function render(containerArg){
     else if(_listType==='video')renderVideoContent(content);
   }
 
-  // Zone config: sphere-only, no rank/plug
   const zoneCfg=window.YM_ZONE_CONFIG;
   if(zoneCfg?.spheresOnly){
     _listType='spheres';
     typePillsEl.style.display='none';
     wipRow.style.display='none';
-    // Hide + button (no publish in zone)
     addBtn.style.display='none';
   }else{
     renderTypePills();
@@ -278,12 +304,10 @@ async function render(containerArg){
   if(!_loaded)await fetchSphereList();
   switchType();
 }
-// Themes registry : themes-files.json sur le repo PRINCIPAL (même logique que files.json pour spheres)
-// themes-files.json est à la RACINE du repo principal (pas dans src/)
+
 const THEMES_FILES_URL = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
 let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='Theme';
 
-// Plateformes supportées pour apps externes
 const PLATFORMS=[
   {id:'bolt',       label:'Bolt',         icon:'⚡', hint:'ID ex: sb1-abc123',
    resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
@@ -305,7 +329,6 @@ function _resolveExtURL(input){
   input=(input||'').trim();if(!input)return null;
   if(/^https?:\/\//i.test(input)&&!_selPlatform)return input;
   if(_selPlatform){const p=PLATFORMS.find(x=>x.id===_selPlatform);if(p)return p.resolve(input);}
-  // Auto-détection
   if(input.includes('stackblitz.com')||input.includes('bolt.new'))return input+'?embed=1&view=preview';
   if(input.includes('replit.com')||input.includes('.repl.co'))return input;
   if(input.includes('codesandbox.io'))return input.replace('/s/','/embed/');
@@ -369,7 +392,6 @@ function _addThemeIcon(theme, rawUrl){
   const label=theme.name||(theme.filename||'').replace(/\.theme\.html$/,'').replace(/[-_]/g,' ');
   const icon=theme.icon||'🎨';
   const page=window._deskCurPage||0;
-  // addIcon(id, icon, label, page, extraFields)
   window.YM_Desk.addIcon(id, icon, label, page, {type:'theme', themeUrl:rawUrl});
 }
 
@@ -379,7 +401,6 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
   const listEl=container.querySelector('#theme-list-inner');if(!listEl)return;
   const list=themes||_themesList||[];
 
-  // Recherche textuelle
   let filtered=list;
   if(_themeSearch)filtered=filtered.filter(t=>
     (t.name||'').toLowerCase().includes(_themeSearch)||
@@ -394,7 +415,6 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
 
   listEl.innerHTML='';
 
-  // ── Vue PHOTO : grille de photos cliquables ────────────────────
   if(_themeFilterCat==='Photo'){
     const grid=document.createElement('div');
     grid.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);gap:6px';
@@ -408,7 +428,6 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
         wrap.innerHTML='<img src="'+esc(url)+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'+
           '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.7));font-size:9px;color:#fff">'+esc(t.name||'')+'</div>';
         wrap.addEventListener('click',()=>{
-          // Clic sur photo → applique le thème avec cette photo comme wallpaper
           localStorage.setItem('ym_theme_url',t.codeUrl||'');
           localStorage.setItem('ym_wallpaper',url);
           localStorage.removeItem('ym_theme_cache');
@@ -423,7 +442,6 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
     return;
   }
 
-  // ── Vue VIDEO : liste de liens vidéos ─────────────────────────
   if(_themeFilterCat==='Video'){
     let hasVideos=false;
     filtered.forEach(t=>{
@@ -446,11 +464,14 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
     return;
   }
 
-  // ── Vue THEME (défaut) et ALL : cartes normales ────────────────
+  // ── THEME CARDS with inline action bar ──────────────────────────────────
+  let _openThemeCard = null; // track which card is expanded
+
   filtered.forEach(t=>{
     const rawUrl=t.codeUrl||('https://raw.githubusercontent.com/'+t.ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/themes/'+(t.filename||t.name+'.html'));
     const isCur=curThemeUrl===rawUrl;
     const ghCodeUrl=t.codeUrl?t.codeUrl.replace('https://raw.githubusercontent.com/','https://github.com/').replace('/'+REPO_BRANCH+'/','/blob/'+REPO_BRANCH+'/'):null;
+    const siteUrl=t.siteUrl||ghCodeUrl||null;
     const iconIsUrl=t.icon&&(t.icon.startsWith('http')||t.icon.startsWith('/'));
     const iconHtml=iconIsUrl
       ?'<img src="'+esc(t.icon)+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0">'
@@ -458,47 +479,79 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
 
     const card=document.createElement('div');
     card.className='ym-card';
-    card.style.cssText='transition:border-color .2s'+(isCur?';border-color:var(--accent-dim)':'');
-    card.innerHTML=
+    card.style.cssText='cursor:pointer;transition:border-color .2s'+(isCur?';border-color:var(--accent-dim)':'');
+
+    const infoHtml=
       '<div style="display:flex;align-items:center;gap:12px">'+
         iconHtml+
         '<div style="flex:1;min-width:0">'+
           '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">'+
             '<div style="font-weight:600;font-size:14px;color:var(--text)">'+esc(t.name||t.filename||'?')+'</div>'+
             (t.wip?'<span style="font-size:9px;color:#f0a830;padding:1px 5px;border:1px solid rgba(240,168,48,.3);border-radius:4px">🚧 WIP</span>':'')+
+            (isCur?'<span style="font-size:9px;color:#22d3ee;padding:1px 5px;border:1px solid rgba(34,211,238,.3);border-radius:4px">✓ actif</span>':'')+
           '</div>'+
-          '<div style="font-size:9px;color:var(--text3);margin-bottom:3px">'+
-            'by <b style="color:var(--accent)">@'+esc(t.ghAuthor||'unknown')+'</b>'+
-            (ghCodeUrl?' &nbsp;·&nbsp; <a href="'+esc(ghCodeUrl)+'" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;font-size:9px" onclick="event.stopPropagation()">&lt;/&gt; code</a>':'')+
-          '</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:8px">'+esc(t.description||'—')+'</div>'+
-          '<div style="display:flex;gap:6px">'+
-            '<button class="ym-btn ym-btn-ghost" data-theme-icon-btn style="font-size:10px;padding:4px 9px">＋ Bureau</button>'+
-            '<button class="ym-btn '+(isCur?'ym-btn-ghost':'ym-btn-accent')+'" data-theme-act-btn style="font-size:10px;padding:4px 10px">'+(isCur?'✓ Actif':'▶ Activer')+'</button>'+
-          '</div>'+
+          '<div style="font-size:9px;color:var(--text3);margin-bottom:4px">by <b style="color:var(--accent)">@'+esc(t.ghAuthor||'unknown')+'</b></div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(t.description||'—')+'</div>'+
         '</div>'+
+        '<div style="font-size:18px;color:var(--text3);flex-shrink:0;transition:transform .2s" data-chevron>›</div>'+
       '</div>';
 
-    card.querySelector('[data-theme-icon-btn]').addEventListener('click',e=>{
-      e.stopPropagation();
-      _addThemeIcon(t,rawUrl);
-      window.YM_toast?.('Icône ajoutée au bureau','success');
+    card.innerHTML=infoHtml;
+
+    // action bar (hidden initially)
+    const bar=_makeActionBar([
+      {icon:'↗', label:'Share', style:BTN_GHOST, id:'share', onClick:()=>{
+        const shareUrl=rawUrl;
+        if(navigator.share){navigator.share({title:t.name,url:shareUrl}).catch(()=>{});}
+        else{navigator.clipboard?.writeText(shareUrl);window.YM_toast?.('URL copiée','success');}
+      }},
+      {icon:'⎋', label:'Site', style:BTN_GHOST, id:'site', onClick:()=>{
+        const u=siteUrl||rawUrl;
+        window.open(u,'_blank','noopener');
+      }},
+      {icon:'</>',label:'Code', style:BTN_CYAN, id:'code', onClick:()=>{
+        if(ghCodeUrl)window.open(ghCodeUrl,'_blank','noopener');
+        else window.YM_toast?.('Pas de lien code disponible','info');
+      }},
+      {icon:'▶', label:isCur?'Actif':'Activer', style:isCur?BTN_GHOST:BTN_ACCENT, id:'activate', onClick:async(btn)=>{
+        if(isCur){window.YM_toast?.('Déjà actif','info');return;}
+        if(_themeActivating)return;
+        _themeActivating=true;
+        btn.textContent='…';
+        localStorage.setItem('ym_theme_url',rawUrl);
+        localStorage.removeItem('ym_theme_cache');
+        window.YM_toast?.('Thème — rechargement…','success');
+        setTimeout(()=>{if(window._YM_softReload)window._YM_softReload();else location.reload();},400);
+      }},
+      {icon:'⊞', label:'Bureau', style:BTN_GHOST, id:'desk', onClick:()=>{
+        _addThemeIcon(t,rawUrl);
+        window.YM_toast?.('Icône ajoutée au bureau','success');
+      }},
+    ]);
+    bar.style.display='none';
+    card.appendChild(bar);
+
+    card.addEventListener('click',e=>{
+      if(e.target.closest('a')||e.target.closest('button'))return;
+      const isOpen=bar.style.display!=='none';
+      // close previously open card
+      if(_openThemeCard&&_openThemeCard!==card){
+        const prevBar=_openThemeCard.querySelector('[data-action-bar]');
+        if(prevBar)prevBar.style.display='none';
+        const prevChev=_openThemeCard.querySelector('[data-chevron]');
+        if(prevChev){prevChev.style.transform='';prevChev.textContent='›';}
+      }
+      bar.style.display=isOpen?'none':'flex';
+      bar.dataset.actionBar='1';
+      const chev=card.querySelector('[data-chevron]');
+      if(chev){chev.style.transform=isOpen?'':'rotate(90deg)';chev.textContent=isOpen?'›':'⌃';}
+      _openThemeCard=isOpen?null:card;
     });
-    card.querySelector('[data-theme-act-btn]').addEventListener('click',e=>{
-      e.stopPropagation();
-      if(isCur){window.YM_toast?.('Déjà actif','info');return;}
-      if(_themeActivating)return;
-      _themeActivating=true;
-      localStorage.setItem('ym_theme_url',rawUrl);
-      localStorage.removeItem('ym_theme_cache');
-      window.YM_toast?.('Thème — rechargement…','success');
-      setTimeout(()=>{if(window._YM_softReload)window._YM_softReload();else location.reload();},400);
-    });
+
     listEl.appendChild(card);
   });
 }
 
-// Catégories standardisées — tout ce qui ne correspond pas → "Autres"
 const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent'];
 function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
 
@@ -528,14 +581,12 @@ function renderLinkContent(container){
     });
   }
 
-  // Extension determines type unambiguously
   function detectType(url){
     if(url.endsWith('.js'))return 'sphere';
     if(url.endsWith('.html'))return 'theme';
     return null;
   }
 
-  // Execute code as sphere with explicit error messages
   async function execAndActivate(code){
     const blob=new Blob([code],{type:'text/javascript'});
     const blobUrl=URL.createObjectURL(blob);
@@ -681,6 +732,7 @@ function renderLinkContent(container){
   }
   renderMode();
 }
+
 function renderSpheresContent(container,catRow){
   container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
   container.innerHTML=
@@ -693,7 +745,6 @@ function renderSpheresContent(container,catRow){
     function renderCatPills(){
       catRow.innerHTML='';
       if(window.YM_ZONE_CONFIG?.socialFilters){
-        // Zone mode: Near / Contacts only
         [{id:'near',label:'Near'},{id:'contacts',label:'Contacts'}].forEach(opt=>{
           const isActive=_filterSocial===opt.id;
           const p=document.createElement('span');
@@ -740,22 +791,9 @@ function _updateCardInPlace(card,sphere,active){
       const b=document.createElement('span');b.className='pill active';b.textContent='active';nameLine.appendChild(b);
     }else if(!active&&badge)badge.remove();
   }
-  const actionCell=card.querySelector('[data-action-cell]');
-  if(actionCell){
-    if(active&&!MANDATORY_SPHERES.includes(sphere.fileName)){
-      actionCell.innerHTML='<button data-deactivate style="background:none;border:1px solid rgba(255,69,96,.3);color:var(--red);border-radius:6px;font-size:10px;padding:3px 7px;cursor:pointer;line-height:1.4">Off</button>';
-      actionCell.querySelector('[data-deactivate]').addEventListener('click',async function(e){
-        e.stopPropagation();this.textContent='…';this.style.pointerEvents='none';
-        await deactivateSphere(sphere);
-        _updateCardInPlace(card,sphere,false);
-        card.style.borderColor='';
-        window.dispatchEvent(new CustomEvent('ym:sphere-deactivated',{detail:{name:sphere.fileName}}));
-      });
-    }else if(!active){
-      actionCell.innerHTML='<div style="font-size:20px;color:var(--text3)">›</div>';
-    }
-  }
-  card.style.borderColor=active?'var(--accent-dim)':'';
+  // refresh activate button label in bar
+  const actBtn=card.querySelector('[data-action-id="activate"]');
+  if(actBtn){actBtn.textContent=active?'✓ Actif':'▶ Activer';actBtn.style.cssText=active?BTN_GHOST:BTN_ACCENT;}
 }
 
 function renderList(body){
@@ -768,13 +806,11 @@ function renderList(body){
   if(_filterActive)filtered=filtered.filter(s=>isSphereActive(s.fileName));
   if(_listShowWip)filtered=filtered.filter(s=>s.wip);
   if(_filterSocial==='near'){
-    // window._ymNearSpheres = Set of sphere fileNames that nearby peers use (populated by social.sphere.js)
     const near=window._ymNearSpheres;
     if(!near||!near.size){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px 0;text-align:center">No nearby peers detected.</div>';return;}
     filtered=filtered.filter(s=>near.has(s.fileName));
   }
   if(_filterSocial==='contacts'){
-    // Collect sphere lists from profile contacts
     const contactSpheres=new Set();
     try{const p=JSON.parse(localStorage.getItem('ym_profile_v1')||'{}');(p.contacts||[]).forEach(c=>(c.spheres||[]).forEach(s=>contactSpheres.add(s)));}catch{}
     if(!contactSpheres.size){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px 0;text-align:center">No contacts with shared spheres.</div>';return;}
@@ -783,14 +819,15 @@ function renderList(body){
   if(!filtered.length){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No spheres found.</div>';return;}
 
   listEl.innerHTML='';
+
+  let _openSphereCard = null; // track expanded card
+
   filtered.forEach(sphere=>{
     const active=isSphereActive(sphere.fileName);
+    const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
+    const siteUrl=sphere.siteUrl||null;
     const iconIsUrl=sphere.icon&&(sphere.icon.startsWith('http')||sphere.icon.startsWith('/'));
     const iconHtml=iconIsUrl?'<img src="'+sphere.icon+'" style="width:34px;height:34px;border-radius:6px;object-fit:contain">':'<span style="font-size:34px;line-height:1">'+sphere.icon+'</span>';
-
-    // URL dans le fork de l'auteur de la sphere (pas le repo principal)
-    const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
-    // Badge WIP
     const wipBadge=sphere.wip?'<span style="font-size:9px;color:#f0a830;padding:1px 5px;border:1px solid rgba(240,168,48,.3);border-radius:4px;line-height:1.6;flex-shrink:0">🚧 WIP</span>':'';
 
     const card=document.createElement('div');
@@ -810,46 +847,64 @@ function renderList(body){
             '<span style="font-size:10px;color:var(--text3)">'+esc(sphere.category)+'</span>'+
             '<span style="color:var(--text3);font-size:9px">·</span>'+
             '<span style="font-size:9px;color:var(--text3)">by <b style="color:var(--accent)">@'+esc(sphere.ghAuthor||'unknown')+'</b></span>'+
-            '<a data-code-link href="'+ghAuthorUrl+'" target="_blank" rel="noopener" style="font-size:9px;color:var(--cyan);padding:1px 5px;border:1px solid rgba(8,224,248,.3);border-radius:4px;line-height:1.6;flex-shrink:0;text-decoration:none">&lt;/&gt; code</a>'+
           '</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px">'+esc(sphere.description||'—')+'</div>'+
-
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(sphere.description||'—')+'</div>'+
         '</div>'+
-        '<div data-action-cell style="display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0">'+
-          (active&&!MANDATORY_SPHERES.includes(sphere.fileName) ? '<button data-deactivate style="background:none;border:1px solid rgba(255,69,96,.3);color:var(--red);border-radius:6px;font-size:10px;padding:3px 7px;cursor:pointer;line-height:1.4">Off</button>' : (active ? '<div style="font-size:14px;color:var(--text3)">✓</div>' : '<div style="font-size:20px;color:var(--text3)">›</div>'))+
-        '</div>'+
+        '<div style="font-size:18px;color:var(--text3);flex-shrink:0;transition:transform .2s" data-chevron>›</div>'+
       '</div>';
 
-    // Bouton code → lien GitHub, stoppe la propagation
-    const codeLink=card.querySelector('[data-code-link]');
-    if(codeLink)codeLink.addEventListener('click',e=>e.stopPropagation());
-
-
-
-    // Bouton désactivation — met à jour la carte IN-PLACE
-    const deactivateBtn=card.querySelector('[data-deactivate]');
-    if(deactivateBtn){
-      deactivateBtn.addEventListener('click',async function(e){
-        e.stopPropagation();
-        this.textContent='…';this.style.pointerEvents='none';
-        await deactivateSphere(sphere);
-        _updateCardInPlace(card,sphere,false);
-        window.dispatchEvent(new CustomEvent('ym:sphere-deactivated',{detail:{name:sphere.fileName}}));
-      });
-    }
-
-    // Click sur carte : active ou ouvre — mise à jour IN-PLACE
-    card.addEventListener('click',async()=>{
-      if(isSphereActive(sphere.fileName)){
-        window.YM?.openSpherePanel?.(sphere.fileName);
-      }else{
-        card.style.opacity='.5';card.style.pointerEvents='none';
+    // ── inline action bar ──
+    const bar=_makeActionBar([
+      {icon:'↗', label:'Share', style:BTN_GHOST, id:'share', onClick:()=>{
+        const shareUrl=sphere.codeUrl||sphere.url||ghAuthorUrl;
+        if(navigator.share){navigator.share({title:sphere.name,url:shareUrl}).catch(()=>{});}
+        else{navigator.clipboard?.writeText(shareUrl);window.YM_toast?.('URL copiée','success');}
+      }},
+      {icon:'⎋', label:'Site', style:BTN_GHOST, id:'site', onClick:()=>{
+        const u=siteUrl||ghAuthorUrl;
+        window.open(u,'_blank','noopener');
+      }},
+      {icon:'</>', label:'Code', style:BTN_CYAN, id:'code', onClick:()=>{
+        window.open(ghAuthorUrl,'_blank','noopener');
+      }},
+      {icon: active?'✓':'▶', label:active?'Actif':'Activer', style:active?BTN_GHOST:BTN_ACCENT, id:'activate', onClick:async(btn)=>{
+        if(active){
+          // already active — open panel
+          window.YM?.openSpherePanel?.(sphere.fileName);
+          return;
+        }
+        btn.innerHTML='…';btn.style.pointerEvents='none';
+        card.style.opacity='.6';
         await activateSphere(sphere);
-        card.style.opacity='1';card.style.pointerEvents='';
+        card.style.opacity='1';btn.style.pointerEvents='';
         const nowActive=isSphereActive(sphere.fileName);
         _updateCardInPlace(card,sphere,nowActive);
+        btn.innerHTML=(nowActive?'✓ Actif':'▶ Activer');
+        btn.style.cssText=nowActive?BTN_GHOST:BTN_ACCENT;
         window.dispatchEvent(new CustomEvent('ym:sphere-activated',{detail:{name:sphere.fileName}}));
+      }},
+    ]);
+    bar.style.display='none';
+    card.appendChild(bar);
+
+    // click on card header toggles bar
+    card.addEventListener('click',e=>{
+      if(e.target.closest('button')||e.target.closest('a'))return;
+      const isOpen=bar.style.display!=='none';
+      // close other open card
+      if(_openSphereCard&&_openSphereCard!==card){
+        const prevBar=_openSphereCard.querySelector('div[style*="flex-wrap"]');
+        // find the action bar div (last child)
+        const prevBars=_openSphereCard.querySelectorAll(':scope > div');
+        prevBars.forEach(d=>{ if(d.dataset.barEl) d.style.display='none'; });
+        const prevChev=_openSphereCard.querySelector('[data-chevron]');
+        if(prevChev){prevChev.style.transform='';prevChev.textContent='›';}
       }
+      bar.dataset.barEl='1';
+      bar.style.display=isOpen?'none':'flex';
+      const chev=card.querySelector('[data-chevron]');
+      if(chev){chev.style.transform=isOpen?'':'rotate(90deg)';chev.textContent=isOpen?'›':'⌃';}
+      _openSphereCard=isOpen?null:card;
     });
 
     listEl.appendChild(card);
