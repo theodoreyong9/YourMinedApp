@@ -56,10 +56,19 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
-  // ── GENERATION ────────────────────────────────────────────────────────────
-  // Uses the Anthropic API proxy (no CORS, no key needed inside claude.ai)
-  async function* streamGenerate(systemPrompt, userPrompt) {
-    // 1. WebLLM local (WebGPU)
+  // ── ENGINES (no API key, no CORS) ───────────────────────────────────────────
+  // Pollinations.ai — free, no key, browser-safe
+  // Models available: openai, mistral, llama, qwen, deepseek-r1, etc.
+  const ENGINES = [
+    { id: 'deepseek-r1',  label: 'DeepSeek R1',   provider: 'pollinations' },
+    { id: 'qwen',         label: 'Qwen 2.5',       provider: 'pollinations' },
+    { id: 'mistral',      label: 'Mistral',         provider: 'pollinations' },
+    { id: 'llama',        label: 'Llama 3',         provider: 'pollinations' },
+    { id: 'openai',       label: 'OpenAI (proxy)',  provider: 'pollinations' },
+  ];
+
+  async function* streamGenerate(systemPrompt, userPrompt, modelId) {
+    // 1. WebLLM local (WebGPU) — if available
     const llm = window.__webllm;
     if (llm && typeof llm.chat?.completions?.create === 'function') {
       try {
@@ -82,21 +91,25 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       }
     }
 
-    // 2. Anthropic API (proxy — no key, no CORS)
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    // 2. Pollinations.ai — no key, no CORS
+    const model = modelId || 'qwen';
+    const resp = await fetch('https://text.pollinations.ai/openai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt },
+        ],
         stream: true,
+        seed: 42,
+        private: true,
       }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'API error ' + resp.status);
+      throw new Error(err.error?.message || 'Pollinations error ' + resp.status);
     }
 
     const reader = resp.body.getReader();
@@ -113,16 +126,14 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         const raw = line.slice(6).trim();
         if (raw === '[DONE]') return;
         try {
-          const ev = JSON.parse(raw);
-          // Anthropic SSE format: content_block_delta with delta.text
-          const delta = ev.delta?.text || ev.choices?.[0]?.delta?.content || '';
+          const delta = JSON.parse(raw).choices?.[0]?.delta?.content || '';
           if (delta) yield delta;
         } catch { /* skip malformed */ }
       }
     }
   }
 
-  // ── RENDER AI TAB CONTENT ─────────────────────────────────────────────────
+  // ── RENDER AI TAB CONTENT  ─────────────────────────────────────────────────
   function renderAIContent(body) {
     body.innerHTML = '';
     body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:0';
@@ -139,6 +150,16 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         (hasWebLLM ? 'WebLLM local (WebGPU)' : 'Claude API') +
       '</span>';
     body.appendChild(engBadge);
+
+    // ── Model selector ────────────────────────────────────────────────────
+    const modelRow = document.createElement('div');
+    modelRow.style.cssText = 'padding:6px 14px 8px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px';
+    modelRow.innerHTML =
+      '<span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;flex-shrink:0">Model</span>' +
+      '<select id="ai-model" style="flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:11px;padding:5px 8px;cursor:pointer;font-family:var(--font-b)">' +
+        ENGINES.map(e => '<option value="'+e.id+'">'+e.label+'</option>').join('') +
+      '</select>';
+    body.appendChild(modelRow);
 
     // ── Type toggle ───────────────────────────────────────────────────────
     const typeRow = document.createElement('div');
@@ -228,7 +249,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const t0 = Date.now();
 
       try {
-        for await (const chunk of streamGenerate(SYSTEM_SPHERE, userPrompt)) {
+        const selectedModel = body.querySelector('#ai-model')?.value || 'qwen';
+      for await (const chunk of streamGenerate(SYSTEM_SPHERE, userPrompt, selectedModel)) {
           fullCode += chunk;
           tokenCount++;
           outEl.value = fullCode;
