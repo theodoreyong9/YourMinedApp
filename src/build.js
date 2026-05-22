@@ -1,4 +1,4 @@
-﻿// build.js — YourMine Build / Publish Panel
+// build.js — YourMine Build / Publish Panel
 /* jshint esversion:11 */
 (function(){
 'use strict';
@@ -10,7 +10,6 @@ const RAW_BASE   = 'https://raw.githubusercontent.com/'+GH_OWNER+'/'+GH_REPO+'/m
 const FILES_URL  = RAW_BASE+'files.json';
 const THEMES_URL = RAW_BASE+'src/themes/index.json';
 
-// Token persisté en sessionStorage — jamais en localStorage
 let _userToken = (function(){
   try{const t=sessionStorage.getItem('ym_build_token');return t?JSON.parse(t):null;}catch{return null;}
 })();
@@ -20,11 +19,7 @@ function _saveToken(t){
       else sessionStorage.removeItem('ym_build_token');}catch{}
 }
 
-let _filesJson   = null;
-let _themesJson  = null;
-let _watchTimer  = null;
-let _lastContainer = null;
-let _activeTab   = 'sphere'; // 'sphere' | 'theme'
+let _filesJson=null,_themesJson=null,_watchTimer=null,_lastContainer=null,_activeTab='sphere';
 
 function toast(m,t){if(window.YM_toast)window.YM_toast(m,t);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -58,7 +53,6 @@ function startWalletWatch(container){
   },800);
 }
 
-// Re-render quand wallet change
 (function(){
   let _lp=null;
   setInterval(()=>{
@@ -68,7 +62,6 @@ function startWalletWatch(container){
   },1200);
 })();
 
-// ── CALCUL ÉLIGIBILITÉ ────────────────────────────────────────
 async function computeEligibility(){
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;if(!pubkey)return null;
   const state=window._mineState||{};
@@ -82,11 +75,9 @@ async function computeEligibility(){
   const lastRatio=(lastPub.score+1)/(lastLaps+1);
   const curRatio=(claimable+1)/(curLaps+1);
   const ratioCheck=lastRatio/curRatio;
-  return{eligible:claimable>0&&ratioCheck<=1,claimable,curLaps,curRatio,lastPub,lastRatio,ratioCheck,
-    curRatioNum:claimable+1,curRatioDen:curLaps+1};
+  return{eligible:claimable>0&&ratioCheck<=1,claimable,curLaps,curRatio,lastPub,lastRatio,ratioCheck,curRatioNum:claimable+1,curRatioDen:curLaps+1};
 }
 
-// ── BOUTON GITHUB DANS PANEL-HEAD ─────────────────────────────
 function _injectGithubBtn(){
   ['#panel-mine .panel-head','#panel-build .panel-head'].forEach(sel=>{
     const h=document.querySelector(sel);if(!h)return;
@@ -104,6 +95,114 @@ function _injectGithubBtn(){
   });
 }
 
+// ── FLOW CONVERSATIONNEL ──────────────────────────────────────
+function _flowBtn(label, onClick){
+  const b = document.createElement('button');
+  b.style.cssText = 'cursor:pointer;border-radius:10px;padding:12px 16px;font-size:13px;transition:border-color .15s,color .15s;width:100%;text-align:left;display:flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text2)';
+  b.innerHTML = label;
+  b.addEventListener('mouseenter',()=>{b.style.borderColor='rgba(240,168,48,.4)';b.style.color='var(--text)';});
+  b.addEventListener('mouseleave',()=>{b.style.borderColor='rgba(255,255,255,.1)';b.style.color='var(--text2)';});
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function _flowBack(buildContent, fn){
+  const back = document.createElement('button');
+  back.style.cssText = 'background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:8px 14px 4px;display:flex;align-items:center;gap:4px;flex-shrink:0';
+  back.innerHTML = '&#8592; Back';
+  back.addEventListener('click', ()=>{ buildContent.innerHTML=''; fn(buildContent); });
+  return back;
+}
+
+function renderFlow(buildContent){
+  buildContent.innerHTML='';
+  buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;gap:10px';
+
+  const q = document.createElement('div');
+  q.style.cssText = 'font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px';
+  q.textContent = 'You have code or a link?';
+  buildContent.appendChild(q);
+
+  // YES
+  buildContent.appendChild(_flowBtn(
+    '<span style="font-size:20px">&#10003;</span><div><div style="font-size:13px;color:var(--text)">Yes &#8212; I have code or a link</div></div>',
+    ()=>{
+      buildContent.innerHTML='';
+      buildContent.appendChild(_flowBack(buildContent, renderFlow));
+      const q2=document.createElement('div');
+      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);padding:14px 16px 8px';
+      q2.textContent='What do you want to do?';
+      buildContent.appendChild(q2);
+      const wrap=document.createElement('div');
+      wrap.style.cssText='padding:0 16px;display:flex;flex-direction:column;gap:8px';
+      // 1.1 Rank
+      wrap.appendChild(_flowBtn(
+        '<span style="font-size:20px">&#11014;</span><div><div style="font-size:13px;color:var(--text)">Rank</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Publish to the YourMine registry via PR</div></div>',
+        ()=>{
+          buildContent.innerHTML='';
+          buildContent.appendChild(_flowBack(buildContent, renderFlow));
+          const scrollArea=document.createElement('div');
+          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
+          buildContent.appendChild(scrollArea);
+          renderBuildContent(scrollArea);
+        }
+      ));
+      // 1.2 Plug
+      wrap.appendChild(_flowBtn(
+        '<span style="font-size:20px">&#128268;</span><div><div style="font-size:13px;color:var(--text)">Test (Plug)</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Load directly without publishing</div></div>',
+        ()=>{
+          buildContent.innerHTML='';
+          buildContent.appendChild(_flowBack(buildContent, renderFlow));
+          const scrollArea=document.createElement('div');
+          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
+          buildContent.appendChild(scrollArea);
+          renderPlugContent(scrollArea);
+        }
+      ));
+      buildContent.appendChild(wrap);
+    }
+  ));
+
+  // NO
+  buildContent.appendChild(_flowBtn(
+    '<span style="font-size:20px">&#10007;</span><div><div style="font-size:13px;color:var(--text)">No &#8212; I have nothing yet</div></div>',
+    ()=>{
+      buildContent.innerHTML='';
+      buildContent.appendChild(_flowBack(buildContent, renderFlow));
+      const q2=document.createElement('div');
+      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);padding:14px 16px 8px';
+      q2.textContent='What do you need?';
+      buildContent.appendChild(q2);
+      const wrap=document.createElement('div');
+      wrap.style.cssText='padding:0 16px;display:flex;flex-direction:column;gap:8px';
+      // 2.1 README
+      wrap.appendChild(_flowBtn(
+        '<span style="font-size:20px">&#8595;</span><div><div style="font-size:13px;color:var(--text)">Download README</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Get the prompt to build with your own AI</div></div>',
+        ()=>{
+          const a=document.createElement('a');
+          a.href='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/README.md';
+          a.download='README.md';a.target='_blank';a.rel='noopener';
+          document.body.appendChild(a);a.click();document.body.removeChild(a);
+          toast('README download started','success');
+        }
+      ));
+      // 2.2 AI
+      wrap.appendChild(_flowBtn(
+        '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Test the YourMine agent</div><div style="font-size:10px;color:var(--text3);margin-top:2px">AI code generation</div></div>',
+        ()=>{
+          buildContent.innerHTML='';
+          buildContent.appendChild(_flowBack(buildContent, renderFlow));
+          const soon=document.createElement('div');
+          soon.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--font-d,inherit);font-size:clamp(36px,10vw,80px);font-weight:800;letter-spacing:.05em;background:linear-gradient(140deg,#f0a830 0%,#fff 45%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text';
+          soon.textContent='SOON';
+          buildContent.appendChild(soon);
+        }
+      ));
+      buildContent.appendChild(wrap);
+    }
+  ));
+}
+
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
 let _buildTab='rank';
 
@@ -114,41 +213,28 @@ async function render(containerArg,presetType){
   body.innerHTML='';
   body.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg)';
   setTimeout(_injectGithubBtn,0);
-  body.innerHTML=
-    '<div id="build-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
-    '<div style="display:flex;border-top:1px solid rgba(232,160,32,.12);flex-shrink:0">'+
-      '<div class="ym-tab active" data-btab="rank" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">⬆ Rank</div>'+
-      '<div class="ym-tab" data-btab="plug" style="flex:1;padding:10px 4px;font-size:10px;cursor:pointer">🔌 Plug</div>'+
-    '</div>';
-  const buildContent=body.querySelector('#build-content');
-  _buildTab=_buildTab||'rank';
-  function switchBuildTab(tab){
-    _buildTab=tab;
-    body.querySelectorAll('[data-btab]').forEach(t=>t.classList.toggle('active',t.dataset.btab===tab));
-    buildContent.innerHTML='';
-    if(tab==='rank')renderBuildContent(buildContent,presetType);
-    else renderPlugContent(buildContent);
+  const buildContent=document.createElement('div');
+  buildContent.id='build-content';
+  buildContent.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0';
+  body.appendChild(buildContent);
+  if(presetType==='theme'){
+    renderBuildContent(buildContent,'theme');
+  }else{
+    renderFlow(buildContent);
   }
-  body.querySelectorAll('[data-btab]').forEach(t=>{
-    t.addEventListener('click',()=>switchBuildTab(t.dataset.btab));
-    if(t.dataset.btab===_buildTab)t.classList.add('active');
-    else t.classList.remove('active');
-  });
-  if(_buildTab==='rank')renderBuildContent(buildContent,presetType);
-  else renderPlugContent(buildContent);
 }
 
 function renderPlugContent(body){
   if(window.YM_Liste?.renderPlugContent){window.YM_Liste.renderPlugContent(body);}
-  else{body.style.cssText='display:flex;align-items:center;justify-content:center;height:100%';body.innerHTML='<div style="color:var(--text3);font-size:12px">Loading…</div>';setTimeout(()=>{if(window.YM_Liste?.renderPlugContent)window.YM_Liste.renderPlugContent(body);},500);}
+  else{body.style.cssText='display:flex;align-items:center;justify-content:center;height:100%';body.innerHTML='<div style="color:var(--text3);font-size:12px">Loading\u2026</div>';setTimeout(()=>{if(window.YM_Liste?.renderPlugContent)window.YM_Liste.renderPlugContent(body);},500);}
 }
+
 
 function renderBuildContent(body,presetType){
   body.innerHTML='';
   body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0';
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
 
-  // ÉTAPE GitHub
   _step(body,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
     if(_userToken){
       card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b></div>'+
@@ -171,7 +257,6 @@ function renderBuildContent(body,presetType){
     }
   });
 
-  // ÉTAPE Nom + Type (Sphere / Thème) avec toggle dynamique dans le nom
   const nameTypeStep=document.createElement('div');
   nameTypeStep.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
   nameTypeStep.innerHTML=
@@ -207,23 +292,19 @@ function renderBuildContent(body,presetType){
     }
   }
   nameTypeStep.querySelector('#pub-name-main').addEventListener('input',_checkName);
-
   nameTypeStep.querySelector('#type-sphere').addEventListener('click',()=>{
     _pubType='sphere';extEl.textContent='.sphere.js';
     nameTypeStep.querySelector('#type-sphere').style.cssText='background:rgba(240,168,48,.1);border:none;color:var(--gold);font-size:10px;padding:4px 10px;cursor:pointer';
     nameTypeStep.querySelector('#type-theme').style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer';
-    _checkName();codeStepEl.style.display='';
-    renderCodeAreaMain();
+    _checkName();codeStepEl.style.display='';renderCodeAreaMain();
   });
   nameTypeStep.querySelector('#type-theme').addEventListener('click',()=>{
     _pubType='theme';extEl.textContent='.theme.html';
     nameTypeStep.querySelector('#type-theme').style.cssText='background:rgba(8,224,248,.1);border:none;color:var(--cyan);font-size:10px;padding:4px 10px;cursor:pointer';
     nameTypeStep.querySelector('#type-sphere').style.cssText='background:none;border:none;color:var(--text3);font-size:10px;padding:4px 10px;cursor:pointer';
-    _checkName();codeStepEl.style.display='';
-    renderCodeAreaMain();
+    _checkName();codeStepEl.style.display='';renderCodeAreaMain();
   });
 
-  // ÉTAPE Wallet (conditionnel)
   const walletStepEl=document.createElement('div');
   walletStepEl.style.display='none';
   _step(walletStepEl,'Wallet','',card=>{
@@ -232,19 +313,15 @@ function renderBuildContent(body,presetType){
     }else{
       card.innerHTML+='<div class="ym-notice warn" style="font-size:11px">🔒 Wallet requis pour nouveau fichier</div>'+
         '<button class="ym-btn ym-btn-ghost" id="open-wallet-main" style="width:100%;font-size:11px;margin-top:6px">→ Ouvrir Wallet</button>';
-      card.querySelector('#open-wallet-main')?.addEventListener('click',()=>{
-        window.dispatchEvent(new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}}));
-      });
+      card.querySelector('#open-wallet-main')?.addEventListener('click',()=>{window.dispatchEvent(new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}}));});
       startWalletWatch(walletStepEl);
     }
   });
   body.appendChild(walletStepEl);
 
-  // ÉTAPE Code avec toggle Code brut / Quick
   let _mode='code';
   const codeStepEl=document.createElement('div');
   codeStepEl.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
-
   const codeHead=document.createElement('div');
   codeHead.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
   codeHead.innerHTML=
@@ -254,7 +331,6 @@ function renderBuildContent(body,presetType){
       '<button id="mode-quick-main" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">⚡ Quick</button>'+
     '</div>';
   codeStepEl.appendChild(codeHead);
-
   const codeAreaEl=document.createElement('div');
   codeStepEl.appendChild(codeAreaEl);
   body.appendChild(codeStepEl);
@@ -264,9 +340,8 @@ function renderBuildContent(body,presetType){
     const isCode=_mode==='code';
     codeHead.querySelector('#mode-code-main').style.cssText='font-size:9px;padding:3px 8px;'+(isCode?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
     codeHead.querySelector('#mode-quick-main').style.cssText='font-size:9px;padding:3px 8px;'+(!isCode?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
-
     if(isCode){
-      const ph=_pubType==='theme'?'<!-- HTML theme code -->\n<!-- Visit github.com/theodoreyong9/YourMinedApp for examples -->':'/* Visit github.com/theodoreyong9/YourMinedApp for sphere examples */';
+      const ph=_pubType==='theme'?'<!-- HTML theme code -->':'/* Visit github.com/theodoreyong9/YourMinedApp for sphere examples */';
       codeAreaEl.innerHTML=
         '<textarea id="pub-code-main" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="'+ph+'"></textarea>'+
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">'+
@@ -279,7 +354,6 @@ function renderBuildContent(body,presetType){
         el.style.color=kb>500?'var(--red)':'var(--text3)';
       });
     }else{
-      // Quick fields depend on type
       if(_pubType==='sphere'){
         codeAreaEl.innerHTML=
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
@@ -292,726 +366,42 @@ function renderBuildContent(body,presetType){
           '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
       }else{
         codeAreaEl.innerHTML=
-          '<input id="th-icon-main" class="ym-input" placeholder="Icon preview (emoji ou URL image)" style="font-size:12px;margin-bottom:6px">'+
-          '<textarea id="th-desc-main" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
+          '<input id="th-icon-main" class="ym-input" placeholder="Icon preview" style="font-size:12px;margin-bottom:6px">'+
+          '<textarea id="th-desc-main" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
           '<input id="th-raw-main" class="ym-input" placeholder="Raw URL du fichier HTML du thème" style="font-size:11px;margin-bottom:6px">'+
-          '<input id="th-owner-main" class="ym-input" placeholder="Transférer ownership à @github-user (optionnel)" style="font-size:11px;margin-bottom:6px">'+
+          '<input id="th-owner-main" class="ym-input" placeholder="Transférer ownership (optionnel)" style="font-size:11px;margin-bottom:6px">'+
           '<textarea id="th-photos-main" class="ym-input" rows="4" placeholder="Photos URLs (max 15, une par ligne)" style="font-size:10px;margin-bottom:4px"></textarea>'+
           '<textarea id="th-videos-main" class="ym-input" rows="2" placeholder="Videos URLs (max 15, une par ligne)" style="font-size:10px;margin-bottom:6px"></textarea>'+
           '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip-main" checked> 🚧 Under construction</label>';
       }
     }
   }
-
   codeHead.querySelector('#mode-code-main').addEventListener('click',()=>{_mode='code';renderCodeAreaMain();});
   codeHead.querySelector('#mode-quick-main').addEventListener('click',()=>{_mode='quick';renderCodeAreaMain();});
   renderCodeAreaMain();
 
-  // Submit
   const submitWrap=document.createElement('div');
   submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
   submitWrap.innerHTML='<div id="pub-status-main" style="margin-bottom:8px"></div>'+
     '<button id="pub-submit-main" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Sign & Submit</button>';
   body.appendChild(submitWrap);
-
   submitWrap.querySelector('#pub-submit-main').addEventListener('click',()=>submitUnified(body,codeAreaEl,nameTypeStep,_pubType,_mode));
   if(presetType==='theme')setTimeout(()=>nameTypeStep.querySelector('#type-theme')?.click(),0);
 }
 
-// ── ONGLET SPHERE ─────────────────────────────────────────────
-function renderSphereTab(body){
-  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
-  body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0';
-
-  // ÉTAPE GitHub
-  _step(body,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
-    if(_userToken){
-      card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b> connecté</div>'+
-        '<button id="bld-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
-      card.querySelector('#bld-disc').addEventListener('click',()=>{_saveToken(null);render(_lastContainer);});
-    }else{
-      card.innerHTML+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
-        '<input id="bld-tok" class="ym-input" type="password" placeholder="ghp_… (scope: repo)" style="flex:1;font-size:11px">'+
-        '<button id="bld-tok-ok" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button>'+
-        '</div><a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan)">↗ Créer token</a>';
-      card.querySelector('#bld-tok-ok').addEventListener('click',async()=>{
-        const tok=card.querySelector('#bld-tok').value.trim();if(!tok)return;
-        try{const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
-          if(!r.ok)throw new Error('Token invalide ('+r.status+')');
-          const u=await r.json();_saveToken({value:tok,username:u.login});
-          toast('Connecté @'+u.login,'success');render(_lastContainer);}
-        catch(e){toast(e.message,'error');}
-      });
-      card.querySelector('#bld-tok').addEventListener('keydown',e=>{if(e.key==='Enter')card.querySelector('#bld-tok-ok').click();});
-    }
-  });
-
-  // ÉTAPE Sphere name
-  _step(body,'Sphere','',card=>{
-    card.innerHTML+=
-      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
-        '<input id="pub-name" class="ym-input" type="text" placeholder="mon-app" style="flex:1;font-size:12px">'+
-        '<span style="font-size:11px;color:var(--text3);flex-shrink:0;align-self:center">.sphere.js</span>'+
-      '</div>'+
-      '<div id="sphere-status" style="font-size:10px;color:var(--text3);min-height:14px"></div>';
-    card.querySelector('#pub-name').addEventListener('input',async function(){
-      const v=this.value.trim();const st=card.querySelector('#sphere-status');if(!v){st.textContent='';return;}
-      const fn=v.replace(/\.sphere\.js$/,'')+'.sphere.js';
-      const files=await fetchFilesJson();const ex=files.find(f=>f.filename===fn);
-      if(ex)st.innerHTML='<span style="color:var(--gold)">⬆ Upgrade</span> · @'+esc(ex.ghAuthor||'?')+
-        ' · <a href="https://github.com/'+GH_OWNER+'/'+GH_REPO+'/blob/main/'+esc(fn)+'" target="_blank" style="color:var(--cyan);font-size:10px">&lt;/&gt;</a>';
-      else st.innerHTML='<span style="color:var(--green)">✦ Nouveau</span>';
-      // Affiche/cache wallet selon nouveau ou pas
-      const walletStep=body.querySelector('#code-wallet-step');
-      if(walletStep)walletStep.style.display=ex?'none':'block';
-    });
-  });
-
-  // ÉTAPE Wallet (visible seulement si nouveau fichier)
-  const walletWrap=document.createElement('div');
-  walletWrap.id='code-wallet-step';walletWrap.style.display='none';
-  _step(walletWrap,'Wallet','',card=>{
-    if(pubkey){
-      card.innerHTML+='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>';
-    }else{
-      card.innerHTML+='<div class="ym-notice warn" style="font-size:11px">🔒 Wallet requis pour nouveau fichier</div>'+
-        '<button class="ym-btn ym-btn-ghost" id="open-wallet-btn2" style="width:100%;font-size:11px;margin-top:6px">→ Ouvrir Wallet</button>';
-      card.querySelector('#open-wallet-btn2')?.addEventListener('click',()=>{
-        window.dispatchEvent(new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}}));
-      });
-      startWalletWatch(walletWrap);
-    }
-  });
-  body.appendChild(walletWrap);
-
-  // ÉTAPE Code avec toggle Quick / Code brut — code brut par défaut
-  let _mode='code'; // défaut : code brut
-  const codeStep=document.createElement('div');
-  codeStep.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
-
-  const codeStepHead=document.createElement('div');
-  codeStepHead.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
-  codeStepHead.innerHTML=
-    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Code</div>'+
-    '<div style="display:flex;gap:4px">'+
-      '<button id="mode-code" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px;background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)">&lt;/&gt; Code brut</button>'+
-      '<button id="mode-quick" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">⚡ Quick</button>'+
+function _step(body,title,badge,fn){
+  const card=document.createElement('div');
+  card.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
+  card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'+
+    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">'+esc(title)+'</div>'+
+    (badge?'<span style="font-size:10px;color:var(--green)">'+esc(badge)+'</span>':'')+
     '</div>';
-  codeStep.appendChild(codeStepHead);
-
-  const codeArea=document.createElement('div');
-  codeStep.appendChild(codeArea);
-  body.appendChild(codeStep);
-
-  function renderCodeArea(){
-    codeArea.innerHTML='';
-    // Update button styles
-    codeStepHead.querySelector('#mode-code').style.cssText='font-size:9px;padding:3px 8px;'+(_mode==='code'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
-    codeStepHead.querySelector('#mode-quick').style.cssText='font-size:9px;padding:3px 8px;'+(_mode==='quick'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
-
-    if(_mode==='code'){
-      codeArea.innerHTML=
-        '<textarea id="pub-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="/* window.YM_S[\'mysphere.sphere.js\'] = { ... } */"></textarea>'+
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">'+
-          '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="pub-wip" checked> 🚧 Under construction</label>'+
-          '<div id="pub-size" style="font-size:10px;color:var(--text3)">0 KB</div>'+
-        '</div>';
-      codeArea.querySelector('#pub-code').addEventListener('input',function(){
-        const kb=new TextEncoder().encode(this.value).length/1024;
-        const el=codeArea.querySelector('#pub-size');el.textContent=kb.toFixed(1)+' KB';
-        el.style.color=kb>500?'var(--red)':'var(--text3)';
-      });
-    }else{
-      // Mode quick : champs minimaux
-      codeArea.innerHTML=
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">'+
-          '<input id="min-icon" class="ym-input" placeholder="Icon (emoji ou URL)" style="font-size:12px">'+
-          '<input id="min-cat" class="ym-input" placeholder="Catégorie" style="font-size:12px">'+
-        '</div>'+
-        '<textarea id="min-desc" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
-        '<input id="min-url" class="ym-input" placeholder="Raw URL du vrai code (optionnel)" style="font-size:11px;margin-bottom:6px">'+
-        '<input id="min-owner" class="ym-input" placeholder="Transférer ownership à @github-user (optionnel)" style="font-size:11px;margin-bottom:6px">'+
-        '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">'+
-          '<input type="checkbox" id="min-wip" checked> 🚧 Under construction (badge)</label>';
-    }
-  }
-
-  codeStepHead.querySelector('#mode-code').addEventListener('click',()=>{_mode='code';renderCodeArea();});
-  codeStepHead.querySelector('#mode-quick').addEventListener('click',()=>{_mode='quick';renderCodeArea();});
-  renderCodeArea();
-
-  // Submit
-  const submitWrap=document.createElement('div');
-  submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
-  submitWrap.innerHTML='<div id="pub-status" style="margin-bottom:8px"></div>'+
-    '<button id="pub-submit" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Sign & Submit</button>';
-  body.appendChild(submitWrap);
-
-  submitWrap.querySelector('#pub-submit').addEventListener('click',()=>{
-    if(_mode==='code')submitCodeForm(body);
-    else submitMinimalFromArea(body,codeArea);
-  });
+  fn(card);body.appendChild(card);
 }
 
-// ── MODE MINIMAL ──────────────────────────────────────────────
-function renderMinimalForm(area,body){
-  area.innerHTML='';
-  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
-
-  // ÉTAPE 1 : GitHub
-  _step(area,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
-    if(_userToken){
-      card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b> connecté</div>'+
-        '<button id="bld-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
-      card.querySelector('#bld-disc').addEventListener('click',()=>{_saveToken(null);render(_lastContainer);});
-    }else{
-      card.innerHTML+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
-        '<input id="bld-tok" class="ym-input" type="password" placeholder="ghp_… (scope: repo)" style="flex:1;font-size:11px">'+
-        '<button id="bld-tok-ok" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button>'+
-        '</div><a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan)">↗ Créer un token</a>';
-      card.querySelector('#bld-tok-ok').addEventListener('click',async()=>{
-        const tok=card.querySelector('#bld-tok').value.trim();if(!tok)return;
-        try{const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
-          if(!r.ok)throw new Error('Token invalide ('+r.status+')');
-          const u=await r.json();_saveToken({value:tok,username:u.login});
-          toast('Connecté @'+u.login,'success');render(_lastContainer);}
-        catch(e){toast(e.message,'error');}
-      });
-      card.querySelector('#bld-tok').addEventListener('keydown',e=>{if(e.key==='Enter')card.querySelector('#bld-tok-ok').click();});
-    }
-  });
-
-  // ÉTAPE 2 : Informations sphere
-  _step(area,'Infos Sphere','',card=>{
-    card.innerHTML+=
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">'+
-        '<input id="min-name" class="ym-input" placeholder="Nom" style="font-size:12px">'+
-        '<div style="display:flex;align-items:center;gap:4px">'+
-          '<input id="min-slug" class="ym-input" placeholder="slug" style="font-size:12px;flex:1">'+
-          '<span style="font-size:10px;color:var(--text3);flex-shrink:0">.sphere.js</span>'+
-        '</div>'+
-        '<input id="min-icon" class="ym-input" placeholder="Icon (emoji ou URL)" style="font-size:12px">'+
-        '<input id="min-cat" class="ym-input" placeholder="Catégorie" style="font-size:12px">'+
-      '</div>'+
-      '<textarea id="min-desc" class="ym-input" rows="2" placeholder="Description (< 140 chars)" style="font-size:11px;margin-bottom:8px"></textarea>'+
-      '<input id="min-url" class="ym-input" placeholder="GitHub raw URL du code (optionnel — active par lien)" style="font-size:11px;margin-bottom:6px">'+
-      '<div id="min-slug-st" style="font-size:10px;color:var(--text3);min-height:14px"></div>'+
-      '<div style="margin-top:8px">'+
-        '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">'+
-          '<input type="checkbox" id="min-wip"> 🚧 Under construction (badge dans les listes)'+
-        '</label>'+
-      '</div>';
-
-    card.querySelector('#min-slug').addEventListener('input',async function(){
-      const v=this.value.trim();const st=card.querySelector('#min-slug-st');if(!v){st.textContent='';return;}
-      const fn=v.replace(/\.sphere\.js$/,'')+'.sphere.js';
-      const files=await fetchFilesJson();const ex=files.find(f=>f.filename===fn);
-      if(ex)st.innerHTML='<span style="color:var(--gold)">⬆ Upgrade</span> · @'+esc(ex.ghAuthor||'?');
-      else st.innerHTML='<span style="color:var(--green)">✦ Nouveau</span>';
-    });
-  });
-
-  // ÉTAPE 3 : Wallet (seulement si nouveau fichier)
-  const walletStep=document.createElement('div');
-  walletStep.id='min-wallet-step';
-  walletStep.style.display='none';
-  _step(walletStep,'Wallet (nouveau fichier uniquement)','',card=>{
-    if(pubkey){
-      card.innerHTML+='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>';
-    }else{
-      card.innerHTML+='<div class="ym-notice warn" style="font-size:11px">🔒 Wallet requis pour un nouveau fichier</div>'+
-        '<button class="ym-btn ym-btn-ghost" id="min-open-wallet" style="width:100%;font-size:11px;margin-top:6px">→ Ouvrir l\'onglet Wallet</button>';
-      card.querySelector('#min-open-wallet')?.addEventListener('click',()=>{
-        // Bascule sur l'onglet wallet dans panel-mine
-        const bar=document.getElementById('mine-tabs-bar');
-        if(bar){
-          bar.querySelectorAll('.ym-tab').forEach(t=>t.classList.remove('active'));
-          const wt=bar.querySelector('[data-mine-tab="wallet"]');if(wt)wt.classList.add('active');
-        }
-        if(window.app_switchMineTab)window.app_switchMineTab('wallet');
-        else{
-          const evt=new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}});
-          window.dispatchEvent(evt);
-        }
-      });
-      startWalletWatch(walletStep);
-    }
-  });
-  area.appendChild(walletStep);
-
-  // Affiche/cache étape wallet selon slug
-  async function _checkWalletStep(){
-    const slugEl=area.querySelector('#min-slug');
-    if(!slugEl)return;
-    const fn=(slugEl.value.trim().replace(/\.sphere\.js$/,'')||'x')+'.sphere.js';
-    const files=await fetchFilesJson();
-    const isNew=!files.find(f=>f.filename===fn);
-    walletStep.style.display=isNew?'block':'none';
-  }
-  area.querySelector('#min-slug')?.addEventListener('input',_checkWalletStep);
-
-  // SUBMIT
-  const submitWrap=document.createElement('div');
-  submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
-  submitWrap.innerHTML='<div id="min-status" style="margin-bottom:8px;min-height:0"></div>'+
-    '<button id="min-submit" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Soumettre</button>';
-  area.appendChild(submitWrap);
-
-  submitWrap.querySelector('#min-submit').addEventListener('click',()=>submitMinimal(area));
-}
-
-async function submitMinimal(area){
-  const btn=area.querySelector('#min-submit')||area.parentElement?.querySelector('#min-submit');
-  const statusEl=area.querySelector('#min-status')||area.parentElement?.querySelector('#min-status');
-  function st(msg,type){if(statusEl)statusEl.innerHTML='<div class="ym-notice '+(type||'info')+'" style="font-size:11px">'+msg+'</div>';}
-
-  const name=(area.querySelector('#min-name')?.value||'').trim();
-  const slug=(area.querySelector('#min-slug')?.value||'').trim().replace(/\.sphere\.js$/,'');
-  const icon=(area.querySelector('#min-icon')?.value||'').trim()||'⬡';
-  const cat=(area.querySelector('#min-cat')?.value||'').trim()||'Other';
-  const desc=(area.querySelector('#min-desc')?.value||'').trim().slice(0,140);
-  const rawUrl=(area.querySelector('#min-url')?.value||'').trim();
-  const wip=area.querySelector('#min-wip')?.checked||false;
-  if(!name||!slug)return st('Nom et slug requis','error');
-  if(!_userToken)return st('Token GitHub requis','error');
-
-  const filename=slug+'.sphere.js';
-  const username=_userToken.username,token=_userToken.value;
-  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
-
-  if(btn){btn.disabled=true;btn.textContent='Processing…';}
-  try{
-    st('Vérification…');
-    const files=await fetchFilesJson(true);
-    const existing=files.find(f=>f.filename===filename);
-    if(!existing&&!pubkey)throw new Error('Wallet requis pour un nouveau fichier');
-    if(existing){
-      const ok=existing.ghAuthor===username||existing.owner===username||(pubkey&&existing.author===pubkey);
-      if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));
-    }
-
-    // Génère le code minimal de la sphere
-    const codeUrl=rawUrl||(existing&&existing.codeUrl)||
-      'https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/'+filename;
-
-    let sphereCode;
-    if(rawUrl){
-      // Mode lien : sphere activable minimale qui charge depuis rawUrl
-      sphereCode=`/* jshint esversion:11 */
-// ${filename} — minimal link sphere
-(function(){
-'use strict';
-window.YM_S = window.YM_S || {};
-
-const _CODE_URL = '${rawUrl}';
-let _loaded = false;
-
-window.YM_S['${filename}'] = {
-  name:        '${name.replace(/'/g,"\\'")}',
-  icon:        '${icon.replace(/'/g,"\\'")}',
-  category:    '${cat.replace(/'/g,"\\'")}',
-  description: '${desc.replace(/'/g,"\\'")}',${wip?"\n  wip: true,":""}
-  codeUrl:     _CODE_URL,
-
-  async activate(ctx) {
-    // Charge et exécute le vrai code depuis codeUrl
-    if(_loaded) return;
-    _loaded = true;
-    try {
-      const r = await fetch(_CODE_URL + '?t=' + Date.now(), { cache: 'no-store' });
-      if(!r.ok) throw new Error('HTTP ' + r.status);
-      const code = await r.text();
-      const blob = new Blob([code], { type: 'text/javascript' });
-      const url = URL.createObjectURL(blob);
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = url; s.onload = () => { URL.revokeObjectURL(url); res(); };
-        s.onerror = () => { URL.revokeObjectURL(url); rej(new Error('load failed')); };
-        document.head.appendChild(s);
-      });
-      // Transfère le contrôle au vrai module si disponible
-      const real = window.YM_S && window.YM_S['${filename}'];
-      if(real && real !== this && typeof real.activate === 'function') {
-        await real.activate(ctx);
-      }
-    } catch(e) {
-      ctx.toast('Load error: ' + e.message, 'error');
-    }
-  },
-
-  deactivate() { _loaded = false; },
-  renderPanel(container) {
-    container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading ${esc(name)}…</div>';
-  },
-};
-})();`;
-    } else {
-      // Mode stub sans rawUrl
-      sphereCode=`/* jshint esversion:11 */
-// ${filename}
-(function(){
-'use strict';
-window.YM_S = window.YM_S || {};
-window.YM_S['${filename}'] = {
-  name:        '${name.replace(/'/g,"\\'")}',
-  icon:        '${icon.replace(/'/g,"\\'")}',
-  category:    '${cat.replace(/'/g,"\\'")}',
-  description: '${desc.replace(/'/g,"\\'")}',${wip?"\n  wip: true,":""}
-  activate(ctx) { ctx.toast('${name.replace(/'/g,"\\'")} activated', 'success'); },
-  deactivate() {},
-  renderPanel(container) {
-    container.innerHTML = '<div style="padding:24px;font-size:13px;color:var(--text2)">${esc(desc)||esc(name)}</div>';
-  },
-};
-})();`;
-    }
-
-    st('Fork / sync…');
-    await ensureFork(token,username);
-    st('Push code…');
-    await ghPush(token,username,filename,sphereCode,'sphere: '+filename);
-
-    // Event
-    const nonce=uuid(),timestamp=Math.floor(Date.now()/1000);
-    const state=window._mineState||{};
-    const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
-    const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
-    let sigB64='';
-    if(pubkey&&window.YM_Mine_sign){
-      const msg=JSON.stringify({action:'create',filename,nonce,timestamp,score:claimable,laps:curLaps,codeUrl,wip});
-      const sig=await window.YM_Mine_sign(msg);
-      sigB64=btoa(String.fromCharCode(...Array.from(sig)));
-    }
-    const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp,
-              score:claimable,laps:curLaps,codeUrl,wip,...(newOwner?{transferTo:newOwner}:{})};
-    await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
-
-    await new Promise(r=>setTimeout(r,2000));
-    st('Opening PR…');
-    const pr=await openPR(token,username);
-
-    // Lien direct vers le fichier créé
-    const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/'+filename;
-    st('⏳ En attente du bot…<br>'+
-      '<a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR #'+pr.number+'</a> · '+
-      '<a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier créé</a>','info');
-    pollPR(token,pr.number,pr.html_url,statusEl,filename,fileUrl);
-    _filesJson=null;
-  }catch(e){
-    st('✗ '+esc(e.message),'error');toast(e.message,'error');
-  }finally{
-    if(btn){btn.disabled=false;btn.textContent='⬆ Soumettre';}
-  }
-}
-
-// ── MODE CODE BRUT ────────────────────────────────────────────
-function renderCodeForm(area,body,pubkey){
-  area.innerHTML='';
-
-  // ÉTAPE 1 GitHub
-  _step(area,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
-    if(_userToken){
-      card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b></div>'+
-        '<button id="bld-disc2" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
-      card.querySelector('#bld-disc2').addEventListener('click',()=>{_saveToken(null);render(_lastContainer);});
-    }else{
-      card.innerHTML+='<div style="display:flex;gap:6px;margin-bottom:6px">'+
-        '<input id="bld-tok2" class="ym-input" type="password" placeholder="ghp_…" style="flex:1;font-size:11px">'+
-        '<button id="bld-tok-ok2" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button></div>'+
-        '<a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan)">↗ Créer token</a>';
-      card.querySelector('#bld-tok-ok2').addEventListener('click',async()=>{
-        const tok=card.querySelector('#bld-tok2').value.trim();if(!tok)return;
-        try{const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
-          if(!r.ok)throw new Error('Token invalide');
-          const u=await r.json();_saveToken({value:tok,username:u.login});
-          toast('Connecté @'+u.login,'success');render(_lastContainer);}
-        catch(e){toast(e.message,'error');}
-      });
-      card.querySelector('#bld-tok2').addEventListener('keydown',e=>{if(e.key==='Enter')card.querySelector('#bld-tok-ok2').click();});
-    }
-  });
-
-  // ÉTAPE 2 Nom
-  _step(area,'Sphere','',card=>{
-    card.innerHTML+=
-      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
-        '<input id="pub-name" class="ym-input" type="text" placeholder="mon-app" style="flex:1;font-size:12px">'+
-        '<span style="font-size:11px;color:var(--text3);flex-shrink:0;align-self:center">.sphere.js</span>'+
-      '</div>'+
-      '<div style="margin-bottom:6px">'+
-        '<label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);cursor:pointer">'+
-          '<input type="checkbox" id="pub-wip" checked> 🚧 Under construction (badge)</label>'+
-      '</div>'+
-      '<div id="sphere-status" style="font-size:10px;color:var(--text3)"></div>';
-    card.querySelector('#pub-name').addEventListener('input',async function(){
-      const v=this.value.trim();const st=card.querySelector('#sphere-status');if(!v){st.textContent='';return;}
-      const fn=v.replace(/\.sphere\.js$/,'')+'.sphere.js';
-      const files=await fetchFilesJson();const ex=files.find(f=>f.filename===fn);
-      if(ex)st.innerHTML='<span style="color:var(--gold)">⬆ Upgrade</span> · @'+esc(ex.ghAuthor||'?')+
-        ' · <a href="https://github.com/'+GH_OWNER+'/'+GH_REPO+'/blob/main/'+esc(fn)+'" target="_blank" style="color:var(--cyan);font-size:10px">&lt;/&gt; code</a>';
-      else st.innerHTML='<span style="color:var(--green)">✦ Nouveau</span> · Score on-chain requis';
-    });
-  });
-
-  // ÉTAPE 3 Wallet conditionnel
-  const walletStep=document.createElement('div');
-  walletStep.id='code-wallet-step';walletStep.style.display='none';
-  _step(walletStep,'Wallet','',card=>{
-    if(pubkey){
-      card.innerHTML+='<div style="display:flex;align-items:center;gap:8px">'+
-        '<div class="ym-notice success" style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>'+
-        '<button id="open-sim-btn" class="ym-btn ym-btn-ghost" style="font-size:11px;flex-shrink:0">📊 Sim</button></div>'+
-        '<div id="elig-ph" style="font-size:11px;color:var(--text3);margin-top:6px">Calcul…</div>';
-      let _elig=null;
-      card.querySelector('#open-sim-btn').addEventListener('click',async function(){
-        if(_elig){_showSimulatorOverlay(_elig);return;}
-        this.textContent='⏳';this.disabled=true;
-        computeEligibility().then(e=>{this.textContent='📊 Sim';this.disabled=false;if(e){_elig=e;_showSimulatorOverlay(e);}});
-      });
-      computeEligibility().then(elig=>{
-        _elig=elig;const ph=card.querySelector('#elig-ph');if(!ph)return;
-        if(!elig){ph.textContent='—';return;}
-        const cls=elig.eligible?'success':'warn';
-        const msg=elig.eligible?'✓ Eligible':'✗ Score insuffisant — upgrade ok';
-        ph.outerHTML='<div class="ym-notice '+cls+'" style="font-size:11px;margin-top:6px">'+msg+'</div>';
-      });
-    }else{
-      card.innerHTML+='<div class="ym-notice warn" style="font-size:11px">🔒 Wallet requis</div>'+
-        '<button class="ym-btn ym-btn-ghost" id="open-wallet-btn" style="width:100%;font-size:11px;margin-top:6px">→ Ouvrir Wallet</button>';
-      card.querySelector('#open-wallet-btn')?.addEventListener('click',()=>{
-        window.dispatchEvent(new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}}));
-      });
-      startWalletWatch(walletStep);
-    }
-  });
-  area.appendChild(walletStep);
-
-  area.querySelector('#pub-name')?.addEventListener('input',async function(){
-    const fn=(this.value.trim().replace(/\.sphere\.js$/,'')||'x')+'.sphere.js';
-    const files=await fetchFilesJson();
-    walletStep.style.display=files.find(f=>f.filename===fn)?'none':'block';
-  });
-
-  // ÉTAPE 4 Code
-  _step(area,'Code','',card=>{
-    card.innerHTML+=
-      '<textarea id="pub-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box" placeholder="/* window.YM_S[\'mysphere.sphere.js\'] = { ... } */"></textarea>'+
-      '<div id="pub-size" style="font-size:10px;color:var(--text3);text-align:right;margin-top:2px">0 KB</div>';
-    card.querySelector('#pub-code').addEventListener('input',function(){
-      const kb=new TextEncoder().encode(this.value).length/1024;
-      const el=card.querySelector('#pub-size');el.textContent=kb.toFixed(1)+' KB';
-      el.style.color=kb>500?'var(--red)':'var(--text3)';
-    });
-  });
-
-  const submitWrap=document.createElement('div');
-  submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
-  submitWrap.innerHTML='<div id="pub-status" style="margin-bottom:8px"></div>'+
-    '<button id="pub-submit" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Sign & Submit</button>';
-  area.appendChild(submitWrap);
-  submitWrap.querySelector('#pub-submit').addEventListener('click',()=>submitCodeForm(area));
-}
-
-async function submitCodeForm(body){
-  const btn=body.querySelector('#pub-submit');
-  const statusEl=body.querySelector('#pub-status');
-  const nameRaw=((body.querySelector('#pub-name')||{}).value||'').trim();
-  const code=((body.querySelector('#pub-code')||{}).value||'').trim();
-  const wip=body.querySelector('#pub-wip')?.checked||false;
-  function st(msg,type){if(statusEl)statusEl.innerHTML='<div class="ym-notice '+(type||'info')+'" style="font-size:11px">'+msg+'</div>';}
-  if(!nameRaw)return st('Nom requis','error');
-  if(!code)return st('Code requis','error');
-  if(!_userToken)return st('Token GitHub requis','error');
-  const filename=nameRaw.replace(/\.sphere\.js$/,'')+'.sphere.js';
-  const token=_userToken.value,username=_userToken.username;
-  if(btn){btn.disabled=true;btn.textContent='Processing…';}
-  try{
-    const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
-    st('Vérification…');
-    const files=await fetchFilesJson(true);
-    const existing=files.find(f=>f.filename===filename);
-    if(!existing&&!pubkey)throw new Error('Wallet requis pour nouveau fichier');
-    if(existing){const ok=existing.ghAuthor===username||existing.owner===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
-    if(!existing){const elig=await computeEligibility();if(elig&&!elig.eligible)throw new Error('Score insuffisant');}
-    const nonce=uuid(),timestamp=Math.floor(Date.now()/1000);
-    const state=window._mineState||{};
-    const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
-    const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
-    const codeUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/'+filename;
-    const message=JSON.stringify({action:'create',filename,nonce,timestamp,score:claimable,laps:curLaps,codeUrl,wip});
-    let sigB64='';
-    if(pubkey&&window.YM_Mine_sign){
-      st('Signature…');const sig=await window.YM_Mine_sign(message);
-      sigB64=btoa(String.fromCharCode(...Array.from(sig)));
-    }else if(!existing)throw new Error('Wallet requis');
-    st('Fork…');await ensureFork(token,username);
-    st('Push code…');await ghPush(token,username,filename,code,'sphere: '+filename);
-    st('Push event…');
-    const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp,score:claimable,laps:curLaps,codeUrl,wip};
-    await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
-    await new Promise(r=>setTimeout(r,2000));
-    st('PR…');const pr=await openPR(token,username);
-    const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/'+filename;
-    st('⏳<br><a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR #'+pr.number+'</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','info');
-    pollPR(token,pr.number,pr.html_url,statusEl,filename,fileUrl);_filesJson=null;
-  }catch(e){st('✗ '+esc(e.message),'error');toast(e.message,'error');}
-  finally{if(btn){btn.disabled=false;btn.textContent='⬆ Sign & Submit';}}
-}
-
-// ── ONGLET THEME ──────────────────────────────────────────────
-async function renderThemeTab(body){
-  body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0';
-
-  let _themeMode='code'; // code brut par défaut
-
-  // ÉTAPE GitHub
-  _step(body,'GitHub',_userToken?'✓ @'+_userToken.username:null,card=>{
-    if(_userToken){
-      card.innerHTML+='<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(_userToken.username)+'</b></div>'+
-        '<button id="th-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Déconnecter</button>';
-      card.querySelector('#th-disc').addEventListener('click',()=>{_saveToken(null);render(_lastContainer);});
-    }else{
-      card.innerHTML+='<div style="display:flex;gap:6px;margin-bottom:6px">'+
-        '<input id="th-tok" class="ym-input" type="password" placeholder="ghp_…" style="flex:1;font-size:11px">'+
-        '<button id="th-tok-ok" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button></div>'+
-        '<a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan)">↗ Token</a>';
-      card.querySelector('#th-tok-ok').addEventListener('click',async()=>{
-        const tok=card.querySelector('#th-tok').value.trim();if(!tok)return;
-        try{const r=await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+tok}});
-          if(!r.ok)throw new Error('Token invalide');
-          const u=await r.json();_saveToken({value:tok,username:u.login});
-          toast('@'+u.login,'success');render(_lastContainer);}
-        catch(e){toast(e.message,'error');}
-      });
-    }
-  });
-
-  // ÉTAPE Nom + Code avec toggle
-  const codeStep=document.createElement('div');
-  codeStep.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
-
-  const head=document.createElement('div');
-  head.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:10px';
-  head.innerHTML=
-    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Thème</div>'+
-    '<div style="display:flex;gap:4px">'+
-      '<button id="th-mode-code" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px;background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)">&lt;/&gt; Code brut</button>'+
-      '<button id="th-mode-quick" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">⚡ Quick</button>'+
-    '</div>';
-  codeStep.appendChild(head);
-
-  const nameRow=document.createElement('div');
-  nameRow.style.cssText='display:flex;gap:6px;margin-bottom:8px';
-  nameRow.innerHTML=
-    '<input id="th-name" class="ym-input" placeholder="nom-du-theme" style="flex:1;font-size:12px">'+
-    '<span style="font-size:11px;color:var(--text3);align-self:center;flex-shrink:0">.html</span>';
-  codeStep.appendChild(nameRow);
-
-  const codeArea=document.createElement('div');
-  codeStep.appendChild(codeArea);
-  body.appendChild(codeStep);
-
-  function renderThemeCodeArea(){
-    codeArea.innerHTML='';
-    head.querySelector('#th-mode-code').style.cssText='font-size:9px;padding:3px 8px;'+(_themeMode==='code'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
-    head.querySelector('#th-mode-quick').style.cssText='font-size:9px;padding:3px 8px;'+(_themeMode==='quick'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
-
-    if(_themeMode==='code'){
-      codeArea.innerHTML=
-        '<textarea id="th-code" class="ym-input" rows="7" style="font-family:var(--font-m);font-size:11px;line-height:1.5;width:100%;box-sizing:border-box;margin-bottom:6px" placeholder="<!-- Thème HTML complet avec tout le DOM requis... -->"></textarea>'+
-        '<div style="display:flex;align-items:center;justify-content:space-between">'+
-          '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="th-wip" checked> 🚧 Under construction</label>'+
-          '<div id="th-size" style="font-size:10px;color:var(--text3)">0 KB</div>'+
-        '</div>';
-      codeArea.querySelector('#th-code').addEventListener('input',function(){
-        const kb=new TextEncoder().encode(this.value).length/1024;
-        const el=codeArea.querySelector('#th-size');el.textContent=kb.toFixed(1)+' KB';
-        el.style.color=kb>200?'var(--red)':'var(--text3)';
-      });
-    }else{
-      // Quick : champs métadonnées + lien vers le fichier HTML
-      codeArea.innerHTML=
-        '<div style="margin-bottom:6px">'+
-          '<input id="th-icon" class="ym-input" placeholder="Icon (emoji ou URL image preview)" style="font-size:12px">'+
-        '</div>'+
-        '<textarea id="th-desc" class="ym-input" rows="2" placeholder="Description du thème (< 140 chars)" style="font-size:11px;margin-bottom:6px"></textarea>'+
-        '<input id="th-raw-url" class="ym-input" placeholder="Raw URL du fichier HTML du thème (requis)" style="font-size:11px;margin-bottom:6px">'+
-        '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="th-wip" checked> 🚧 Under construction</label>';
-    }
-  }
-
-  head.querySelector('#th-mode-code').addEventListener('click',()=>{_themeMode='code';renderThemeCodeArea();});
-  head.querySelector('#th-mode-quick').addEventListener('click',()=>{_themeMode='quick';renderThemeCodeArea();});
-  renderThemeCodeArea();
-
-  // Submit
-  const submitWrap=document.createElement('div');
-  submitWrap.style.cssText='padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0';
-  submitWrap.innerHTML='<div id="th-status" style="margin-bottom:8px"></div>'+
-    '<button id="th-submit" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Publier le thème</button>';
-  body.appendChild(submitWrap);
-
-  submitWrap.querySelector('#th-submit').addEventListener('click',async()=>{
-    const btn=submitWrap.querySelector('#th-submit');
-    const statusEl=submitWrap.querySelector('#th-status');
-    function st(msg,type){statusEl.innerHTML='<div class="ym-notice '+(type||'info')+'" style="font-size:11px">'+msg+'</div>';}
-    const nameRaw=body.querySelector('#th-name')?.value.trim().replace(/\.html$/,'');
-    if(!nameRaw)return st('Nom requis','error');
-    if(!_userToken)return st('Token GitHub requis','error');
-    const token=_userToken.value,username=_userToken.username;
-    const wip=codeArea.querySelector('#th-wip')?.checked!==false;
-    btn.disabled=true;btn.textContent='Processing…';
-    try{
-      let themeCode='',rawFileUrl='';
-      if(_themeMode==='code'){
-        themeCode=codeArea.querySelector('#th-code')?.value.trim()||'';
-        if(!themeCode)throw new Error('Code requis');
-      }else{
-        rawFileUrl=codeArea.querySelector('#th-raw-url')?.value.trim()||'';
-        if(!rawFileUrl)throw new Error('Raw URL requis');
-        // Charge le code depuis l'URL
-        const r=await fetch(rawFileUrl+'?t='+Date.now(),{cache:'no-store'});
-        if(!r.ok)throw new Error('HTTP '+r.status+' — impossible de charger le thème');
-        themeCode=await r.text();
-      }
-      const icon=codeArea.querySelector('#th-icon')?.value.trim()||'🎨';
-      const desc=(codeArea.querySelector('#th-desc')?.value.trim()||'').slice(0,140);
-      const filename='src/themes/'+nameRaw.replace(/\.theme\.html$|\.html$/,'')+'.theme.html';
-      st('Fork…');await ensureFork(token,username);
-      st('Push thème…');await ghPush(token,username,filename,themeCode,'theme: '+nameRaw);
-
-      // Met à jour themes/index.json et themes-files.json côté fork
-      let idx=['default.html'];
-      try{const r=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/index.json?t='+Date.now());if(r.ok)idx=await r.json();}catch{}
-      if(!idx.includes(nameRaw+'.html'))idx.push(nameRaw+'.html');
-      await ghPush(token,username,'src/themes/index.json',JSON.stringify(idx,null,2),'theme index: '+nameRaw);
-
-      // themes-files.json — registry utilisateur
-      const codeUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/'+nameRaw+'.html';
-      let themeFiles=[];
-      try{const r=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/themes-files.json?t='+Date.now());if(r.ok)themeFiles=await r.json();}catch{}
-      const _tn=nameRaw.replace(/\.theme\.html$|\.html$/,'')+'.theme.html';
-      const entry={filename:_tn,name:nameRaw.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase()),icon,description:desc,ghAuthor:username,codeUrl,wip,timestamp:Math.floor(Date.now()/1000)};
-      const ei=themeFiles.findIndex(t=>t.filename===_tn);
-      if(ei>=0)themeFiles[ei]=Object.assign({},themeFiles[ei],entry);else themeFiles.push(entry);
-      await ghPush(token,username,'themes-files.json',JSON.stringify(themeFiles,null,2),'themes-files: '+nameRaw);
-
-      // Event
-      const nonce=uuid(),timestamp2=Math.floor(Date.now()/1000);
-      const ev={action:'create-theme',filename:_tn,wallet:'',ghAuthor:username,codeUrl,icon,description:desc,wip,nonce,timestamp:timestamp2};
-      await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event theme: '+nonce);
-
-      st('PR…');const pr=await openPR(token,username);
-      const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/src/themes/'+nameRaw+'.html';
-      st('✅ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','success');
-    }catch(e){st('✗ '+esc(e.message),'error');}
-    finally{btn.disabled=false;btn.textContent='⬆ Publier le thème';}
-  });
-}
-
-// ── SIMULATEUR ────────────────────────────────────────────────
 function slotsToHuman(slots){if(!isFinite(slots)||slots>5e7)return'∞';const s=Math.round(slots*.4);if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'min';if(s<86400)return(s/3600).toFixed(1)+'h';return(s/86400).toFixed(1)+'d';}
 function fmtR(v){if(!v||isNaN(v))return'0';if(Math.abs(v)<.0001)return v.toExponential(2);return v.toPrecision(4);}
+
 function _showSimulatorOverlay(elig){
   const ex=document.getElementById('build-sim-overlay');if(ex){ex.remove();return;}
   const ov=document.createElement('div');ov.id='build-sim-overlay';
@@ -1057,10 +447,6 @@ function _showSimulatorOverlay(elig){
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
 }
 
-// ── HELPERS ──────────────────────────────────────────────────
-
-
-// ── SUBMIT UNIFIÉ ─────────────────────────────────────────────
 async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
   const btn=body.querySelector('#pub-submit-main');
   const statusEl=body.querySelector('#pub-status-main');
@@ -1084,11 +470,10 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
         const cat=(codeAreaEl.querySelector('#min-cat-main')?.value||'').trim()||'Other';
         const desc=(codeAreaEl.querySelector('#min-desc-main')?.value||'').trim().slice(0,140);
         const rawUrl=(codeAreaEl.querySelector('#min-url-main')?.value||'').trim();
-        const newOwner=(codeAreaEl.querySelector('#min-owner-main')?.value||'').trim().replace('@','');
         codeUrl=rawUrl||codeUrl;
         sphereCode=rawUrl
-          ? `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nconst _U='${rawUrl}';\nlet _ok=false;\nwindow.YM_S['${filename}']={name:'${nameRaw}',icon:'${icon}',category:'${cat}',description:'${desc}',${wip?'wip:true,':''}codeUrl:_U,\nasync activate(ctx){if(_ok)return;_ok=true;try{const r=await fetch(_U+'?t='+Date.now(),{cache:'no-store'});const code=await r.text();const b=new Blob([code],{type:'text/javascript'});const u=URL.createObjectURL(b);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>{URL.revokeObjectURL(u);res();};s.onerror=()=>{URL.revokeObjectURL(u);rej();};document.head.appendChild(s);});const real=window.YM_S&&window.YM_S['${filename}'];if(real&&real!==this&&real.activate)await real.activate(ctx);}catch(e){ctx.toast('Load error: '+e.message,'error');}},\ndeactivate(){_ok=false;},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px;text-align:center;color:var(--text3)\">Loading…</div>';},\n};\n})();`
-          : `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nwindow.YM_S['${filename}']={name:'${nameRaw}',icon:'${icon}',category:'${cat}',description:'${desc}',${wip?'wip:true,':''}\nactivate(ctx){ctx.toast('${nameRaw} activated','success');},\ndeactivate(){},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px\">${desc}</div>';},\n};\n})();`;
+          ? `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nconst _U='${rawUrl}';\nlet _ok=false;\nwindow.YM_S['${filename}']={name:'${nameRaw}',icon:'${icon}',category:'${cat}',description:'${desc}',${wip?'wip:true,':''}codeUrl:_U,\nasync activate(ctx){if(_ok)return;_ok=true;try{const r=await fetch(_U+'?t='+Date.now(),{cache:'no-store'});const code=await r.text();const b=new Blob([code],{type:'text/javascript'});const u=URL.createObjectURL(b);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>{URL.revokeObjectURL(u);res();};s.onerror=()=>{URL.revokeObjectURL(u);rej();};document.head.appendChild(s);});const real=window.YM_S&&window.YM_S['${filename}'];if(real&&real!==this&&real.activate)await real.activate(ctx);}catch(e){ctx.toast('Load error: '+e.message,'error');}},\ndeactivate(){_ok=false;},\nrenderPanel(c){c.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3)">Loading…</div>';},\n};\n})();`
+          : `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nwindow.YM_S['${filename}']={name:'${nameRaw}',icon:'${icon}',category:'${cat}',description:'${desc}',${wip?'wip:true,':''}\nactivate(ctx){ctx.toast('${nameRaw} activated','success');},\ndeactivate(){},\nrenderPanel(c){c.innerHTML='<div style="padding:24px">${desc}</div>';},\n};\n})();`;
       }
       st('Vérification…');
       const files=await fetchFilesJson(true);
@@ -1116,7 +501,6 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       st('⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','info');
       pollPR(token,pr.number,pr.html_url,statusEl,filename,fileUrl);_filesJson=null;
     }else{
-      // Theme
       const filename2=nameRaw.replace(/\.theme\.html$|\.html$/,'')+'.theme.html';
       let themeCode='';
       const icon2=(codeAreaEl.querySelector('#th-icon-main')?.value||'').trim()||'🎨';
@@ -1126,7 +510,6 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
         if(!themeCode)throw new Error('Code requis');
       }else{
         const rawUrl2=(codeAreaEl.querySelector('#th-raw-main')?.value||'').trim();
-        const newOwner2=(codeAreaEl.querySelector('#th-owner-main')?.value||'').trim().replace('@','');
         if(!rawUrl2)throw new Error('Raw URL requis');
         const r=await fetch(rawUrl2+'?t='+Date.now(),{cache:'no-store'});
         if(!r.ok)throw new Error('HTTP '+r.status);
@@ -1134,8 +517,7 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       }
       const codeUrl2='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/'+filename2;
       st('Fork…');await ensureFork(token,username);
-      const themeFilePath='src/themes/'+filename2;
-st('Push thème…');await ghPush(token,username,themeFilePath,themeCode,'theme: '+filename2);
+      st('Push thème…');await ghPush(token,username,'src/themes/'+filename2,themeCode,'theme: '+filename2);
       let idx=['default.html'];
       try{const ri=await fetch('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/src/themes/index.json?t='+Date.now());if(ri.ok)idx=await ri.json();}catch{}
       if(!idx.includes(filename2))idx.push(filename2);
@@ -1147,7 +529,7 @@ st('Push thème…');await ghPush(token,username,themeFilePath,themeCode,'theme:
       const mediaPhotos=photosRaw?photosRaw.split('\n').map(u=>u.trim()).filter(Boolean).slice(0,15):[];
       const mediaVideos=videosRaw?videosRaw.split('\n').map(u=>u.trim()).filter(Boolean).slice(0,15):[];
       const media2=(mediaPhotos.length||mediaVideos.length)?{photos:mediaPhotos,videos:mediaVideos}:undefined;
-      const entry2={filename:filename2,name:filename2.replace(/\.html$/,'').replace(/[-_]/g,' ').replace(/\w/g,c=>c.toUpperCase()),icon:icon2,description:desc2,ghAuthor:username,codeUrl:codeUrl2,wip,timestamp:Math.floor(Date.now()/1000),...(media2?{media:media2}:{}),...(newOwner2?{owner:newOwner2}:{})};
+      const entry2={filename:filename2,name:filename2.replace(/\.html$/,'').replace(/[-_]/g,' '),icon:icon2,description:desc2,ghAuthor:username,codeUrl:codeUrl2,wip,timestamp:Math.floor(Date.now()/1000),...(media2?{media:media2}:{})};
       const ei=themeFiles.findIndex(t=>t.filename===filename2);
       if(ei>=0)themeFiles[ei]=Object.assign({},themeFiles[ei],entry2);else themeFiles.push(entry2);
       await ghPush(token,username,'themes-files.json',JSON.stringify(themeFiles,null,2),'themes-files: '+filename2);
@@ -1159,67 +541,6 @@ st('Push thème…');await ghPush(token,username,themeFilePath,themeCode,'theme:
     }
   }catch(e){st('✗ '+esc(e.message),'error');toast(e.message,'error');}
   finally{if(btn){btn.disabled=false;btn.textContent='⬆ Sign & Submit';}}
-}
-
-// submitMinimalFromArea — soumet depuis les champs quick
-async function submitMinimalFromArea(body,codeArea){
-  const btn=body.querySelector('#pub-submit');
-  const statusEl=body.querySelector('#pub-status');
-  function st(msg,type){if(statusEl)statusEl.innerHTML='<div class="ym-notice '+(type||'info')+'" style="font-size:11px">'+msg+'</div>';}
-  const nameRaw=((body.querySelector('#pub-name')||{}).value||'').trim();
-  if(!nameRaw)return st('Nom requis','error');
-  if(!_userToken)return st('Token GitHub requis','error');
-  const icon=(codeArea.querySelector('#min-icon')?.value||'').trim()||'⬡';
-  const cat=(codeArea.querySelector('#min-cat')?.value||'').trim()||'Other';
-  const desc=(codeArea.querySelector('#min-desc')?.value||'').trim().slice(0,140);
-  const rawUrl=(codeArea.querySelector('#min-url')?.value||'').trim();
-  const newOwner=(codeArea.querySelector('#min-owner')?.value||'').trim().replace('@','');
-  const wip=codeArea.querySelector('#min-wip')?.checked||false;
-  const filename=nameRaw.replace(/\.sphere\.js$/,'')+'.sphere.js';
-  const token=_userToken.value,username=_userToken.username;
-  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
-  if(btn){btn.disabled=true;btn.textContent='Processing…';}
-  try{
-    st('Vérification…');
-    const files=await fetchFilesJson(true);
-    const existing=files.find(f=>f.filename===filename);
-    if(!existing&&!pubkey)throw new Error('Wallet requis pour nouveau fichier');
-    if(existing){const ok=existing.ghAuthor===username||existing.owner===username||(pubkey&&existing.author===pubkey);if(!ok)throw new Error('"'+filename+'" appartient à @'+(existing.ghAuthor||'?'));}
-    const codeUrl=rawUrl||('https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/main/'+filename);
-    const sphereCode=rawUrl
-      ? `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nconst _U='${rawUrl.replace(/'/g,"\\'")}';\nlet _ok=false;\nwindow.YM_S['${filename.replace(/'/g,"\\'")}']={name:'${nameRaw.replace(/'/g,"\\'")}',icon:'${icon.replace(/'/g,"\\'")}',category:'${cat.replace(/'/g,"\\'")}',description:'${desc.replace(/'/g,"\\'")}',${wip?'wip:true,':''}codeUrl:_U,\nasync activate(ctx){if(_ok)return;_ok=true;try{const r=await fetch(_U+'?t='+Date.now(),{cache:'no-store'});const code=await r.text();const b=new Blob([code],{type:'text/javascript'});const u=URL.createObjectURL(b);await new Promise((res,rej)=>{const s=document.createElement('script');s.src=u;s.onload=()=>{URL.revokeObjectURL(u);res();};s.onerror=()=>{URL.revokeObjectURL(u);rej();};document.head.appendChild(s);});const real=window.YM_S&&window.YM_S['${filename.replace(/'/g,"\\'")}'];if(real&&real!==this&&real.activate)await real.activate(ctx);}catch(e){ctx.toast('Load error: '+e.message,'error');}},\ndeactivate(){_ok=false;},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px;text-align:center;color:var(--text3)\">Loading…</div>';},\n};\n})();`
-      : `/* jshint esversion:11 */\n(function(){\n'use strict';\nwindow.YM_S=window.YM_S||{};\nwindow.YM_S['${filename.replace(/'/g,"\\'")}']={name:'${nameRaw.replace(/'/g,"\\'")}',icon:'${icon.replace(/'/g,"\\'")}',category:'${cat.replace(/'/g,"\\'")}',description:'${desc.replace(/'/g,"\\'")}',${wip?'wip:true,':''}\nactivate(ctx){ctx.toast('${nameRaw.replace(/'/g,"\\'")} activated','success');},\ndeactivate(){},\nrenderPanel(c){c.innerHTML='<div style=\"padding:24px\">${desc.replace(/'/g,"\\'")}</div>';},\n};\n})();`;
-    const nonce=uuid(),timestamp=Math.floor(Date.now()/1000);
-    const state=window._mineState||{};
-    const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
-    const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
-    let sigB64='';
-    if(pubkey&&window.YM_Mine_sign&&!existing){
-      const msg=JSON.stringify({action:'create',filename,nonce,timestamp,score:claimable,laps:curLaps,codeUrl,wip});
-      st('Signature…');const sig=await window.YM_Mine_sign(msg);
-      sigB64=btoa(String.fromCharCode(...Array.from(sig)));
-    }
-    st('Fork…');await ensureFork(token,username);
-    st('Push…');await ghPush(token,username,filename,sphereCode,'sphere: '+filename);
-    const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp,score:claimable,laps:curLaps,codeUrl,wip};
-    await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
-    await new Promise(r=>setTimeout(r,2000));
-    st('PR…');const pr=await openPR(token,username);
-    const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/'+filename;
-    st('⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ PR #'+pr.number+'</a> · <a href="'+fileUrl+'" target="_blank" style="color:var(--green)">↗ Fichier</a>','info');
-    pollPR(token,pr.number,pr.html_url,statusEl,filename,fileUrl);_filesJson=null;
-  }catch(e){st('✗ '+esc(e.message),'error');toast(e.message,'error');}
-  finally{if(btn){btn.disabled=false;btn.textContent='⬆ Sign & Submit';}}
-}
-
-function _step(body,title,badge,fn){
-  const card=document.createElement('div');
-  card.style.cssText='border-bottom:1px solid rgba(255,255,255,.06);padding:10px 14px';
-  card.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'+
-    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">'+esc(title)+'</div>'+
-    (badge?'<span style="font-size:10px;color:var(--green)">'+esc(badge)+'</span>':'')+
-    '</div>';
-  fn(card);body.appendChild(card);
 }
 
 async function pollPR(token,prNumber,prUrl,statusEl,filename,fileUrl){
@@ -1270,7 +591,6 @@ async function openPR(token,username){
   return ghAPI(token,'/repos/'+GH_OWNER+'/'+GH_REPO+'/pulls','POST',{title:'Submission from @'+username,body:'Automated submission.',head:username+':main',base:'main'});
 }
 
-// Expose switchMineTab pour le bouton "Ouvrir Wallet"
 window.addEventListener('ym:switch-mine-tab',e=>{
   const bar=document.getElementById('mine-tabs-bar');
   if(!bar)return;
