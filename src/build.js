@@ -108,8 +108,10 @@ function _flowBtn(label, onClick){
 
 function _flowBack(buildContent, fn){
   const back = document.createElement('button');
-  back.style.cssText = 'background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:8px 14px 4px;display:flex;align-items:center;gap:4px;flex-shrink:0';
-  back.innerHTML = '&#8592;';
+  back.style.cssText = 'flex-shrink:0;width:100%;padding:14px;margin-top:auto;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text3);font-size:13px;cursor:pointer;border-radius:10px;transition:border-color .15s,color .15s';
+  back.innerHTML = '&#8592; Back';
+  back.addEventListener('mouseenter',()=>{back.style.borderColor='rgba(255,255,255,.2)';back.style.color='var(--text2)';});
+  back.addEventListener('mouseleave',()=>{back.style.borderColor='rgba(255,255,255,.1)';back.style.color='var(--text3)';});
   back.addEventListener('click', ()=>{ buildContent.innerHTML=''; fn(buildContent); });
   return back;
 }
@@ -128,23 +130,27 @@ function renderFlow(buildContent){
     '<span style="font-size:20px">&#10003;</span><div><div style="font-size:13px;color:var(--text)">Yes &#8212; I have code or a link</div></div>',
     ()=>{
       buildContent.innerHTML='';
-      buildContent.appendChild(_flowBack(buildContent, renderFlow));
+      buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;gap:10px';
       const q2=document.createElement('div');
-      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);padding:14px 16px 8px';
+      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px';
       q2.textContent='What do you want to do?';
       buildContent.appendChild(q2);
       const wrap=document.createElement('div');
-      wrap.style.cssText='padding:0 16px;display:flex;flex-direction:column;gap:8px';
+      wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
       // 1.1 Rank
       wrap.appendChild(_flowBtn(
         '<span style="font-size:20px">&#11014;</span><div><div style="font-size:13px;color:var(--text)">Rank</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Publish to the YourMine registry via PR</div></div>',
         ()=>{
           buildContent.innerHTML='';
-          buildContent.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
           const scrollArea=document.createElement('div');
           scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
           buildContent.appendChild(scrollArea);
           renderBuildContent(scrollArea);
+          const backWrap=document.createElement('div');
+          backWrap.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
+          backWrap.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.appendChild(backWrap);
         }
       ));
       // 1.2 Plug
@@ -152,14 +158,19 @@ function renderFlow(buildContent){
         '<span style="font-size:20px">&#128268;</span><div><div style="font-size:13px;color:var(--text)">Test (Plug)</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Load directly without publishing</div></div>',
         ()=>{
           buildContent.innerHTML='';
-          buildContent.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
           const scrollArea=document.createElement('div');
           scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
           buildContent.appendChild(scrollArea);
           renderPlugContent(scrollArea);
+          const backWrap2=document.createElement('div');
+          backWrap2.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
+          backWrap2.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.appendChild(backWrap2);
         }
       ));
       buildContent.appendChild(wrap);
+      buildContent.appendChild(_flowBack(buildContent, renderFlow));
     }
   ));
 
@@ -168,13 +179,13 @@ function renderFlow(buildContent){
     '<span style="font-size:20px">&#10007;</span><div><div style="font-size:13px;color:var(--text)">No &#8212; I have nothing yet</div></div>',
     ()=>{
       buildContent.innerHTML='';
-      buildContent.appendChild(_flowBack(buildContent, renderFlow));
+      buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;gap:10px';
       const q2=document.createElement('div');
-      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);padding:14px 16px 8px';
+      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px';
       q2.textContent='What do you need?';
       buildContent.appendChild(q2);
       const wrap=document.createElement('div');
-      wrap.style.cssText='padding:0 16px;display:flex;flex-direction:column;gap:8px';
+      wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
       // 2.1 README
       wrap.appendChild(_flowBtn(
         '<span style="font-size:20px">&#8595;</span><div><div style="font-size:13px;color:var(--text)">Download README</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Get the prompt to build with your own AI</div></div>',
@@ -191,7 +202,7 @@ function renderFlow(buildContent){
         '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Test the YourMine agent</div><div style="font-size:10px;color:var(--text3);margin-top:2px">AI code generation</div></div>',
         ()=>{
           buildContent.innerHTML='';
-          buildContent.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
           const aiArea=document.createElement('div');
           aiArea.style.cssText='flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden';
           buildContent.appendChild(aiArea);
@@ -203,9 +214,14 @@ function renderFlow(buildContent){
             soon.textContent='SOON';
             aiArea.appendChild(soon);
           }
+          const backWrap3=document.createElement('div');
+          backWrap3.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
+          backWrap3.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.appendChild(backWrap3);
         }
       ));
       buildContent.appendChild(wrap);
+      buildContent.appendChild(_flowBack(buildContent, renderFlow));
     }
   ));
 }
