@@ -24,8 +24,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 #ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
 #panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
 .ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
-#desktop-slider .icon-wrap{display:none!important}
+#ym-radio-widget,#desktop-slider .icon-wrap{display:none!important}
 .ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.pill{display:none!important}
+.icon-wrap,.icon-body,.icon-label,.icon-notif,.icon-del,.folder-body,.folder-grid{display:none!important}
 
 /* ── SCANLINES ── */
 body::after{
@@ -638,8 +639,18 @@ body::before{
   });
 
   /* ── BLOCK DESK ── */
-  function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=()=>{};window.YM_Desk.renderDesk=()=>{};}}
-  blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
+  function blockDesk(){
+    if(window.YM_Desk){
+      window.YM_Desk.addIcon=()=>{};
+      window.YM_Desk.removeIcon=()=>{};
+      window.YM_Desk.renderDesk=()=>{};
+    }
+    // Hide any existing icon wraps
+    document.querySelectorAll('.icon-wrap').forEach(el=>el.style.cssText='display:none!important');
+  }
+  blockDesk();
+  window.addEventListener('ym:sphere-activated',blockDesk);
+  window.addEventListener('ym:sphere-deactivated',blockDesk);
   const obs=new MutationObserver(muts=>{muts.forEach(m=>{m.addedNodes.forEach(n=>{if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
   obs.observe(document.body,{childList:true});
 
