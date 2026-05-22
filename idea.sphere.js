@@ -441,5 +441,45 @@ window.YM_S['idea.sphere.js'] = {
   },
 
   renderPanel,
+
+  peerSection(container, peerCtx) {
+    container.innerHTML = '';
+    const info = document.createElement('div');
+    info.style.cssText = 'font-size:11px;color:var(--text3)';
+    info.textContent = '✦ Also uses Idea';
+    container.appendChild(info);
+  },
+
+  profileSection(container) {
+    container.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+
+    // Cache info
+    const cacheInfo = document.createElement('div');
+    cacheInfo.style.cssText = 'font-size:11px;color:var(--text3);line-height:1.6';
+    if (_analysisCache) {
+      const age = Math.round((Date.now() - _analysisCache.timestamp) / 1000);
+      cacheInfo.textContent = 'Last analysis: ' + (age < 60 ? age + 's ago' : Math.round(age/60) + 'min ago');
+    } else {
+      cacheInfo.textContent = 'No analysis yet.';
+    }
+    wrap.appendChild(cacheInfo);
+
+    // Clear cache button
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'ym-btn ym-btn-ghost';
+    clearBtn.style.cssText = 'font-size:11px;width:100%';
+    clearBtn.textContent = '↺ Clear cache';
+    clearBtn.addEventListener('click', () => {
+      _analysisCache = null;
+      _lastAnalysis = 0;
+      cacheInfo.textContent = 'Cache cleared.';
+      if (_ctx) _ctx.toast('Cache cleared', 'info');
+    });
+    wrap.appendChild(clearBtn);
+
+    container.appendChild(wrap);
+  },
 };
 })();
