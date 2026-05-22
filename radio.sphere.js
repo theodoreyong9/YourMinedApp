@@ -56,8 +56,6 @@ const BUILTIN = [
 
 let _ctx=null, _audio=null, _playing=false, _curStation=null, _widget=null, _vol=0.8;
 
-// Image 1x1 transparente en data URI pour forcer un artwork neutre sur le lockscreen Android
-// Sans artwork explicite, Android prend le fond du dernier média joué sur le téléphone
 const BLANK_ARTWORK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 function loadState(){try{return JSON.parse(localStorage.getItem(STATE_KEY)||'{}');}catch(e){return{};}}
@@ -74,11 +72,8 @@ function _getNavBounds(){
   const navBar=document.getElementById('nav-bar');
   if(!navBar)return{maxRight:window.innerWidth,maxBottom:window.innerHeight,navW:0,navH:0};
   const r=navBar.getBoundingClientRect();
-  if(_isPC()){
-    return{maxRight:r.left,maxBottom:window.innerHeight,navW:r.width,navH:0};
-  }else{
-    return{maxRight:window.innerWidth,maxBottom:r.top,navW:0,navH:r.height};
-  }
+  if(_isPC()){return{maxRight:r.left,maxBottom:window.innerHeight,navW:r.width,navH:0};}
+  else{return{maxRight:window.innerWidth,maxBottom:r.top,navW:0,navH:r.height};}
 }
 
 function _clampPos(wx,wy){
@@ -119,8 +114,6 @@ function _updateMediaSession(){
     title:_curStation&&_curStation.name||'Radio',
     artist:_curStation&&_curStation.genre||'',
     album:'YourMine Radio',
-    // Artwork explicite neutre : empêche Android d'afficher
-    // l'artwork du dernier média joué sur le téléphone
     artwork:[{src:BLANK_ARTWORK,sizes:'1x1',type:'image/png'}]
   });
   navigator.mediaSession.playbackState=_playing?'playing':'paused';
@@ -142,12 +135,15 @@ function _unregisterPage(){
 
 function createWidget(){
   if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
-  // Spawn sur la page courante du bureau, pas forcément page 0
+  _widget=null;
+
   const spawnPage=window._deskCurPage||0;
   const pos=loadPos();
-  // Si c'est la première fois (pas de pos sauvegardée), on prend la page courante
   const savedPage=pos.page||0;
-  const targetPage=(localStorage.getItem(POS_KEY))?savedPage:spawnPage;
+  // FIX: never spawn on a page that doesn't exist yet
+  const pageCount=window._deskPageCount||1;
+  const targetPage=Math.min((localStorage.getItem(POS_KEY)?savedPage:spawnPage), pageCount-1);
+
   _widget=document.createElement('div');
   _widget.id='ym-radio-widget';
   _widget.style.cssText=
@@ -175,9 +171,8 @@ function createWidget(){
   _registerPage(targetPage);
   _syncWidgetPage();
 
-  // Si première activation, sauvegarde la page courante
   if(!localStorage.getItem(POS_KEY)){
-    const navH=getDeskSafeBottom?getDeskSafeBottom():90;
+    const navH=window.YM_Desk&&window.YM_Desk.safeBottom||90;
     savePos({right:12,bottom:navH+14,page:targetPage});
   }
 
@@ -249,6 +244,26 @@ function createWidget(){
 
 const _onPageChange=()=>{_syncWidgetPage();};
 
+// FIX: use YM_Desk registry as source of truth, not localStorage
+function _syncWidgetPage(){
+  if(!_widget)return;
+  if(!document.body.contains(_widget)){_widget=null;createWidget();return;}
+  if(_widget._dragging)return;
+  let widgetPage=0;
+  if(window.YM_Desk&&window.YM_Desk.registeredWidgetPage){
+    const rp=window.YM_Desk.registeredWidgetPage(WIDGET_ID);
+    if(rp!=null)widgetPage=rp;
+    else widgetPage=loadPos().page||0;
+  }else{
+    widgetPage=loadPos().page||0;
+  }
+  const curPage=(window._deskCurPage!=null?window._deskCurPage:0);
+  const visible=curPage===widgetPage;
+  _widget.style.transition='opacity .25s ease';
+  _widget.style.opacity=visible?'1':'0';
+  _widget.style.pointerEvents=visible?'all':'none';
+}
+
 function _refreshWidget(){
   if(!_widget)return;
   const name=(_curStation&&_curStation.name)||'No station';
@@ -271,19 +286,6 @@ function _refreshWidget(){
   _widget.querySelector('#rw-pp').addEventListener('click',e=>{e.stopPropagation();toggle();});
   _widget.querySelector('#rw-next').addEventListener('click',e=>{e.stopPropagation();nextStation();});
   _widget.querySelector('#rw-open').addEventListener('click',e=>{e.stopPropagation();if(window.YM)window.YM.openSpherePanel('radio.sphere.js');});
-}
-
-function _syncWidgetPage(){
-  if(!_widget)return;
-  if(!document.body.contains(_widget)){_widget=null;createWidget();return;}
-  if(_widget._dragging)return;
-  const pos=loadPos();
-  const widgetPage=(pos.page!=null?pos.page:0);
-  const curPage=(window._deskCurPage!=null?window._deskCurPage:0);
-  const visible=curPage===widgetPage;
-  _widget.style.transition='opacity .25s ease';
-  _widget.style.opacity=visible?'1':'0';
-  _widget.style.pointerEvents=visible?'all':'none';
 }
 
 function removeWidget(){
