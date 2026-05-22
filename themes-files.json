@@ -52,5 +52,22 @@
       ],
       "videos": []
     }
+  },
+  {
+    "filename": "command.theme.html",
+    "name": "command",
+    "icon": "🧠",
+    "description": "Alerte dashboard",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/command.theme.html",
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100,
+    "media": {
+      "photos": [],
+      "videos": []
+    }
   }
 ]
