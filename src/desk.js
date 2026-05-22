@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // YOURMINE — DESK.JS v2
 // ============================================================
 /* jshint esversion:11 */
@@ -33,36 +33,20 @@ function renderIconContent(icon){
   const span=document.createElement('span');span.textContent=icon||'⬡';return span;
 }
 
-// Copie complète d'une icône en préservant type, themeUrl et tous les champs custom
-function copyIcon(ic, overrides){
-  const base={
-    id:ic.id, icon:ic.icon, label:ic.label,
-    notif:ic.notif||0, folder:ic.folder||false,
-    folderItems:deepCopyFolderItems(ic.folderItems),
-  };
+function copyIcon(ic,overrides){
+  const base={id:ic.id,icon:ic.icon,label:ic.label,notif:ic.notif||0,folder:ic.folder||false,folderItems:deepCopyFolderItems(ic.folderItems)};
   if(ic.type!==undefined)base.type=ic.type;
   if(ic.themeUrl!==undefined)base.themeUrl=ic.themeUrl;
-  return Object.assign(base, overrides||{});
+  return Object.assign(base,overrides||{});
 }
-function deepCopyFolderItems(items){
-  if(!items)return undefined;
-  return JSON.parse(JSON.stringify(items));
-}
+function deepCopyFolderItems(items){if(!items)return undefined;return JSON.parse(JSON.stringify(items));}
 
-function rmEl(id){
-  const el=document.getElementById(id);
-  if(el)el.classList.remove('open');
-}
+function rmEl(id){const el=document.getElementById(id);if(el)el.classList.remove('open');}
 
 function applyWP(){
   const wp=localStorage.getItem(WK),el=document.getElementById('ym-wp');if(!el)return;
-  if(wp){
-    el.style.backgroundImage="url('"+wp+"')";
-    document.body.classList.add('has-wallpaper');
-  }else{
-    el.style.backgroundImage='';
-    document.body.classList.remove('has-wallpaper');
-  }
+  if(wp){el.style.backgroundImage="url('"+wp+"')";document.body.classList.add('has-wallpaper');}
+  else{el.style.backgroundImage='';document.body.classList.remove('has-wallpaper');}
 }
 function pickWP(){
   const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
@@ -94,10 +78,7 @@ function pickWP(){
 function findIconParent(id,items){
   for(const ic of items){
     if(ic.id===id)return{parent:items,item:ic};
-    if(ic.folder&&ic.folderItems){
-      const f=findIconParent(id,ic.folderItems);
-      if(f)return f;
-    }
+    if(ic.folder&&ic.folderItems){const f=findIconParent(id,ic.folderItems);if(f)return f;}
   }
   return null;
 }
@@ -136,31 +117,18 @@ function removeIcon(id){
 }
 function sumFolderNotifs(items){
   let s=0;
-  for(const it of (items||[])){
-    if(it.folder)s+=sumFolderNotifs(it.folderItems);
-    else s+=(it.notif||0);
-  }
+  for(const it of (items||[])){if(it.folder)s+=sumFolderNotifs(it.folderItems);else s+=(it.notif||0);}
   return s;
 }
 function _updateBadgeEl(id,n){
   const wrap=document.querySelector('[data-id="'+id+'"]');if(!wrap)return;
   const body=wrap.querySelector('.icon-body');if(!body)return;
   let el=body.querySelector('.icon-notif');
-  if(n>0){
-    if(!el){el=document.createElement('div');el.className='icon-notif';body.appendChild(el);}
-    el.textContent=n;el.style.display='flex';
-  }else if(el){
-    el.style.display='none';
-  }
+  if(n>0){if(!el){el=document.createElement('div');el.className='icon-notif';body.appendChild(el);}el.textContent=n;el.style.display='flex';}
+  else if(el){el.style.display='none';}
 }
 function _refreshParentFolderBadges(d){
-  for(const ic of d){
-    if(ic.folder){
-      const total=sumFolderNotifs(ic.folderItems);
-      _updateBadgeEl(ic.id,total);
-      if(ic.folderItems)_refreshParentFolderBadges(ic.folderItems);
-    }
-  }
+  for(const ic of d){if(ic.folder){const total=sumFolderNotifs(ic.folderItems);_updateBadgeEl(ic.id,total);if(ic.folderItems)_refreshParentFolderBadges(ic.folderItems);}}
 }
 function setNotif(id,n){
   const d=LD(),found=findIconParent(id,d);
@@ -174,16 +142,15 @@ const _widgetPages=new Map();
 
 function registerWidgetPage(widgetId,page){
   _widgetPages.set(widgetId,page);
-  if(page>=getPgCount()){
-    setPgCount(page+1);
-    buildSlider();
-    goPage(curPg,false);
-  }
+  if(page>=getPgCount()){setPgCount(page+1);buildSlider();goPage(curPg,false);}
 }
 function unregisterWidget(widgetId){_widgetPages.delete(widgetId);}
-function isPageOccupiedByWidget(page){
-  for(const p of _widgetPages.values()){if(p===page)return true;}
-  return false;
+function isPageOccupiedByWidget(page){for(const p of _widgetPages.values()){if(p===page)return true;}return false;}
+
+// ── NEW: expose widget page lookup ────────────────────────────
+function registeredWidgetPage(widgetId){
+  const p=_widgetPages.get(widgetId);
+  return p!=null?p:null;
 }
 
 function getDeskSafeBottom(){
@@ -215,7 +182,17 @@ function goPage(n,anim){
   s.style.transform='translateX(calc('+(-curPg)+' * '+unit+'))';
   updateDots();window.dispatchEvent(new CustomEvent('ym:page-change',{detail:{page:curPg}}));
 }
-function autoCleanPages(){const icons=LD();const n=getPgCount();const occupied=new Set(icons.map(i=>i.page));for(const p of _widgetPages.values())occupied.add(p);occupied.add(0);const kept=[];for(let p=0;p<n;p++){if(occupied.has(p))kept.push(p);}if(kept.length===n)return;const remap=new Map();kept.forEach((oldP,newP)=>remap.set(oldP,newP));icons.forEach(i=>{if(remap.has(i.page))i.page=remap.get(i.page);});SD(icons);for(const[id,p] of _widgetPages){if(remap.has(p))_widgetPages.set(id,remap.get(p));}const newN=kept.length;setPgCount(newN);if(curPg>=newN)curPg=newN-1;buildSlider();goPage(curPg,false);}
+function autoCleanPages(){
+  const icons=LD();const n=getPgCount();const occupied=new Set(icons.map(i=>i.page));
+  for(const p of _widgetPages.values())occupied.add(p);
+  occupied.add(0);const kept=[];
+  for(let p=0;p<n;p++){if(occupied.has(p))kept.push(p);}
+  if(kept.length===n)return;
+  const remap=new Map();kept.forEach((oldP,newP)=>remap.set(oldP,newP));
+  icons.forEach(i=>{if(remap.has(i.page))i.page=remap.get(i.page);});SD(icons);
+  for(const[id,p] of _widgetPages){if(remap.has(p))_widgetPages.set(id,remap.get(p));}
+  const newN=kept.length;setPgCount(newN);if(curPg>=newN)curPg=newN-1;buildSlider();goPage(curPg,false);
+}
 
 function iconsForPage(arr,p){return arr.filter(i=>i.page===p);}
 function renderPageInto(el,icons,isFolder){
@@ -239,53 +216,33 @@ function renderDesk(){
 // ── FOLDER PANEL ──────────────────────────────────────────────
 function openFolderPanel(ic){
   if(folderStack.length>0&&folderStack[folderStack.length-1].ic.id===ic.id)return;
-
-  // Récupère ou crée le panel depuis le DOM (défini dans default.html)
   let panel=document.getElementById('panel-folder');
   if(!panel){
     panel=document.createElement('div');
-    panel.id='panel-folder';
-    panel.className='ym-panel ym-panel--folder';
+    panel.id='panel-folder';panel.className='ym-panel ym-panel--folder';
     panel.innerHTML=
       '<div class="panel-handle"></div>'+
-      '<div class="panel-head" id="folder-panel-head">'+
-        '<div id="folder-panel-breadcrumb" class="folder-breadcrumb"></div>'+
-      '</div>'+
-      '<div id="folder-drop-zone" class="folder-drop-zone folder-drop-zone--hidden">'+
-        '↓ Drop here to eject from folder'+
-      '</div>'+
-      '<div class="panel-body folder-panel-body">'+
-        '<div id="folder-content" class="folder-content">'+
-          '<div id="folder-page-0" class="desktop-page folder-desktop-page" data-page="0"></div>'+
-        '</div>'+
-      '</div>';
+      '<div class="panel-head" id="folder-panel-head"><div id="folder-panel-breadcrumb" class="folder-breadcrumb"></div></div>'+
+      '<div id="folder-drop-zone" class="folder-drop-zone folder-drop-zone--hidden">↓ Drop here to eject from folder</div>'+
+      '<div class="panel-body folder-panel-body"><div id="folder-content" class="folder-content"><div id="folder-page-0" class="desktop-page folder-desktop-page" data-page="0"></div></div></div>';
     document.body.appendChild(panel);
-
     let sy=0;
     panel.querySelector('.panel-handle').addEventListener('pointerdown',e=>{sy=e.clientY;});
     panel.querySelector('.panel-handle').addEventListener('pointerup',e=>{if(e.clientY-sy>40)closeFolderPanel();});
-    panel.querySelector('#folder-panel-head').addEventListener('click',e=>{
-      if(!e.target.closest('#folder-panel-breadcrumb')&&!e.target.closest('button'))closeFolderPanel();
-    });
+    panel.querySelector('#folder-panel-head').addEventListener('click',e=>{if(!e.target.closest('#folder-panel-breadcrumb')&&!e.target.closest('button'))closeFolderPanel();});
     panel.querySelector('.panel-body').addEventListener('pointerup',e=>{if(editMode&&!e.target.closest('.icon-wrap'))exitEdit();});
   }
-
   const spherePanel=document.getElementById('panel-sphere');
-  if(spherePanel&&spherePanel.classList.contains('open')){
-    spherePanel.classList.remove('open');
-    rmEl('panel-overlay');
-  }
+  if(spherePanel&&spherePanel.classList.contains('open')){spherePanel.classList.remove('open');rmEl('panel-overlay');}
   history.pushState({folderOpen:true},'');
   folderStack.push({ic});renderFolderPanel(ic);
-  // Profondeur visuelle via classe CSS
   panel.dataset.depth=folderStack.length;
   panel.classList.add('open');
 }
 function closeFolderPanel(){
   const panel=document.getElementById('panel-folder');
   if(folderStack.length>1){folderStack.pop();renderFolderPanel(folderStack[folderStack.length-1].ic);return;}
-  folderStack.length=0;if(panel)panel.classList.remove('open');
-  rmEl('panel-overlay');
+  folderStack.length=0;if(panel)panel.classList.remove('open');rmEl('panel-overlay');
 }
 window.addEventListener('popstate',e=>{
   if(!folderStack.length)return;
@@ -297,67 +254,39 @@ window.addEventListener('popstate',e=>{
 function renderFolderPanel(ic){
   const items=ic.folderItems||[];
   const pg=document.getElementById('folder-page-0');if(!pg)return;
-  const g=GRID();
-  pg.className='desktop-page folder-desktop-page';
-  pg.style.cssText='';// reset tout style inline, la mise en page vient du CSS
+  pg.className='desktop-page folder-desktop-page';pg.style.cssText='';
   renderPageInto(pg,iconsForPage(items,0),true);
-
-  // Breadcrumb
   const bc=document.getElementById('folder-panel-breadcrumb');
   if(bc){
     bc.innerHTML='';
     folderStack.forEach((entry,i)=>{
-      if(i>0){
-        const sep=document.createElement('span');
-        sep.className='folder-breadcrumb__sep';
-        sep.textContent='›';
-        bc.appendChild(sep);
-      }
+      if(i>0){const sep=document.createElement('span');sep.className='folder-breadcrumb__sep';sep.textContent='›';bc.appendChild(sep);}
       const lbl=document.createElement('span');
       lbl.textContent=entry.ic.label||'Folder';
       lbl.className='folder-breadcrumb__item'+(i===folderStack.length-1?' folder-breadcrumb__item--active':'');
-
       if(i<folderStack.length-1){
         const capturedI=i;
         lbl.addEventListener('click',()=>{while(folderStack.length>capturedI+1)folderStack.pop();renderFolderPanel(folderStack[folderStack.length-1].ic);});
       }
       if(i===folderStack.length-1){
         let renameT=null;
-        const startRename=(ev)=>{
-          if(ev)ev.stopPropagation();
-          lbl.contentEditable='true';
-          lbl.classList.add('folder-breadcrumb__item--editing');
-          lbl.focus();
-          const sel=window.getSelection(),range=document.createRange();range.selectNodeContents(lbl);sel.removeAllRanges();sel.addRange(range);
-        };
-        const saveRename=()=>{
-          lbl.contentEditable='false';
-          lbl.classList.remove('folder-breadcrumb__item--editing');
-          const name=lbl.textContent.trim()||'Folder';lbl.textContent=name;entry.ic.label=name;
-          const d=LD(),found=findIconParent(entry.ic.id,d);if(found){found.item.label=name;SD(d);}renderDesk();
-        };
+        const startRename=(ev)=>{if(ev)ev.stopPropagation();lbl.contentEditable='true';lbl.classList.add('folder-breadcrumb__item--editing');lbl.focus();const sel=window.getSelection(),range=document.createRange();range.selectNodeContents(lbl);sel.removeAllRanges();sel.addRange(range);};
+        const saveRename=()=>{lbl.contentEditable='false';lbl.classList.remove('folder-breadcrumb__item--editing');const name=lbl.textContent.trim()||'Folder';lbl.textContent=name;entry.ic.label=name;const d=LD(),found=findIconParent(entry.ic.id,d);if(found){found.item.label=name;SD(d);}renderDesk();};
         lbl.addEventListener('dblclick',e=>{e.stopPropagation();startRename(e);});
         lbl.addEventListener('pointerdown',e=>{e.stopPropagation();renameT=setTimeout(()=>{renameT=null;startRename(e);},650);},{passive:false});
         lbl.addEventListener('pointerup',()=>{clearTimeout(renameT);renameT=null;},{passive:true});
         lbl.addEventListener('pointercancel',()=>{clearTimeout(renameT);renameT=null;},{passive:true});
         lbl.addEventListener('blur',saveRename);
-        lbl.addEventListener('keydown',e=>{
-          if(e.key==='Enter'){e.preventDefault();lbl.blur();}
-          if(e.key==='Escape'){lbl.textContent=entry.ic.label||'Folder';lbl.contentEditable='false';lbl.classList.remove('folder-breadcrumb__item--editing');}
-        });
+        lbl.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();lbl.blur();}if(e.key==='Escape'){lbl.textContent=entry.ic.label||'Folder';lbl.contentEditable='false';lbl.classList.remove('folder-breadcrumb__item--editing');}});
       }
       bc.appendChild(lbl);
     });
   }
-
-  // Drop zone
   const dz=document.getElementById('folder-drop-zone');
   if(dz){
     dz.classList.toggle('folder-drop-zone--hidden',!editMode);
     if(!dz._obs){
-      dz._obs=new MutationObserver(()=>{
-        dz.classList.toggle('folder-drop-zone--hidden',!document.body.classList.contains('edit-mode'));
-      });
+      dz._obs=new MutationObserver(()=>{dz.classList.toggle('folder-drop-zone--hidden',!document.body.classList.contains('edit-mode'));});
       dz._obs.observe(document.body,{attributes:true,attributeFilter:['class']});
     }
   }
@@ -374,31 +303,13 @@ function addToFolder(icSrc,folderIc,fromFolder){
   folderFound.item.folderItems=fi;
   if(fromFolder){
     const topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
-    if(topIc){
-      const topFound=findIconParent(topIc.id,d);
-      if(topFound)topFound.item.folderItems=topFound.item.folderItems.filter(x=>x.id!==icSrc.id);
-    }
-  }else{
-    const idx=d.findIndex(x=>x.id===icSrc.id);if(idx>=0)d.splice(idx,1);
-  }
+    if(topIc){const topFound=findIconParent(topIc.id,d);if(topFound)topFound.item.folderItems=topFound.item.folderItems.filter(x=>x.id!==icSrc.id);}
+  }else{const idx=d.findIndex(x=>x.id===icSrc.id);if(idx>=0)d.splice(idx,1);}
   SD(d);renderDesk();if(fromFolder)refreshFolderPanel();
 }
 
-function deactivateAll(items){
-  for(const it of items){
-    if(it.folder)deactivateAll(it.folderItems||[]);
-    else if(window.YM)window.YM.deactivateSphere(it.id);
-  }
-}
-function flatIcons(items,max){
-  const out=[];
-  for(const it of items){
-    if(out.length>=max)break;
-    if(it.folder)out.push(...flatIcons(it.folderItems||[],max-out.length));
-    else out.push(it);
-  }
-  return out;
-}
+function deactivateAll(items){for(const it of items){if(it.folder)deactivateAll(it.folderItems||[]);else if(window.YM)window.YM.deactivateSphere(it.id);}}
+function flatIcons(items,max){const out=[];for(const it of items){if(out.length>=max)break;if(it.folder)out.push(...flatIcons(it.folderItems||[],max-out.length));else out.push(it);}return out;}
 
 function mkIcon(ic,isFolder){
   const w=document.createElement('div');w.className='icon-wrap';w.dataset.id=ic.id;
@@ -409,7 +320,7 @@ function mkIcon(ic,isFolder){
   del.addEventListener('click',e=>{
     e.stopPropagation();e.preventDefault();
     if(ic.folder){deactivateAll(ic.folderItems||[]);removeIcon(ic.id);}
-    else if(ic.type==='theme'){removeIcon(ic.id);} // icône thème : supprime juste l'icône
+    else if(ic.type==='theme'){removeIcon(ic.id);}
     else if(window.YM)window.YM.deactivateSphere(ic.id);
   });
   if(ic.folder){
@@ -417,17 +328,13 @@ function mkIcon(ic,isFolder){
     const grid=document.createElement('div');grid.className='folder-grid';
     for(const it of flatIcons(ic.folderItems||[],4)){
       const m=document.createElement('div');m.className='fi';
-      if(isImageURL(it.icon)){
-        const img=document.createElement('img');img.src=it.icon;img.className='fi__img';
-        m.appendChild(img);
-      }else m.textContent=it.icon||'*';
+      if(isImageURL(it.icon)){const img=document.createElement('img');img.src=it.icon;img.className='fi__img';m.appendChild(img);}
+      else m.textContent=it.icon||'*';
       grid.appendChild(m);
     }
     body.appendChild(grid);
     const folderNotifTotal=sumFolderNotifs(ic.folderItems);
-    if(folderNotifTotal>0){
-      const fn=document.createElement('div');fn.className='icon-notif';fn.textContent=folderNotifTotal;body.appendChild(fn);
-    }
+    if(folderNotifTotal>0){const fn=document.createElement('div');fn.className='icon-notif';fn.textContent=folderNotifTotal;body.appendChild(fn);}
     w.appendChild(body);
     const lbl=document.createElement('div');lbl.className='icon-label';lbl.textContent=ic.label;w.appendChild(lbl);
     w.addEventListener('click',()=>{if(!editMode&&!isDragging)openFolderPanel(ic);});
@@ -437,21 +344,12 @@ function mkIcon(ic,isFolder){
     w.appendChild(body);
     const lbl=document.createElement('div');
     lbl.className='icon-label'+(ic.type==='theme'?' icon-label--below':'');
-    if(ic.type==='theme') lbl.setAttribute('style','order:1!important');
-    lbl.textContent=ic.label;
-    w.appendChild(lbl);
+    if(ic.type==='theme')lbl.setAttribute('style','order:1!important');
+    lbl.textContent=ic.label;w.appendChild(lbl);
     if(ic.notif){const n=document.createElement('div');n.className='icon-notif';n.textContent=ic.notif;body.appendChild(n);}
     w.addEventListener('click',()=>{
       if(editMode||isDragging)return;
-      // Icône de thème → applique le thème
-      if(ic.type==='theme'&&ic.themeUrl){
-        localStorage.setItem('ym_theme_url',ic.themeUrl);
-        localStorage.removeItem('ym_theme_cache');
-        if(window.YM_toast)window.YM_toast('Thème — rechargement…','success');
-        setTimeout(()=>location.reload(),800);
-        return;
-      }
-      // Icône de sphère → ouvre le panel
+      if(ic.type==='theme'&&ic.themeUrl){localStorage.setItem('ym_theme_url',ic.themeUrl);localStorage.removeItem('ym_theme_cache');if(window.YM_toast)window.YM_toast('Thème — rechargement…','success');setTimeout(()=>location.reload(),800);return;}
       if(window.YM)window.YM.openSpherePanel(ic.id);
     });
   }
@@ -469,10 +367,7 @@ function removeHL(){if(_hl){_hl.remove();_hl=null;_hlPg=-1;}}
 
 function getCellFromPt(x,y,pgEl){
   const g=GRID(),r=pgEl.getBoundingClientRect();
-  return{
-    col:Math.min(g.cols-1,Math.max(0,Math.floor((x-r.left)/(r.width/g.cols)))),
-    row:Math.min(g.rows-1,Math.max(0,Math.floor((y-r.top)/(r.height/g.rows))))
-  };
+  return{col:Math.min(g.cols-1,Math.max(0,Math.floor((x-r.left)/(r.width/g.cols)))),row:Math.min(g.rows-1,Math.max(0,Math.floor((y-r.top)/(r.height/g.rows))))};
 }
 
 function cascadeNext(c,r,goRight,cols){
@@ -485,8 +380,7 @@ function computeLiveLayout(srcData,ic,col,row,pg){
   const existing=d.find(x=>x.page===pg&&x.col===col&&x.row===row&&x.id!==ic.id);
   if(!existing){if(me){me.col=col;me.row=row;me.page=pg;}return d;}
   if(existing.folder){if(me){me.col=col;me.row=row;me.page=pg;}return d;}
-  const g=GRID();
-  let goRight=true;
+  const g=GRID();let goRight=true;
   if(me){const dcol=col-me.col,drow=row-me.row;if(dcol>0||(dcol===0&&drow>0))goRight=false;}
   const meOrig=me?{col:me.col,row:me.row}:null;
   if(me){me.col=-1;me.row=-1;}
@@ -545,14 +439,10 @@ function setupDrag(wrap,ic,isFolder){
     if(!isPC()&&!dragStarted&&Math.abs(dx)>Math.abs(dy)*1.4&&dist>12){pDown=false;return;}
     if(!dragStarted&&dist>8){
       dragStarted=true;isDragging=true;document.addEventListener('touchmove',_blockTouchScroll,{passive:false});
-      _baseLayout=isFolder ?
-        (folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic&&folderStack[folderStack.length-1].ic.folderItems||[]).map(x=>Object.assign({},x)) :
-        LD();
+      _baseLayout=isFolder?(folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic&&folderStack[folderStack.length-1].ic.folderItems||[]).map(x=>Object.assign({},x)):LD();
       _liveLayout=null;_livePrevCell=null;_folderT=null;_folderPending=false;
       try{wrap.setPointerCapture(e.pointerId);}catch(ex){}
-      const gContent=isImageURL(ic.icon) ?
-        '<img src="'+ic.icon+'" style="width:36px;height:36px;object-fit:contain;border-radius:8px">' :
-        '<span style="font-size:25px">'+ic.icon+'</span>';
+      const gContent=isImageURL(ic.icon)?'<img src="'+ic.icon+'" style="width:36px;height:36px;object-fit:contain;border-radius:8px">':'<span style="font-size:25px">'+ic.icon+'</span>';
       ghost.innerHTML='<div class="icon-body drag-ghost__body">'+gContent+'</div>';
       ghost.style.display='block';wrap.style.opacity='0';
     }
@@ -561,9 +451,8 @@ function setupDrag(wrap,ic,isFolder){
     ghost.style.left=Math.max(0,Math.min(e.clientX-26,window.innerWidth-54))+'px';ghost.style.top=Math.max(0,Math.min(e.clientY-33,window.innerHeight-54))+'px';
     if(!isFolder){
       const vw=window.innerWidth,ew=vw*0.14;
-      if(e.clientX<ew&&curPg>0){
-        if(!_edgeT)_edgeT=setTimeout(()=>{_edgeT=null;goPage(curPg-1,true);},550);
-      }else if(e.clientX>vw-ew-(isPC()?64:0)){
+      if(e.clientX<ew&&curPg>0){if(!_edgeT)_edgeT=setTimeout(()=>{_edgeT=null;goPage(curPg-1,true);},550);}
+      else if(e.clientX>vw-ew-(isPC()?64:0)){
         if(!_edgeT)_edgeT=setTimeout(()=>{
           _edgeT=null;
           if(curPg>=getPgCount()-1){
@@ -578,31 +467,30 @@ function setupDrag(wrap,ic,isFolder){
         },1000);
       }else{clearTimeout(_edgeT);_edgeT=null;}
     }
-    const activePg=isFolder?0:curPg;
     const pgEl=document.getElementById(isFolder?'folder-page-0':'page-'+curPg);if(!pgEl)return;
     const c=getCellFromPt(e.clientX,e.clientY,pgEl);
-    showHL(c.col,c.row,pgEl,activePg);
+    showHL(c.col,c.row,pgEl,isFolder?0:curPg);
     const base=_baseLayout||[];
-    const existing=base.find(x=>x.page===activePg&&x.col===c.col&&x.row===c.row&&x.id!==ic.id);
+    const existing=base.find(x=>x.page===(isFolder?0:curPg)&&x.col===c.col&&x.row===c.row&&x.id!==ic.id);
     const pgRect=pgEl.getBoundingClientRect();const g=GRID();
     const cellW=pgRect.width/g.cols,cellH=pgRect.height/g.rows;
     const relX=(e.clientX-(pgRect.left+c.col*cellW))/cellW,relY=(e.clientY-(pgRect.top+c.row*cellH))/cellH;
     const atCenter=relX>0.3&&relX<0.7&&relY>0.3&&relY<0.7;
-    const cellKey=c.col+','+c.row+','+activePg;
+    const cellKey=c.col+','+c.row+','+(isFolder?0:curPg);
     if(cellKey!==_livePrevCell){
       _livePrevCell=cellKey;clearTimeout(_folderT);_folderT=null;_folderPending=false;
       renderDeskFromDataCtx(_baseLayout,ic.id,isFolder);_liveLayout=null;
       if(existing&&!existing.folder&&!ic.folder){
-        _folderT=setTimeout(()=>{_folderT=null;if(!_folderPending){_liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,activePg);renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);}},500);
+        _folderT=setTimeout(()=>{_folderT=null;if(!_folderPending){_liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,isFolder?0:curPg);renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);}},500);
       }else{
-        _liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,activePg);
+        _liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,isFolder?0:curPg);
         renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);
       }
     }else if(existing&&!existing.folder&&!ic.folder&&!_liveLayout){
       if(atCenter&&_folderT){clearTimeout(_folderT);_folderT=null;_folderPending=true;}
       else if(!atCenter&&_folderPending){
         _folderPending=false;
-        _folderT=setTimeout(()=>{_folderT=null;_liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,activePg);renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);},300);
+        _folderT=setTimeout(()=>{_folderT=null;_liveLayout=computeLiveLayout(_baseLayout,ic,c.col,c.row,isFolder?0:curPg);renderDeskFromDataCtx(_liveLayout,ic.id,isFolder);},300);
       }
     }
   },{passive:true});
@@ -635,9 +523,7 @@ function setupDrag(wrap,ic,isFolder){
             const topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
             const topFound=topIc?findIconParent(topIc.id,freshD):null;
             if(topFound){existing2=(topFound.item.folderItems||[]).find(x=>x.page===0&&x.col===c2.col&&x.row===c2.row&&x.id!==ic.id)||null;}
-          }else{
-            existing2=existingFresh;
-          }
+          }else{existing2=existingFresh;}
           if(existing2&&existing2.folder){
             _liveLayout=null;_baseLayout=null;_livePrevCell=null;
             addToFolder(ic,existing2,isFolder);
@@ -647,10 +533,7 @@ function setupDrag(wrap,ic,isFolder){
             createFolder(ic,existing2,isFolder);
           }else{
             if(_liveLayout){if(isFolder)saveFolderItems(_liveLayout);else SD(_liveLayout);}
-            else{
-              const me=base.find(x=>x.id===ic.id);
-              if(me){me.col=c2.col;me.row=c2.row;if(!isFolder)me.page=curPg;if(isFolder)saveFolderItems(base);else SD(base);}
-            }
+            else{const me=base.find(x=>x.id===ic.id);if(me){me.col=c2.col;me.row=c2.row;if(!isFolder)me.page=curPg;if(isFolder)saveFolderItems(base);else SD(base);}}
             _liveLayout=null;_baseLayout=null;_livePrevCell=null;
             if(isFolder)refreshFolderPanel();else{renderDesk();autoCleanPages();}
           }
@@ -680,69 +563,30 @@ function ejectFromFolder(ic){
   const topIc=folderStack[folderStack.length-1].ic;
   const found=findIconParent(topIc.id,d);
   if(!found){_liveLayout=null;_baseLayout=null;_livePrevCell=null;return;}
-
   const newFI=(found.item.folderItems||[]).filter(x=>x.id!==ic.id);
   const inSubFolder=folderStack.length>1;
-
   if(newFI.length===0){
-    const idx=found.parent.findIndex(x=>x.id===topIc.id);
-    if(idx>=0)found.parent.splice(idx,1);
-    SD(d);
-    if(inSubFolder){
-      folderStack.pop();
-      const parentEntry=folderStack[folderStack.length-1];
-      const pFound=findIconParent(parentEntry.ic.id,LD());
-      if(pFound){parentEntry.ic=pFound.item;renderFolderPanel(pFound.item);}
-    }else{
-      folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');
-    }
+    const idx=found.parent.findIndex(x=>x.id===topIc.id);if(idx>=0)found.parent.splice(idx,1);SD(d);
+    if(inSubFolder){folderStack.pop();const parentEntry=folderStack[folderStack.length-1];const pFound=findIconParent(parentEntry.ic.id,LD());if(pFound){parentEntry.ic=pFound.item;renderFolderPanel(pFound.item);}}
+    else{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');}
     toast('Folder removed','info');
   }else if(newFI.length===1){
-    const solo=newFI[0];
-    const idx=found.parent.findIndex(x=>x.id===topIc.id);
-    if(idx>=0)found.parent.splice(idx,1);
-    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,
-      page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,
-      notif:solo.notif||0,folder:solo.folder||false,
-      folderItems:deepCopyFolderItems(solo.folderItems)});
-    SD(d);
-    toast('Folder dissolved','info');
-    if(inSubFolder){
-      folderStack.pop();
-      const parentEntry=folderStack[folderStack.length-1];
-      const pFound=findIconParent(parentEntry.ic.id,LD());
-      if(pFound){parentEntry.ic=pFound.item;renderFolderPanel(pFound.item);}
-    }else{
-      folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');
-    }
-  }else{
-    found.item.folderItems=newFI;topIc.folderItems=newFI;SD(d);
-  }
-
+    const solo=newFI[0];const idx=found.parent.findIndex(x=>x.id===topIc.id);if(idx>=0)found.parent.splice(idx,1);
+    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,notif:solo.notif||0,folder:solo.folder||false,folderItems:deepCopyFolderItems(solo.folderItems)});
+    SD(d);toast('Folder dissolved','info');
+    if(inSubFolder){folderStack.pop();const parentEntry=folderStack[folderStack.length-1];const pFound=findIconParent(parentEntry.ic.id,LD());if(pFound){parentEntry.ic=pFound.item;renderFolderPanel(pFound.item);}}
+    else{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');}
+  }else{found.item.folderItems=newFI;topIc.folderItems=newFI;SD(d);}
   _liveLayout=null;_baseLayout=null;_livePrevCell=null;
-
   const d2=LD();
   if(!findIconParent(ic.id,d2)){
     if(inSubFolder&&folderStack.length>0){
       const parentEntry=folderStack[folderStack.length-1];
       const parentFound=findIconParent(parentEntry.ic.id,d2);
-      if(parentFound){
-        const pFI=parentFound.item.folderItems||[];
-        const pos=findEmptyInFolder(pFI);
-        pFI.push(copyIcon(ic,{page:0,col:pos.col,row:pos.row}));
-        parentFound.item.folderItems=pFI;
-        parentEntry.ic=parentFound.item;
-        SD(d2);
-      }
-    }else{
-      const empty=findEmptyIn(d2,curPg);
-      d2.push(copyIcon(ic,{page:curPg,col:empty?empty.col:0,row:empty?empty.row:0}));
-      SD(d2);
-    }
+      if(parentFound){const pFI=parentFound.item.folderItems||[];const pos=findEmptyInFolder(pFI);pFI.push(copyIcon(ic,{page:0,col:pos.col,row:pos.row}));parentFound.item.folderItems=pFI;parentEntry.ic=parentFound.item;SD(d2);}
+    }else{const empty=findEmptyIn(d2,curPg);d2.push(copyIcon(ic,{page:curPg,col:empty?empty.col:0,row:empty?empty.row:0}));SD(d2);}
   }
-
-  renderDesk();
-  if(folderStack.length)refreshFolderPanel();
+  renderDesk();if(folderStack.length)refreshFolderPanel();
 }
 
 function saveFolderItems(newItems){
@@ -751,22 +595,9 @@ function saveFolderItems(newItems){
   const d=LD(),found=findIconParent(topIc.id,d);if(!found)return;
   const idx=found.parent.findIndex(x=>x.id===topIc.id);
   const closeFolder=()=>{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');};
-  if(!newItems||newItems.length===0){
-    if(idx>=0)found.parent.splice(idx,1);SD(d);closeFolder();renderDesk();toast('Folder removed','info');return;
-  }
-  if(newItems.length===1&&folderStack.length===1){
-    const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);
-    found.parent.push(copyIcon(solo,{page:topIc.page||0,col:topIc.col||0,row:topIc.row||0}));
-    SD(d);closeFolder();renderDesk();toast('Folder dissolved','info');return;
-  }
-  if(newItems.length===1&&folderStack.length>1){
-    const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);
-    found.parent.push(copyIcon(solo,{page:topIc.page||0,col:topIc.col||0,row:topIc.row||0}));
-    SD(d);folderStack.pop();
-    const pFound=findIconParent(folderStack[folderStack.length-1].ic.id,LD());
-    if(pFound){folderStack[folderStack.length-1].ic=pFound.item;renderFolderPanel(pFound.item);}
-    toast('Folder dissolved','info');return;
-  }
+  if(!newItems||newItems.length===0){if(idx>=0)found.parent.splice(idx,1);SD(d);closeFolder();renderDesk();toast('Folder removed','info');return;}
+  if(newItems.length===1&&folderStack.length===1){const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);found.parent.push(copyIcon(solo,{page:topIc.page||0,col:topIc.col||0,row:topIc.row||0}));SD(d);closeFolder();renderDesk();toast('Folder dissolved','info');return;}
+  if(newItems.length===1&&folderStack.length>1){const solo=newItems[0];if(idx>=0)found.parent.splice(idx,1);found.parent.push(copyIcon(solo,{page:topIc.page||0,col:topIc.col||0,row:topIc.row||0}));SD(d);folderStack.pop();const pFound=findIconParent(folderStack[folderStack.length-1].ic.id,LD());if(pFound){folderStack[folderStack.length-1].ic=pFound.item;renderFolderPanel(pFound.item);}toast('Folder dissolved','info');return;}
   found.item.folderItems=newItems;topIc.folderItems=newItems;SD(d);
 }
 function refreshFolderPanel(){
@@ -778,29 +609,15 @@ function refreshFolderPanel(){
 }
 function createFolder(src,tgt,isFolder){
   const freshD=LD();
-  const freshSrc=findIconParent(src.id,freshD);
-  const freshTgt=findIconParent(tgt.id,freshD);
-  const srcNotif=freshSrc?freshSrc.item.notif:(src.notif||0);
-  const tgtNotif=freshTgt?freshTgt.item.notif:(tgt.notif||0);
+  const freshSrc=findIconParent(src.id,freshD);const freshTgt=findIconParent(tgt.id,freshD);
+  const srcNotif=freshSrc?freshSrc.item.notif:(src.notif||0);const tgtNotif=freshTgt?freshTgt.item.notif:(tgt.notif||0);
   const newFolder={id:'f_'+Date.now(),icon:'📁',label:'Folder',page:tgt.page,col:tgt.col,row:tgt.row,notif:0,folder:true,
-    folderItems:[
-      copyIcon(tgt,{page:0,col:0,row:0,notif:tgtNotif}),
-      copyIcon(src,{page:0,col:1,row:0,notif:srcNotif})
-    ]};
+    folderItems:[copyIcon(tgt,{page:0,col:0,row:0,notif:tgtNotif}),copyIcon(src,{page:0,col:1,row:0,notif:srcNotif})]};
   if(isFolder){
     const d=LD(),topIc=folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic;
     const found=topIc?findIconParent(topIc.id,d):null;
-    if(found){
-      const items=found.item.folderItems||[];
-      const ti=items.findIndex(i=>i.id===tgt.id);if(ti>=0)items[ti]=newFolder;
-      const si=items.findIndex(i=>i.id===src.id);if(si>=0)items.splice(si,1);
-      found.item.folderItems=items;topIc.folderItems=items;SD(d);refreshFolderPanel();
-    }
-  }else{
-    let d=LD();
-    const ti=d.findIndex(i=>i.id===tgt.id);if(ti>=0)d[ti]=newFolder;
-    d=d.filter(i=>i.id!==src.id);SD(d);renderDesk();
-  }
+    if(found){const items=found.item.folderItems||[];const ti=items.findIndex(i=>i.id===tgt.id);if(ti>=0)items[ti]=newFolder;const si=items.findIndex(i=>i.id===src.id);if(si>=0)items.splice(si,1);found.item.folderItems=items;topIc.folderItems=items;SD(d);refreshFolderPanel();}
+  }else{let d=LD();const ti=d.findIndex(i=>i.id===tgt.id);if(ti>=0)d[ti]=newFolder;d=d.filter(i=>i.id!==src.id);SD(d);renderDesk();}
 }
 
 const deskEl=document.getElementById('desktop');
@@ -818,10 +635,7 @@ const pageOf=el=>{const pg=el&&el.closest&&el.closest('.desktop-page');return pa
     const pg=pageOf(t.target);if(!isRealPage(pg))return;
     lt=setTimeout(()=>{lt=null;active=false;showBgDlg(pg);},1000);
   },{passive:true});
-  deskEl.addEventListener('touchmove',e=>{
-    if(!active)return;const dx=e.touches[0].clientX-sx,dy=e.touches[0].clientY-sy;
-    if(Math.abs(dx)>20||Math.abs(dy)>8){clearTimeout(lt);lt=null;}
-  },{passive:true});
+  deskEl.addEventListener('touchmove',e=>{if(!active)return;const dx=e.touches[0].clientX-sx,dy=e.touches[0].clientY-sy;if(Math.abs(dx)>20||Math.abs(dy)>8){clearTimeout(lt);lt=null;}},{passive:true});
   deskEl.addEventListener('touchend',e=>{
     clearTimeout(lt);lt=null;if(!active)return;active=false;
     if(isDragging||Date.now()-_lastDragEnd<300)return;
@@ -835,17 +649,12 @@ const pageOf=el=>{const pg=el&&el.closest&&el.closest('.desktop-page');return pa
 
 deskEl.addEventListener('pointerdown',e=>{
   _bgActive=false;if(isInteractive(e.target))return;
-  // Ferme le folder si ouvert et on clique sur le bureau
-  if(folderStack.length>0&&!e.target.closest('#panel-folder')){
-    closeFolderPanel();
-  }
+  if(folderStack.length>0&&!e.target.closest('#panel-folder'))closeFolderPanel();
   bgSX=e.clientX;bgSY=e.clientY;bgMoved=false;_bgActive=true;
   const pg=pageOf(e.target);if(!isRealPage(pg)){_bgActive=false;return;}
   bgLT=setTimeout(()=>{bgLT=null;if(!bgMoved)showBgDlg(pg);},1000);
 },{passive:true});
-deskEl.addEventListener('pointermove',e=>{
-  if(bgLT&&(Math.abs(e.clientX-bgSX)>20||Math.abs(e.clientY-bgSY)>8)){bgMoved=true;clearTimeout(bgLT);bgLT=null;}
-},{passive:true});
+deskEl.addEventListener('pointermove',e=>{if(bgLT&&(Math.abs(e.clientX-bgSX)>20||Math.abs(e.clientY-bgSY)>8)){bgMoved=true;clearTimeout(bgLT);bgLT=null;}},{passive:true});
 deskEl.addEventListener('pointerup',e=>{
   clearTimeout(bgLT);bgLT=null;
   if(editMode&&!isDragging&&!e.target.closest('.icon-wrap')){exitEdit();return;}
@@ -867,30 +676,19 @@ function showBgDlg(p){
   document.getElementById('bg-remove').onclick=()=>{localStorage.removeItem(WK);applyWP();document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper removed','info');};
   const bgSph=document.getElementById('bg-spheres');
   if(bgSph)bgSph.onclick=()=>{document.getElementById('bg-dlg').classList.remove('open');if(window.YM){window.YM.openPanel('panel-spheres');if(window.YM_Liste)window.YM_Liste.render();}};
-  // Les presets sont fournis par le thème actif via window.YM_WALLPAPER_PRESETS
-  // Si le thème n'en fournit pas, tableau vide (pas de presets par défaut dans desk.js)
-  const PRESETS = window.YM_WALLPAPER_PRESETS || [];
+  const PRESETS=window.YM_WALLPAPER_PRESETS||[];
   const grid=document.getElementById('bg-presets');
   if(grid&&!grid.children.length){
     PRESETS.forEach(pr=>{
-      const btn=document.createElement('button');
-      btn.className='bg-preset-btn';
+      const btn=document.createElement('button');btn.className='bg-preset-btn';
       btn.innerHTML='<img src="'+pr.url+'&w=200" alt="'+pr.label+'" class="bg-preset-img" loading="lazy">';
       btn.title=pr.label;
       btn.addEventListener('mouseenter',()=>{btn.style.transform='scale(1.04)';});
       btn.addEventListener('mouseleave',()=>{btn.style.transform='';});
       btn.addEventListener('click',()=>{
         const img=new Image();img.crossOrigin='anonymous';
-        img.onload=()=>{
-          const c=document.createElement('canvas');c.width=1200;c.height=750;
-          c.getContext('2d').drawImage(img,0,0,1200,750);
-          try{localStorage.setItem(WK,c.toDataURL('image/jpeg',0.85));}catch(err){localStorage.setItem(WK,pr.url);}
-          applyWP();document.getElementById('bg-dlg').classList.remove('open');
-        };
-        img.onerror=()=>{
-          localStorage.setItem(WK,pr.url);applyWP();
-          document.getElementById('bg-dlg').classList.remove('open');
-        };
+        img.onload=()=>{const c=document.createElement('canvas');c.width=1200;c.height=750;c.getContext('2d').drawImage(img,0,0,1200,750);try{localStorage.setItem(WK,c.toDataURL('image/jpeg',0.85));}catch(err){localStorage.setItem(WK,pr.url);}applyWP();document.getElementById('bg-dlg').classList.remove('open');};
+        img.onerror=()=>{localStorage.setItem(WK,pr.url);applyWP();document.getElementById('bg-dlg').classList.remove('open');};
         img.src=pr.url;
       });
       grid.appendChild(btn);
@@ -906,14 +704,19 @@ function deskInit(){
   const maxPage=icons.length?Math.max(...icons.map(i=>i.page)):0;
   setPgCount(maxPage+1);buildSlider();goPage(0,false);
 }
-window.YM_Desk={addIcon,removeIcon,setNotif,renderDesk,goPage,getPgCount,buildSlider,autoCleanPages,enterEdit,exitEdit,
+
+window.YM_Desk={
+  addIcon,removeIcon,setNotif,renderDesk,goPage,getPgCount,buildSlider,autoCleanPages,enterEdit,exitEdit,
   registerWidgetPage,unregisterWidget,
+  // ── NEW: expose widget page for radio/widget sync ──
+  registeredWidgetPage,
   get safeBottom(){return getDeskSafeBottom();},
   get curPg(){return curPg;},
   get isDragging(){return isDragging;},
   get editMode(){return editMode;},
   goPageOrCreate(n){if(n>=getPgCount()){setPgCount(n+1);buildSlider();}goPage(n,true);},
-  deskInit};
+  deskInit
+};
 window.YM_closeFolderPanel=closeFolderPanel;
 Object.defineProperty(window,'_deskFolderStack',{get:()=>folderStack,configurable:true});
 Object.defineProperty(window,'_deskCurPage',{get:()=>curPg,configurable:true});
