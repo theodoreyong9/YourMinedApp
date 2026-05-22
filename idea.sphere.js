@@ -74,66 +74,106 @@ function collectNetworkData() {
   return data;
 }
 
-function buildAnalysisPrompt(data) {
+function buildAnalysisPrompt(data, newsContext) {
   const mySphereNames = data.mySpheres.map(s => s.name + ' (' + s.category + ')').join(', ') || 'none';
   const peerCount = data.peers.length;
 
-  // Top shared spheres
   const topShared = Object.entries(data.sharedPatterns)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
-    .map(([id, count]) => id.replace('.sphere.js', '') + ' ×' + count)
+    .map(([id, count]) => id.replace('.sphere.js', '') + ' x' + count)
     .join(', ') || 'none';
 
-  // Top combos
   const topCombos = Object.entries(data.sphereCombos)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
-    .map(([combo, count]) => combo.replace(/\.sphere\.js/g, '').replace('+', ' + ') + ' ×' + count)
+    .map(([combo, count]) => combo.replace(/\.sphere\.js/g, '').replace('+', ' + ') + ' x' + count)
     .join(', ') || 'none';
 
-  // Peer bios sample
   const bios = data.peers
     .filter(p => p.bio)
     .slice(0, 6)
     .map(p => '"' + p.bio.slice(0, 60) + '"')
     .join(', ') || 'none';
 
-  // Broadcast data sample
   const broadcasts = data.peers
     .filter(p => Object.keys(p.broadcast).length > 0)
     .slice(0, 4)
     .map(p => JSON.stringify(p.broadcast).slice(0, 80))
     .join(' | ') || 'none';
 
-  return `You are analyzing a decentralized PWA network called YourMine.
-Users install modular "spheres" (mini-apps) and connect P2P.
+  const newsSection = newsContext
+    ? 'CURRENT TECH NEWS & TRENDS (use to find timely opportunities):\n' + newsContext
+    : '';
 
-CURRENT USER:
-- Active spheres: ${mySphereNames}
-- Bio: "${data.myProfile.bio || 'none'}"
-
-NETWORK (${peerCount} peers online):
-- Most common spheres: ${topShared}
-- Most common sphere combos: ${topCombos}
-- Peer bios: ${bios}
-- Live broadcast data: ${broadcasts}
-
-TASK: Suggest ONE new sphere idea that would be genuinely useful for this network.
-Base your suggestion on real patterns you see — missing bridges between existing spheres, unmet needs from bios, or opportunities from the broadcast data.
-
-Respond in this exact JSON format (no markdown, no explanation):
-{
-  "name": "SphereName",
-  "icon": "emoji",
-  "category": "Tools|Games|AI|Finance|Commerce|Social|Media|Search|Agent|Communication",
-  "tagline": "One sentence, max 80 chars",
-  "why": "2-3 sentences explaining what pattern you detected and why this sphere fills it",
-  "prompt": "The prompt to generate this sphere with AI (2-3 sentences, technical, specific)"
-}`;
+  return 'You are analyzing a decentralized PWA network called YourMine.' +
+    ' Users install modular "spheres" (mini-apps) and connect P2P.' +
+    '\n\nCURRENT USER:' +
+    '\n- Active spheres: ' + mySphereNames +
+    '\n- Bio: "' + (data.myProfile.bio || 'none') + '"' +
+    '\n\nNETWORK (' + peerCount + ' peers online):' +
+    '\n- Most common spheres: ' + topShared +
+    '\n- Most common sphere combos: ' + topCombos +
+    '\n- Peer bios: ' + bios +
+    '\n- Live broadcast data: ' + broadcasts +
+    (newsSection ? '\n\n' + newsSection : '') +
+    '\n\nTASK: Suggest ONE new sphere idea.' +
+    ' Cross the network patterns with current trends if relevant — a timely idea beats a generic one.' +
+    ' Base your suggestion on real gaps: missing bridges, unmet needs, or trend opportunities.' +
+    '\n\nRespond in this exact JSON format (no markdown, no explanation):\n' +
+    '{\n' +
+    '  "name": "SphereName",\n' +
+    '  "icon": "emoji",\n' +
+    '  "category": "Tools|Games|AI|Finance|Commerce|Social|Media|Search|Agent|Communication",\n' +
+    '  "tagline": "One sentence, max 80 chars",\n' +
+    '  "why": "2-3 sentences: what pattern + what trend you detected and why this sphere fills it",\n' +
+    '  "prompt": "The prompt to generate this sphere with AI (2-3 sentences, technical, specific)",\n' +
+    '  "trend": "The news/trend that inspired this (or null if network-only)"\n' +
+    '}';
 }
 
 // ── ANALYSIS ──────────────────────────────────────────────────
+async function fetchNewsContext(data) {
+  // Two searches: general tech trends + targeted to detected sphere categories
+  const categories = [...new Set(data.mySpheres.map(s => s.category).concat(
+    data.peers.flatMap(p => p.spheres.map(sid => {
+      // Try to get category from registry
+      const obj = window.YM_sphereRegistry && window.YM_sphereRegistry.get(sid);
+      return obj ? (obj.category || '') : '';
+    }))
+  ))].filter(Boolean).filter(c => c !== 'Other').slice(0, 4);
+
+  const topicQuery = categories.length > 0
+    ? 'Latest news and trends this week related to: ' + categories.join(', ') + '. Also top general tech trends.'
+    : 'Top 5 emerging tech trends and new tools this week (AI, web, crypto, productivity, social).';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: topicQuery + ' Return a compact bullet list only, max 400 chars total.',
+        }],
+      }),
+    });
+    if (!resp.ok) return null;
+    const apiData = await resp.json();
+    const text = (apiData.content || []).map(b => b.text || '').join('').trim();
+    return text.slice(0, 500) || null;
+  } catch {
+    return null;
+  }
+}
+
 async function runAnalysis(forceRefresh) {
   const now = Date.now();
   if (!forceRefresh && _analysisCache && (now - _lastAnalysis) < CACHE_TTL) {
@@ -142,14 +182,15 @@ async function runAnalysis(forceRefresh) {
 
   const data = collectNetworkData();
 
-  // Need at least the local sphere data to be useful
   if (data.mySpheres.length === 0 && data.peers.length === 0) {
     throw new Error('No network data available yet — activate some spheres and wait for peers');
   }
 
-  const prompt = buildAnalysisPrompt(data);
+  // Fetch news context in parallel with building prompt
+  const newsContext = await fetchNewsContext(data);
 
-  // Call Anthropic API
+  const prompt = buildAnalysisPrompt(data, newsContext);
+
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -159,7 +200,7 @@ async function runAnalysis(forceRefresh) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 600,
+      max_tokens: 700,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
@@ -176,13 +217,12 @@ async function runAnalysis(forceRefresh) {
   try {
     suggestion = JSON.parse(text);
   } catch {
-    // Try to extract JSON from response
     const match = text.match(/\{[\s\S]*\}/);
     if (match) suggestion = JSON.parse(match[0]);
     else throw new Error('Could not parse suggestion from AI response');
   }
 
-  _analysisCache = { suggestion, data, timestamp: now };
+  _analysisCache = { suggestion, data, newsContext, timestamp: now };
   _lastAnalysis = now;
   return _analysisCache;
 }
@@ -281,7 +321,7 @@ function renderPanel(container) {
 
     const msg = document.createElement('div');
     msg.style.cssText = 'font-size:12px;color:var(--text3);text-align:center;line-height:1.7';
-    msg.textContent = 'Analysing your network…';
+    msg.innerHTML = 'Analysing your network…<br><span style="font-size:10px;opacity:.6">Fetching current trends</span>';
 
     loader.appendChild(dot);
     loader.appendChild(msg);
@@ -336,6 +376,7 @@ function renderPanel(container) {
       '<div style="font-size:11px;color:var(--text3);line-height:1.7;border-top:1px solid rgba(255,255,255,.06);padding-top:10px">' +
         '<span style="color:var(--gold);font-size:9px;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px">Why this?</span>' +
         (s.why || '') +
+        (s.trend ? '<div style="margin-top:8px;padding:6px 8px;background:rgba(34,211,238,.06);border-radius:6px;border:1px solid rgba(34,211,238,.15)"><span style="color:var(--cyan);font-size:9px;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:2px">Trend</span><span style="font-size:10px;color:var(--text2)">' + s.trend + '</span></div>' : '') +
       '</div>';
     card.appendChild(suggCard);
 
