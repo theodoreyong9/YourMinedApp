@@ -1,0 +1,647 @@
+<!-- YourMine — Command Theme -->
+<script>
+window.YM_THEME_META = {"name":"Command","icon":"⬛","description":"Situation room — live dashboard composing Alerte, Zone, Radio, Social and Idea"};
+window.YM_WALLPAPER_PRESETS = [];
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@300;400&display=block" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#050507;--surface:#0a0a0f;--surface2:#0f0f16;--surface3:#14141e;
+  --text:#c8ffc8;--text2:rgba(200,255,200,.5);--text3:rgba(200,255,200,.22);
+  --red:#ff3333;--amber:#f0a830;--cyan:#00ffcc;--green:#22ff88;
+  --border:rgba(200,255,200,.1);--border2:rgba(200,255,200,.06);
+  --font-m:'Share Tech Mono',monospace;
+  --font-d:'Barlow Condensed',sans-serif;
+  --font-b:'Barlow',sans-serif;
+  --gold:#f0a830;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-m)}
+
+/* ── HIDE SYSTEM UI ── */
+#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
+#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
+.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
+#desktop-slider .icon-wrap{display:none!important}
+.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.pill{display:none!important}
+
+/* ── SCANLINES ── */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.15) 2px,rgba(0,0,0,.15) 4px);
+  animation:scan 8s linear infinite;
+}
+@keyframes scan{0%{background-position:0 0}100%{background-position:0 400px}}
+
+/* ── NOISE OVERLAY ── */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9997;opacity:.025;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── COMMAND LAYOUT ── */
+#cmd-root{
+  position:fixed;inset:0;
+  display:grid;
+  grid-template-rows:32px 1fr 200px;
+  grid-template-columns:1fr 320px;
+  gap:1px;
+  background:var(--border2);
+  z-index:10;
+}
+
+/* ── TOP BAR ── */
+#cmd-topbar{
+  grid-column:1/-1;
+  background:var(--surface);
+  display:flex;align-items:center;gap:0;
+  border-bottom:1px solid var(--border);
+  overflow:hidden;
+}
+#cmd-logo{
+  font-family:var(--font-d);font-size:13px;font-weight:700;letter-spacing:.3em;
+  color:var(--text);text-transform:uppercase;padding:0 16px;flex-shrink:0;
+  border-right:1px solid var(--border);height:100%;display:flex;align-items:center;
+}
+#cmd-ticker{
+  flex:1;overflow:hidden;height:100%;display:flex;align-items:center;position:relative;
+}
+#cmd-ticker-inner{
+  display:flex;gap:32px;align-items:center;
+  white-space:nowrap;font-size:10px;letter-spacing:.05em;
+  animation:ticker 40s linear infinite;
+  padding-left:100%;
+}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.cmd-tick{display:inline-flex;align-items:center;gap:6px;color:var(--text2)}
+.cmd-tick.alert{color:var(--red)}
+.cmd-tick.warn{color:var(--amber)}
+.cmd-tick-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+#cmd-clock{
+  font-size:11px;letter-spacing:.1em;color:var(--text2);
+  padding:0 14px;flex-shrink:0;border-left:1px solid var(--border);
+  height:100%;display:flex;align-items:center;gap:8px;
+}
+#cmd-clock-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1s step-end infinite;flex-shrink:0}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── MAIN AREA ── */
+#cmd-main{
+  background:var(--surface);
+  display:flex;flex-direction:column;
+  overflow:hidden;position:relative;
+}
+
+/* Grid overlay on main */
+#cmd-main::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(200,255,200,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(200,255,200,.03) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+#cmd-main-head{
+  flex-shrink:0;padding:10px 16px 8px;border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;gap:10px;position:relative;z-index:1;
+}
+#cmd-main-title{font-family:var(--font-d);font-size:11px;font-weight:600;letter-spacing:.25em;text-transform:uppercase;color:var(--text3);flex:1}
+
+/* Zone search in main */
+#cmd-search-wrap{
+  flex-shrink:0;padding:10px 16px;border-bottom:1px solid var(--border2);
+  display:flex;gap:8px;position:relative;z-index:1;
+}
+#cmd-search{
+  flex:1;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);font-family:var(--font-m);font-size:12px;
+  padding:8px 12px;outline:none;letter-spacing:.05em;
+  transition:border-color .15s;
+}
+#cmd-search::placeholder{color:var(--text3)}
+#cmd-search:focus{border-color:rgba(200,255,200,.3)}
+#cmd-search-btn{
+  background:none;border:1px solid var(--border);color:var(--text2);
+  font-family:var(--font-m);font-size:12px;padding:8px 14px;cursor:pointer;
+  transition:border-color .15s,color .15s;letter-spacing:.05em;
+}
+#cmd-search-btn:hover{border-color:var(--text2);color:var(--text)}
+
+/* Search results */
+#cmd-results{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;position:relative;z-index:1}
+#cmd-results::-webkit-scrollbar{width:3px}
+#cmd-results::-webkit-scrollbar-track{background:transparent}
+#cmd-results::-webkit-scrollbar-thumb{background:var(--border)}
+
+.cmd-result-section{
+  padding:6px 16px 3px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--text3);border-bottom:1px solid var(--border2);
+}
+.cmd-result-row{
+  padding:9px 16px;border-bottom:1px solid var(--border2);
+  font-size:11px;color:var(--text2);line-height:1.5;cursor:pointer;
+  transition:background .1s;display:flex;align-items:flex-start;gap:10px;
+}
+.cmd-result-row:hover{background:rgba(200,255,200,.03)}
+.cmd-result-title{color:var(--text);font-size:12px;margin-bottom:2px}
+.cmd-result-sub{font-size:10px;color:var(--text3)}
+.cmd-result-peer{color:var(--cyan)}
+.cmd-result-news{color:var(--text2)}
+.cmd-empty{padding:32px 16px;text-align:center;color:var(--text3);font-size:11px;letter-spacing:.1em}
+
+/* ── SIDE PANEL ── */
+#cmd-side{
+  background:var(--surface);
+  display:flex;flex-direction:column;overflow:hidden;
+  border-left:1px solid var(--border2);
+}
+
+/* Alerts feed */
+#cmd-alerts{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#cmd-alerts::-webkit-scrollbar{width:3px}
+#cmd-alerts::-webkit-scrollbar-track{background:transparent}
+#cmd-alerts::-webkit-scrollbar-thumb{background:var(--border)}
+#cmd-alerts-head{
+  padding:8px 14px;border-bottom:1px solid var(--border2);flex-shrink:0;
+  font-family:var(--font-d);font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);
+  display:flex;align-items:center;gap:6px;
+}
+#cmd-alert-dot{width:5px;height:5px;border-radius:50%;background:var(--red);animation:blink 1.5s step-end infinite}
+
+.cmd-alert-row{
+  padding:8px 14px;border-bottom:1px solid var(--border2);
+  font-size:10px;line-height:1.5;display:flex;gap:8px;align-items:flex-start;
+}
+.cmd-alert-row.high{border-left:2px solid var(--red);padding-left:12px}
+.cmd-alert-row.med{border-left:2px solid var(--amber);padding-left:12px}
+.cmd-alert-icon{flex-shrink:0;font-size:13px;margin-top:1px}
+.cmd-alert-title{color:var(--text2);font-size:10px}
+.cmd-alert-title.high{color:var(--red)}
+.cmd-alert-title.med{color:var(--amber)}
+.cmd-alert-peer{font-size:9px;color:var(--cyan);margin-top:2px}
+.cmd-alert-age{font-size:9px;color:var(--text3);flex-shrink:0;white-space:nowrap}
+
+/* Idea panel in side bottom */
+#cmd-idea{
+  flex-shrink:0;border-top:1px solid var(--border);
+  padding:10px 14px;background:var(--surface2);
+  min-height:80px;
+}
+#cmd-idea-head{
+  font-family:var(--font-d);font-size:9px;font-weight:600;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--text3);margin-bottom:6px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+#cmd-idea-content{font-size:11px;color:var(--text2);line-height:1.6}
+#cmd-idea-name{font-size:13px;color:var(--text);font-family:var(--font-d);font-weight:600;letter-spacing:.05em}
+#cmd-idea-btn{
+  background:none;border:1px solid var(--border);color:var(--text3);
+  font-family:var(--font-m);font-size:9px;padding:3px 8px;cursor:pointer;
+  letter-spacing:.1em;transition:border-color .15s,color .15s;
+}
+#cmd-idea-btn:hover{border-color:var(--amber);color:var(--amber)}
+
+/* ── BOTTOM BAR ── */
+#cmd-bottom{
+  grid-column:1/-1;background:var(--surface);
+  display:flex;border-top:1px solid var(--border);overflow:hidden;
+}
+
+/* Radio */
+#cmd-radio{
+  flex:1;display:flex;align-items:center;gap:12px;padding:0 16px;
+  border-right:1px solid var(--border2);overflow:hidden;
+}
+#cmd-radio-icon{font-size:16px;flex-shrink:0}
+#cmd-radio-info{flex:1;min-width:0}
+#cmd-radio-station{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#cmd-radio-genre{font-size:10px;color:var(--text3);margin-top:1px}
+#cmd-radio-btns{display:flex;gap:4px;flex-shrink:0}
+.cmd-radio-btn{background:none;border:1px solid var(--border);color:var(--text2);font-size:14px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s}
+.cmd-radio-btn:hover{border-color:var(--text);color:var(--text)}
+#cmd-radio-vol{width:60px;accent-color:var(--green);cursor:pointer}
+
+/* Peers */
+#cmd-peers{
+  width:220px;flex-shrink:0;display:flex;flex-direction:column;
+  padding:8px 14px;border-right:1px solid var(--border2);overflow:hidden;
+}
+#cmd-peers-head{font-family:var(--font-d);font-size:9px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;flex-shrink:0}
+#cmd-peers-list{flex:1;overflow:hidden;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start}
+.cmd-peer-pill{
+  font-size:9px;color:var(--text3);border:1px solid var(--border2);
+  padding:2px 7px;letter-spacing:.05em;cursor:pointer;transition:border-color .15s,color .15s;
+  max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.cmd-peer-pill:hover{border-color:var(--cyan);color:var(--cyan)}
+.cmd-peer-pill.near{border-color:rgba(0,255,204,.3);color:var(--cyan)}
+
+/* Status */
+#cmd-status{
+  width:160px;flex-shrink:0;display:flex;flex-direction:column;justify-content:center;
+  padding:0 14px;gap:4px;
+}
+.cmd-stat{display:flex;align-items:center;justify-content:space-between;font-size:10px}
+.cmd-stat-label{color:var(--text3);letter-spacing:.08em}
+.cmd-stat-val{color:var(--text);font-weight:600}
+.cmd-stat-val.ok{color:var(--green)}
+.cmd-stat-val.warn{color:var(--amber)}
+.cmd-stat-val.err{color:var(--red)}
+
+/* Scrollbars */
+*::-webkit-scrollbar{width:2px;height:2px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{background:var(--border)}
+
+/* Reveal animation */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+#cmd-root{animation:fadeIn .4s ease}
+</style>
+
+<!-- Required YourMine DOM -->
+<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
+<div id="toasts"></div>
+<div id="desktop"><div id="desktop-slider"></div></div>
+<div id="drag-ghost"></div><div id="page-dots"></div>
+<div id="nav-bar" style="display:none!important">
+  <div id="dock">
+    <button class="dbtn" id="btn-back"></button>
+    <button class="dbtn" id="btn-profile"></button>
+    <button class="dbtn" id="btn-figure"></button>
+  </div>
+</div>
+<div id="panel-overlay" class="ym-overlay"></div>
+<div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
+<div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
+<div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
+<div id="panel-mine" class="ym-panel">
+  <div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div>
+  <div class="panel-body" style="overflow:hidden;min-height:0">
+    <div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div>
+    <div id="panel-mine-build" style="display:none;flex-direction:column"></div>
+    <div id="panel-mine-formula" style="display:none;padding:16px"></div>
+    <div id="panel-mine-liste" style="display:none;flex-direction:column"></div>
+  </div>
+  <div class="ym-tabs" id="mine-tabs-bar">
+    <div class="ym-tab active" data-mine-tab="wallet">Wallet</div>
+    <div class="ym-tab" data-mine-tab="liste">Apps</div>
+  </div>
+</div>
+<div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
+<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
+<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
+<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
+<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
+<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column">
+  <div class="dlg-title" id="bg-dlg-title">Background</div>
+  <div id="theme-list"></div><input id="theme-custom-input" class="ym-input">
+  <button id="theme-custom-btn" class="ym-btn">Use</button>
+  <button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button>
+  <div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button>
+  <button class="ym-btn" id="bg-del" style="display:none"></button>
+</div></div>
+<button id="pwa-install-btn" style="display:none"></button>
+
+<!-- Command Dashboard -->
+<div id="cmd-root">
+
+  <!-- TOP BAR -->
+  <div id="cmd-topbar">
+    <div id="cmd-logo">YOURMINE // CMD</div>
+    <div id="cmd-ticker">
+      <div id="cmd-ticker-inner">
+        <span class="cmd-tick"><span class="cmd-tick-dot"></span>INITIALISING FEEDS…</span>
+      </div>
+    </div>
+    <div id="cmd-clock">
+      <div id="cmd-clock-dot"></div>
+      <span id="cmd-time">--:--:--</span>
+      <span style="color:var(--text3);font-size:9px" id="cmd-tz">UTC</span>
+    </div>
+  </div>
+
+  <!-- MAIN: Zone search -->
+  <div id="cmd-main">
+    <div id="cmd-main-head">
+      <div id="cmd-main-title">Zone // Network Intelligence Search</div>
+      <div id="cmd-zone-status" style="font-size:9px;color:var(--text3);letter-spacing:.1em">OFFLINE</div>
+    </div>
+    <div id="cmd-search-wrap">
+      <input id="cmd-search" placeholder="SEARCH NETWORK, GEO, NEWS, WIKI…" spellcheck="false" autocomplete="off">
+      <button id="cmd-search-btn">⌕ RUN</button>
+    </div>
+    <div id="cmd-results">
+      <div class="cmd-empty" style="margin-top:40px">
+        <div style="font-size:28px;margin-bottom:12px;opacity:.3">⌕</div>
+        AWAITING QUERY
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE: Alerts + Idea -->
+  <div id="cmd-side">
+    <div id="cmd-alerts-head">
+      <div id="cmd-alert-dot"></div>
+      ALERTE // LIVE FEED
+    </div>
+    <div id="cmd-alerts">
+      <div class="cmd-empty">NO SIGNALS</div>
+    </div>
+    <div id="cmd-idea">
+      <div id="cmd-idea-head">
+        <span>IDEA // NEXT PROMPT</span>
+        <button id="cmd-idea-btn">⟳ ANALYSE</button>
+      </div>
+      <div id="cmd-idea-content">
+        <div style="color:var(--text3);font-size:10px;letter-spacing:.08em">SPHERE IDEA NOT YET GENERATED</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div id="cmd-bottom">
+    <!-- Radio -->
+    <div id="cmd-radio">
+      <div id="cmd-radio-icon">📻</div>
+      <div id="cmd-radio-info">
+        <div id="cmd-radio-station" style="color:var(--text3)">RADIO SPHERE INACTIVE</div>
+        <div id="cmd-radio-genre"></div>
+      </div>
+      <div id="cmd-radio-btns">
+        <button class="cmd-radio-btn" id="cmd-prev">⏮</button>
+        <button class="cmd-radio-btn" id="cmd-pp">▶</button>
+        <button class="cmd-radio-btn" id="cmd-next">⏭</button>
+      </div>
+      <input type="range" id="cmd-radio-vol" min="0" max="1" step="0.05" value="0.8">
+    </div>
+    <!-- Peers -->
+    <div id="cmd-peers">
+      <div id="cmd-peers-head">NETWORK // PEERS ONLINE</div>
+      <div id="cmd-peers-list">
+        <span style="font-size:9px;color:var(--text3);letter-spacing:.1em">SCANNING…</span>
+      </div>
+    </div>
+    <!-- Status -->
+    <div id="cmd-status">
+      <div class="cmd-stat"><span class="cmd-stat-label">P2P</span><span class="cmd-stat-val" id="st-p2p">—</span></div>
+      <div class="cmd-stat"><span class="cmd-stat-label">ALERTE</span><span class="cmd-stat-val" id="st-alerte">—</span></div>
+      <div class="cmd-stat"><span class="cmd-stat-label">ZONE</span><span class="cmd-stat-val" id="st-zone">—</span></div>
+      <div class="cmd-stat"><span class="cmd-stat-label">RADIO</span><span class="cmd-stat-val" id="st-radio">—</span></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  /* ── CLOCK ── */
+  function updateClock(){
+    const n=new Date();
+    document.getElementById('cmd-time').textContent=
+      n.getUTCHours().toString().padStart(2,'0')+':'+
+      n.getUTCMinutes().toString().padStart(2,'0')+':'+
+      n.getUTCSeconds().toString().padStart(2,'0');
+  }
+  setInterval(updateClock,1000);updateClock();
+
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function fmtAge(ts){if(!ts)return'';const s=Math.round((Date.now()-ts)/1000);if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'m';return Math.round(s/3600)+'h';}
+
+  /* ── STATUS UPDATER ── */
+  function updateStatus(){
+    const p2p=window.YM_P2P?'OK':'—';
+    const alerte=window.YM_sphereRegistry?.has('alerte.sphere.js')?'ON':'OFF';
+    const zone=window.YM_sphereRegistry?.has('zone.sphere.js')?'ON':'OFF';
+    const radio=window.YM_sphereRegistry?.has('radio.sphere.js')?'ON':'OFF';
+    const set=(id,val)=>{
+      const el=document.getElementById(id);if(!el)return;
+      el.textContent=val;
+      el.className='cmd-stat-val'+(val==='ON'||val==='OK'?' ok':val==='OFF'?' err':'');
+    };
+    set('st-p2p',p2p);set('st-alerte',alerte);set('st-zone',zone);set('st-radio',radio);
+    document.getElementById('cmd-zone-status').textContent=zone==='ON'?'ONLINE':'OFFLINE';
+  }
+  setInterval(updateStatus,2000);updateStatus();
+
+  /* ── TICKER: pull from alerte.sphere if active ── */
+  function updateTicker(){
+    const inner=document.getElementById('cmd-ticker-inner');
+    if(!inner)return;
+    // Try to read from global alerts cache
+    const alerts=window.YM_S&&window.YM_S['alerte.sphere.js']?._alerts||[];
+    if(!alerts.length){
+      inner.innerHTML='<span class="cmd-tick"><span class="cmd-tick-dot"></span>NO SIGNALS — ALERTE SPHERE INACTIVE</span>'.repeat(2);
+      return;
+    }
+    const html=alerts.slice(0,12).map(a=>{
+      const cls=a.score>=3?'alert':a.type==='quake'?'warn':'';
+      return '<span class="cmd-tick '+cls+'"><span class="cmd-tick-dot"></span>'+esc(a.icon)+' '+esc(a.title)+'</span>';
+    }).join('');
+    inner.innerHTML=html+html; // duplicate for seamless loop
+  }
+  setInterval(updateTicker,5000);updateTicker();
+
+  /* ── ALERTS PANEL ── */
+  function updateAlerts(){
+    const el=document.getElementById('cmd-alerts');if(!el)return;
+    const alerts=window.YM_S&&window.YM_S['alerte.sphere.js']?._alerts||[];
+    if(!alerts.length){
+      el.innerHTML='<div class="cmd-empty">NO SIGNALS</div>';return;
+    }
+    el.innerHTML=alerts.slice(0,15).map(a=>{
+      const lvl=a.score>=3?'high':a.type==='quake'||a.type==='conflict'?'med':'';
+      return '<div class="cmd-alert-row '+lvl+'">' +
+        '<div class="cmd-alert-icon">'+esc(a.icon)+'</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="cmd-alert-title '+lvl+'">'+esc(a.title)+'</div>' +
+          (a.score>=3?'<div class="cmd-alert-peer">▲ NETWORK RELEVANT</div>':'') +
+        '</div>' +
+        '<div class="cmd-alert-age">'+fmtAge(a.ts)+'</div>' +
+      '</div>';
+    }).join('');
+  }
+  setInterval(updateAlerts,5000);updateAlerts();
+
+  /* ── IDEA PANEL ── */
+  function updateIdea(){
+    const content=document.getElementById('cmd-idea-content');if(!content)return;
+    // Access idea sphere cache
+    const cache=window.YM_S&&window.YM_S['idea.sphere.js']?._analysisCache;
+    if(!cache||!cache.suggestion){
+      content.innerHTML='<div style="color:var(--text3);font-size:10px;letter-spacing:.08em">IDEA SPHERE '+(window.YM_sphereRegistry?.has('idea.sphere.js')?'READY — CLICK ANALYSE':'INACTIVE')+'</div>';
+      return;
+    }
+    const s=cache.suggestion;
+    content.innerHTML=
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:20px">'+esc(s.icon||'✦')+'</span>'+
+        '<div><div id="cmd-idea-name">'+esc(s.name||'')+'</div>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+esc(s.tagline||'')+'</div></div>'+
+      '</div>';
+  }
+  setInterval(updateIdea,3000);updateIdea();
+
+  document.getElementById('cmd-idea-btn')?.addEventListener('click',()=>{
+    const sphere=window.YM_sphereRegistry?.get('idea.sphere.js');
+    if(sphere){
+      window.YM?.openSpherePanel?.('idea.sphere.js');
+    }else{
+      window.YM_toast?.('Activate idea.sphere.js first','warn');
+    }
+  });
+
+  /* ── PEERS ── */
+  function updatePeers(){
+    const el=document.getElementById('cmd-peers-list');if(!el)return;
+    const nearUsers=window.YM_Social?._nearUsers;
+    if(!nearUsers||nearUsers.size===0){
+      el.innerHTML='<span style="font-size:9px;color:var(--text3);letter-spacing:.1em">NO PEERS</span>';return;
+    }
+    let html='';
+    nearUsers.forEach((u,uuid)=>{
+      const name=(u.profile?.name||uuid.slice(0,6)).slice(0,10).toUpperCase();
+      html+='<span class="cmd-peer-pill near" data-uuid="'+esc(uuid)+'">'+esc(name)+'</span>';
+    });
+    el.innerHTML=html;
+    el.querySelectorAll('.cmd-peer-pill').forEach(p=>{
+      p.addEventListener('click',()=>{
+        const u=window.YM_Social?._nearUsers?.get(p.dataset.uuid);
+        if(u?.profile)window.YM?.openProfilePanel?.(u.profile);
+      });
+    });
+  }
+  setInterval(updatePeers,3000);updatePeers();
+
+  /* ── RADIO ── */
+  function updateRadio(){
+    const audio=document.getElementById('ym-radio-audio');
+    const sphere=window.YM_S?.['radio.sphere.js'];
+    const stEl=document.getElementById('cmd-radio-station');
+    const gnEl=document.getElementById('cmd-radio-genre');
+    const ppBtn=document.getElementById('cmd-pp');
+    if(!sphere){
+      if(stEl)stEl.textContent='RADIO SPHERE INACTIVE';if(stEl)stEl.style.color='var(--text3)';
+      if(gnEl)gnEl.textContent='';return;
+    }
+    const station=sphere._curStation;
+    const playing=sphere._playing;
+    if(stEl){stEl.textContent=station?station.name.toUpperCase():'NO STATION';stEl.style.color=playing?'var(--text)':'var(--text3)';}
+    if(gnEl)gnEl.textContent=station?(playing?'● ON AIR · ':''):''+(station?.genre?.toUpperCase()||'');
+    if(ppBtn)ppBtn.textContent=playing?'⏸':'▶';
+  }
+  setInterval(updateRadio,1000);
+
+  document.getElementById('cmd-prev')?.addEventListener('click',()=>window.YM_S?.['radio.sphere.js']?.prevStation?.());
+  document.getElementById('cmd-next')?.addEventListener('click',()=>window.YM_S?.['radio.sphere.js']?.nextStation?.());
+  document.getElementById('cmd-pp')?.addEventListener('click',()=>window.YM_S?.['radio.sphere.js']?.toggle?.());
+  document.getElementById('cmd-radio-vol')?.addEventListener('input',e=>{
+    const a=document.getElementById('ym-radio-audio');
+    if(a)a.volume=parseFloat(e.target.value);
+  });
+  // Click radio area opens panel
+  document.getElementById('cmd-radio')?.addEventListener('click',e=>{
+    if(e.target.closest('button')||e.target.closest('input'))return;
+    if(window.YM_sphereRegistry?.has('radio.sphere.js'))window.YM?.openSpherePanel?.('radio.sphere.js');
+  });
+
+  /* ── ZONE SEARCH ── */
+  const searchInput=document.getElementById('cmd-search');
+  const searchBtn=document.getElementById('cmd-search-btn');
+  const resultsEl=document.getElementById('cmd-results');
+
+  function renderResults(results){
+    if(!results){resultsEl.innerHTML='<div class="cmd-empty">SEARCHING…</div>';return;}
+    const {peers=[],wiki=null,news=[],dossier=null}=results;
+    if(!peers.length&&!wiki&&!news.length&&!dossier){
+      resultsEl.innerHTML='<div class="cmd-empty">NO RESULTS</div>';return;
+    }
+    let html='';
+    if(peers.length){
+      html+='<div class="cmd-result-section">⬡ NETWORK ('+peers.length+')</div>';
+      peers.forEach(p=>{
+        html+='<div class="cmd-result-row" data-uuid="'+esc(p.uuid||'')+'">'+
+          '<div class="cmd-peer-pill near" style="flex-shrink:0">⬡</div>'+
+          '<div><div class="cmd-result-title cmd-result-peer">'+esc(p.profile?.name||'Anonymous').toUpperCase()+'</div>'+
+          '<div class="cmd-result-sub">'+esc(p.profile?.bio||'').slice(0,80)+'</div></div></div>';
+      });
+    }
+    if(wiki){
+      html+='<div class="cmd-result-section">📖 WIKIPEDIA</div>';
+      html+='<div class="cmd-result-row">'+
+        (wiki.thumb?'<img src="'+esc(wiki.thumb)+'" style="width:44px;height:44px;object-fit:cover;flex-shrink:0">':'')+
+        '<div><div class="cmd-result-title">'+esc(wiki.title||'').toUpperCase()+'</div>'+
+        '<div class="cmd-result-sub">'+esc((wiki.extract||'').slice(0,160))+'</div></div></div>';
+    }
+    if(dossier){
+      const country=dossier.country||dossier.countryName||'';
+      const leader=dossier.headOfState||dossier.leader||'';
+      if(country||leader){
+        html+='<div class="cmd-result-section">🌍 DOSSIER</div>';
+        html+='<div class="cmd-result-row"><div>'+
+          (country?'<div class="cmd-result-title">'+esc(country).toUpperCase()+'</div>':'')+
+          (leader?'<div class="cmd-result-sub">LEADER: '+esc(leader).toUpperCase()+'</div>':'')+
+          '</div></div>';
+      }
+    }
+    if(news.length){
+      html+='<div class="cmd-result-section">📰 NEWS ('+news.length+')</div>';
+      news.forEach(a=>{
+        html+='<div class="cmd-result-row cmd-result-news" '+(a.url?'data-url="'+esc(a.url||a.link||'')+'"':'')+'>'+
+          '<div><div class="cmd-result-title">'+esc((a.title||'').toUpperCase())+'</div>'+
+          '<div class="cmd-result-sub">'+esc(a.source||'')+'</div></div></div>';
+      });
+    }
+    resultsEl.innerHTML=html;
+    // Wire clicks
+    resultsEl.querySelectorAll('[data-uuid]').forEach(row=>{
+      row.addEventListener('click',()=>{
+        const u=window.YM_Social?._nearUsers?.get(row.dataset.uuid);
+        if(u?.profile)window.YM?.openProfilePanel?.(u.profile);
+      });
+    });
+    resultsEl.querySelectorAll('[data-url]').forEach(row=>{
+      row.addEventListener('click',()=>window.open(row.dataset.url,'_blank','noopener'));
+    });
+  }
+
+  async function doSearch(q){
+    if(!q.trim())return;
+    renderResults(null);
+    // Try zone sphere first
+    const zoneSphere=window.YM_S?.['zone.sphere.js'];
+    if(zoneSphere&&zoneSphere._doSearch){
+      await zoneSphere._doSearch(q);
+      renderResults(zoneSphere._results||{});
+      return;
+    }
+    // Fallback: quick Wikipedia search
+    try{
+      const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(q));
+      if(r.ok){const d=await r.json();renderResults({peers:[],wiki:{title:d.title,extract:d.extract?.slice(0,280),thumb:d.thumbnail?.source},news:[],dossier:null});}
+      else renderResults({});
+    }catch{renderResults({});}
+  }
+
+  searchBtn?.addEventListener('click',()=>doSearch(searchInput?.value||''));
+  searchInput?.addEventListener('keydown',e=>{if(e.key==='Enter')doSearch(searchInput.value);});
+
+  /* ── THEME CUSTOM BTN ── */
+  const GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+  document.getElementById('theme-custom-btn')?.addEventListener('click',()=>{
+    const inp=document.getElementById('theme-custom-input');
+    const url=(inp?inp.value:'').trim();if(!url)return;
+    const u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+    localStorage.setItem('ym_theme_url',u);localStorage.removeItem('ym_theme_cache');location.reload();
+  });
+
+  /* ── BLOCK DESK ── */
+  function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=()=>{};window.YM_Desk.renderDesk=()=>{};}}
+  blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
+  const obs=new MutationObserver(muts=>{muts.forEach(m=>{m.addedNodes.forEach(n=>{if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
+  obs.observe(document.body,{childList:true});
+
+})();
+</script>
