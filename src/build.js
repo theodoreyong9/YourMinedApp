@@ -109,7 +109,7 @@ function _flowBtn(label, onClick){
 function _flowBack(buildContent, fn){
   const back = document.createElement('button');
   back.style.cssText = 'background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:8px 14px 4px;display:flex;align-items:center;gap:4px;flex-shrink:0';
-  back.innerHTML = '&#8592; Back';
+  back.innerHTML = '&#8592;';
   back.addEventListener('click', ()=>{ buildContent.innerHTML=''; fn(buildContent); });
   return back;
 }
@@ -192,10 +192,17 @@ function renderFlow(buildContent){
         ()=>{
           buildContent.innerHTML='';
           buildContent.appendChild(_flowBack(buildContent, renderFlow));
-          const soon=document.createElement('div');
-          soon.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--font-d,inherit);font-size:clamp(36px,10vw,80px);font-weight:800;letter-spacing:.05em;background:linear-gradient(140deg,#f0a830 0%,#fff 45%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text';
-          soon.textContent='SOON';
-          buildContent.appendChild(soon);
+          const aiArea=document.createElement('div');
+          aiArea.style.cssText='flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden';
+          buildContent.appendChild(aiArea);
+          if(window.YM_AI&&window.YM_AI.renderAIContent){
+            window.YM_AI.renderAIContent(aiArea);
+          }else{
+            const soon=document.createElement('div');
+            soon.style.cssText='flex:1;display:flex;align-items:center;justify-content:center;font-family:var(--font-d,inherit);font-size:clamp(36px,10vw,80px);font-weight:800;letter-spacing:.05em;background:linear-gradient(140deg,#f0a830 0%,#fff 45%,#22d3ee 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text';
+            soon.textContent='SOON';
+            aiArea.appendChild(soon);
+          }
         }
       ));
       buildContent.appendChild(wrap);
