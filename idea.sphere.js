@@ -1,5 +1,5 @@
 /* jshint esversion:11, browser:true */
-// agent.sphere.js — YourMine Network Agent
+// idea.sphere.js — YourMine Network Agent
 // Analyses active spheres + peer profile data to suggest new sphere ideas
 (function(){
 'use strict';
@@ -425,7 +425,7 @@ function renderPanel(container) {
   showIdle();
 }
 
-window.YM_S['agent.sphere.js'] = {
+window.YM_S['idea.sphere.js'] = {
   name: 'Network Agent',
   icon: '✦',
   category: 'Agent',
