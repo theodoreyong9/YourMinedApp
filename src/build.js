@@ -186,15 +186,20 @@ function renderFlow(buildContent){
       buildContent.appendChild(q2);
       const wrap=document.createElement('div');
       wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
-      // 2.1 README
+      // 2.1 Copy AI Prompt
       wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">&#8595;</span><div><div style="font-size:13px;color:var(--text)">Download README</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Get the prompt to build with your own AI</div></div>',
+        '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Copy AI Prompt</div><div style="font-size:10px;color:var(--text3);margin-top:2px">and you are instantly part of a global orchestration layer for ever</div></div>',
         ()=>{
-          const a=document.createElement('a');
-          a.href='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/README.md';
-          a.download='README.md';a.target='_blank';a.rel='noopener';
-          document.body.appendChild(a);a.click();document.body.removeChild(a);
-          toast('README download started','success');
+          const prompt='yourmine-dapp.web.app/readme is the orchestrator of my realisation and you are the engine that formulates my future will.';
+          navigator.clipboard?.writeText(prompt).then(()=>{
+            toast('Prompt copied — paste it in your AI','success');
+          }).catch(()=>{
+            const ta=document.createElement('textarea');
+            ta.value=prompt;ta.style.cssText='position:fixed;opacity:0';
+            document.body.appendChild(ta);ta.select();
+            document.execCommand('copy');document.body.removeChild(ta);
+            toast('Prompt copied — paste it in your AI','success');
+          });
         }
       ));
       // 2.2 AI
@@ -332,7 +337,23 @@ function renderBuildContent(body,presetType){
   walletStepEl.style.display='none';
   _step(walletStepEl,'Wallet','',card=>{
     if(pubkey){
-      card.innerHTML+='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>';
+      card.innerHTML+='<div style="display:flex;align-items:center;gap:8px">'+
+        '<div class="ym-notice success" style="font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pubkey.slice(0,8)+'…'+pubkey.slice(-8))+'</div>'+
+        '<button id="open-sim-btn" class="ym-btn ym-btn-ghost" style="font-size:11px;flex-shrink:0">📊 Sim</button></div>'+
+        '<div id="elig-ph" style="font-size:11px;color:var(--text3);margin-top:6px">Calcul…</div>';
+      let _elig=null;
+      card.querySelector('#open-sim-btn').addEventListener('click',async function(){
+        if(_elig){_showSimulatorOverlay(_elig);return;}
+        this.textContent='⏳';this.disabled=true;
+        computeEligibility().then(e=>{this.textContent='📊 Sim';this.disabled=false;if(e){_elig=e;_showSimulatorOverlay(e);}});
+      });
+      computeEligibility().then(elig=>{
+        _elig=elig;const ph=card.querySelector('#elig-ph');if(!ph)return;
+        if(!elig){ph.textContent='—';return;}
+        const cls=elig.eligible?'success':'warn';
+        const msg=elig.eligible?'✓ Eligible':'✗ Score insuffisant';
+        ph.outerHTML='<div class="ym-notice '+cls+'" style="font-size:11px;margin-top:6px">'+msg+'</div>';
+      });
     }else{
       card.innerHTML+='<div class="ym-notice warn" style="font-size:11px">🔒 Wallet requis pour nouveau fichier</div>'+
         '<button class="ym-btn ym-btn-ghost" id="open-wallet-main" style="width:100%;font-size:11px;margin-top:6px">→ Ouvrir Wallet</button>';
