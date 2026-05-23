@@ -140,9 +140,9 @@ function createWidget(){
   const spawnPage=window._deskCurPage||0;
   const pos=loadPos();
   const savedPage=pos.page||0;
-  // FIX: never spawn on a page that doesn't exist yet
-  const pageCount=window._deskPageCount||1;
-  const targetPage=Math.min((localStorage.getItem(POS_KEY)?savedPage:spawnPage), pageCount-1);
+  // Use savedPage if POS_KEY exists, otherwise spawn on current page
+  // Do NOT clamp to pageCount — registerWidgetPage will create the page if needed
+  const targetPage=localStorage.getItem(POS_KEY)?savedPage:spawnPage;
 
   _widget=document.createElement('div');
   _widget.id='ym-radio-widget';
