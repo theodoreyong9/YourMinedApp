@@ -64,7 +64,6 @@ body::before{
   #cmd-alerts{flex:1;border-right:1px solid var(--border2)}
   #cmd-idea{width:160px;flex-shrink:0;border-top:none;border-left:1px solid var(--border)}
   #cmd-bottom{grid-column:1;grid-row:4;flex-wrap:wrap}
-  #cmd-radio{min-width:0;flex:1}
   #cmd-peers{width:100%;border-right:none;border-top:1px solid var(--border2)}
   #cmd-status{display:none}
   #cmd-radio-vol{width:40px}
@@ -228,19 +227,7 @@ body::before{
   display:flex;border-top:1px solid var(--border);overflow:hidden;
 }
 
-/* Radio */
-#cmd-radio{
-  flex:1;display:flex;align-items:center;gap:12px;padding:0 16px;
-  border-right:1px solid var(--border2);overflow:hidden;
-}
-#cmd-radio-icon{font-size:16px;flex-shrink:0}
-#cmd-radio-info{flex:1;min-width:0}
-#cmd-radio-station{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#cmd-radio-genre{font-size:10px;color:var(--text3);margin-top:1px}
-#cmd-radio-btns{display:flex;gap:4px;flex-shrink:0}
-.cmd-radio-btn{background:none;border:1px solid var(--border);color:var(--text2);font-size:14px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .15s,color .15s}
-.cmd-radio-btn:hover{border-color:var(--text);color:var(--text)}
-#cmd-radio-vol{width:60px;accent-color:var(--green);cursor:pointer}
+
 
 /* Peers */
 #cmd-peers{
@@ -381,20 +368,7 @@ body::before{
 
   <!-- BOTTOM BAR -->
   <div id="cmd-bottom">
-    <!-- Radio -->
-    <div id="cmd-radio">
-      <div id="cmd-radio-icon">📻</div>
-      <div id="cmd-radio-info">
-        <div id="cmd-radio-station" style="color:var(--text3)">RADIO SPHERE INACTIVE</div>
-        <div id="cmd-radio-genre"></div>
-      </div>
-      <div id="cmd-radio-btns">
-        <button class="cmd-radio-btn" id="cmd-prev">⏮</button>
-        <button class="cmd-radio-btn" id="cmd-pp">▶</button>
-        <button class="cmd-radio-btn" id="cmd-next">⏭</button>
-      </div>
-      <input type="range" id="cmd-radio-vol" min="0" max="1" step="0.05" value="0.8">
-    </div>
+
     <!-- Peers -->
     <div id="cmd-peers">
       <div id="cmd-peers-head">NETWORK // PEERS ONLINE</div>
@@ -407,7 +381,7 @@ body::before{
       <div class="cmd-stat"><span class="cmd-stat-label">P2P</span><span class="cmd-stat-val" id="st-p2p">—</span></div>
       <div class="cmd-stat"><span class="cmd-stat-label">ALERTE</span><span class="cmd-stat-val" id="st-alerte">—</span></div>
       <div class="cmd-stat"><span class="cmd-stat-label">ZONE</span><span class="cmd-stat-val" id="st-zone">—</span></div>
-      <div class="cmd-stat"><span class="cmd-stat-label">RADIO</span><span class="cmd-stat-val" id="st-radio">—</span></div>
+
     </div>
   </div>
 
@@ -433,13 +407,13 @@ body::before{
     const p2p=window.YM_P2P?'OK':'—';
     const alerte=window.YM_sphereRegistry?.has('alerte.sphere.js')?'ON':'OFF';
     const zone=window.YM_sphereRegistry?.has('zone.sphere.js')?'ON':'OFF';
-    const radio=window.YM_sphereRegistry?.has('radio.sphere.js')?'ON':'OFF';
+
     const set=(id,val)=>{
       const el=document.getElementById(id);if(!el)return;
       el.textContent=val;
       el.className='cmd-stat-val'+(val==='ON'||val==='OK'?' ok':val==='OFF'?' err':'');
     };
-    set('st-p2p',p2p);set('st-alerte',alerte);set('st-zone',zone);set('st-radio',radio);
+    set('st-p2p',p2p);set('st-alerte',alerte);set('st-zone',zone);
     document.getElementById('cmd-zone-status').textContent=zone==='ON'?'ONLINE':'OFFLINE';
   }
   setInterval(updateStatus,2000);updateStatus();
@@ -533,37 +507,7 @@ body::before{
   }
   setInterval(updatePeers,3000);updatePeers();
 
-  /* ── RADIO ── */
-  function updateRadio(){
-    const audio=document.getElementById('ym-radio-audio');
-    const sphere=window.YM_S?.['radio.sphere.js'];
-    const stEl=document.getElementById('cmd-radio-station');
-    const gnEl=document.getElementById('cmd-radio-genre');
-    const ppBtn=document.getElementById('cmd-pp');
-    if(!sphere){
-      if(stEl)stEl.textContent='RADIO SPHERE INACTIVE';if(stEl)stEl.style.color='var(--text3)';
-      if(gnEl)gnEl.textContent='';return;
-    }
-    const station=sphere._curStation;
-    const playing=sphere._playing;
-    if(stEl){stEl.textContent=station?station.name.toUpperCase():'NO STATION';stEl.style.color=playing?'var(--text)':'var(--text3)';}
-    if(gnEl)gnEl.textContent=station?(playing?'● ON AIR · ':''):''+(station?.genre?.toUpperCase()||'');
-    if(ppBtn)ppBtn.textContent=playing?'⏸':'▶';
-  }
-  setInterval(updateRadio,1000);
 
-  document.getElementById('cmd-prev')?.addEventListener('click',()=>window.YM_S?.['radio.sphere.js']?.prevStation?.());
-  document.getElementById('cmd-next')?.addEventListener('click',()=>window.YM_S?.['radio.sphere.js']?.nextStation?.());
-  document.getElementById('cmd-pp')?.addEventListener('click',()=>window.YM_S?.['radio.sphere.js']?.toggle?.());
-  document.getElementById('cmd-radio-vol')?.addEventListener('input',e=>{
-    const a=document.getElementById('ym-radio-audio');
-    if(a)a.volume=parseFloat(e.target.value);
-  });
-  // Click radio area opens panel
-  document.getElementById('cmd-radio')?.addEventListener('click',e=>{
-    if(e.target.closest('button')||e.target.closest('input'))return;
-    if(window.YM_sphereRegistry?.has('radio.sphere.js'))window.YM?.openSpherePanel?.('radio.sphere.js');
-  });
 
   /* ── ZONE SEARCH ── */
   const searchInput=document.getElementById('cmd-search');
