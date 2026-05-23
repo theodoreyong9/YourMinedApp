@@ -306,6 +306,9 @@ async function render(containerArg){
       _openDrop('status',STATUS_OPTS.map(s=>({...s,active:s.id===curStatus})),opt=>{
         _filterActive=opt.id==='active';
         _listShowWip=opt.id==='wip';
+        if(opt.id==='active')_listShowWip=false;
+        if(opt.id==='wip')_filterActive=false;
+        if(opt.id==='all'){_filterActive=false;_listShowWip=false;}
         renderFilterRow();
         if(_listType==='spheres')renderList(content);
         else{const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
