@@ -134,7 +134,6 @@ function _unregisterPage(){
 }
 
 function createWidget(){
-  if(window.YM_NO_WIDGETS)return;
   if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
   _widget=null;
 
@@ -243,7 +242,7 @@ function createWidget(){
   _widget.addEventListener('pointercancel',onEnd);
 }
 
-const _onPageChange=()=>{if(window.YM_NO_WIDGETS)return;_syncWidgetPage();};
+const _onPageChange=()=>{_syncWidgetPage();};
 
 // FIX: use YM_Desk registry as source of truth, not localStorage
 function _syncWidgetPage(){
@@ -422,7 +421,6 @@ window.YM_S['radio.sphere.js']={
     if(st.station){_curStation=st.station;if(st.playing)play(st.station);}
     createWidget();
     document._ymRadioVisHandler=()=>{
-      if(window.YM_NO_WIDGETS)return;
       if(document.visibilityState==='visible'){
         if(_widget&&!document.body.contains(_widget))_widget=null;
         if(!_widget)createWidget();
