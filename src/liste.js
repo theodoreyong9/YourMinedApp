@@ -202,8 +202,8 @@ async function render(containerArg){
   body.innerHTML=
     '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
     '<div id="list-controls" style="padding:8px 12px 8px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
-      '<div id="list-type-pills" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
-      '<div id="list-cat-row" style="display:flex;gap:4px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-height:20px"></div>'+
+      '<div id="list-filter-row" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
+      '<div id="list-dropdown-panel" style="display:none;flex-wrap:wrap;gap:4px;padding:6px 0 2px;animation:ymBarIn .15s ease"></div>'+
       '<div id="list-wip-row" style="display:none"></div>'+
       '<div id="list-search-row" style="display:flex;gap:6px;align-items:center">'+
         '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:12px;padding:7px 10px">'+
@@ -212,10 +212,11 @@ async function render(containerArg){
     '</div>';
 
   const content=body.querySelector('#list-content');
-  const typePillsEl=body.querySelector('#list-type-pills');
-  const catRow=body.querySelector('#list-cat-row');
+  const filterRow=body.querySelector('#list-filter-row');
+  const dropdownPanel=body.querySelector('#list-dropdown-panel');
   const wipRow=body.querySelector('#list-wip-row');
   const searchInput=body.querySelector('#list-search');
+  let _openDropdown=null; // 'type'|'cat'|'status'|null
 
   searchInput.addEventListener('input',e=>{
     const v=e.target.value.toLowerCase();
@@ -229,7 +230,8 @@ async function render(containerArg){
 
   const addBtn=body.querySelector('#list-add-btn');
   addBtn.addEventListener('click',()=>{
-    ['#list-type-pills','#list-cat-row','#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='none';});
+    filterRow.style.display='none';dropdownPanel.style.display='none';
+    ['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='none';});
     const sr=body.querySelector('#list-search-row');if(sr)sr.style.display='block';
     addBtn.style.display='none';
     content.innerHTML='';
@@ -238,8 +240,7 @@ async function render(containerArg){
 
     function restoreList(){
       addBtn.style.display='';
-      body.querySelector('#list-type-pills')?.style.setProperty('display','flex');
-      body.querySelector('#list-cat-row')?.style.setProperty('display','flex');
+      filterRow.style.display='flex';
       ['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});
       const sr2=body.querySelector('#list-search-row');if(sr2)sr2.style.display='flex';
       switchType();
@@ -273,44 +274,101 @@ async function render(containerArg){
     }
   });
 
-  function renderTypePills(){
-    typePillsEl.innerHTML='';
-    [{id:'spheres',label:'⬡ Sphere'},{id:'themes',label:'🎨 Theme'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}].forEach(opt=>{
+  const TYPE_OPTS=[{id:'spheres',label:'⬡ Sphere'},{id:'themes',label:'🎨 Theme'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}];
+  const CAT_OPTS=['All','Tools','AI','Games','Finance','Commerce','Social','Media','Search','Agent','Communication','Other'];
+  const STATUS_OPTS=[{id:'all',label:'All'},{id:'active',label:'Active'},{id:'inactive',label:'Inactive'},{id:'wip',label:'🚧 WIP'}];
+
+  function _closeDropdown(){
+    _openDropdown=null;
+    dropdownPanel.style.display='none';
+    dropdownPanel.innerHTML='';
+    filterRow.querySelectorAll('.pill').forEach(p=>p.classList.remove('dropdown-open'));
+  }
+
+  function _openDrop(key,pills,onSelect){
+    if(_openDropdown===key){_closeDropdown();return;}
+    _closeDropdown();
+    _openDropdown=key;
+    dropdownPanel.style.display='flex';
+    dropdownPanel.innerHTML='';
+    pills.forEach(opt=>{
       const p=document.createElement('span');
-      p.className='pill'+(_listType===opt.id?' active':'');
+      p.className='pill'+(opt.active?' active':'');
       p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
       p.textContent=opt.label;
-      p.addEventListener('click',()=>{
+      p.addEventListener('click',()=>{onSelect(opt);_closeDropdown();});
+      dropdownPanel.appendChild(p);
+    });
+    filterRow.querySelectorAll('[data-drop="'+key+'"]').forEach(p=>p.classList.add('dropdown-open'));
+  }
+
+  function renderFilterRow(){
+    filterRow.innerHTML='';
+    const curType=TYPE_OPTS.find(t=>t.id===_listType)||TYPE_OPTS[0];
+    const curCat=_filterCat||'All';
+    const curStatus=_listShowWip?'wip':(_filterActive?'active':'all');
+
+    // Type pill
+    const tPill=document.createElement('span');
+    tPill.className='pill active';
+    tPill.dataset.drop='type';
+    tPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+    tPill.textContent=curType.label+' ▾';
+    tPill.addEventListener('click',()=>{
+      _openDrop('type',TYPE_OPTS.map(o=>({...o,active:o.id===_listType})),opt=>{
         if(_listType===opt.id)return;
         _listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';
-
-        renderTypePills();switchType();
+        _filterCat='';_filterActive=false;_listShowWip=false;
+        renderFilterRow();switchType();
       });
-      typePillsEl.appendChild(p);
     });
+    filterRow.appendChild(tPill);
+
+    // Category pill (spheres only)
+    if(_listType==='spheres'){
+      const cPill=document.createElement('span');
+      cPill.className='pill'+(curCat!=='All'?' active':'');
+      cPill.dataset.drop='cat';
+      cPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+      cPill.textContent=(curCat==='All'?'Category':'⬡ '+curCat)+' ▾';
+      cPill.addEventListener('click',()=>{
+        _openDrop('cat',CAT_OPTS.map(c=>({id:c,label:c,active:c===curCat})),opt=>{
+          _filterCat=opt.id==='All'?'':opt.id;
+          renderFilterRow();renderList(content);
+        });
+      });
+      filterRow.appendChild(cPill);
+    }
+
+    // Status pill
+    const sPill=document.createElement('span');
+    sPill.className='pill'+(curStatus!=='all'?' active':'');
+    sPill.dataset.drop='status';
+    sPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+    sPill.textContent=(curStatus==='all'?'Status':STATUS_OPTS.find(s=>s.id===curStatus)?.label||'Status')+' ▾';
+    sPill.addEventListener('click',()=>{
+      _openDrop('status',STATUS_OPTS.map(s=>({...s,active:s.id===curStatus})),opt=>{
+        _filterActive=opt.id==='active';
+        _listShowWip=opt.id==='wip';
+        renderFilterRow();
+        if(_listType==='spheres')renderList(content);
+        else{const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
+      });
+    });
+    filterRow.appendChild(sPill);
   }
 
   function buildWipToggle(){
-    wipRow.innerHTML='';
-    wipRow.style.display='block';
-    const wipBtn=document.createElement('span');
-    wipBtn.className='pill'+(_listShowWip?' active':'');
-    wipBtn.style.cssText='cursor:pointer;font-size:10px';
-    wipBtn.textContent='🚧 Under construction';
-    wipBtn.addEventListener('click',()=>{
-      _listShowWip=!_listShowWip;
-      wipBtn.classList.toggle('active',_listShowWip);
-      if(_listType==='spheres')renderList(content);
-      else{const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
-    });
-    wipRow.appendChild(wipBtn);
+    // WIP now handled by Status dropdown pill — keep empty for compatibility
+    wipRow.style.display='none';
   }
 
   function switchType(){
-    content.innerHTML='';catRow.innerHTML='';
+    content.innerHTML='';
     buildWipToggle();
-    if(_listType==='spheres')renderSpheresContent(content,catRow);
-    else if(_listType==='themes')renderThemesContent(content,catRow);
+    renderFilterRow();
+    if(_listType==='spheres')renderSpheresContent(content,null);
+    else if(_listType==='themes')renderThemesContent(content,null);
     else if(_listType==='photo')renderPhotoContent(content);
     else if(_listType==='video')renderVideoContent(content);
   }
@@ -318,11 +376,10 @@ async function render(containerArg){
   const zoneCfg=window.YM_ZONE_CONFIG;
   if(zoneCfg?.spheresOnly){
     _listType='spheres';
-    typePillsEl.style.display='none';
+    filterRow.style.display='none';
+    dropdownPanel.style.display='none';
     wipRow.style.display='none';
     addBtn.style.display='none';
-  }else{
-    renderTypePills();
   }
 
   if(!_loaded)await fetchSphereList();
