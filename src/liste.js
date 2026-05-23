@@ -207,7 +207,7 @@ async function render(containerArg){
       '<div id="list-wip-row" style="display:none"></div>'+
       '<div id="list-search-row" style="display:flex;gap:6px;align-items:center">'+
         '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:12px;padding:7px 10px">'+
-        '<button id="list-add-btn" title="Publish" style="flex-shrink:0;width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#ffe066,#f0a830,#ff8c00);border:none;color:#06060e;font-size:40px;font-weight:200;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .2s;box-shadow:0 0 0 3px rgba(240,168,48,.25),0 0 28px 8px rgba(240,168,48,.7),0 0 60px 16px rgba(240,168,48,.3),0 6px 32px rgba(240,168,48,.5)">+</button>'+
+
       '</div>'+
     '</div>';
 
@@ -228,51 +228,7 @@ async function render(containerArg){
     }
   });
 
-  const addBtn=body.querySelector('#list-add-btn');
-  addBtn.addEventListener('click',()=>{
-    filterRow.style.display='none';dropdownPanel.style.display='none';
-    ['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='none';});
-    const sr=body.querySelector('#list-search-row');if(sr)sr.style.display='block';
-    addBtn.style.display='none';
-    content.innerHTML='';
-    content.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;display:flex;flex-direction:column';
-    const dt=_listType==='spheres'?'sphere':'theme';
 
-    function restoreList(){
-      addBtn.style.display='';
-      filterRow.style.display='flex';
-      ['#list-wip-row','#list-search'].forEach(s=>{const el=body.querySelector(s);if(el)el.style.display='';});
-      const sr2=body.querySelector('#list-search-row');if(sr2)sr2.style.display='flex';
-      switchType();
-    }
-
-    function addBackBtn(){
-      const backWrap=document.createElement('div');
-      backWrap.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-      const backBtn=document.createElement('button');
-      backBtn.style.cssText='width:100%;padding:14px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text3);font-size:13px;cursor:pointer;border-radius:10px;transition:border-color .15s,color .15s';
-      backBtn.textContent='← Back';
-      backBtn.addEventListener('mouseenter',()=>{backBtn.style.borderColor='rgba(255,255,255,.2)';backBtn.style.color='var(--text2)';});
-      backBtn.addEventListener('mouseleave',()=>{backBtn.style.borderColor='rgba(255,255,255,.1)';backBtn.style.color='var(--text3)';});
-      backBtn.addEventListener('click',restoreList);
-      backWrap.appendChild(backBtn);
-      content.appendChild(backWrap);
-    }
-
-    if(window.YM_Build?.render){
-      window.YM_Build.render(content,dt);
-      setTimeout(addBackBtn,50);
-    }else{
-      content.innerHTML='<div style="padding:20px;color:var(--text3);font-size:12px;text-align:center">Chargement…</div>';
-      const iv=setInterval(()=>{
-        if(window.YM_Build?.render){
-          clearInterval(iv);content.innerHTML='';
-          window.YM_Build.render(content,dt);
-          setTimeout(addBackBtn,50);
-        }
-      },300);
-    }
-  });
 
   const TYPE_OPTS=[{id:'spheres',label:'⬡ Sphere'},{id:'themes',label:'🎨 Theme'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}];
   const CAT_OPTS=['All','Tools','AI','Games','Finance','Commerce','Social','Media','Search','Agent','Communication','Other'];
@@ -379,7 +335,6 @@ async function render(containerArg){
     filterRow.style.display='none';
     dropdownPanel.style.display='none';
     wipRow.style.display='none';
-    addBtn.style.display='none';
   }
 
   if(!_loaded)await fetchSphereList();
