@@ -16,6 +16,7 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 - [Profile Hooks](#profile-hooks)
 - [Multiplayer](#multiplayer)
 - [Theme API Specification](#theme-api-specification)
+- [Widget Injection — Hiding Dynamically Created Sphere UI](#widget-injection--hiding-dynamically-created-sphere-ui)
 - [CSS Custom Properties Reference](#css-custom-properties-reference)
 - [System Themes](#system-themes)
 - [Theme Configuration API](#theme-configuration-api)
@@ -100,8 +101,6 @@ There is no central profile editor. There is no profile schema. The living layer
 
 ### Minimal working sphere (copy-paste starting point)
 
-This is the complete, correct file structure. Every sphere must use this IIFE wrapper and the exact key format.
-
 ```js
 /* jshint esversion:11 */
 // mysphere.sphere.js
@@ -120,12 +119,9 @@ window.YM_S['mysphere.sphere.js'] = {
 
   activate(ctx) {
     _ctx = ctx;
-    // Fire-and-forget any slow network call — never await here
-    // _timer = setInterval(() => { ... }, 5000);
   },
 
   deactivate() {
-    // Cleanup is on the top-level method — never assign ctx.deactivate
     if (_timer) { clearInterval(_timer); _timer = null; }
     _ctx = null;
   },
@@ -147,9 +143,9 @@ window.YM_S['mysphere.sphere.js'] = {
 ```
 
 **Critical rules:**
-- The key in `window.YM_S[...]` must match the filename exactly (used by `files.json`)
-- Always use an IIFE `(function(){ ... })()` — no top-level variables that could conflict
-- `deactivate()` is a top-level method on the object — never `ctx.deactivate = ...`
+- The key in `window.YM_S[...]` must match the filename exactly
+- Always use an IIFE `(function(){ ... })()`
+- `deactivate()` is a top-level method — never `ctx.deactivate = ...`
 - Never `await` slow network calls inside `activate()` — use fire-and-forget
 
 ---
@@ -158,193 +154,109 @@ window.YM_S['mysphere.sphere.js'] = {
 
 ```js
 window.YM_S['mysphere.sphere.js'] = {
-  // ── Required ──────────────────────────────────────────────
-  name:        'My Sphere',           // Display name
-  icon:        '🔮',                  // Emoji or https:// image URL
-  category:    'Tools',               // Category string (shown in liste)
-  description: 'What it does.',       // Short description (< 140 chars)
+  name:        'My Sphere',
+  icon:        '🔮',
+  category:    'Tools',
+  description: 'What it does.',
 
-  // ── Lifecycle ─────────────────────────────────────────────
-  activate(ctx) { /* called once when user activates */ },
-  deactivate()  { /* cleanup timers, DOM nodes, event listeners */ },
+  activate(ctx) { },
+  deactivate()  { },
+  renderPanel(container) { },
 
-  // ── Rendering ─────────────────────────────────────────────
-  renderPanel(container) { /* builds sphere UI into container div */ },
+  profileSection(container) { },
+  peerSection(container, ctx) { },
+  broadcastData() { },
 
-  // ── Optional ──────────────────────────────────────────────
-  profileSection(container) { /* compact UI in own profile → Spheres tab */ },
-  peerSection(container, ctx) { /* UI injected into a peer's profile card */ },
-  broadcastData() { /* extra data merged into the social presence packet */ },
-
-  // ── Metadata ──────────────────────────────────────────────
-  emit:    ['event:type'],  // P2P events this sphere sends
-  receive: ['event:type'],  // P2P events this sphere handles
+  emit:    ['event:type'],
+  receive: ['event:type'],
 };
 ```
 
 ### Context Object (`ctx`)
 
-The `activate(ctx)` function receives a context object with the following API:
-
 ```js
-ctx.storage.get(key)          // → value | null    — localStorage scoped to sphere
-ctx.storage.set(key, value)   // saves to scoped localStorage
-ctx.storage.del(key)          // removes key
+ctx.storage.get(key)          // → value | null
+ctx.storage.set(key, value)
+ctx.storage.del(key)
 
-ctx.toast(msg, type)          // type: 'success' | 'error' | 'info' | 'warn'
-ctx.openPanel(renderFn)       // opens panel-sphere and calls renderFn(container)
-ctx.setNotification(n)        // sets badge count on desktop icon
+ctx.toast(msg, type)          // 'success' | 'error' | 'info' | 'warn'
+ctx.openPanel(renderFn)
+ctx.setNotification(n)        // badge count on desktop icon
 
 ctx.send(type, data)          // broadcast to all peers (rate-limited: 10/s)
-ctx.onReceive(callback)       // callback(type, data, peerId) — auto-cleaned on deactivate
+ctx.onReceive(callback)       // callback(type, data, peerId)
 
-ctx.saveProfile(data)         // merges data into YourMine profile
-ctx.loadProfile()             // returns current profile object
+ctx.saveProfile(data)
+ctx.loadProfile()
 
-// Navigation (use window.YM directly — clearer intent)
-window.YM?.openSpherePanel?.('mysphere.sphere.js') // open this sphere's panel
-window.YM?.openProfilePanel?.(profileObject)        // open a peer's profile card
-window.YM?.openPanel?.('panel-profile')             // open the system profile panel
+window.YM?.openSpherePanel?.('mysphere.sphere.js')
+window.YM?.openProfilePanel?.(profileObject)
+window.YM?.openPanel?.('panel-profile')
 ```
 
 ### Runtime Contract
 
-- `activate()` must complete within **8 seconds** (enforced timeout)
-- `deactivate()` is a **top-level method** on the sphere object — never assign `ctx.deactivate = ...` inside `activate()`
-- Spheres **must not** modify `window.YM`, `window.YM_Desk`, `window.fetch` directly
-- Spheres **must not** access `localStorage` keys outside their `ym_s|name|*` namespace (exception: reading `ym_contacts_v1` is tolerated for contact-aware spheres)
+- `activate()` must complete within **8 seconds**
 - Rate limits: 3 toasts per 5s, 10 P2P sends per second
 
 ### P2P Events
 
 ```js
-// Sending via ctx (broadcast — scoped to your sphere automatically)
 ctx.send('myevent:action', { payload: 'data' });
 
-// Receiving via ctx
 ctx.onReceive((type, data, peerId) => {
-  if (type === 'myevent:action') { /* handle */ }
+  if (type === 'myevent:action') { }
 });
 ```
 
-### Direct P2P (targeted messages)
-
-`ctx.send` always broadcasts. For direct peer-to-peer messages, bypass ctx and use `window.YM_P2P` directly:
+### Direct P2P
 
 ```js
-// Send to a specific peer by peerId
 window.YM_P2P?.sendTo(peerId, {
-  sphere: 'mysphere.sphere.js',  // required — identifies receiver
-  type:   'myevent:action',
-  data:   { payload: 'data' }
-});
-
-// Broadcast via raw P2P (equivalent to ctx.send)
-window.YM_P2P?.broadcast({
   sphere: 'mysphere.sphere.js',
   type:   'myevent:action',
   data:   { payload: 'data' }
 });
-```
 
-To get a peer's `peerId` from their UUID:
-
-```js
 const peerId = window.YM_Social?._nearUsers.get(uuid)?.peerId ?? null;
 ```
 
-`window.YM_Social._nearUsers` is a `Map<uuid, {profile, ts, peerId}>` maintained by the social sphere. It is non-null only when `social.sphere.js` is active (it always is — it is mandatory).
-
-### `broadcastData()` — inject data into social presence
-
-If your sphere wants to attach extra data to the user's social presence packet (broadcast to nearby peers every 5s by `social.sphere.js`), implement `broadcastData()`:
+### `broadcastData()`
 
 ```js
-window.YM_S['mysphere.sphere.js'] = {
-  // ...
-  broadcastData() {
-    // Called by social.sphere.js before each broadcast
-    // Return an object — it is merged into the presence packet
-    return {
-      myStatus: 'playing',
-      myScore: 42,
-    };
-  },
-};
+broadcastData() {
+  return {
+    myStatus: 'playing',
+    myScore: 42,
+  };
+}
 ```
 
-Peers receive this merged data in their `social:presence` handler via `ctx.onReceive`. The `activity.sphere.js` uses this to broadcast GPS anchors. Keep the payload small (< 500 bytes).
+Called by `social.sphere.js` before each broadcast. Merged into the presence packet received by nearby peers via `YM_Social._nearUsers[uuid].broadcastData`. Keep payload under 500 bytes.
 
 ---
 
 ## Profile Hooks
 
-Spheres can inject UI into two places in the profile panel.
-
 ### `profileSection(container)`
 
-Called when the user opens their own profile → Spheres tab. Use it to show sphere-specific settings, stats, or configuration.
+Called when the user opens their own profile → Spheres tab.
 
-```js
-profileSection(container) {
-  container.innerHTML = '<div>My sphere settings here</div>';
-  // container is a div inside the accordion for this sphere
-}
-```
+### `peerSection(container, peerCtx)`
 
-### `peerSection(container, ctx)`
-
-Called when the user views another user's profile card, for each sphere both users have active. Use it to show peer-specific interactions (challenge, message, trade, etc.).
+Called when the user views another user's profile card, for each sphere both users have active.
 
 ```js
 peerSection(container, peerCtx) {
   // peerCtx = { uuid, isNear, isReciproc, profile }
-  // uuid      — peer's UUID
-  // isNear    — peer is currently nearby (P2P visible)
-  // isReciproc — both have each other as contacts
-  // profile   — peer's public profile object
-
-  if (!peerCtx.isNear) {
-    container.innerHTML = '<div style="color:var(--text3);font-size:11px">Not nearby</div>';
-    return;
-  }
-
-  const btn = document.createElement('button');
-  btn.className = 'ym-btn ym-btn-ghost';
-  btn.style.cssText = 'width:100%;font-size:12px';
-  btn.textContent = '⚡ Challenge';
-  btn.addEventListener('click', () => {
-    // peerCtx does NOT have ctx.send — it is not the sphere's activation context
-    // Get the peer's transport peerId from social.sphere's nearUsers map
-    const peerId = window.YM_Social?._nearUsers.get(peerCtx.uuid)?.peerId;
-    if (peerId) {
-      window.YM_P2P?.sendTo(peerId, {
-        sphere: 'mysphere.sphere.js',
-        type:   'mygame:challenge',
-        data:   { from: window.YM_sphereRegistry?.get?.('mysphere.sphere.js')?.loadProfile?.()?.uuid }
-      });
-    }
-    // Then navigate to your sphere's panel
-    window.YM?.openSpherePanel?.('mysphere.sphere.js');
-  });
-  container.appendChild(btn);
+  // peerCtx does NOT have ctx.send — use window.YM_P2P.sendTo() instead
+  // To access your sphere's own ctx: window.YM_sphereRegistry.get('mysphere.sphere.js')
 }
 ```
 
-**Important:** `peerCtx` in `peerSection` is **not** the `ctx` from `activate()`. It has no `.send()`, no `.storage`, no `.toast()`. To send a P2P message from peerSection, use `window.YM_P2P.sendTo()` as shown above. To access your sphere's own ctx, use `window.YM_sphereRegistry.get('mysphere.sphere.js')`.
-
 ### Sphere Visibility
 
-Before broadcasting sphere presence to a peer, check if the user allows it:
-
 ```js
-// In social/P2P code
-const visibleSpheres = myProfile.spheres.filter(s =>
-  window.YM_canSeeSphere(s, peerId)
-);
-ctx.send('social:pong', { spheres: visibleSpheres }, peerId);
-
-// API
 window.YM_canSeeSphere(sphereName, peerUUID) // → true | false
 window.YM_getSphereVisibility(sphereName)    // → 'all' | 'contacts' | uuid[]
 ```
@@ -353,99 +265,40 @@ window.YM_getSphereVisibility(sphereName)    // → 'all' | 'contacts' | uuid[]
 
 ## Multiplayer
 
-YourMine's P2P layer (Nostr) enables real-time multiplayer without any backend.
-
 ### Pattern: shared state
 
 ```js
-window.YM_S['mygame.sphere.js'] = {
-  name: 'My Game', icon: '🎮',
-
-  activate(ctx) {
-    // Local state
-    const state = { players: {}, myPos: { x: 0, y: 0 } };
-    _interval = setInterval(() => {
-      ctx.send('mygame:pos', state.myPos);
-    }, 100);
-
-    ctx.onReceive((type, data, peerId) => {
-      if (type === 'mygame:pos') {
-        state.players[peerId] = data;
-        renderPlayers(state.players);
-      }
-      if (type === 'mygame:action') {
-        handleAction(data, peerId);
-      }
-    });
-    // ctx.onReceive listeners are cleaned up automatically on deactivate
-  },
-
-  deactivate() {
-    // Cleanup goes here — NOT ctx.deactivate = ...
-    if (_interval) { clearInterval(_interval); _interval = null; }
-  },
-
-  renderPanel(container) {
-    // Game UI here
-  }
-};
-```
-
-### Pattern: room / lobby
-
-```js
 activate(ctx) {
-  const myProfile = ctx.loadProfile();
-
-  // Announce presence
-  ctx.send('mygame:join', {
-    name: myProfile.name,
-    avatar: myProfile.avatar,
-  });
-
-  // Track who's in the room
-  const room = new Map();
+  const state = { players: {}, myPos: { x: 0, y: 0 } };
+  _interval = setInterval(() => {
+    ctx.send('mygame:pos', state.myPos);
+  }, 100);
   ctx.onReceive((type, data, peerId) => {
-    if (type === 'mygame:join') {
-      room.set(peerId, data);
-      updateLobby(room);
-      // Welcome the new player
-      ctx.send('mygame:welcome', { players: [...room.values()] }, peerId);
-    }
-    if (type === 'mygame:leave') {
-      room.delete(peerId);
-      updateLobby(room);
-    }
+    if (type === 'mygame:pos') state.players[peerId] = data;
   });
-}
+},
+deactivate() {
+  if (_interval) { clearInterval(_interval); _interval = null; }
+},
 ```
 
-### Pattern: turn-based / authoritative
-
-For games needing a single source of truth, use the **oldest peer** as host:
+### Pattern: turn-based / authoritative host
 
 ```js
 activate(ctx) {
   let isHost = false;
   let peers = new Map();
   const myJoinTime = Date.now();
-
   ctx.send('mygame:hello', { joinTime: myJoinTime });
-
   ctx.onReceive((type, data, peerId) => {
     if (type === 'mygame:hello') {
       peers.set(peerId, data.joinTime);
-      // Host = peer with earliest joinTime
       isHost = myJoinTime <= Math.min(...peers.values());
     }
     if (type === 'mygame:move' && isHost) {
-      // Validate and broadcast authoritative state
-      const newState = applyMove(gameState, data, peerId);
-      ctx.send('mygame:state', newState); // broadcast to all
+      ctx.send('mygame:state', applyMove(gameState, data, peerId));
     }
-    if (type === 'mygame:state' && !isHost) {
-      applyState(data); // apply host's authoritative state
-    }
+    if (type === 'mygame:state' && !isHost) applyState(data);
   });
 }
 ```
@@ -453,35 +306,7 @@ activate(ctx) {
 ### Rate limits
 
 - **10 P2P sends/second** — enforced by `app.js`
-- **Payload size** — keep under 4KB per message (Nostr relay limit)
-- **No persistent storage** on the network — use `ctx.storage` for local persistence
-
-### Bring your own infrastructure
-
-The default P2P uses public Nostr relays. A sphere can use any real-time infrastructure:
-
-```js
-// Custom WebSocket relay
-const ws = new WebSocket('wss://my-relay.example.com');
-ws.onmessage = e => handleMessage(JSON.parse(e.data));
-
-// Gun.js (decentralized graph DB)
-const gun = Gun(['https://gun-relay.example.com/gun']);
-
-// Matrix (federated real-time)
-const client = matrixcs.createClient({ baseUrl: 'https://matrix.org' });
-
-// WebRTC (use Nostr for signaling, then direct P2P)
-ctx.onReceive((type, data, peerId) => {
-  if (type === 'mygame:sdp-offer') {
-    const pc = new RTCPeerConnection();
-    pc.setRemoteDescription(data.sdp);
-    // ... WebRTC handshake via Nostr signaling
-  }
-});
-```
-
-`ctx.send/onReceive` still works for the default Nostr layer alongside any custom transport. The two can coexist in the same sphere.
+- **Payload size** — keep under 4KB per message
 
 ---
 
@@ -491,19 +316,14 @@ A theme is an HTML fragment (not a full document) injected into `<body>` by `ind
 
 ### Required DOM elements
 
-These IDs **must** exist in every theme or `app.js`/`desk.js` will crash:
-
 ```html
-<!-- Desktop -->
-<div id="ym-wp"></div>          <!-- wallpaper layer -->
-<div id="ym-bg"></div>          <!-- background effects -->
-<div id="ym-loader"></div>      <!-- loading screen -->
+<div id="ym-wp"></div>
+<div id="ym-bg"></div>
+<div id="ym-loader"></div>
 <div id="toasts"></div>
 <div id="desktop"><div id="desktop-slider"></div></div>
 <div id="drag-ghost"></div>
 <div id="page-dots"></div>
-
-<!-- Nav -->
 <div id="nav-bar">
   <div id="dock">
     <button id="btn-back" class="dbtn"></button>
@@ -511,8 +331,6 @@ These IDs **must** exist in every theme or `app.js`/`desk.js` will crash:
     <button id="btn-figure" class="dbtn"></button>
   </div>
 </div>
-
-<!-- Panels -->
 <div id="panel-overlay" class="ym-overlay"></div>
 <div id="panel-spheres"  class="ym-panel">...<div id="panel-spheres-body"></div></div>
 <div id="panel-profile"  class="ym-panel">...<div id="panel-profile-body"></div></div>
@@ -524,59 +342,125 @@ These IDs **must** exist in every theme or `app.js`/`desk.js` will crash:
 </div>
 <div id="panel-sphere">...<div id="panel-sphere-body"></div>...<h2 id="sphere-panel-title"></h2></div>
 <div id="panel-profile-view">...<div id="panel-profile-view-body"></div>...<h2 id="profile-view-title"></h2></div>
-
-<!-- Dialogs -->
 <div id="panel-switcher"><div id="switcher-handle"></div><div id="switcher-grid"></div></div>
 <div id="folder-dlg" class="dlg">...<input id="folder-name-input">...<button id="folder-confirm"></button><button id="folder-cancel"></button></div>
-<div id="bg-dlg" class="dlg">...<div id="bg-presets"></div><div id="theme-list"></div><input id="theme-custom-input"><button id="theme-custom-btn"></button><button id="bg-wp"></button><button id="bg-remove"></button><button id="bg-spheres"></button><button id="bg-del"></button></div>
-<div id="ym-sign-dlg">...<div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><button id="ym-sign-confirm"></button><button id="ym-sign-reject"></button></div>
+<div id="bg-dlg" class="dlg">...<div id="bg-presets"></div><div id="theme-list"></div>...</div>
+<div id="ym-sign-dlg">...<button id="ym-sign-confirm"></button><button id="ym-sign-reject"></button></div>
 <button id="pwa-install-btn"></button>
-<div id="spheres-build-btn" ...></div>
+<div id="spheres-build-btn"></div>
 <button id="profile-share-btn"></button>
 ```
 
-### Required CSS classes
+### Theme Metadata (required)
 
-These class names are used by `desk.js` and must be styled or at minimum declared:
+```html
+<script>
+window.YM_THEME_META = {
+  name:        "My Theme",
+  icon:        "🎨",
+  description: "Short description",
+};
+window.YM_WALLPAPER_PRESETS = [
+  { label: 'City Night', url: 'https://images.unsplash.com/photo-xxx?w=1400&q=80' },
+];
+</script>
+```
 
-| Class | Used for |
-|---|---|
-| `.ym-panel` | Panel containers |
-| `.ym-panel.open` | Visible panel state |
-| `.ym-overlay` | Click-to-close area |
-| `.dbtn`, `.dbtn.active` | Dock buttons |
-| `.icon-wrap`, `.icon-body`, `.icon-label`, `.icon-notif`, `.icon-del` | Desktop icons |
-| `.folder-body`, `.folder-grid`, `.fi` | Folder icons |
-| `.desktop-page` | Grid page layout |
-| `.cell-hl` | Drop highlight |
-| `.ym-btn`, `.ym-btn-accent`, `.ym-btn-ghost`, `.ym-btn-danger` | Buttons |
-| `.ym-input` | Input fields |
-| `.ym-card`, `.ym-card-title` | Cards |
-| `.ym-notice`, `.ym-notice.info/.success/.error/.warn` | Notices |
-| `.ym-tabs`, `.ym-tab`, `.ym-tab.active` | Tab bars |
-| `.pill`, `.pill.active` | Pill labels |
-| `.toast`, `.toast.success/.error/.info/.warn` | Toast notifications |
-| `.dlg`, `.dlg.open`, `.dlg-box`, `.dlg-title` | Dialogs |
-| `.panel-handle`, `.panel-head`, `.panel-body` | Panel structure |
-| `.sw-card`, `.sw-preview`, `.sw-label`, `.sw-clone-wrap` | Switcher cards |
-| `.pdot`, `.pdot.active` | Page dots |
-| `body.edit-mode .icon-del` | Delete mode |
-| `body.edit-mode .folder-body>.icon-del` | Must be `display:none!important` |
-| `body.has-wallpaper` | Wallpaper active state |
+### Theme picker — `applyTheme`
 
-### CSS Custom Properties reference
+```js
+function applyTheme(url, label) {
+  if (!url || url === activeUrl()) return;
+  localStorage.setItem('ym_theme_url', url);
+  localStorage.removeItem('ym_theme_cache');
+  if (location.pathname !== '/') history.replaceState(null, '', '/'); // critical
+  setTimeout(() => location.reload(), 1500);
+}
+```
 
-Spheres must use CSS variables for all colors and dimensions to stay visually consistent across themes. The following variables are available — themes may override them; always provide fallbacks for variables not guaranteed by all themes.
+### `icon-label--below`
 
-**Guaranteed by all themes (safe to use without fallback):**
+```css
+.icon-label--below { order: 1 !important; }
+```
+
+### Grid layout
+
+```css
+:root { --cols: 4; --rows: 6; }
+@media (hover:hover) and (pointer:fine) {
+  :root { --cols: 8; --rows: 5; }
+}
+```
+
+---
+
+## Widget Injection — Hiding Dynamically Created Sphere UI
+
+Some spheres (e.g. `radio.sphere.js`) inject a widget element directly into `<body>` via `document.body.appendChild(widget)` with a `position:fixed` **inline style set before insertion**. This means:
+
+- CSS rules like `display:none!important` in the theme stylesheet **do not work** — inline styles have higher specificity than stylesheet rules
+- The element is created after the theme loads, so static CSS cannot anticipate it
+
+**Why the inline style wins:** `radio.sphere.js` calls `_widget.style.cssText = 'position:fixed;...'` before `document.body.appendChild(_widget)`. By the time the browser evaluates the theme CSS, the inline style is already applied. The only reliable fix is to intercept the element at insertion time via `MutationObserver` and overwrite its `style.cssText`.
+
+### Correct pattern for themes that hide all desktop UI
+
+```js
+const obs = new MutationObserver(muts => {
+  muts.forEach(m => {
+    m.addedNodes.forEach(n => {
+      if (n.nodeType !== 1) return;
+      // Hide widgets by ID convention
+      if ((n.id || '').includes('widget')) {
+        n.style.cssText = 'display:none!important';
+        return;
+      }
+      // Hide any fixed-position element injected dynamically
+      // that is not a system panel or theme element
+      if (n.style && n.style.position === 'fixed' &&
+          !n.id.startsWith('panel') &&
+          !n.id.startsWith('ym-sign') &&
+          !n.id.startsWith('YOUR_THEME_PREFIX')) {
+        n.style.cssText = 'display:none!important';
+      }
+    });
+  });
+});
+obs.observe(document.body, { childList: true });
+```
+
+Replace `YOUR_THEME_PREFIX` with the ID prefix of your own theme's elements (e.g. `cmd-` for command theme).
+
+### Also block `YM_Desk.addIcon`
+
+```js
+function blockDesk() {
+  if (window.YM_Desk) {
+    window.YM_Desk.addIcon    = () => {};
+    window.YM_Desk.removeIcon = () => {};
+    window.YM_Desk.renderDesk = () => {};
+  }
+  document.querySelectorAll('.icon-wrap').forEach(el => el.style.cssText = 'display:none!important');
+}
+blockDesk();
+window.addEventListener('ym:sphere-activated',   blockDesk);
+window.addEventListener('ym:sphere-deactivated', blockDesk);
+```
+
+---
+
+## CSS Custom Properties Reference
+
+**Guaranteed by all themes:**
 
 | Variable | Default value | Description |
 |---|---|---|
 | `--bg` | `#06060e` | Page background |
 | `--text` | `#e4e6f4` | Primary text |
-| `--text2` | `rgba(228,230,244,.52)` | Secondary/muted text |
-| `--text3` | `rgba(228,230,244,.26)` | Placeholder/disabled text |
-| `--gold` | `#f0a830` | Primary gold accent (default theme) |
+| `--text2` | `rgba(228,230,244,.52)` | Secondary text |
+| `--text3` | `rgba(228,230,244,.26)` | Placeholder text |
+| `--gold` | `#f0a830` | Primary accent |
 | `--cyan` | `#08e0f8` | Secondary accent |
 | `--red` | `#ff4560` | Danger/error |
 | `--green` | `#22d98a` | Success |
@@ -587,208 +471,60 @@ Spheres must use CSS variables for all colors and dimensions to stay visually co
 **Available in some themes — always use fallback:**
 
 ```css
-background: var(--surface2,  #12121e);         /* panel/card background */
-background: var(--surface3,  rgba(255,255,255,.06)); /* input/avatar bg */
-border:     1px solid var(--border,  rgba(255,255,255,.08));
-border-radius: var(--r,    12px);              /* standard radius */
-border-radius: var(--r-sm, 8px);               /* small radius */
-border-radius: var(--r-lg, 16px);              /* large radius */
-color:      var(--accent, var(--gold, #f0a830)); /* theme accent (blue in zone, gold in default) */
-```
-
-**`--accent` vs `--gold`:** `--accent` is defined by the zone theme as blue-purple (`#5b78f5`). The default theme has no `--accent` — use `var(--accent, var(--gold))` so spheres work correctly on both themes.
-
-**Pattern used by system code:**
-
-```js
-div.style.cssText = `
-  background: var(--surface2, #12121e);
-  border: 1px solid var(--border, rgba(255,255,255,.08));
-  border-radius: var(--r-sm, 8px);
-  color: var(--text2);
-`;
+background: var(--surface2,  #12121e);
+background: var(--surface3,  rgba(255,255,255,.06));
+border:     1px solid var(--border, rgba(255,255,255,.08));
+border-radius: var(--r, 12px);
+border-radius: var(--r-sm, 8px);
+border-radius: var(--r-lg, 16px);
+color: var(--accent, var(--gold, #f0a830));
 ```
 
 ---
 
-### Theme Metadata (required)
+## System Themes
 
-Every theme **must** declare these JS globals near the top (in a `<script>` tag before any other JS):
+### `default.html`
+Dark glassmorphism, gold/cyan gradients. Defines `window.YM_WALLPAPER_PRESETS` — used as fallback by `desk.js`.
 
-```html
-<script>
-// Required — used by desk.js for desktop icon label and icon
-window.YM_THEME_META = {
-  name:        "My Theme",
-  icon:        "🎨",
-  description: "Short description shown in Themes list",
+### `zone.html`
+Sets `window.YM_ZONE_CONFIG = { spheresOnly: true, socialFilters: true }`.
+
+### `hello.html`
+Full-screen landing page. Hides all system chrome. Uses MutationObserver to block widget injection.
+
+---
+
+## Theme Configuration API
+
+```js
+window.YM_ZONE_CONFIG = {
+  spheresOnly:   true,  // lock liste to sphere tab
+  socialFilters: true,  // add Near / Contacts filter pills
 };
-
-// Required — wallpaper presets shown in the background picker
-// These URLs are also extracted by merge.js and stored in themes-files.json media.photos
-window.YM_WALLPAPER_PRESETS = [
-  { label: 'City Night', url: 'https://images.unsplash.com/photo-xxx?w=1400&q=80' },
-  { label: 'Aurora',     url: 'https://images.unsplash.com/photo-yyy?w=1400&q=80' },
-];
-</script>
 ```
 
-**Important:** `YM_WALLPAPER_PRESETS` must be defined by the theme, **not** by `desk.js`. Each theme owns its wallpaper collection. `desk.js` reads `window.YM_WALLPAPER_PRESETS || []`.
+### `window._ymNearSpheres`
 
-### Theme picker script
-
-The background dialog (`#bg-dlg`) expects a script that:
-1. Fetches `src/themes/index.json` from GitHub raw URL
-2. Calls `buildList(files)` to populate `#theme-list`
-3. Handles `applyTheme(url, label)` — **must** call `history.replaceState(null,'','/')` before `location.reload()` to clear any `.theme` segment from the URL
-
-```js
-function applyTheme(url, label) {
-  if (!url || url === activeUrl()) return;
-  localStorage.setItem('ym_theme_url', url);
-  localStorage.removeItem('ym_theme_cache');
-  if (location.pathname !== '/') history.replaceState(null, '', '/'); // ← critical
-  window.YM_toast && window.YM_toast('✦ ' + label + ' — reloading…', 'success', 1500);
-  setTimeout(() => location.reload(), 1500);
-}
-```
-
-### icon-label--below CSS class
-
-Desktop icon labels appear **above** the icon by default (`order:-1`). For theme icons (which use `type:'theme'`), `desk.js` adds class `icon-label--below` to put the label below. Your theme CSS must include:
-
-```css
-.icon-label--below { order: 1 !important; }
-```
+`Set<string>` of sphere filenames seen on nearby peers. Populated by `social.sphere.js`.
 
 ---
 
-## URL Routing
+## External Apps & Bridge API
 
-### Theme routing
-
-Typing `https://yourmine-dapp.web.app/name.theme` in the address bar:
-
-1. `index.html boot()` detects `/name.theme` segment
-2. Looks up `name.theme.html` in `themes-files.json` (by filename or name field)
-3. Falls back to `HEAD src/themes/name.theme.html` → then `src/themes/name.html`
-4. Stores found URL in `ym_theme_url` and reloads on `/`
-
-### Sphere routing
-
-`https://yourmine-dapp.web.app/social.sphere` → activates `social.sphere.js` and opens its panel.
-
-### Combined routing
-
-`https://yourmine-dapp.web.app/neural.theme/social.sphere` — applies neural theme first, then after reload opens social sphere. The sphere segment is preserved in the URL during the theme reload.
-
-### Important constraint
-
-After applying a theme via the background picker or any programmatic change, always call:
-```js
-if (location.pathname !== '/') history.replaceState(null, '', '/');
-```
-before `location.reload()`. Otherwise `checkURLRoute` re-runs on reload and overwrites the new theme choice with the old URL segment.
-
----
-
-## Edge-back Button
-
-`index.html` injects a theme-proof edge button (`#_ym_edge_btn`) at `z-index:10000`, independent of any theme:
-
-**Desktop (hover:hover):** button appears on hover of the 20px left edge zone via CSS `#_ym_edge:hover ~ #_ym_edge_btn`.
-
-**Mobile (touch):**
-- Tap on left edge (20px zone) → toggles button visible for 5 seconds
-- Swipe right from left edge (dx > 40px) → action immediately
-- Swipe left ending near left edge → toggle button
-
-**Action:** always navigates to `default.html` via `localStorage.setItem('ym_theme_url', DEF_THEME)` + `history.replaceState(null,'','/')` + `location.reload()`. Never reads from `themes-files.json` — hardcoded to system default.
-
----
-
-## Desktop Icon System
-
-### Icon object structure
-
-Icons are stored in `localStorage` key `ym_desktop_v1` as a JSON array:
-
-```json
-{
-  "id":       "mysphere.sphere.js",
-  "icon":     "🔮",
-  "label":    "My Sphere",
-  "page":     0,
-  "col":      3,
-  "row":      5,
-  "notif":    0,
-  "folder":   false,
-  "folderItems": null,
-  "type":     "theme",      // only for theme icons
-  "themeUrl": "https://..."  // only for theme icons
-}
-```
-
-### Theme icons
-
-Created via `desk.js addIcon(id, icon, label, page, {type:'theme', themeUrl})`. On tap, apply theme + reload. The `type` and `themeUrl` fields **must be preserved** through all copy operations (folder drag, extraction, etc.) — `desk.js` uses `copyIcon()` for this.
-
-### Grid layout
-
-`desk.js GRID()` returns `{cols:8, rows:5}` on desktop and `{cols:4, rows:6}` on mobile. Your theme CSS **must** use matching values:
-
-```css
-:root { --cols: 4; --rows: 6; }               /* mobile */
-@media (hover:hover) and (pointer:fine) {
-  :root { --cols: 8; --rows: 5; }              /* desktop */
-  .desktop-page { grid-template-columns: repeat(var(--cols), 1fr); }
-}
-```
-
-If `--cols` in your CSS doesn't match `GRID()`, the drop ghost will be misaligned.
-
----
-
-## Sphere Visibility
-
-Profile panel exposes per-sphere visibility settings stored in `ym_sphere_visibility`:
+Any web app can be loaded as a sphere. Bridge via `postMessage`:
 
 ```js
-// API — usable by social.sphere.js and other spheres
-window.YM_canSeeSphere(sphereName, peerUUID)
-// → true if peer can see this sphere is active
-
-window.YM_getSphereVisibility(sphereName)
-// → 'all' | 'contacts' | uuid[]
-```
-
-Values: `'all'` (default), `'contacts'` (contacts list only), or an array of UUIDs (custom selection). Use in `social.sphere.js` before broadcasting sphere presence:
-
-```js
-ctx.onReceive((type, data, peerId) => {
-  if (type === 'social:ping') {
-    // Only respond with spheres this peer is allowed to see
-    const visibleSpheres = myProfile.spheres.filter(s =>
-      window.YM_canSeeSphere(s, peerId)
-    );
-    ctx.send('social:pong', { spheres: visibleSpheres }, peerId);
-  }
+// Receive
+window.addEventListener('message', e => {
+  if (e.data?.type === 'ym:ready') { const profile = e.data.profile; }
 });
+
+// Send
+window.parent.postMessage({ type: 'ym:toast', msg: 'Saved!', style: 'success' }, '*');
+window.parent.postMessage({ type: 'ym:storage:set', key: 'score', value: '42' }, '*');
+window.parent.postMessage({ type: 'ym:p2p:broadcast', data: { x: 1, y: 2 } }, '*');
 ```
-
----
-
-## Merge Bot
-
-`merge.js` runs as a GitHub Action on PR merge. It:
-1. Updates `files.json` for sphere submissions
-2. Updates `themes-files.json` for theme submissions, including **auto-extracting media URLs** from the theme HTML via `merge_media_extractor.js`
-3. Closes the PR with a comment
-4. Syncs the fork with main
-
-`merge_media_extractor.js` scans theme HTML for Unsplash/Pexels URLs, `.jpg/.png/.webp` images, YouTube/Vimeo links, and `.mp4/.webm` files. Results are stored in `themes-files.json → media.{photos, videos}`.
-
-Both files must be in the same directory (`.github/scripts/` or repo root).
 
 ---
 
@@ -797,132 +533,65 @@ Both files must be in the same directory (`.github/scripts/` or repo root).
 ### Boot sequence
 
 ```
-1. index.html captures beforeinstallprompt → window._pwaPrompt
-2. index.html loads WebLLM via <script type="module"> if navigator.gpu → window.__webllm
-3. index.html injects edge-back UI (theme-proof)
-4. index.html fetches theme HTML → injectTheme() → CSS in <head>, DOM in <body>
-5. boot: await desk.js (execScript)
-6. boot: await app.js (execScript)
-7. app.js: OC() — creates profile if none
-8. app.js: deskInit() → applyWP, buildSlider, goPage(0)
-9. app.js: loads mine.js, liste.js, build.js, profile.js (sequential, from GitHub raw)
-10. app.js: fetchSphereList() — populates sphere registry from files.json
-11. app.js: restores active spheres from profile.spheres[]
-12. app.js: activates social.sphere.js (mandatory)
-13. app.js: activates safety.sphere.js (mandatory)
-14. app.js: initP2P() — Trystero via Nostr relays
-15. app.js: hides loader on fonts.ready
+1. index.html → injects theme HTML
+2. desk.js loads
+3. app.js loads
+4. mine.js, liste.js, build.js, profile.js load
+5. fetchSphereList() — populates registry from files.json
+6. restores active spheres from profile.spheres[]
+7. activates social.sphere.js + safety.sphere.js (mandatory)
+8. initP2P() — Trystero via Nostr relays
 ```
 
-### Sphere activation flow
+### Activation timeout
 
-```
-YM.activateSphere(name, obj)
-  → dispatch 'ym:sphere-before-activate'  ← Safety listens here
-  → mkCtx(name)           — creates scoped context
-  → obj.activate(ctx)     — 8s timeout enforced
-  → addIcon(name, ...)    — adds to desktop
-  → SP({spheres: [...]})  — saves to profile
-  → dispatch 'ym:sphere-activated'
-```
-
-**Activation timeout:** `activate()` must resolve within **8 seconds**. If it doesn't, `app.js` kills the activation, removes the icon, and shows an error toast. Do not use `await` on slow network calls in `activate()` — use fire-and-forget instead:
+`activate()` must resolve within **8 seconds**. Use fire-and-forget for slow calls:
 
 ```js
 activate(ctx) {
-  // ✓ Fire-and-forget — doesn't block activation
+  // ✓ Fire-and-forget
   fetch('https://api.example.com/init').then(r => r.json()).then(data => {
     ctx.storage.set('data', JSON.stringify(data));
   });
-  // ✗ Never do this — will timeout
-  // const data = await fetch('...');
+  // ✗ Never await in activate
 }
 ```
 
 ### Mandatory spheres
 
-`social.sphere.js` and `safety.sphere.js` are **mandatory** — loaded automatically at boot, not deactivatable from the list or the desktop. They always appear in the sphere list with a `✓` indicator instead of an `Off` button. To add a sphere to the mandatory list, add it to `MANDATORY_SPHERES` in `app.js`, `desk.js`, and `liste.js`.
+`social.sphere.js` and `safety.sphere.js` — always active, not deactivatable.
 
 ---
 
 ## Safety System
 
-### Safety Events
-
-`safety.sphere.js` listens to three custom events dispatched by `app.js` and `liste.js`:
+`safety.sphere.js` listens to:
 
 ```js
-// Dispatched by app.js before every non-mandatory sphere activation
 window.dispatchEvent(new CustomEvent('ym:sphere-before-activate', {
-  detail: {
-    filename: 'mysphere.sphere.js',
-    author:   'github-username',
-    code:     '/* first 500 chars of source */'
-  }
+  detail: { filename, author, code }
 }));
-
-// Dispatched by liste.js before loading an external app URL (iframe sphere)
 window.dispatchEvent(new CustomEvent('ym:external-app-load', {
-  detail: { url: 'https://myapp.bolt.new', name: 'My App' }
+  detail: { url, name }
 }));
-
-// Dispatched by mine.js before signing a Solana transaction
 window.dispatchEvent(new CustomEvent('ym:before-transaction', {
-  detail: {
-    amount:      0.5,
-    destination: 'wallet-address',
-    program:     'program-id'
-  }
+  detail: { amount, destination, program }
 }));
 ```
 
-Safety uses **Llama 3.2 1B** running locally via WebGPU (loaded by `index.html` into `window.__webllm`). Results: `none/low` → silent, `medium` → warning toast (`z-index:10002`), `high` → error toast.
-
-**Note:** Safety cannot block sphere activation — it warns. The user always has final say. Safety is a monitor, not a gatekeeper.
+Uses Llama 3.2 1B via WebGPU. Safety warns, never blocks.
 
 ---
 
 ## Plug
 
-The **Plug** tab (`liste.js`) loads spheres and themes directly from outside the registry — no PR, no merge, no score required. Two modes:
-
-### URL mode
-
-Paste a direct URL ending in `.sphere.js` or `.theme.js`. The extension determines the type automatically.
-
-```
-https://raw.githubusercontent.com/user/repo/main/mysphere.sphere.js  → Sphere
-https://raw.githubusercontent.com/user/repo/main/mytheme.theme.js    → Theme
-```
-
-- **Sphere**: fetched, executed as a script, registered in `window.YM_S`, activated via `YM.activateSphere()` — behaves exactly like a ranked sphere
-- **Theme**: stored in `localStorage.ym_theme_url`, page reloads — behaves exactly like a ranked theme
-
-### Code mode
-
-Select **Sphere** or **Theme**, then paste raw JS code directly into the textarea. No URL needed.
-
-- **Sphere**: executed inline via Blob URL, then activated exactly like a URL-loaded sphere
-- **Theme**: Blob URL created from the pasted code, stored in `localStorage.ym_theme_url`, page reloads
-
-### Plug vs Rank
-
-| | Plug | Rank |
-|---|---|---|
-| Registry entry | No — ephemeral | Yes — `files.json` / `themes-files.json` |
-| Direct activation URL | No | Yes — `/name.theme`, `/name.sphere` |
-| Score / ranking | No | Yes |
-| Mining score required | No | Yes (new spheres only) |
-
-Plug is for testing, private sharing, or loading content from outside the ecosystem. Rank is for publishing to the shared registry.
+Load spheres/themes directly without publishing:
+- **URL mode** — paste `.sphere.js` or `.theme.js` URL
+- **Code mode** — paste raw JS code
 
 ---
 
 ## Ownership Transfer
-
-When publishing or updating a sphere/theme via the **Publish** panel, an optional "Transfer ownership to @github-user" field is available.
-
-**Effect:** sets `owner` field in `files.json` (spheres) or `themes-files.json` (themes). The `owner` can modify the entry in future submissions. The `ghAuthor` (original author) is preserved for scoring and ranking — it never changes.
 
 ```json
 {
@@ -933,76 +602,48 @@ When publishing or updating a sphere/theme via the **Publish** panel, an optiona
 }
 ```
 
-**Permission check order:** `ghAuthor === username` OR `owner === username` OR `author (wallet) === pubkey`.
+Permission check: `ghAuthor === username` OR `owner === username` OR wallet pubkey matches.
 
 ---
 
-### Sphere deactivation flow
+## URL Routing
 
 ```
-YM.deactivateSphere(name)
-  → obj.deactivate()      — cleanup
-  → ctx._cleanup()        — removes all onReceive listeners
-  → removeIcon(name)      — removes from desktop
-  → SP({spheres: [...]})  — updates profile
-  → dispatch 'ym:sphere-deactivated'
-  → autoCleanPages()      — removes empty desktop pages
+/                        → loads theme from localStorage
+/default.theme           → applies default theme
+/social.sphere           → activates social sphere and opens its panel
+/neural.theme/social.sphere → applies theme then opens sphere after reload
 ```
+
+Always call `history.replaceState(null, '', '/')` before `location.reload()` when applying a theme programmatically.
 
 ---
 
 ## Permissions & Security Model
 
 ### What spheres CAN do
-
-- Read/write their own `localStorage` namespace (`ym_s|name|*`)
-- Render UI in their assigned container (panel body, widget)
-- Send/receive P2P messages (rate-limited: 10/s)
-- Show toasts (rate-limited: 3/5s)
-- Open `panel-sphere` via `ctx.openPanel()`
-- Request wallet signature via `window.YM_Mine_sign()` — always shows confirmation dialog
-- Access `ctx.loadProfile()` / `ctx.saveProfile()` — only for non-sensitive fields
+- Read/write own `localStorage` namespace (`ym_s|name|*`)
+- Render UI in assigned container
+- Send/receive P2P messages
+- Show toasts
+- Request wallet signature (always shows confirmation dialog)
 
 ### What spheres CANNOT do
-
-- Access other spheres' localStorage namespaces
-- Intercept or modify `window.fetch` (locked by `Object.defineProperty`)
-- Modify `window.YM`, `window.YM_Desk`, `window.YM_P2P` directly
-- Write to `ym_profile_v1` localStorage key during activation (`window._ym_sl` guard)
-- Sign messages without explicit user confirmation dialog
-- Access wallet private key or seed phrase (never exposed outside `mine.js`)
-
-### Token GitHub (build.js)
-
-The GitHub token (`ghp_...`) entered in Build step 1 is:
-- **Stored in `sessionStorage`** — cleared when browser tab closes, never in `localStorage`
-- **Never sent to any third party** — only to `api.github.com` directly from the browser
-- **Never logged or cached** — the token string is not written to any YourMine storage
-- **Scoped to `repo`** — the minimum required for fork, push, and PR creation
-- **Risk**: the token is visible in browser memory during the session. Use a dedicated token with minimal permissions and revoke it after publishing.
-
-### Profile backup / UUID
-
-The profile JSON backup (`💾` button in Profile) saves:
-- `name`, `bio`, `avatar`, `networks`, `pubkey` — user-defined fields
-- `spheres` — list of active sphere filenames
-- Sphere configurations (`ym_s|*` keys)
-- Contacts list
-
-**The `uuid` field is intentionally excluded from restore** — UUID is generated once at first launch and is your permanent Soulnet identity. It is non-transferable and cannot be duplicated. Restoring a backup never overwrites your UUID.
+- Access other spheres' localStorage
+- Modify `window.YM`, `window.YM_Desk`, `window.fetch`
+- Sign messages without user confirmation
+- Access wallet private key
 
 ---
 
 ## Profile Structure
-
-Profile is stored in `localStorage` key `ym_profile_v1` as JSON.
 
 ```json
 {
   "uuid":     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "name":     "Alice",
   "bio":      "Short bio",
-  "avatar":   "https://... or data:image/...",
+  "avatar":   "https://...",
   "networks": { "twitter": "@alice", "github": "alice" },
   "pubkey":   "SolanaBase58PublicKey...",
   "spheres":  ["social.sphere.js", "mygame.sphere.js"],
@@ -1011,311 +652,186 @@ Profile is stored in `localStorage` key `ym_profile_v1` as JSON.
       "uuid":     "peer-uuid",
       "nickname": "Bob",
       "profile":  { "name": "Bob", "avatar": "..." },
-      "spheres":  ["social.sphere.js", "chess.sphere.js"]
+      "spheres":  ["social.sphere.js"]
     }
   ]
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `uuid` | Permanent Soulnet identity — generated once, never transferred, excluded from backup restore |
-| `spheres` | Active sphere filenames — restored on boot to re-activate spheres |
-| `contacts[].spheres` | Spheres the contact is known to use — used by the **Contacts** social filter in `liste.js` |
-| `pubkey` | Solana wallet public key — set when wallet is unlocked |
-
-**Activity log** is stored separately in `ym_activity_v1` — capped at 200 entries, not exported in backup.
+`uuid` is permanent, non-transferable, excluded from backup restore.
 
 ---
 
 ## Wallet & Encryption
 
-`mine.js` manages a Solana keypair stored encrypted in `localStorage`.
-
-### Key derivation
-
 | Standard | Value |
 |----------|-------|
 | Mnemonic | BIP39 — 12 or 24 words |
-| Derivation path | SLIP-10: `m/44'/501'/0'/0'` (Solana standard) |
+| Derivation path | `m/44'/501'/0'/0'` |
 | Curve | Ed25519 |
-| Encoding | Base58 |
-
-### Storage encryption
-
-The keypair is never stored in plaintext. `ym_wallet_v1` contains:
-
-```json
-{ "salt": "hex", "iv": "hex", "ct": "hex", "hint": "optional hint" }
-```
-
-- **KDF:** PBKDF2 (SHA-256, 200 000 iterations)
-- **Cipher:** AES-256-GCM
-- The private key is only in memory while the wallet is unlocked — cleared on `deactivate`
-
-### Constants
-
-| Constant | Value |
-|----------|-------|
-| `MIN_BURN` | 0.0001 SOL |
-| Network | Solana Devnet |
-| `YRM_DECIMALS` | 1e18 |
-
-### Exposed wallet APIs (read-only for spheres)
+| KDF | PBKDF2 (SHA-256, 200 000 iterations) |
+| Cipher | AES-256-GCM |
 
 ```js
-window.YM_Mine_sign(message)   // → Promise<{signature, pubkey}> — always shows confirmation dialog
-window.YM_Mine_pubkey()        // → string | null — current public key (Base58)
-window.YM_calcClaimable()      // → number — claimable YM at current slot
-window._mineState              // read-only state snapshot: { pubkey, solBalance, yrmBalance, ... }
+window.YM_Mine_sign(message)   // → Promise — always shows confirmation dialog
+window.YM_Mine_pubkey()        // → string | null
+window.YM_calcClaimable()      // → number
+window._mineState              // read-only state snapshot
 ```
-
-The private key and seed phrase are **never exposed** outside `mine.js`.
 
 ---
 
 ## Runtime Events
 
-System events dispatched on `window` that spheres can listen to.
-
-| Event | Detail | Dispatched by | When |
-|-------|--------|---------------|------|
-| `ym:peer-join` | `{ peerId }` | `app.js` | A new P2P peer connects to the room |
-| `ym:sphere-before-activate` | `{ filename, author, code }` | `app.js` | Before any non-mandatory sphere activates |
-| `ym:sphere-activated` | `{ name }` | `app.js` | After a sphere activates successfully |
-| `ym:sphere-deactivated` | `{ name }` | `app.js` | After a sphere deactivates |
-| `ym:external-app-load` | `{ url, name }` | `liste.js` | Before an external app iframe loads |
-| `ym:before-transaction` | `{ amount, destination, program }` | `mine.js` | Before signing a Solana transaction |
-| `ym:webllm-ready` | — | `index.html` | WebLLM engine is ready in `window.__webllm` |
-
-**Usage example:**
-
-```js
-activate(ctx) {
-  const onPeerJoin = (e) => {
-    const { peerId } = e.detail;
-    // Sync state with new peer
-    window.YM_P2P?.sendTo(peerId, {
-      sphere: 'mysphere.sphere.js',
-      type: 'mygame:sync',
-      data: getCurrentState()
-    });
-  };
-  window.addEventListener('ym:peer-join', onPeerJoin);
-  // Store ref for cleanup
-  this._onPeerJoin = onPeerJoin;
-},
-
-deactivate() {
-  window.removeEventListener('ym:peer-join', this._onPeerJoin);
-},
-```
+| Event | Detail | When |
+|-------|--------|------|
+| `ym:peer-join` | `{ peerId }` | New P2P peer connects |
+| `ym:sphere-before-activate` | `{ filename, author, code }` | Before activation |
+| `ym:sphere-activated` | `{ name }` | After activation |
+| `ym:sphere-deactivated` | `{ name }` | After deactivation |
+| `ym:external-app-load` | `{ url, name }` | Before iframe loads |
+| `ym:before-transaction` | `{ amount, destination, program }` | Before signing |
+| `ym:webllm-ready` | — | WebLLM ready |
 
 ---
 
 ## Global API Reference
 
-All globals exposed by the runtime. Spheres should treat anything not listed here as internal.
-
 | Global | Set by | Description |
 |--------|--------|-------------|
-| `window.YM` | `app.js` | Main runtime API — `activateSphere`, `deactivateSphere`, `openPanel`, `openProfilePanel(profile)`, `openSpherePanel(name)` |
-| `window.YM_Desk` | `desk.js` | Desktop API — `addIcon`, `removeIcon`, `setNotif`, `GRID` |
-| `window.YM_S` | spheres | Sphere registry — `{ 'name.sphere.js': { name, icon, activate, … } }` |
-| `window.YM_P2P` | `app.js` | Raw P2P — `broadcast({sphere,type,data})`, `sendTo(peerId,{sphere,type,data})` |
-| `window.YM_Social` | `social.sphere.js` | Social API — `_nearUsers: Map<uuid,{profile,ts,peerId}>`, `openProfile(uuid)`, `isReciprocal(uuid)` |
-| `window.YM_Messenger` | `messenger.sphere.js` | Messenger API — `openConv(uuid)` — opens or focuses a chat |
-| `window.YM_Call` | `call.sphere.js` | Call API — `startVoiceCall(uuid)`, `hangUp()` |
-| `window.YM_Mine` | `mine.js` | Wallet API object |
-| `window.YM_Mine_sign(msg)` | `mine.js` | Sign a message — triggers confirmation dialog |
-| `window.YM_Mine_pubkey()` | `mine.js` | Returns current Solana public key or null |
-| `window.YM_calcClaimable()` | `mine.js` | Returns claimable YM based on current mining state |
-| `window._mineState` | `mine.js` | Read-only wallet state snapshot |
+| `window.YM` | `app.js` | Main runtime — `activateSphere`, `deactivateSphere`, `openPanel`, `openProfilePanel`, `openSpherePanel` |
+| `window.YM_Desk` | `desk.js` | Desktop — `addIcon`, `removeIcon`, `setNotif`, `registerWidgetPage`, `registeredWidgetPage(widgetId)` |
+| `window.YM_S` | spheres | Sphere registry `{ 'name.sphere.js': { … } }` |
+| `window.YM_P2P` | `app.js` | Raw P2P — `broadcast`, `sendTo` |
+| `window.YM_Social` | `social.sphere.js` | `_nearUsers: Map<uuid,{profile,ts,peerId,broadcastData}>` |
+| `window.YM_sphereRegistry` | `app.js` | `Map<filename, ctx>` of active spheres |
+| `window.YM_Mine_sign(msg)` | `mine.js` | Sign — triggers confirmation dialog |
+| `window.YM_Mine_pubkey()` | `mine.js` | Current Solana public key or null |
+| `window.YM_calcClaimable()` | `mine.js` | Claimable YM |
+| `window._mineState` | `mine.js` | Read-only wallet state |
 | `window.YM_Liste` | `liste.js` | Sphere list API |
 | `window.YM_Build` | `build.js` | Build/publish API |
-| `window.YM_toast(msg, type, ms?)` | `app.js` | Show a toast. `type`: `success/error/info/warn` |
-| `window.YM_escHtml(str)` | `app.js` | HTML-escape a string — use before inserting user content |
-| `window.YM_canSeeSphere(name, uuid)` | `profile.js` | Returns `true` if peer `uuid` can see sphere `name` |
-| `window.YM_getSphereVisibility(name)` | `profile.js` | Returns `'all'` \| `'contacts'` \| `uuid[]` |
-| `window.YM_THEME_META` | theme | `{ name, icon, description }` — declared by the active theme |
-| `window.YM_WALLPAPER_PRESETS` | theme | Array of `{ label, url }` wallpaper presets |
-| `window.YM_ZONE_CONFIG` | theme | Optional — `{ spheresOnly, socialFilters }` — see [Theme Configuration API](#theme-configuration-api) |
-| `window._ymNearSpheres` | `social.sphere.js` | `Set<filename>` of spheres seen on nearby peers |
-| `window.__webllm` | `index.html` | WebLLM instance (Llama 3.2 1B via WebGPU) — used by safety sphere |
-| `window._pwaPrompt` | `index.html` | Deferred `beforeinstallprompt` event for PWA install |
-| `window._YM_GH_RAW` | `index.html` | GitHub raw base URL — `https://raw.githubusercontent.com/…/main/src/` |
-| `window.app_switchMineTab(tab)` | `app.js` | Switch Mine panel tab — `'wallet'` \| `'build'` \| `'liste'` \| `'formula'` |
-| `window.YM_sphereRegistry` | `app.js` | Map of active sphere names → their `ctx` objects |
+| `window.YM_toast(msg, type)` | `app.js` | Toast |
+| `window.YM_escHtml(str)` | `app.js` | HTML-escape |
+| `window.YM_canSeeSphere(name, uuid)` | `profile.js` | Visibility check |
+| `window.YM_getSphereVisibility(name)` | `profile.js` | `'all'` \| `'contacts'` \| `uuid[]` |
+| `window._ymNearSpheres` | `social.sphere.js` | `Set<filename>` of nearby sphere filenames |
+| `window.__webllm` | `index.html` | WebLLM instance (Llama 3.2 1B) |
+| `window._pwaPrompt` | `index.html` | Deferred PWA install prompt |
+| `window.YM_THEME_META` | theme | `{ name, icon, description }` |
+| `window.YM_WALLPAPER_PRESETS` | theme | `[{ label, url }]` |
+| `window.YM_ZONE_CONFIG` | theme | `{ spheresOnly, socialFilters }` |
+
+### `window.YM_Social._nearUsers`
+
+`Map<uuid, { profile, ts, peerId, broadcastData }>` — maintained by `social.sphere.js`. Non-null only when social sphere is active (always is — mandatory).
+
+- `profile` — full public profile of the peer
+- `ts` — last seen timestamp
+- `peerId` — Trystero peer ID for direct P2P messages
+- `broadcastData` — merged object from all sphere `broadcastData()` calls on that peer
+
+### `window.YM_sphereRegistry`
+
+`Map<filename, ctx>` of currently active spheres. Use to check if a sphere is active or to access its context:
+
+```js
+const isActive = window.YM_sphereRegistry?.has('radio.sphere.js');
+const ctx = window.YM_sphereRegistry?.get('mysphere.sphere.js');
+```
+
+### `window.YM_Desk.registeredWidgetPage(widgetId)`
+
+Returns the desktop page number where a widget is registered, or `null` if not registered. Used by widgets to sync their visibility with the current desktop page:
+
+```js
+const page = window.YM_Desk.registeredWidgetPage('radio'); // → 0 | 1 | null
+```
 
 ---
 
 ## Storage Reference
 
-### `localStorage` keys
-
 | Key | Owner | Content |
 |-----|-------|---------|
-| `ym_theme_url` | `index.html` | URL of the active theme HTML |
-| `ym_theme_cache` | `index.html` | Cached theme HTML content (cleared on theme change) |
-| `ym_profile_v1` | `app.js` | Profile JSON (see [Profile Structure](#profile-structure)) |
-| `ym_activity_v1` | `app.js` | Activity log array — max 200 entries |
+| `ym_theme_url` | `index.html` | Active theme URL |
+| `ym_theme_cache` | `index.html` | Cached theme HTML |
+| `ym_profile_v1` | `app.js` | Profile JSON |
+| `ym_activity_v1` | `app.js` | Activity log (max 200) |
 | `ym_desktop_v1` | `desk.js` | Desktop icon array |
 | `ym_pages` | `desk.js` | Number of desktop pages |
-| `ym_wallpaper` | `desk.js` | Wallpaper as data URL (resized to < 2 MB JPEG) |
-| `ym_wallet_v1` | `mine.js` | Encrypted keypair `{ salt, iv, ct, hint }` |
-| `ym_contacts_v1` | `profile.js` | Contacts array (also embedded in `ym_profile_v1`) |
-| `ym_fav_contacts` | `profile.js` | Array of favourite contact UUIDs |
-| `ym_sphere_visibility` | `profile.js` | Per-sphere visibility `{ 'name.sphere.js': 'all' \| 'contacts' \| uuid[] }` |
-| `ym_liste_cache_v4` | `liste.js` | Sphere registry cache — TTL 5 minutes |
-| `ym_active_spheres` | `liste.js` | Array of currently active sphere filenames |
-| `ym_s\|name\|*` | spheres | Sphere-scoped storage — `ctx.storage.get/set/del` maps to this namespace |
-
-### `sessionStorage` keys
-
-| Key | Owner | Content |
-|-----|-------|---------|
-| `ym_build_token` | `build.js` | `{ value, username }` — GitHub token; cleared when tab closes, never in `localStorage` |
+| `ym_wallpaper` | `desk.js` | Wallpaper data URL |
+| `ym_wallet_v1` | `mine.js` | Encrypted keypair |
+| `ym_contacts_v1` | `profile.js` | Contacts array |
+| `ym_sphere_visibility` | `profile.js` | Per-sphere visibility |
+| `ym_liste_cache_v4` | `liste.js` | Sphere registry cache (TTL 5min) |
+| `ym_active_spheres` | `liste.js` | Active sphere filenames |
+| `ym_s\|name\|*` | spheres | Sphere-scoped storage |
+| `ym_build_token` | `build.js` | `{ value, username }` — sessionStorage only |
 
 ---
 
 ## File Format Standards
 
-### `files.json` — Sphere registry
+### `files.json`
 
 ```json
 [
   {
-    "filename":       "mysphere.sphere.js",
-    "author":         "SolanaWalletPubkey...",
-    "ghAuthor":       "githubusername",
-    "codeUrl":        "https://raw.githubusercontent.com/githubusername/YourMinedApp/main/mysphere.sphere.js",
-    "score":          12.345678,
-    "laps":           450000,
-    "timestamp":      1700000000,
-    "merged_at":      1700000100,
-    "media": {
-      "photos": ["https://images.unsplash.com/photo-xxx", "https://..."],
-      "videos": ["https://vimeo.com/xxx"]
-    }
+    "filename":  "mysphere.sphere.js",
+    "author":    "SolanaWalletPubkey",
+    "ghAuthor":  "githubusername",
+    "codeUrl":   "https://raw.githubusercontent.com/githubusername/YourMinedApp/main/mysphere.sphere.js",
+    "score":     12.345678,
+    "laps":      450000,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100
   }
 ]
-
-`media` is optional. Omit entirely for pure visual themes. Add `photos` or `videos` arrays for themes that distribute media content. These appear as previews in the Themes list (Photo/Video pill filter).
 ```
 
-`codeUrl` is the only field used to load sphere code. It always points to the author's fork, never to the main repo.
+### `themes-files.json`
 
-### `themes-files.json` — Theme registry
-
-Located at the **root** of the main repo (not in `src/`). Loaded by `liste.js` and `checkURLRoute`.
+Located at repo root (not in `src/`).
 
 ```json
 [
   {
-    "filename":    "default.theme.html",
-    "name":        "Default",
-    "icon":        "🏠",
-    "description": "The default YourMine theme.",
-    "ghAuthor":    "theodoreyong9",
-    "codeUrl":     "https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/themes/default.html",
+    "filename":    "command.theme.html",
+    "name":        "Command",
+    "icon":        "⬛",
+    "description": "Situation room dashboard.",
+    "ghAuthor":    "keanuji",
+    "codeUrl":     "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/command.theme.html",
     "wip":         false,
-    "score":       0,
-    "laps":        0,
     "timestamp":   1700000000,
     "merged_at":   1700000100,
-    "media": {
-      "photos": ["https://images.unsplash.com/photo-xxx"],
-      "videos": []
-    }
+    "media": { "photos": [], "videos": [] }
   }
 ]
-```
-
-**Field notes:**
-- `filename` — canonical name in `.theme.html` format, used for URL routing (`/default.theme` → looks up `default.theme.html`)
-- `codeUrl` — the **actual file URL**, may use `.html` extension for system themes
-- `media.photos` / `media.videos` — extracted automatically by `merge.js` from the theme HTML. Powers the Photo/Video filter in the Themes list
-- `wip:true` — shows 🚧 badge in list
-- System themes (`default`, `neural`, `hello`) have `ghAuthor: "theodoreyong9"` and `codeUrl` pointing to `src/themes/*.html`
-- User themes have `codeUrl` pointing to their fork
-
-**Difference from `files.json`:** themes-files.json lives at root, uses `.theme.html` filenames, has `media` field, no `author` (wallet) field.
-
----
-
-### Sphere file format
-
-```js
-/* jshint esversion:11 */
-// mysphere.sphere.js
-(function(){
-'use strict';
-window.YM_S = window.YM_S || {};
-window.YM_S['mysphere.sphere.js'] = {
-  name: '...',
-  icon: '...',
-  category: '...',
-  description: '...',
-  activate(ctx) { },
-  deactivate() { },
-  renderPanel(container) { },
-};
-})();
-```
-
-**Critical:** the filename in `window.YM_S[...]` must exactly match the filename in `files.json`.
-
-### Minimal sphere (link mode)
-
-Instead of writing full sphere code, you can register a minimal activatable sphere that simply loads code from a GitHub raw URL:
-
-```js
-window.YM_S['mysphere.sphere.js'] = {
-  name: 'My App',
-  icon: '🔗',
-  category: 'Tools',
-  description: 'My app loaded from GitHub.',
-  codeUrl: 'https://raw.githubusercontent.com/user/repo/main/mysphere.sphere.js',
-  activate(ctx) { /* minimal stub */ },
-  deactivate() { },
-  renderPanel(container) { container.innerHTML = '<div>Loading...</div>'; },
-};
 ```
 
 ---
 
 ## Deployment
 
-YourMine can be deployed on any static file host:
-
 ```
 Vercel / Netlify / GitHub Pages / Cloudflare Pages / Any CDN
 ```
 
-### Required files at root
-
-```
-index.html          — boot loader (do not rename)
-manifest.json       — PWA manifest
-sw.js               — service worker (optional but recommended)
-ym512.png           — app icon
-icon-splash-dark.png
-```
-
-### GitHub repository structure
+### Repository structure
 
 ```
 /
-├── index.html              ← boot loader (do not rename)
-├── manifest.json           ← PWA manifest
-├── sw.js                   ← service worker
-├── ym512.png               ← app icon (used in nav btn-figure — must be at root)
-├── icon-splash-dark.png
-├── files.json              ← sphere registry
-├── themes-files.json       ← theme registry (root, not in src/)
-├── events/                 ← submission events (read by merge bot)
+├── index.html
+├── manifest.json
+├── sw.js
+├── ym512.png
+├── files.json
+├── themes-files.json       ← root, not in src/
+├── events/
 ├── .github/scripts/
-│   ├── merge.js            ← merge bot
+│   ├── merge.js
 │   └── merge_media_extractor.js
 └── src/
     ├── app.js
@@ -1325,223 +841,19 @@ icon-splash-dark.png
     ├── liste.js
     ├── profile.js
     └── themes/
-        ├── index.json      ← ["default.html","neural.html","hello.html"]
-        ├── default.html    ← system theme (served from src/themes/)
+        ├── index.json
+        ├── default.html
         ├── neural.html
         └── hello.html
 ```
 
-**Note:** `ym512.png` must be deployed at the root of your web app (e.g. `yourmine-dapp.web.app/ym512.png`). It's referenced with an absolute URL in themes so it works regardless of the current URL path.
-
-### Forking and running your own instance
-
-```bash
-# 1. Fork the repo on GitHub
-# 2. Enable GitHub Pages (Settings → Pages → Branch: main)
-# 3. Your instance runs at https://yourusername.github.io/YourMinedApp
-# 4. Customize themes, publish spheres, connect to the same Nostr relays
-```
-
----
-
-## System Themes
-
-Three themes ship with the main repo under `src/themes/`. They are special: their `codeUrl` points to the main repo itself (not a fork), and they set global configuration that affects core modules.
-
-### `default.html` — System default
-
-- **Icon:** 🏠
-- **Layout:** nav bar right side (72px) on desktop, bottom dock on mobile
-- **Wallpapers:** 11 Unsplash presets (Night City, Tokyo, Aurora, Galaxy, Nebula…)
-- **Design:** dark glassmorphism, gold/cyan gradients, icon skew animations
-- **Special:** defines `window.YM_WALLPAPER_PRESETS` — used as fallback by `desk.js` when no other theme is active
-
-### `zone.html` — Minimal social explorer
-
-- **Icon:** ◈
-- **Layout:** 4-button custom nav (Desk / Profile / Wallet / Zone) with inline SVG icons
-- **Wallpapers:** 6 presets (Blue Hour, Indigo Fog, Deep Ocean, Dusk City, Aurora, Milky Way)
-- **Special:** sets `window.YM_ZONE_CONFIG = { spheresOnly: true, socialFilters: true }` which modifies `liste.js` behaviour (see [Theme Configuration API](#theme-configuration-api))
-- **Mine panel:** Wallet tab only — Build and Apps tabs hidden
-- **`spheres-build-btn`** hidden via `display:none`
-- The fourth nav button (`btn-wallet`) is wired inline in the theme script — `app.js` only knows `btn-back`, `btn-profile`, `btn-figure`
-
-### `hello.html` — Landing page
-
-- **Icon:** ✦
-- **Layout:** full-screen scrollable landing page — no desktop, no panels, no dock
-- **Special:** hides all system chrome via CSS (`display:none !important`) — desktop, nav-bar, all panels, all widgets
-- **MutationObserver** blocks any widget injected by spheres during the landing session
-- **`Start` buttons** navigate to default theme via `localStorage.setItem('ym_theme_url', DEF_THEME)` + reload
-- **Scroll reveal** implemented with `IntersectionObserver` on `.reveal` elements
-- **`btn-back`** (yellow edge button) also navigates to default theme when on this theme
-
----
-
-## Theme Configuration API
-
-Themes can modify `liste.js` behaviour by setting `window.YM_ZONE_CONFIG` **before** `liste.js` reads it (i.e. in a `<script>` tag at the top of the theme).
-
-```js
-window.YM_ZONE_CONFIG = {
-  spheresOnly:   true,  // lock liste to sphere tab — hides type pills, WIP row, add button
-  socialFilters: true,  // add Near / Contacts filter pills above the sphere list
-};
-```
-
-### `spheresOnly`
-
-When `true`, `liste.js` forces `_listType = 'spheres'` and hides:
-- Type selection pills
-- WIP row
-- Add/import button
-
-### `socialFilters`
-
-When `true`, two extra filter pills appear at the top of the sphere list: **Near** and **Contacts**.
-
-| Filter | Data source | Behaviour |
-|--------|-------------|-----------|
-| **Near** | `window._ymNearSpheres` (a `Set<filename>`) | Shows only spheres whose filename is in the Set |
-| **Contacts** | `ym_profile_v1` → `contacts[].spheres[]` | Shows only spheres shared by at least one contact |
-
-### `window._ymNearSpheres`
-
-A `Set<string>` of sphere filenames. Convention: **`social.sphere.js` is responsible for populating it** based on what nearby P2P peers broadcast. `liste.js` reads it on filter activation — it never writes to it.
-
-```js
-// social.sphere.js — populate when peer data arrives
-window._ymNearSpheres = window._ymNearSpheres || new Set();
-ctx.onReceive((type, data) => {
-  if (type === 'social:pong') {
-    (data.spheres || []).forEach(s => window._ymNearSpheres.add(s));
-  }
-});
-```
-
----
-
-## External Apps & Bridge API
-
-Any web app hosted anywhere (Bolt, Replit, Vercel, GitHub Pages, custom URL) can be loaded as a sphere in YourMine. No code changes needed on the main repo.
-
-### How to add an external app
-
-In the Apps list (↗ button), paste any URL or ID:
-
-| Platform | Input | Example |
-|---|---|---|
-| Bolt / StackBlitz | Project ID | `sb1-abc123` |
-| Replit | `@user/repl` | `@alice/my-game` |
-| CodeSandbox | Sandbox ID | `r3f-physics-abc` |
-| GitHub Pages | `user/repo` | `alice/my-app` |
-| Any URL | Full URL | `https://myapp.vercel.app` |
-
-The app opens as a fullscreen panel with a desktop icon, exactly like a native sphere.
-
-### Bridge postMessage API
-
-YourMine automatically sends `ym:ready` to the iframe 300ms after load. The app can then communicate with YourMine via `postMessage`:
-
-```js
-// ── Detect YourMine ──────────────────────────────────────────────────────────
-const isInYourMine = window.parent !== window;
-
-// ── Receive profile on load (automatic) ─────────────────────────────────────
-window.addEventListener('message', e => {
-  if (e.data?.type === 'ym:ready') {
-    const profile = e.data.profile;
-    // profile.uuid, profile.name, profile.avatar, profile.spheres...
-  }
-  if (e.data?.type === 'ym:profile') {
-    // Response to ym:getProfile
-  }
-  if (e.data?.type === 'ym:storage:value') {
-    // Response to ym:storage:get
-    const { key, value } = e.data;
-  }
-  if (e.data?.type === 'ym:p2p:receive') {
-    const { msgType, data, from } = e.data;
-  }
-});
-
-// ── Send commands to YourMine ────────────────────────────────────────────────
-// Toast notification
-window.parent.postMessage({ type: 'ym:toast', msg: 'Saved!', style: 'success' }, '*');
-// style: 'success' | 'error' | 'info' | 'warn'
-
-// Get profile
-window.parent.postMessage({ type: 'ym:getProfile' }, '*');
-
-// Storage (isolated per app per user)
-window.parent.postMessage({ type: 'ym:storage:set', key: 'score', value: '42' }, '*');
-window.parent.postMessage({ type: 'ym:storage:get', key: 'score' }, '*');
-
-// P2P broadcast to all YourMine peers
-window.parent.postMessage({ type: 'ym:p2p:broadcast', data: { x: 1, y: 2 } }, '*');
-
-// P2P send to specific peer
-window.parent.postMessage({ type: 'ym:p2p:send', to: 'peer-uuid', data: { msg: 'hi' } }, '*');
-
-// Resize iframe height
-window.parent.postMessage({ type: 'ym:resize', height: 600 }, '*');
-```
-
-The bridge is **silent outside YourMine** — all `postMessage` calls to `window.parent` are no-ops when `window.parent === window`. Your app runs normally everywhere.
-
-### Publishing an external app as a sphere
-
-Submit via Build panel → Quick → Sphere. Set `codeUrl` to your app's URL. The merge bot adds it to `files.json`. It appears in the sphere list with score/ranking, exactly like a native sphere.
-
----
-
-## URL Routing
-
-YourMine supports direct URL navigation for themes and spheres:
-
-```
-/                        → loads theme from localStorage (default.html on first visit)
-/default.theme           → applies default theme
-/neural.theme            → applies neural theme
-/social.sphere           → activates social sphere and opens its panel
-/neural.theme/social.sphere → applies theme then opens sphere after reload
-```
-
-**Resolution order for `/name.theme`:**
-1. Search `themes-files.json` by `filename` or `name` field
-2. HEAD check `src/themes/name.theme.html`
-3. HEAD check `src/themes/name.html`
-4. Toast "not found" if all fail
-
-**Important:** always call `history.replaceState(null, '', '/')` before `location.reload()` when applying a theme programmatically.
-
-**Why:** when a user navigates to `/neural.theme`, `index.html` stores this URL in `localStorage` and reloads on `/neural.theme`. After reload, `app.js` runs `checkURLRoute()` which detects the `.theme` segment and re-applies the theme from the URL — overwriting whatever was just set in `localStorage`.
-
-So if a user on `/neural.theme` uses the background picker to switch to `default`, and the picker does `localStorage.set('ym_theme_url', defaultUrl) + location.reload()` without clearing the URL, `checkURLRoute` will see `/neural.theme` again on reload and overwrite the user's choice with neural again.
-
-`history.replaceState(null, '', '/')` clears the URL before reload so `checkURLRoute` sees no `.theme` segment and leaves `localStorage` untouched.
-
----
-
-## P2P Network
-
-YourMine uses [Trystero](https://github.com/dmotz/trystero) over Nostr relays for peer discovery and messaging.
-
-**Default relays:**
-- `wss://nos.lol`
-- `wss://relay.primal.net`
-- `wss://relay.nostr.wirednet.jp`
-- `wss://nostr.oxtr.dev`
-
-All peers join a shared room `ym-main` on app ID `yourmine-v1`. Messages are scoped by sphere name, so spheres only receive their own events.
+**Note:** `themes-files.json` lives at root. User theme files (`command.theme.html` etc.) live in `src/` of the user's fork.
 
 ---
 
 ## Mining, Score & Ranking
 
-### Mining Formula
-
-A user burns an amount **S** of SOL and selects a patience rate **T**. The immediate reward is **S(1−T) YM**. The rest grows over time as a claimable bonus. Every burn or claim resets the miner's personal clock.
+### Formula
 
 ```
        S · t^α
@@ -1549,94 +861,30 @@ A user burns an amount **S** of SOL and selects a patience rate **T**. The immed
 [ln(A^β(1−T) + C)]^γ
 ```
 
-**Computationally safe form** (avoids overflow, identical dynamics):
-
-```
-           S · t^α
-──────────────────────────────────────────────────────
-[β(1−T)·ln(A) + ln(1 + C / A^β(1−T))]^γ
-```
-
 | Variable | Meaning |
 |----------|---------|
-| `S` | Amount of the last burn |
+| `S` | Amount of last burn |
 | `t` | Time elapsed since last action (Solana slots) |
-| `T` | Patience rate chosen by the user (0–1) |
+| `T` | Patience rate (0–1) |
 | `A` | Protocol age (Solana block height) |
-| `C` | Stabilisation constant |
-| `α` | Temporal growth exponent |
-| `β` | Patience / age interaction |
-| `γ` | Concentration compression |
-
-The formula integrates four distribution laws:
-- **Pareto** — power-law economic distributions, stabilised by the protocol
-- **Zipf** — rank hierarchy emerges naturally from participation
-- **Boltzmann** — exponential outputs compressed by the logarithm
-- **Odum** — time-based damping for long-term sustainability
-
-**Token model:**
-- **Soulbound position** — non-transferable; holds burn amount, patience rate, personal clock, production rights
-- **Liquid token** — claimed YM rewards become standard transferable tokens, exchangeable and usable across apps
-
----
 
 ### Permission Score
 
-Access to publishing is not granted by an authority — it is earned through participation. The mining formula produces a score that gates new sphere submissions.
-
-**Condition to publish a new sphere:**
+Condition to publish a new sphere:
 
 ```
 (score_now + 1) / (laps_now + 1)  >  (score_last + 1) / (laps_last + 1)
 ```
 
-- `score` = claimable YM at the time of submission
-- `laps` = Solana slots elapsed since last action
-
-Rules:
-- **First publication**: always allowed (no prior ratio exists)
-- **New sphere**: ratio must strictly improve on last publication
-- **Updating an existing sphere**: only requires GitHub or wallet ownership — no score check
-
-This prevents spam and rewards consistency. Improvement is always accessible; new slots require demonstrated commitment.
-
----
+Updating an existing sphere requires only ownership — no score check.
 
 ### Ranking
-
-Spheres and themes are ordered by **score descending**. No editorial curation, no advertising, no sponsored placement.
 
 ```
 rank = score / laps
 ```
 
-The ratio of claimable YM to time elapsed. A high-burn, patient miner who publishes at peak efficiency ranks highest.
-
-Rules:
-- Score is computed from the mining formula **at time of publication**
-- Score is **frozen at merge time** — it represents effort at the moment of contribution
-- Updating a sphere resets its score to the current mining state
-- Higher burn + patience + elapsed time = higher score = higher rank
-- Gaming is structurally penalised (publishing too early lowers the ratio)
-
-### Direct activation URLs
-
-Publishing a sphere or theme via **Rank** registers it in `files.json` / `themes-files.json`. This makes it accessible via a permanent, shareable URL:
-
-```
-/name.theme           → applies that theme and reloads
-/name.sphere          → activates that sphere and opens its panel
-```
-
-These segments are **composable**:
-
-```
-/neural.theme/social.sphere
-```
-
-`index.html` applies the theme first, preserves the sphere segment across the reload, then `checkURLRoute` activates the sphere once the page is back up. Any number of spheres can be chained this way.
-
-Every ranked sphere and theme gets a deep-linkable URL that can be bookmarked, shared, or embedded directly — without opening the app UI first.
+Score frozen at merge time. No editorial curation.
 
 ---
 
