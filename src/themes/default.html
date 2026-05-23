@@ -1,14 +1,12 @@
-﻿<!--
+<!--
   YourMine — Default Theme
   GitHub: theodoreyong9/YourMinedApp/src/themes/default.html
 -->
 
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
 <script>
-// Métadonnées du thème
 window.YM_THEME_META = {"name":"Default","icon":"🏠","description":"Default YourMine theme"};
 
-// Presets wallpaper propres à ce thème — indexés dans themes-files.json comme médias
 window.YM_WALLPAPER_PRESETS = [
   {label:'Night City',   url:'https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=1400&q=80'},
   {label:'Tokyo Night',  url:'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1400&q=80'},
@@ -70,7 +68,6 @@ body.has-wallpaper #ym-bg::before,body.has-wallpaper #ym-bg::after{opacity:.35}
 .icon-notif{position:absolute;top:-6px;right:-6px;min-width:20px;height:20px;border-radius:10px;background:var(--gold);color:#000;font-size:10px;display:flex;align-items:center;justify-content:center;padding:0 5px;font-weight:700;border:2px solid var(--bg);z-index:2;font-family:var(--font-m)}
 .icon-del{position:absolute;top:-8px;left:-8px;width:24px;height:24px;border-radius:50%;background:var(--red);color:#fff;font-size:13px;font-weight:700;display:none;align-items:center;justify-content:center;z-index:10;cursor:pointer;border:2px solid var(--bg);line-height:1;pointer-events:all}
 body.edit-mode .icon-del{display:flex}
-/* Pas de bouton rouge sur les dossiers en mode move */
 body.edit-mode .folder-body>.icon-del{display:none!important}
 .icon-del-hidden{display:none!important}
 body.edit-mode .icon-body{animation:wob .44s ease-in-out infinite}
@@ -84,7 +81,6 @@ body.edit-mode .icon-body{animation:wob .44s ease-in-out infinite}
 #nav-bar{position:fixed;bottom:0;left:0;right:0;height:calc(var(--dock-h) + var(--safe-b));padding-bottom:var(--safe-b);z-index:400;display:flex;flex-direction:column;align-items:stretch;background:rgba(6,6,18,.55);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border-top:1px solid rgba(255,255,255,.06);box-shadow:0 -1px 0 rgba(255,255,255,.04)}
 #nav-bar::after{content:'';position:absolute;bottom:calc(-1 * var(--safe-b));left:0;right:0;height:var(--safe-b);background:var(--glass-heavy)}
 body.has-wallpaper #nav-bar{background:rgba(0,0,0,.45)}
-/* PWA standalone: same style as web — glass + blur */
 #page-dots{position:fixed;bottom:calc(var(--dock-h) + var(--safe-b) + 10px);left:0;right:0;display:flex;gap:5px;align-items:center;justify-content:center;pointer-events:none;z-index:205}
 .pdot{width:4px;height:4px;border-radius:2px;background:rgba(255,255,255,.2);transition:all .35s cubic-bezier(.4,0,.2,1)}
 .pdot.active{width:24px;height:4px;background:linear-gradient(90deg,var(--gold),var(--cyan));box-shadow:0 0 8px rgba(240,168,48,.4);border-radius:2px}
@@ -105,131 +101,23 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.45)}
   #dock{flex-direction:column;padding:10px 0;justify-content:center;gap:6px;flex:1}
   .dbtn{font-size:22px;min-width:56px;min-height:46px;padding:10px 0;flex-direction:column;border-radius:12px}
 }
-
-/* ── PWA install button ───────────────────────────────────────
- * Toujours caché par défaut ; app.js le rend visible uniquement
- * quand beforeinstallprompt se déclenche.
- * z-index 500 pour passer au-dessus des panels (z-index 301–303)
- * mais sous les dialogs (z-index 500+).
- * ─────────────────────────────────────────────────────────── */
-#pwa-install-btn{
-  position:fixed;
-  bottom:calc(var(--dock-h) + var(--safe-b) + 28px);
-  left:50%;
-  transform:translateX(-50%);
-  z-index:450;
-  display:none;           /* caché par défaut, app.js met display:flex */
-  align-items:center;
-  gap:8px;
-  background:var(--glass-heavy);
-  border:1px solid rgba(240,168,48,.3);
-  color:var(--gold);
-  font-family:var(--font-d);
-  font-size:9px;
-  font-weight:700;
-  letter-spacing:3px;
-  text-transform:uppercase;
-  padding:11px 18px;
-  border-radius:14px;
-  cursor:pointer;
-  backdrop-filter:var(--blur-mid);
-  -webkit-backdrop-filter:var(--blur-mid);
-  transition:all .22s;
-  white-space:nowrap;
-  pointer-events:all;
-}
-@media(hover:hover) and (pointer:fine){
-  /* En mode desktop la barre nav est à droite, on recentre sur la zone desktop */
-  #pwa-install-btn{right:calc(72px + 50%);left:auto;transform:translateX(50%);bottom:28px}
-}
+#pwa-install-btn{position:fixed;bottom:calc(var(--dock-h) + var(--safe-b) + 28px);left:50%;transform:translateX(-50%);z-index:450;display:none;align-items:center;gap:8px;background:var(--glass-heavy);border:1px solid rgba(240,168,48,.3);color:var(--gold);font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:11px 18px;border-radius:14px;cursor:pointer;backdrop-filter:var(--blur-mid);-webkit-backdrop-filter:var(--blur-mid);transition:all .22s;white-space:nowrap;pointer-events:all}
+@media(hover:hover) and (pointer:fine){#pwa-install-btn{right:calc(72px + 50%);left:auto;transform:translateX(50%);bottom:28px}}
 @media all and (display-mode:standalone){#pwa-install-btn{display:none!important}}
-
-/* Overlay : pointer-events uniquement, sans assombrissement du bureau */
 .ym-overlay{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));background:transparent;z-index:300;opacity:0;pointer-events:none;transition:opacity .3s}
 .ym-overlay.open{opacity:1;pointer-events:all}
 @media(hover:hover) and (pointer:fine){.ym-overlay{right:72px;bottom:0}}
-
-/* ── Panels : hauteur adaptative, ancrés en bas ────────────────
-   Mobile : slide depuis le bas, hauteur auto.
-   Desktop : slide depuis la DROITE, largeur adaptative (max 560px).
-─────────────────────────────────────────────────────────────── */
-.ym-panel{
-  position:fixed;
-  left:0;right:0;
-  bottom:calc(var(--dock-h) + var(--safe-b));
-  max-height:calc(100dvh - var(--dock-h) - var(--safe-b));
-  background:var(--glass-heavy);
-  backdrop-filter:var(--blur-heavy);
-  -webkit-backdrop-filter:var(--blur-heavy);
-  border:none;z-index:301;
-  transform:translateY(calc(100% + 20px));
-  transition:transform .4s cubic-bezier(.32,.72,0,1),visibility 0s .4s;
-  visibility:hidden;
-  display:flex;flex-direction:column;
-  border-radius:30px 30px 0 0;overflow:hidden;
-}
+.ym-panel{position:fixed;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));max-height:calc(100dvh - var(--dock-h) - var(--safe-b));background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);border:none;z-index:301;transform:translateY(calc(100% + 20px));transition:transform .4s cubic-bezier(.32,.72,0,1),visibility 0s .4s;visibility:hidden;display:flex;flex-direction:column;border-radius:30px 30px 0 0;overflow:hidden}
 .ym-panel.open{transform:translateY(0);visibility:visible;transition:transform .4s cubic-bezier(.32,.72,0,1),visibility 0s}
 .ym-panel::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 @media(hover:hover) and (pointer:fine){
-  /* Desktop : slide depuis la droite, largeur auto plafonnée à 560px */
-  .ym-panel{
-    left:auto;
-    right:72px; /* largeur nav-bar */
-    bottom:0;top:0;
-    width:min(560px, calc(100vw - 72px));
-    max-height:none;
-    border-radius:0;
-    transform:translateX(calc(100% + 72px)); /* part hors écran à droite, dépasse la nav */
-  }
+  .ym-panel{left:auto;right:72px;bottom:0;top:0;width:min(560px, calc(100vw - 72px));max-height:none;border-radius:0;transform:translateX(calc(100% + 72px))}
   .ym-panel.open{transform:translateX(0)}
-  /* Ligne lumineuse à gauche du panel (bord d'entrée) */
-  .ym-panel::before{
-    top:0;left:0;right:auto;bottom:0;
-    width:1px;height:auto;
-    background:linear-gradient(180deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)
-  }
+  .ym-panel::before{top:0;left:0;right:auto;bottom:0;width:1px;height:auto;background:linear-gradient(180deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 }
-
-/* ── Bord droit desktop : zone de survol pour afficher le retour
-   (panels arrivent de droite donc le bord de fermeture est à gauche du panel
-    mais on garde le trigger sur le bord gauche de l'écran pour le geste retour) */
-#ym-edge-back{
-  position:fixed;top:0;left:0;bottom:0;width:8px;
-  z-index:500;cursor:pointer;
-  display:none; /* caché sur mobile, visible sur desktop via JS */
-}
-#ym-edge-back-btn{
-  position:fixed;top:50%;left:0;
-  transform:translateY(-50%) translateX(-100%);
-  z-index:501;
-  background:var(--glass-heavy);
-  border:1px solid rgba(240,168,48,.4);
-  border-left:none;
-  color:var(--gold);
-  font-size:18px;
-  padding:14px 10px;
-  border-radius:0 12px 12px 0;
-  cursor:pointer;
-  transition:transform .25s cubic-bezier(.32,.72,0,1);
-  backdrop-filter:var(--blur-mid);
-  -webkit-backdrop-filter:var(--blur-mid);
-  pointer-events:none;
-  user-select:none;
-}
-@media(hover:hover) and (pointer:fine){
-  #ym-edge-back{display:block}
-  #ym-edge-back:hover ~ #ym-edge-back-btn,
-  #ym-edge-back-btn:hover{
-    transform:translateY(-50%) translateX(0);
-    pointer-events:all;
-  }
-}
-
-/* ── Background preset button ────────────────────────────────── */
 .bg-preset-btn{border:none;cursor:pointer;border-radius:6px;overflow:hidden;padding:0;aspect-ratio:16/9;background:#111;transition:transform .15s}
 .bg-preset-img{width:100%;height:100%;object-fit:cover;display:block}
 .ym-panel--folder{z-index:299;backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(8,8,15,.95)}
-/* Profondeur visuelle via data-depth */
 .ym-panel--folder[data-depth="2"]{background:rgba(8,8,15,.96)}
 .ym-panel--folder[data-depth="3"]{background:rgba(8,8,15,.97)}
 .folder-breadcrumb{display:flex;align-items:center;gap:6px;flex:1;overflow:hidden;min-width:0;padding:0 4px}
@@ -242,28 +130,10 @@ body.has-wallpaper #nav-bar{background:rgba(0,0,0,.45)}
 .folder-panel-body{padding:0;overflow:hidden;display:flex;flex-direction:column}
 .folder-content{flex:1;overflow-y:auto;overflow-x:hidden}
 .folder-desktop-page{height:auto;min-height:100%;background:transparent;padding:6px 12px 10px;gap:6px;display:grid;grid-template-columns:repeat(var(--cols),1fr)}
-
-/* ── Largeur max contenu panels sur desktop ─────────────────── */
 @media(hover:hover) and (pointer:fine){
-  .panel-body > *,
-  #panel-spheres-body > *,
-  #panel-profile-body > *,
-  #panel-build-body > *,
-  #panel-sphere-body > *,
-  #panel-profile-view-body > *,
-  #panel-mine-wallet > *,
-  #panel-mine-build > *,
-  #panel-mine-formula > *,
-  #panel-mine-liste > * {
-    max-width:680px;
-    width:100%;
-    margin-left:auto;
-    margin-right:auto;
-  }
-  /* Exception : éléments pleine largeur */
-  .ym-tabs, #mine-tabs-bar, .panel-head, .panel-handle { max-width:none !important; }
+  .panel-body > *,#panel-spheres-body > *,#panel-profile-body > *,#panel-build-body > *,#panel-sphere-body > *,#panel-profile-view-body > *,#panel-mine-wallet > *,#panel-mine-build > *,#panel-mine-formula > *,#panel-mine-liste > *{max-width:680px;width:100%;margin-left:auto;margin-right:auto}
+  .ym-tabs,#mine-tabs-bar,.panel-head,.panel-handle{max-width:none!important}
 }
-
 .panel-handle{width:44px;height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(240,168,48,.3),rgba(8,224,248,.22));margin:14px auto 2px;flex-shrink:0;cursor:grab;position:relative;z-index:3}
 .panel-head{display:flex;align-items:center;padding:8px 24px 14px;gap:12px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0;min-height:50px;background:rgba(255,255,255,.016);position:relative;z-index:2;cursor:pointer}
 .panel-head h2{font-family:var(--font-d);font-size:9px;font-weight:700;letter-spacing:6px;text-transform:uppercase;background:linear-gradient(90deg,var(--gold) 0%,rgba(255,255,255,.8) 50%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200% 100%;animation:titleshift 6s ease-in-out infinite;cursor:default}
@@ -312,37 +182,11 @@ textarea.ym-input{resize:vertical;font-family:var(--font-m);font-size:12px}
 .formula-var b{color:var(--gold);font-family:var(--font-m)}
 body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 @keyframes wpPan{0%{background-position:0% center}100%{background-position:100% center}}
-/* Switcher : ancré en bas, hauteur auto limitée à 80vh
-   → s'arrête pile au-dessus des miniatures si peu de cards */
-#panel-switcher{
-  position:fixed;
-  left:0;right:0;
-  bottom:calc(var(--dock-h) + var(--safe-b));
-  /* pas de top fixe : la hauteur est déterminée par le contenu */
-  max-height:calc(80dvh - var(--dock-h) - var(--safe-b));
-  background:var(--glass-heavy);
-  backdrop-filter:var(--blur-heavy);
-  -webkit-backdrop-filter:var(--blur-heavy);
-  z-index:298;
-  transform:translateY(calc(100% + 20px));
-  transition:transform .4s cubic-bezier(.32,.72,0,1);
-  display:flex;flex-direction:column;
-  border-radius:30px 30px 0 0;
-  overflow:hidden;
-}
+#panel-switcher{position:fixed;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));max-height:calc(80dvh - var(--dock-h) - var(--safe-b));background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);z-index:298;transform:translateY(calc(100% + 20px));transition:transform .4s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;border-radius:30px 30px 0 0;overflow:hidden}
 #panel-switcher::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 #panel-switcher.open{transform:translateY(0);z-index:303}
-@media(hover:hover) and (pointer:fine){
-  #panel-switcher{right:72px;bottom:0;max-height:80dvh}
-}
-#switcher-grid{
-  flex:1;min-height:0;
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:8px;
-  display:grid;grid-template-columns:1fr 1fr;
-  grid-auto-rows:min-content;gap:6px;
-  align-content:start; /* cards en haut, pas en bas */
-}
+@media(hover:hover) and (pointer:fine){#panel-switcher{right:72px;bottom:0;max-height:80dvh}}
+#switcher-grid{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px;display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:min-content;gap:6px;align-content:start}
 .sw-card{height:160px;border-radius:12px;background:rgba(8,8,20,.98);border:1px solid rgba(255,255,255,.1);cursor:pointer;overflow:hidden;position:relative;touch-action:pan-y;box-shadow:0 2px 10px rgba(0,0,0,.5);isolation:isolate}
 @media(hover:hover) and (pointer:fine){.sw-card{height:130px}.sw-card:hover{border-color:rgba(240,168,48,.3)}}
 .icon-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:4px;border-radius:12px;position:relative;touch-action:none;-webkit-user-select:none;user-select:none;width:fit-content;height:fit-content;place-self:center;transform:translateZ(0)}
@@ -364,7 +208,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 .toast.success{border-color:rgba(34,217,138,.3);color:var(--green)}.toast.error{border-color:rgba(255,69,96,.3);color:var(--red)}.toast.info{border-color:rgba(8,224,248,.3);color:var(--cyan)}.toast.warn{border-color:rgba(240,168,48,.3);color:var(--gold)}
 @keyframes tin{from{opacity:0;transform:translateY(-12px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
 #ym-loader{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;transition:opacity .5s,visibility 0s .5s}
-#ym-loader.hidden{opacity:0;pointer-events:none;visibility:hidden}#ym-loader.hidden .ldr-fill,#ym-loader.hidden .ldr-logo{animation:none}
+#ym-loader.hidden{opacity:0;pointer-events:none;visibility:hidden}
 .ldr-logo{font-family:var(--font-d);font-size:22px;font-weight:800;letter-spacing:10px;background:linear-gradient(90deg,var(--gold),rgba(255,255,255,.9),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200%;animation:titleshift 3s ease-in-out infinite}
 .ldr-bar{width:160px;height:2px;border-radius:1px;overflow:hidden;background:rgba(255,255,255,.05)}
 .ldr-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--cyan));animation:ldr 1.4s ease infinite}
@@ -395,18 +239,14 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 <div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Create Folder</div><input class="ym-input" id="folder-name-input" placeholder="Folder name"><div style="display:flex;gap:8px"><button class="ym-btn ym-btn-ghost" style="flex:1" id="folder-cancel">Cancel</button><button class="ym-btn ym-btn-accent" style="flex:1" id="folder-confirm">Create</button></div></div></div>
 <div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(420px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
   <div class="dlg-title" id="bg-dlg-title">Background</div>
-
-  <!-- ── Theme picker ───────────────────────────────────────── -->
   <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06)">
     <div style="font-size:9px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)">🎨 Theme</div>
     <div id="theme-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
     <div style="display:flex;gap:6px">
-      <input id="theme-custom-input" class="ym-input" placeholder="Custom theme URL (GitHub blob or raw)…" style="font-size:11px;padding:7px 10px;flex:1">
+      <input id="theme-custom-input" class="ym-input" placeholder="Custom theme URL…" style="font-size:11px;padding:7px 10px;flex:1">
       <button id="theme-custom-btn" class="ym-btn ym-btn-ghost" style="padding:7px 12px;font-size:11px;flex-shrink:0">Use</button>
     </div>
   </div>
-
-  <!-- ── Wallpaper ──────────────────────────────────────────── -->
   <div style="display:flex;gap:8px;margin-bottom:8px">
     <button class="ym-btn ym-btn-ghost" id="bg-wp" style="flex:1;font-size:12px">&#128193; Upload</button>
     <button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:12px;color:var(--text3)">&#10005; Remove</button>
@@ -417,7 +257,6 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
 </div></div>
 
-<!-- ── Theme picker script ────────────────────────────────────── -->
 <script>
 (function(){
   var THEME_KEY   = 'ym_theme_url';
@@ -427,119 +266,56 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   var DEF_THEME   = GH_RAW + 'themes/default.theme.html';
   var INDEX_URL   = GH_RAW + 'themes/index.json';
 
-  function activeUrl(){
-    return localStorage.getItem(THEME_KEY) || DEF_THEME;
-  }
+  function activeUrl(){ return localStorage.getItem(THEME_KEY) || DEF_THEME; }
 
   function fileToLabel(name){
-    return name.replace(/\.html$/i,'')
-               .replace(/[-_]/g,' ')
-               .replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+    return name.replace(/\.html$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});
   }
 
-  function applyTheme(url, label){
-    if(!url || url === activeUrl()) return;
-    localStorage.setItem(THEME_KEY, url);
+  function applyTheme(url,label){
+    if(!url||url===activeUrl())return;
+    localStorage.setItem(THEME_KEY,url);
     localStorage.removeItem(THEME_CACHE);
-    // Nettoie l'URL pour éviter que checkURLRoute réécrase le choix au reload
-    if(location.pathname !== '/') history.replaceState(null, '', '/');
-    window.YM_toast && window.YM_toast('✦ ' + label + ' — reloading…', 'success', 1500);
-    setTimeout(function(){ location.reload(); }, 1500);
+    if(location.pathname!=='/')history.replaceState(null,'','/');
+    window.YM_toast&&window.YM_toast('\u2746 '+label+' \u2014 reloading\u2026','success',1500);
+    setTimeout(function(){location.reload();},1500);
   }
 
   function buildList(files){
-    var container = document.getElementById('theme-list');
-    if(!container) return;
-    container.innerHTML = '';
-    var current = activeUrl();
-    var currentFile = current.split('/').pop();
-
-    var allFiles = files.slice();
-    if(allFiles.indexOf(currentFile) === -1){
-      allFiles.unshift(currentFile);
-    }
-
+    var container=document.getElementById('theme-list');if(!container)return;
+    container.innerHTML='';
+    var current=activeUrl();var currentFile=current.split('/').pop();
+    var allFiles=files.slice();
+    if(allFiles.indexOf(currentFile)===-1)allFiles.unshift(currentFile);
     allFiles.forEach(function(f){
-      var url   = f.startsWith('http') ? f : (GH_RAW + 'themes/' + f);
-      var label = fileToLabel(f.split('/').pop());
-      var isActive = (f === currentFile) || (url === current);
-
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s;' +
-        (isActive ? 'background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3)' : 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)');
-
-      var dot = document.createElement('div');
-      dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;' +
-        (isActive ? 'background:var(--gold)' : 'background:rgba(255,255,255,.15)');
-
-      var name = document.createElement('span');
-      name.style.cssText = 'flex:1;font-size:12px;font-family:var(--font-b);' +
-        (isActive ? 'color:var(--gold);font-weight:600' : 'color:var(--text2)');
-      name.textContent = label;
-
-      var codeBtn = document.createElement('a');
-      codeBtn.href = GH_BLOB + f.split('/').pop();
-      codeBtn.target = '_blank';
-      codeBtn.rel = 'noopener';
-      codeBtn.title = 'View source';
-      codeBtn.style.cssText = 'font-size:10px;font-family:var(--font-m);color:var(--text3);text-decoration:none;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);flex-shrink:0;transition:color .15s';
-      codeBtn.textContent = '</>';
-      codeBtn.addEventListener('mouseenter', function(){ this.style.color='var(--gold)'; });
-      codeBtn.addEventListener('mouseleave', function(){ this.style.color='var(--text3)'; });
-      codeBtn.addEventListener('click', function(e){ e.stopPropagation(); });
-
-      row.appendChild(dot);
-      row.appendChild(name);
-      row.appendChild(codeBtn);
-
-      row.addEventListener('click', function(){
-        if(url === activeUrl()) return;
-        applyTheme(url, label);
-      });
-
-      row.addEventListener('mouseenter', function(){
-        if(url !== activeUrl()) this.style.background = 'rgba(255,255,255,.06)';
-      });
-      row.addEventListener('mouseleave', function(){
-        this.style.background = isActive ? 'rgba(240,168,48,.1)' : 'rgba(255,255,255,.03)';
-      });
-
+      var url=f.startsWith('http')?f:(GH_RAW+'themes/'+f);
+      var label=fileToLabel(f.split('/').pop());
+      var isActive=(f===currentFile)||(url===current);
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;transition:background .15s;'+(isActive?'background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3)':'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)');
+      var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;flex-shrink:0;'+(isActive?'background:var(--gold)':'background:rgba(255,255,255,.15)');
+      var name=document.createElement('span');name.style.cssText='flex:1;font-size:12px;font-family:var(--font-b);'+(isActive?'color:var(--gold);font-weight:600':'color:var(--text2)');name.textContent=label;
+      var codeBtn=document.createElement('a');codeBtn.href=GH_BLOB+f.split('/').pop();codeBtn.target='_blank';codeBtn.rel='noopener';codeBtn.style.cssText='font-size:10px;font-family:var(--font-m);color:var(--text3);text-decoration:none;padding:2px 6px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);flex-shrink:0;transition:color .15s';codeBtn.textContent='</>';
+      codeBtn.addEventListener('mouseenter',function(){this.style.color='var(--gold)';});codeBtn.addEventListener('mouseleave',function(){this.style.color='var(--text3)';});codeBtn.addEventListener('click',function(e){e.stopPropagation();});
+      row.appendChild(dot);row.appendChild(name);row.appendChild(codeBtn);
+      row.addEventListener('click',function(){if(url===activeUrl())return;applyTheme(url,label);});
+      row.addEventListener('mouseenter',function(){if(url!==activeUrl())this.style.background='rgba(255,255,255,.06)';});
+      row.addEventListener('mouseleave',function(){this.style.background=isActive?'rgba(240,168,48,.1)':'rgba(255,255,255,.03)';});
       container.appendChild(row);
     });
   }
 
   function loadThemeList(){
-    fetch(INDEX_URL)
-      .then(function(r){
-        if(!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      })
-      .then(function(text){
-        var files = JSON.parse(text);
-        if(!Array.isArray(files) || !files.length) files = ['default.theme.html'];
-        buildList(files);
-      })
-      .catch(function(e){
-        console.error('[YM theme]', e.message);
-        buildList(['default.theme.html']);
-      });
+    fetch(INDEX_URL).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}).then(function(text){var files=JSON.parse(text);if(!Array.isArray(files)||!files.length)files=['default.theme.html'];buildList(files);}).catch(function(e){console.error('[YM theme]',e.message);buildList(['default.theme.html']);});
   }
 
-  document.getElementById('theme-custom-btn').addEventListener('click', function(){
-    var inp = document.getElementById('theme-custom-input');
-    var url = (inp ? inp.value : '').trim();
-    if(!url){ window.YM_toast && window.YM_toast('Enter a URL', 'warn'); return; }
-    url = url.replace('https://github.com/', 'https://raw.githubusercontent.com/')
-             .replace('/blob/', '/');
-    var label = fileToLabel(url.split('/').pop());
-    applyTheme(url, label);
-    if(inp) inp.value = '';
+  document.getElementById('theme-custom-btn').addEventListener('click',function(){
+    var inp=document.getElementById('theme-custom-input');var url=(inp?inp.value:'').trim();
+    if(!url){window.YM_toast&&window.YM_toast('Enter a URL','warn');return;}
+    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+    var label=fileToLabel(url.split('/').pop());applyTheme(url,label);if(inp)inp.value='';
   });
-
-  document.getElementById('theme-custom-input').addEventListener('keydown', function(e){
-    if(e.key === 'Enter') document.getElementById('theme-custom-btn').click();
-  });
-
+  document.getElementById('theme-custom-input').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('theme-custom-btn').click();});
   loadThemeList();
 })();
 </script>
@@ -563,20 +339,17 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   </div>
   <div class="ym-tabs" id="mine-tabs-bar">
     <div class="ym-tab active" data-mine-tab="wallet">&#9935; Wallet</div>
+    <div class="ym-tab" data-mine-tab="build" style="flex:0 0 auto;padding:10px 18px;font-size:22px;font-weight:200;border-left:1px solid rgba(255,255,255,.06);border-right:1px solid rgba(255,255,255,.06)">+</div>
     <div class="ym-tab" data-mine-tab="liste">&#9633; Apps</div>
   </div>
 </div>
 <div class="ym-panel" id="panel-sphere"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
 <div class="ym-panel" id="panel-profile-view"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
-<div id="ym-sign-dlg"><div id="ym-sign-box"><div style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:3px;color:var(--red);text-align:center;text-transform:uppercase">⚠ Signature Request</div><div id="ym-sign-sphere" style="font-size:12px;color:var(--text2);text-align:center"></div><div id="ym-sign-detail" style="font-size:10px;font-family:var(--font-m);color:var(--text3);background:rgba(255,255,255,.03);border-radius:8px;padding:10px;max-height:80px;overflow-y:auto;word-break:break-all;line-height:1.6"></div><div style="font-size:11px;color:var(--text3);text-align:center">A sphere is requesting your wallet signature.<br>Only confirm if you trust this sphere.</div><div style="display:flex;gap:10px"><button id="ym-sign-reject" class="ym-btn ym-btn-danger" style="flex:1">✗ Reject</button><button id="ym-sign-confirm" class="ym-btn ym-btn-accent" style="flex:1">✓ Sign</button></div></div></div>
+<div id="ym-sign-dlg"><div id="ym-sign-box"><div style="font-family:var(--font-d);font-size:11px;font-weight:700;letter-spacing:3px;color:var(--red);text-align:center;text-transform:uppercase">&#9888; Signature Request</div><div id="ym-sign-sphere" style="font-size:12px;color:var(--text2);text-align:center"></div><div id="ym-sign-detail" style="font-size:10px;font-family:var(--font-m);color:var(--text3);background:rgba(255,255,255,.03);border-radius:8px;padding:10px;max-height:80px;overflow-y:auto;word-break:break-all;line-height:1.6"></div><div style="font-size:11px;color:var(--text3);text-align:center">A sphere is requesting your wallet signature.<br>Only confirm if you trust this sphere.</div><div style="display:flex;gap:10px"><button id="ym-sign-reject" class="ym-btn ym-btn-danger" style="flex:1">&#10007; Reject</button><button id="ym-sign-confirm" class="ym-btn ym-btn-accent" style="flex:1">&#10003; Sign</button></div></div></div>
 <div id="panel-switcher">
   <div class="panel-handle" id="switcher-handle"></div>
   <div id="switcher-grid"></div>
 </div>
-
-<!-- PWA install button — caché par CSS, rendu visible par app.js via beforeinstallprompt -->
 <button id="pwa-install-btn"><span>&#8595;</span> INSTALL APP</button>
-
-<!-- Bord gauche desktop : zone de survol → bouton retour -->
 <div id="ym-edge-back"></div>
-<button id="ym-edge-back-btn" aria-label="Back">‹</button>
+<button id="ym-edge-back-btn" aria-label="Back">&#8249;</button>
