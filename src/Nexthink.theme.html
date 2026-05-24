@@ -276,6 +276,135 @@ textarea.ym-input { resize: vertical; font-size: 11px }
 @keyframes ldr { 0% { width: 0; margin-left: 0 } 50% { width: 60%; margin-left: 20% } 100% { width: 0; margin-left: 100% } }
 .ldr-sub { font-family: var(--font-m); font-size: 8px; color: var(--text3); letter-spacing: 3px; text-transform: uppercase }
 
+/* ── Idea signal overlay on desktop ── */
+#nx-signal-overlay {
+  position: fixed;
+  bottom: calc(var(--dock-h) + var(--safe-b) + 16px);
+  left: 16px;
+  z-index: 190;
+  width: 220px;
+  pointer-events: all;
+  transition: transform .4s cubic-bezier(.32,.72,0,1), opacity .4s;
+}
+#nx-signal-overlay.hidden {
+  transform: translateY(20px);
+  opacity: 0;
+  pointer-events: none;
+}
+#nx-signal-card {
+  background: rgba(8,12,16,.95);
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 14px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  position: relative;
+  overflow: hidden;
+}
+#nx-signal-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40px;
+  background: linear-gradient(180deg, rgba(0,200,180,.06), transparent);
+  pointer-events: none;
+}
+#nx-signal-dismiss {
+  position: absolute;
+  top: 6px; right: 8px;
+  background: none; border: none;
+  color: var(--text3); font-size: 12px;
+  cursor: pointer; font-family: var(--font-m);
+  transition: color .15s;
+  z-index: 2;
+}
+#nx-signal-dismiss:hover { color: var(--text2); }
+.nx-sig-icon {
+  font-size: 32px; display: block;
+  margin-bottom: 8px;
+  animation: nxfloat 3s ease-in-out infinite;
+}
+@keyframes nxfloat {
+  0%,100% { transform: translateY(0) }
+  50% { transform: translateY(-4px) }
+}
+.nx-sig-label {
+  font-family: var(--font-m); font-size: 7px;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 4px;
+}
+.nx-sig-name {
+  font-family: var(--font-m); font-size: 13px;
+  font-weight: 500; color: var(--text);
+  margin-bottom: 4px; letter-spacing: .2px;
+}
+.nx-sig-tagline {
+  font-size: 10px; color: var(--text2);
+  line-height: 1.5; margin-bottom: 10px;
+}
+.nx-sig-why {
+  font-size: 9px; color: var(--text3);
+  line-height: 1.6; margin-bottom: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border2);
+}
+.nx-sig-trend {
+  font-size: 9px; color: rgba(0,132,255,.7);
+  line-height: 1.5; margin-bottom: 10px;
+  padding: 5px 7px;
+  background: rgba(0,132,255,.05);
+  border-radius: 3px;
+  border: 1px solid rgba(0,132,255,.12);
+}
+.nx-sig-trend::before { content: '↗ '; }
+.nx-sig-actions {
+  display: flex; gap: 6px;
+}
+.nx-sig-copy {
+  flex: 1; padding: 7px 8px;
+  background: rgba(0,200,180,.08);
+  border: 1px solid rgba(0,200,180,.2);
+  border-radius: 3px;
+  color: var(--accent); font-family: var(--font-m);
+  font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; transition: all .15s;
+}
+.nx-sig-copy:hover { background: rgba(0,200,180,.14); border-color: rgba(0,200,180,.4); }
+.nx-sig-refresh {
+  padding: 7px 8px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  color: var(--text3); font-family: var(--font-m);
+  font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.nx-sig-refresh:hover { color: var(--accent); border-color: var(--border); }
+
+/* Pulse dot on desktop icon when signal ready */
+.nx-pulse-dot {
+  position: absolute;
+  top: -3px; right: -3px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(0,200,180,.4);
+  animation: nxpulsedot 2s ease-in-out infinite;
+  z-index: 5;
+}
+@keyframes nxpulsedot {
+  0% { box-shadow: 0 0 0 0 rgba(0,200,180,.4) }
+  70% { box-shadow: 0 0 0 8px rgba(0,200,180,0) }
+  100% { box-shadow: 0 0 0 0 rgba(0,200,180,0) }
+}
+
+@media(hover:hover) and (pointer:fine) {
+  #nx-signal-overlay {
+    bottom: 16px;
+    left: 16px;
+  }
+}
+
 /* ── Idea intelligence sidebar ── */
 #nx-idea-sidebar {
   position: fixed;
@@ -608,6 +737,23 @@ textarea.ym-input { resize: vertical; font-size: 11px }
 <div id="ym-edge-back"></div>
 <button id="ym-edge-back-btn" aria-label="Back">&#8249;</button>
 
+<!-- Signal overlay on desktop -->
+<div id="nx-signal-overlay" class="hidden">
+  <div id="nx-signal-card">
+    <button id="nx-signal-dismiss">✕</button>
+    <span class="nx-sig-icon" id="nx-sig-icon">⬡</span>
+    <div class="nx-sig-label">⬡ Network Signal</div>
+    <div class="nx-sig-name" id="nx-sig-name">—</div>
+    <div class="nx-sig-tagline" id="nx-sig-tagline"></div>
+    <div class="nx-sig-why" id="nx-sig-why" style="display:none"></div>
+    <div class="nx-sig-trend" id="nx-sig-trend" style="display:none"></div>
+    <div class="nx-sig-actions">
+      <button class="nx-sig-copy" id="nx-sig-copy">⎘ Copy Prompt</button>
+      <button class="nx-sig-refresh" id="nx-sig-refresh" title="Re-analyse">⟳</button>
+    </div>
+  </div>
+</div>
+
 <!-- Idea intelligence sidebar -->
 <div id="nx-idea-sidebar">
   <div id="nx-idea-header">
@@ -752,8 +898,40 @@ textarea.ym-input { resize: vertical; font-size: 11px }
   updateTicker();
   setInterval(updateTicker,8000);
 
-  // ── IDEA SIDEBAR ──────────────────────────────────────────
+  // ── IDEA SIGNAL OVERLAY ──────────────────────────────────
   function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  var _signalPrompt=null;
+  var _overlayDismissed=false;
+
+  function renderSignalOverlay(){
+    var overlay=document.getElementById('nx-signal-overlay');
+    if(!overlay||_overlayDismissed)return;
+
+    var ideaObj=window.YM_S&&window.YM_S['idea.sphere.js'];
+    var cache=ideaObj&&ideaObj._analysisCache;
+    var s=cache&&cache.suggestion;
+    if(!s){overlay.classList.add('hidden');return;}
+
+    // Populate
+    var icon=document.getElementById('nx-sig-icon');
+    var name=document.getElementById('nx-sig-name');
+    var tagline=document.getElementById('nx-sig-tagline');
+    var why=document.getElementById('nx-sig-why');
+    var trend=document.getElementById('nx-sig-trend');
+
+    if(icon)icon.textContent=s.icon||'⬡';
+    if(name)name.textContent=s.name||'';
+    if(tagline)tagline.textContent=s.tagline||'';
+    if(why){why.textContent=s.why||'';why.style.display=s.why?'block':'none';}
+    if(trend){trend.textContent=s.trend||'';trend.style.display=s.trend?'block':'none';}
+
+    _signalPrompt=s.prompt||null;
+    overlay.classList.remove('hidden');
+
+    // Also update sidebar if exists
+    renderIdeaSidebar();
+  }
 
   function renderIdeaSidebar(){
     var body=document.getElementById('nx-idea-body');
@@ -864,7 +1042,39 @@ textarea.ym-input { resize: vertical; font-size: 11px }
     setTimeout(updateTicker,500);
   });
 
+  // Signal overlay events
+  var dismissBtn=document.getElementById('nx-signal-dismiss');
+  if(dismissBtn)dismissBtn.addEventListener('click',function(){
+    _overlayDismissed=true;
+    document.getElementById('nx-signal-overlay').classList.add('hidden');
+  });
+
+  var copyBtn=document.getElementById('nx-sig-copy');
+  if(copyBtn)copyBtn.addEventListener('click',function(){
+    if(!_signalPrompt){toast('No prompt available','warn');return;}
+    navigator.clipboard&&navigator.clipboard.writeText(_signalPrompt).then(function(){
+      toast('Prompt copied','success');
+    });
+  });
+
+  var refreshBtn=document.getElementById('nx-sig-refresh');
+  if(refreshBtn)refreshBtn.addEventListener('click',function(){
+    var ideaS=window.YM_S&&window.YM_S['idea.sphere.js'];
+    if(ideaS&&ideaS._runAnalysis){
+      refreshBtn.disabled=true;refreshBtn.textContent='…';
+      _overlayDismissed=false;
+      ideaS._runAnalysis(true).then(function(){
+        renderSignalOverlay();
+        refreshBtn.disabled=false;refreshBtn.textContent='⟳';
+      }).catch(function(){
+        refreshBtn.disabled=false;refreshBtn.textContent='⟳';
+      });
+    }
+  });
+
+  renderSignalOverlay();
   renderIdeaSidebar();
+  setInterval(renderSignalOverlay,15000);
   setInterval(renderIdeaSidebar,15000);
 })();
 </script>
