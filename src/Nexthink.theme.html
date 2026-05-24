@@ -714,6 +714,15 @@ textarea.ym-input { resize: vertical; font-size: 11px }
 
   blockWidgets();
 
+  // Tell desk.js the correct page unit accounting for the sidebar
+  window.YM_Desk_pageUnit=function(){
+    var isDesktop=window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+    if(!isDesktop)return'100vw';
+    var sidebar=document.getElementById('nx-idea-sidebar');
+    var sw=sidebar&&!sidebar.classList.contains('hidden')?260:0;
+    return'calc(100vw - 64px - '+sw+'px)';
+  };
+
   // Auto-activate idea.sphere.js when YM_Liste is ready
   function autoActivate(){
     var spheres=['idea.sphere.js','social.sphere.js'];
@@ -841,16 +850,9 @@ textarea.ym-input { resize: vertical; font-size: 11px }
     _sidebarVisible=!_sidebarVisible;
     if(sidebar)sidebar.classList.toggle('hidden',!_sidebarVisible);
     this.textContent=_sidebarVisible?'›':'‹';
-    // adjust desktop
-    var desk=document.getElementById('desktop');
-    var panel=document.getElementById('nx-panel');
-    if(desk){
-      var isMouse=window.matchMedia('(hover:hover) and (pointer:fine)').matches;
-      if(isMouse){
-        var w=_sidebarVisible?'calc(64px + 260px)':'64px';
-        desk.style.right=w;
-        if(panel)panel.style.right=w;
-      }
+    // Rebuild slider with new unit
+    if(window.YM_Desk&&window.YM_Desk.buildSlider){
+      window.YM_Desk.buildSlider();
     }
   });
 
