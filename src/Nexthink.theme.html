@@ -568,15 +568,34 @@ textarea.ym-input { resize: vertical; font-size: 11px }
   }
 
   blockWidgets();
+
+  // Auto-activate idea.sphere.js when YM_Liste is ready
+  function autoActivate(){
+    var spheres=['idea.sphere.js','social.sphere.js'];
+    spheres.forEach(function(name){
+      if(window.YM_sphereRegistry&&window.YM_sphereRegistry.has(name))return;
+      if(window.YM_Liste&&window.YM_Liste.activateSphereByName){
+        try{window.YM_Liste.activateSphereByName(name);}catch(e){console.warn('[NX] activate',name,e.message);}
+      }
+    });
+  }
+
+  // Wait for YM_Liste to be ready
+  var _bootInterval=setInterval(function(){
+    if(window.YM_Liste){
+      clearInterval(_bootInterval);
+      autoActivate();
+      // Re-try after 3s in case spheres weren't loaded yet
+      setTimeout(autoActivate,3000);
+    }
+  },200);
+
+  // Listen for sphere activations to update ticker
+  window.addEventListener('ym:sphere-activated',function(){
+    setTimeout(updateTicker,500);
+  });
+
   updateTicker();
   setInterval(updateTicker,8000);
-
-  // Update on sphere activation
-  var origRegistry=window.YM_sphereRegistry;
-  var checkInterval=setInterval(function(){
-    if(window.YM_sphereRegistry!==origRegistry||true){
-      updateTicker();
-    }
-  },3000);
 })();
 </script>
