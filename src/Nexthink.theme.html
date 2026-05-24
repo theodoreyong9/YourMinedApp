@@ -276,6 +276,133 @@ textarea.ym-input { resize: vertical; font-size: 11px }
 @keyframes ldr { 0% { width: 0; margin-left: 0 } 50% { width: 60%; margin-left: 20% } 100% { width: 0; margin-left: 100% } }
 .ldr-sub { font-family: var(--font-m); font-size: 8px; color: var(--text3); letter-spacing: 3px; text-transform: uppercase }
 
+/* ── Idea intelligence sidebar ── */
+#nx-idea-sidebar {
+  position: fixed;
+  top: 32px; right: 0; bottom: calc(var(--dock-h) + var(--safe-b));
+  width: 260px;
+  z-index: 150;
+  display: flex; flex-direction: column;
+  background: rgba(8,12,16,.96);
+  border-left: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  overflow: hidden;
+  transition: transform .4s cubic-bezier(.32,.72,0,1);
+}
+#nx-idea-sidebar.hidden { transform: translateX(100%); }
+#nx-idea-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border2);
+  flex-shrink: 0;
+}
+#nx-idea-label {
+  font-family: var(--font-m); font-size: 8px; font-weight: 500;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--accent);
+  flex: 1;
+}
+#nx-idea-toggle {
+  background: none; border: none; cursor: pointer;
+  color: var(--text3); font-size: 14px; padding: 2px 4px;
+  font-family: var(--font-m); transition: color .15s;
+}
+#nx-idea-toggle:hover { color: var(--accent); }
+#nx-idea-body {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.nx-signal-card {
+  background: rgba(0,200,180,.03);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+.nx-signal-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; bottom: 0; width: 2px;
+  background: var(--accent);
+}
+.nx-signal-icon { font-size: 28px; margin-bottom: 8px; display: block; }
+.nx-signal-name {
+  font-family: var(--font-m); font-size: 12px; font-weight: 500;
+  color: var(--text); margin-bottom: 4px; letter-spacing: .3px;
+}
+.nx-signal-tagline {
+  font-size: 10px; color: var(--text2); line-height: 1.5; margin-bottom: 8px;
+}
+.nx-signal-why {
+  font-size: 9px; color: var(--text3); line-height: 1.6;
+  border-top: 1px solid var(--border2); padding-top: 8px;
+}
+.nx-signal-trend {
+  margin-top: 6px; padding: 5px 8px;
+  background: rgba(0,132,255,.05);
+  border: 1px solid rgba(0,132,255,.15);
+  border-radius: 3px;
+  font-size: 9px; color: rgba(0,132,255,.8); line-height: 1.5;
+}
+.nx-signal-trend::before {
+  content: 'TREND ';
+  font-weight: 600; letter-spacing: 1px; color: rgba(0,132,255,.5);
+}
+.nx-signal-prompt {
+  margin-top: 8px;
+  background: rgba(0,200,180,.03);
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 7px 8px;
+  font-family: var(--font-m); font-size: 9px; color: var(--text3);
+  line-height: 1.6; cursor: pointer; transition: border-color .15s;
+}
+.nx-signal-prompt:hover { border-color: rgba(0,200,180,.3); color: var(--text2); }
+.nx-signal-prompt::before {
+  content: 'PROMPT → ';
+  color: var(--accent); font-weight: 500; letter-spacing: .5px;
+}
+.nx-peers-row {
+  background: rgba(0,200,180,.02);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.nx-peers-title {
+  font-family: var(--font-m); font-size: 8px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 8px;
+}
+.nx-peer-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid var(--border2);
+  font-size: 9px;
+}
+.nx-peer-item:last-child { border-bottom: none; }
+.nx-peer-name { color: var(--text2); font-family: var(--font-m); flex-shrink: 0; min-width: 60px; }
+.nx-peer-spheres { color: var(--text3); line-height: 1.5; }
+.nx-analyse-btn {
+  width: 100%; padding: 9px;
+  background: rgba(0,200,180,.06);
+  border: 1px solid rgba(0,200,180,.2);
+  border-radius: 3px;
+  color: var(--accent); font-family: var(--font-m);
+  font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer; transition: all .2s;
+}
+.nx-analyse-btn:hover { background: rgba(0,200,180,.1); border-color: rgba(0,200,180,.4); }
+.nx-analyse-btn:disabled { opacity: .4; cursor: not-allowed; }
+.nx-status-line {
+  font-family: var(--font-m); font-size: 8px;
+  color: var(--text3); text-align: center; letter-spacing: .5px;
+}
+
+/* Adjust desktop when sidebar visible */
+@media(hover:hover) and (pointer:fine) {
+  #desktop { right: calc(64px + 260px) !important; }
+  #nx-panel { right: calc(64px + 260px); }
+  #nx-idea-sidebar { right: 64px; }
+}
+
 /* ── Nexthink intelligence panel ── */
 #nx-panel {
   position: fixed; top: 0; left: 0; right: 0;
@@ -475,6 +602,18 @@ textarea.ym-input { resize: vertical; font-size: 11px }
 <div id="ym-edge-back"></div>
 <button id="ym-edge-back-btn" aria-label="Back">&#8249;</button>
 
+<!-- Idea intelligence sidebar -->
+<div id="nx-idea-sidebar">
+  <div id="nx-idea-header">
+    <span id="nx-idea-label">⬡ Intelligence</span>
+    <span id="nx-idea-age" style="font-family:var(--font-m);font-size:8px;color:var(--text3)"></span>
+    <button id="nx-idea-toggle" title="Hide">›</button>
+  </div>
+  <div id="nx-idea-body">
+    <div class="nx-status-line">AWAITING ANALYSIS…</div>
+  </div>
+</div>
+
 <!-- Nexthink intelligence layer -->
 <script>
 (function(){
@@ -597,5 +736,127 @@ textarea.ym-input { resize: vertical; font-size: 11px }
 
   updateTicker();
   setInterval(updateTicker,8000);
+
+  // ── IDEA SIDEBAR ──────────────────────────────────────────
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function renderIdeaSidebar(){
+    var body=document.getElementById('nx-idea-body');
+    var age=document.getElementById('nx-idea-age');
+    if(!body)return;
+
+    var ideaObj=window.YM_S&&window.YM_S['idea.sphere.js'];
+    var cache=ideaObj&&ideaObj._analysisCache;
+
+    if(!cache){
+      body.innerHTML='<div class="nx-status-line" style="padding:20px 0">AWAITING ANALYSIS<br><br><button class="nx-analyse-btn" id="nx-run-btn">⟳ RUN ANALYSIS</button></div>';
+      var runBtn=body.querySelector('#nx-run-btn');
+      if(runBtn)runBtn.addEventListener('click',function(){
+        runBtn.disabled=true;runBtn.textContent='ANALYSING…';
+        if(ideaObj&&window.YM_sphereRegistry&&window.YM_sphereRegistry.has('idea.sphere.js')){
+          var ctx=ideaObj._ctx;
+          if(ctx&&ctx.openPanel){
+            // trigger analysis via sphere
+            try{
+              var s=window.YM_S['idea.sphere.js'];
+              if(s&&s._runAnalysis){s._runAnalysis(true).then(function(){renderIdeaSidebar();});}
+              else{runBtn.textContent='NO ENGINE';setTimeout(function(){runBtn.disabled=false;runBtn.textContent='⟳ RUN ANALYSIS';},2000);}
+            }catch(e){runBtn.disabled=false;runBtn.textContent='⟳ RUN ANALYSIS';}
+          }
+        }
+      });
+      return;
+    }
+
+    // Age
+    var mins=Math.round((Date.now()-cache.timestamp)/60000);
+    if(age)age.textContent=mins<1?'NOW':mins+'m AGO';
+
+    var s=cache.suggestion;
+    var html='';
+
+    // Signal card
+    if(s){
+      html+='<div class="nx-signal-card">';
+      html+='<span class="nx-signal-icon">'+esc(s.icon||'⬡')+'</span>';
+      html+='<div class="nx-signal-name">'+esc(s.name||'')+'</div>';
+      html+='<div class="nx-signal-tagline">'+esc(s.tagline||'')+'</div>';
+      if(s.why)html+='<div class="nx-signal-why">'+esc(s.why)+'</div>';
+      if(s.trend)html+='<div class="nx-signal-trend">'+esc(s.trend)+'</div>';
+      if(s.prompt)html+='<div class="nx-signal-prompt" id="nx-copy-prompt">'+esc(s.prompt)+'</div>';
+      html+='</div>';
+    }
+
+    // Peers
+    var peers=cache.data&&cache.data.peers;
+    if(peers&&peers.length){
+      html+='<div class="nx-peers-row"><div class="nx-peers-title">Network ('+peers.length+' peers)</div>';
+      peers.slice(0,4).forEach(function(p){
+        html+='<div class="nx-peer-item">';
+        html+='<span class="nx-peer-name">'+esc((p.name||'ANON').slice(0,10))+'</span>';
+        html+='<span class="nx-peer-spheres">'+esc((p.spheres||[]).slice(0,3).join(', ')||'—')+'</span>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+
+    // Re-analyse button
+    html+='<button class="nx-analyse-btn" id="nx-run-btn">⟳ RE-ANALYSE</button>';
+
+    body.innerHTML=html;
+
+    // Copy prompt on click
+    var cp=body.querySelector('#nx-copy-prompt');
+    if(cp&&s&&s.prompt){
+      cp.addEventListener('click',function(){
+        navigator.clipboard&&navigator.clipboard.writeText(s.prompt).then(function(){
+          window.YM_toast&&window.YM_toast('Prompt copied','success');
+        });
+      });
+    }
+
+    // Re-analyse
+    var btn=body.querySelector('#nx-run-btn');
+    if(btn)btn.addEventListener('click',function(){
+      var ideaS=window.YM_S&&window.YM_S['idea.sphere.js'];
+      if(ideaS&&ideaS._runAnalysis){
+        btn.disabled=true;btn.textContent='ANALYSING…';
+        ideaS._runAnalysis(true).then(function(){renderIdeaSidebar();}).catch(function(){
+          btn.disabled=false;btn.textContent='⟳ RE-ANALYSE';
+        });
+      }
+    });
+  }
+
+  // Toggle sidebar
+  var _sidebarVisible=true;
+  document.getElementById('nx-idea-toggle')&&document.getElementById('nx-idea-toggle').addEventListener('click',function(){
+    var sidebar=document.getElementById('nx-idea-sidebar');
+    _sidebarVisible=!_sidebarVisible;
+    if(sidebar)sidebar.classList.toggle('hidden',!_sidebarVisible);
+    this.textContent=_sidebarVisible?'›':'‹';
+    // adjust desktop
+    var desk=document.getElementById('desktop');
+    var panel=document.getElementById('nx-panel');
+    if(desk){
+      var isMouse=window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+      if(isMouse){
+        var w=_sidebarVisible?'calc(64px + 260px)':'64px';
+        desk.style.right=w;
+        if(panel)panel.style.right=w;
+      }
+    }
+  });
+
+  // Auto-refresh sidebar
+  window.addEventListener('ym:sphere-activated',function(e){
+    if(e.detail&&e.detail.name==='idea.sphere.js'){
+      setTimeout(renderIdeaSidebar,1000);
+    }
+    setTimeout(updateTicker,500);
+  });
+
+  renderIdeaSidebar();
+  setInterval(renderIdeaSidebar,15000);
 })();
 </script>
