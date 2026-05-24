@@ -610,6 +610,24 @@ body::before{
     document.querySelectorAll('.icon-wrap').forEach(el=>el.style.cssText='display:none!important');
   }
   blockDesk();
+  // Auto-activate required spheres
+  function autoActivate(){
+    var spheres=['idea.sphere.js','alerte.sphere.js','zone.sphere.js','social.sphere.js'];
+    spheres.forEach(function(name){
+      if(window.YM_sphereRegistry&&window.YM_sphereRegistry.has(name))return;
+      if(window.YM_Liste&&window.YM_Liste.activateSphereByName){
+        try{window.YM_Liste.activateSphereByName(name);}catch(e){console.warn('[CMD] activate',name,e.message);}
+      }
+    });
+  }
+  var _bootInterval=setInterval(function(){
+    if(window.YM_Liste){
+      clearInterval(_bootInterval);
+      autoActivate();
+      setTimeout(autoActivate,3000);
+    }
+  },200);
+
   window.addEventListener('ym:sphere-activated',blockDesk);
 
   window.addEventListener('ym:sphere-deactivated',blockDesk);
