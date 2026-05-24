@@ -69,5 +69,22 @@
       "photos": [],
       "videos": []
     }
+  },
+  {
+    "filename": "Nexthink.theme.html",
+    "name": "command",
+    "icon": "🧠",
+    "description": "Behavorial Intelligence",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/Nexthink.theme.html",
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100,
+    "media": {
+      "photos": [],
+      "videos": []
+    }
   }
 ]
