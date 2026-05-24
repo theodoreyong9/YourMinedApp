@@ -324,6 +324,7 @@ async function render(containerArg){
 
   function switchType(){
     content.innerHTML='';
+    _filterCat='';_filterActive=false;_listShowWip=false;
     buildWipToggle();
     renderFilterRow();
     if(_listType==='spheres')renderSpheresContent(content,null);
