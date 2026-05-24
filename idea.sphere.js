@@ -442,6 +442,9 @@ window.YM_S['idea.sphere.js'] = {
 
   renderPanel,
 
+  get _analysisCache() { return _analysisCache; },
+  _runAnalysis: (force) => runAnalysis(force),
+
   peerSection(container, peerCtx) {
     container.innerHTML = '';
     const info = document.createElement('div');
