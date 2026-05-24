@@ -161,7 +161,7 @@ function getDeskSafeBottom(){
 
 function buildSlider(){
   const slider=document.getElementById('desktop-slider'),n=getPgCount();
-  const unit=isPC()?'calc(100vw - 64px)':'100vw';
+  const unit=window.YM_Desk_pageUnit?window.YM_Desk_pageUnit():(isPC()?'calc(100vw - 64px)':'100vw');
   slider.innerHTML='';slider.style.width='calc('+n+' * '+unit+')';
   for(let i=0;i<n;i++){
     const pg=document.createElement('div');pg.className='desktop-page';pg.id='page-'+i;pg.dataset.page=i;
@@ -178,7 +178,7 @@ function goPage(n,anim){
   anim=anim!==false;curPg=Math.max(0,Math.min(getPgCount()-1,n));
   const s=document.getElementById('desktop-slider');
   if(!anim){s.style.transition='none';requestAnimationFrame(()=>{s.style.transition='';});}
-  const unit=isPC()?'calc(100vw - 64px)':'100vw';
+  const unit=window.YM_Desk_pageUnit?window.YM_Desk_pageUnit():(isPC()?'calc(100vw - 64px)':'100vw');
   s.style.transform='translateX(calc('+(-curPg)+' * '+unit+'))';
   updateDots();window.dispatchEvent(new CustomEvent('ym:page-change',{detail:{page:curPg}}));
 }
@@ -458,7 +458,7 @@ function setupDrag(wrap,ic,isFolder){
           if(curPg>=getPgCount()-1){
             const nn=getPgCount()+1;setPgCount(nn);
             const slider=document.getElementById('desktop-slider');
-            const unit=isPC()?'calc(100vw - 64px)':'100vw';
+            const unit=window.YM_Desk_pageUnit?window.YM_Desk_pageUnit():(isPC()?'calc(100vw - 64px)':'100vw');
             slider.style.width='calc('+nn+' * '+unit+')';
             const newpg=document.createElement('div');newpg.className='desktop-page';newpg.id='page-'+(nn-1);newpg.dataset.page=nn-1;
             slider.appendChild(newpg);updateDots();
