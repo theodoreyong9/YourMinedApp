@@ -169,6 +169,22 @@ function renderFlow(buildContent){
           buildContent.appendChild(backWrap2);
         }
       ));
+      // 1.3 Patch
+      wrap.appendChild(_flowBtn(
+        '<span style="font-size:20px">&#9998;</span><div><div style="font-size:13px;color:var(--text)">Patch</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Propose a fix on any GitHub file via PR</div></div>',
+        ()=>{
+          buildContent.innerHTML='';
+          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+          const scrollArea=document.createElement('div');
+          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
+          buildContent.appendChild(scrollArea);
+          renderPatchContent(scrollArea);
+          const backWrap4=document.createElement('div');
+          backWrap4.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
+          backWrap4.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.appendChild(backWrap4);
+        }
+      ));
       buildContent.appendChild(wrap);
       buildContent.appendChild(_flowBack(buildContent, renderFlow));
     }
@@ -251,6 +267,163 @@ async function render(containerArg,presetType){
     renderFlow(buildContent);
   }
 }
+
+// ── PATCH FLOW ────────────────────────────────────────────────
+function renderPatchContent(body){
+  body.innerHTML='';
+  body.style.cssText='padding:16px;display:flex;flex-direction:column;gap:10px';
+
+  const hd=document.createElement('div');
+  hd.style.cssText='font-family:var(--font-d,inherit);font-size:13px;font-weight:700;color:var(--text)';
+  hd.textContent='Patch & Apply';
+  body.appendChild(hd);
+
+  const sub=document.createElement('div');
+  sub.style.cssText='font-size:10px;color:var(--text3);line-height:1.5';
+  sub.textContent='Load any sphere or theme from a URL, edit it, and apply directly — no GitHub needed.';
+  body.appendChild(sub);
+
+  // URL input
+  const urlRow=document.createElement('div');
+  urlRow.style.cssText='display:flex;gap:6px;align-items:center';
+  const urlInput=document.createElement('input');
+  urlInput.className='ym-input';
+  urlInput.placeholder='Raw URL of sphere or theme…';
+  urlInput.style.cssText='flex:1;font-size:11px';
+  const fetchBtn=document.createElement('button');
+  fetchBtn.className='ym-btn ym-btn-ghost';
+  fetchBtn.style.cssText='font-size:11px;flex-shrink:0';
+  fetchBtn.textContent='⬇ Load';
+  urlRow.appendChild(urlInput);
+  urlRow.appendChild(fetchBtn);
+  body.appendChild(urlRow);
+
+  // Detected type badge
+  const typeBadge=document.createElement('div');
+  typeBadge.style.cssText='font-size:9px;color:var(--text3);min-height:14px;font-family:var(--font-m,inherit)';
+  body.appendChild(typeBadge);
+
+  // Editor
+  const editor=document.createElement('textarea');
+  editor.className='ym-input';
+  editor.rows=14;
+  editor.placeholder='File content will appear here…';
+  editor.style.cssText='font-size:10px;font-family:var(--font-m,inherit);line-height:1.5;min-height:220px;resize:vertical';
+  body.appendChild(editor);
+
+  // Status
+  const status=document.createElement('div');
+  status.style.cssText='font-size:10px;min-height:14px';
+  body.appendChild(status);
+
+  // Apply button
+  const applyBtn=document.createElement('button');
+  applyBtn.className='ym-btn ym-btn-accent';
+  applyBtn.style.cssText='width:100%;font-size:13px;padding:12px';
+  applyBtn.textContent='▶ Apply';
+  applyBtn.disabled=true;
+  body.appendChild(applyBtn);
+
+  let _detectedType=null; // 'sphere' | 'theme'
+  let _detectedName=null;
+
+  // ── Fetch ──
+  fetchBtn.addEventListener('click',async()=>{
+    const url=urlInput.value.trim()
+      .replace('https://github.com/','https://raw.githubusercontent.com/')
+      .replace('/blob/','/')
+      .trim();
+    if(!url){toast('Enter a URL first','warn');return;}
+    fetchBtn.disabled=true;fetchBtn.textContent='…';
+    status.textContent='';
+    try{
+      const r=await fetch(url);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const text=await r.text();
+      editor.value=text;
+
+      // Detect type from URL
+      const fname=url.split('/').pop().split('?')[0];
+      if(fname.endsWith('.sphere.js')){
+        _detectedType='sphere';_detectedName=fname;
+        typeBadge.innerHTML='<span style="color:var(--gold)">⬡ Sphere</span> — '+esc(fname);
+      } else if(fname.endsWith('.theme.html')||fname.endsWith('.html')){
+        _detectedType='theme';_detectedName=fname;
+        typeBadge.innerHTML='<span style="color:var(--cyan)">🎨 Theme</span> — '+esc(fname);
+      } else {
+        _detectedType='sphere';_detectedName=fname;
+        typeBadge.innerHTML='<span style="color:var(--text3)">? Unknown type — will try as sphere</span>';
+      }
+
+      applyBtn.disabled=false;
+      status.innerHTML='<span style="color:var(--green)">✓ Loaded '+text.length+' chars</span>';
+    }catch(e){
+      status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';
+    }finally{
+      fetchBtn.disabled=false;fetchBtn.textContent='⬇ Load';
+    }
+  });
+
+  urlInput.addEventListener('keydown',e=>{if(e.key==='Enter')fetchBtn.click();});
+
+  // ── Apply ──
+  applyBtn.addEventListener('click',async()=>{
+    const code=editor.value.trim();
+    if(!code){toast('Nothing to apply','warn');return;}
+    applyBtn.disabled=true;applyBtn.textContent='⏳ Applying…';
+    status.textContent='';
+
+    try{
+      if(_detectedType==='theme'){
+        // Inject theme HTML into body
+        const div=document.createElement('div');
+        div.innerHTML=code;
+        // Execute scripts
+        div.querySelectorAll('script').forEach(oldScript=>{
+          const s=document.createElement('script');
+          s.textContent=oldScript.textContent;
+          document.head.appendChild(s);
+        });
+        // Apply styles
+        div.querySelectorAll('style').forEach(st=>{
+          document.head.appendChild(st.cloneNode(true));
+        });
+        status.innerHTML='<span style="color:var(--green)">✓ Theme patch applied — some changes may require reload</span>';
+        toast('Theme patch applied','success');
+      } else {
+        // Load as sphere via blob
+        const name=_detectedName||'patch.sphere.js';
+        const blob=new Blob([code],{type:'text/javascript'});
+        const blobUrl=URL.createObjectURL(blob);
+        // Deactivate existing if any
+        if(window.YM_sphereRegistry&&window.YM_sphereRegistry.has(name)){
+          if(window.YM&&window.YM.deactivateSphere)window.YM.deactivateSphere(name);
+          await new Promise(r=>setTimeout(r,200));
+        }
+        // Load and activate
+        if(window.YM&&window.YM.loadSphereFromURL){
+          const obj=await window.YM.loadSphereFromURL(blobUrl,name);
+          URL.revokeObjectURL(blobUrl);
+          if(obj){
+            if(window.YM.activateSphere)await window.YM.activateSphere(name,obj);
+            status.innerHTML='<span style="color:var(--green)">✓ Sphere patch applied — '+esc(obj.name||name)+'</span>';
+            toast((obj.name||name)+' patch applied','success');
+          } else {
+            throw new Error('Sphere loaded but not found in registry');
+          }
+        } else {
+          throw new Error('YM not ready');
+        }
+      }
+    }catch(e){
+      status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';
+      toast(e.message,'error');
+    }finally{
+      applyBtn.disabled=false;applyBtn.textContent='▶ Apply';
+    }
+  });
+}
+
 
 function renderPlugContent(body){
   if(window.YM_Liste?.renderPlugContent){window.YM_Liste.renderPlugContent(body);}
