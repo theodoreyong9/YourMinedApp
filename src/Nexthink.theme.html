@@ -396,11 +396,17 @@ textarea.ym-input { resize: vertical; font-size: 11px }
   color: var(--text3); text-align: center; letter-spacing: .5px;
 }
 
-/* Adjust desktop when sidebar visible */
+/* Sidebar only on desktop */
+@media(max-width:768px),(hover:none) {
+  #nx-idea-sidebar { display: none !important; }
+}
 @media(hover:hover) and (pointer:fine) {
   #desktop { right: calc(64px + 260px) !important; }
+  #desktop-slider { width: calc(100vw - 64px - 260px); }
+  .desktop-page { flex: 0 0 calc(100vw - 64px - 260px); width: calc(100vw - 64px - 260px); }
   #nx-panel { right: calc(64px + 260px); }
   #nx-idea-sidebar { right: 64px; }
+  #page-dots { right: calc(64px + 260px); }
 }
 
 /* ── Nexthink intelligence panel ── */
