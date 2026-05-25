@@ -717,7 +717,14 @@ body.edit-mode .icon-body { animation: wob .44s ease-in-out infinite }
   });
 
   // ── Poll ──
-  setInterval(function(){renderSphereList();renderIntelligence();},5000);
-  setTimeout(function(){renderSphereList();renderIntelligence();},1000);
+  setInterval(function(){renderSphereList();renderIntelligence();},2000);
+  // Aggressive boot poll until spheres appear
+  var _bootPoll=setInterval(function(){
+    if(window.YM_sphereRegistry&&window.YM_sphereRegistry.size>0){
+      clearInterval(_bootPoll);
+      renderSphereList();renderIntelligence();
+    }
+  },300);
+  setTimeout(function(){clearInterval(_bootPoll);},15000);
 })();
 </script>
