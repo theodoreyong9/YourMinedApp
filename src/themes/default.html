@@ -214,6 +214,38 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 .ldr-fill{height:100%;background:linear-gradient(90deg,var(--gold),var(--cyan));animation:ldr 1.4s ease infinite}
 @keyframes ldr{0%{width:0;margin-left:0}50%{width:70%;margin-left:15%}100%{width:0;margin-left:100%}}
 .ldr-sub{font-family:var(--font-m);font-size:9px;color:var(--text3);letter-spacing:3px}
+#ym-edge-back{
+  position:fixed;top:0;left:0;bottom:0;width:4px;
+  z-index:500;cursor:pointer;display:none;
+}
+#ym-edge-back-btn{
+  position:fixed;top:50%;left:0;
+  transform:translateY(-50%) translateX(-100%);
+  z-index:501;
+  background:var(--glass-heavy);
+  border:1px solid rgba(240,168,48,.4);
+  border-left:none;
+  color:var(--gold);
+  font-size:18px;
+  padding:14px 10px;
+  border-radius:0 12px 12px 0;
+  cursor:pointer;
+  transition:transform .25s cubic-bezier(.32,.72,0,1);
+  backdrop-filter:var(--blur-mid);
+  -webkit-backdrop-filter:var(--blur-mid);
+  pointer-events:none;
+  user-select:none;
+}
+@media(hover:hover) and (pointer:fine){
+  #ym-edge-back{display:block}
+  #ym-edge-back:hover ~ #ym-edge-back-btn,
+  #ym-edge-back-btn:hover{
+    transform:translateY(-50%) translateX(0);
+    pointer-events:all;
+  }
+  body.dragging #ym-edge-back,
+  body.dragging #ym-edge-back-btn{pointer-events:none!important}
+}
 </style>
 
 <!-- ── DOM ───────────────────────────────────────────────────── -->
@@ -353,3 +385,4 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 <button id="pwa-install-btn"><span>&#8595;</span> INSTALL APP</button>
 <div id="ym-edge-back"></div>
 <button id="ym-edge-back-btn" aria-label="Back">&#8249;</button>
+
