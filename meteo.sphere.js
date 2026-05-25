@@ -16,20 +16,33 @@ let _widgetEnabled = localStorage.getItem('meteo_widget') !== 'false';
 
 // ── API ──────────────────────────────────────────────────────
 async function getLocation(){
-  // Try browser geolocation first
+  // Try ip geolocation first (HTTPS, no permission needed)
+  async function ipGeo(){
+    try{
+      const r=await fetch('https://ipapi.co/json/',{signal:AbortSignal.timeout(4000)});
+      if(!r.ok)throw new Error();
+      const d=await r.json();
+      if(!d.latitude)throw new Error();
+      return {lat:d.latitude,lon:d.longitude,name:(d.city||d.region||'Unknown')+', '+(d.country_name||'')};
+    }catch{return null;}
+  }
+  // Try browser geolocation (more accurate)
   return new Promise((resolve)=>{
-    if(!navigator.geolocation){resolve(null);return;}
+    if(!navigator.geolocation){ipGeo().then(resolve);return;}
     navigator.geolocation.getCurrentPosition(
-      pos=>resolve({lat:pos.coords.latitude,lon:pos.coords.longitude,name:'Your location'}),
-      async ()=>{
-        // Fallback: ip-api
+      async pos=>{
+        // Get city name from coordinates via reverse geocoding
         try{
-          const r=await fetch('https://ipapi.co/json/');
-          if(!r.ok)throw new Error();
+          const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`,{signal:AbortSignal.timeout(3000)});
           const d=await r.json();
-          resolve({lat:d.latitude||d.lat,lon:d.longitude||d.lon,name:(d.city||'Unknown')+', '+(d.country_name||d.country||'')});
-        }catch{resolve(null);}
+          const city=d.address?.city||d.address?.town||d.address?.village||d.address?.county||'';
+          const country=d.address?.country||'';
+          resolve({lat:pos.coords.latitude,lon:pos.coords.longitude,name:city+(country?', '+country:'')});
+        }catch{
+          resolve({lat:pos.coords.latitude,lon:pos.coords.longitude,name:'GPS location'});
+        }
       },
+      async ()=>{ resolve(await ipGeo()); },
       {timeout:5000}
     );
   });
@@ -230,7 +243,7 @@ function _buildWidget(){
   _widget.id='ym-meteo-widget';
   const cur=_weather.current;
   _widget.style.cssText=
-    'position:fixed;bottom:96px;left:12px;z-index:350;'+
+    'position:fixed;bottom:96px;left:12px;z-index:290;'+
     'background:rgba(6,6,18,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'+
     'border:1px solid rgba(255,255,255,.1);border-radius:14px;'+
     'padding:10px 14px;cursor:move;user-select:none;'+
@@ -250,15 +263,17 @@ function _buildWidget(){
   refresh();
   document.body.appendChild(_widget);
 
-  // Drag
+  // Drag (mouse + touch)
   let ox=0,oy=0,dragging=false;
-  _widget.addEventListener('mousedown',e=>{
-    if(e.button!==0)return;
-    dragging=true;ox=e.clientX-_widget.getBoundingClientRect().left;oy=e.clientY-_widget.getBoundingClientRect().top;
-    document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
-  });
-  function onMove(e){if(!dragging)return;_widget.style.left=(e.clientX-ox)+'px';_widget.style.top=(e.clientY-oy)+'px';_widget.style.bottom='';}
-  function onUp(){dragging=false;document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);}
+  function startDrag(cx,cy){dragging=true;const r=_widget.getBoundingClientRect();ox=cx-r.left;oy=cy-r.top;}
+  function moveDrag(cx,cy){if(!dragging)return;const x=Math.max(0,Math.min(window.innerWidth-_widget.offsetWidth,cx-ox));const y=Math.max(0,Math.min(window.innerHeight-_widget.offsetHeight,cy-oy));_widget.style.left=x+'px';_widget.style.top=y+'px';_widget.style.bottom='';_widget.style.right='';}
+  function endDrag(){dragging=false;}
+  _widget.addEventListener('mousedown',e=>{if(e.button!==0)return;startDrag(e.clientX,e.clientY);document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);});
+  function onMove(e){moveDrag(e.clientX,e.clientY);}
+  function onUp(){endDrag();document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);}
+  _widget.addEventListener('touchstart',e=>{const t=e.touches[0];startDrag(t.clientX,t.clientY);},{passive:true});
+  _widget.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];moveDrag(t.clientX,t.clientY);},{passive:false});
+  _widget.addEventListener('touchend',endDrag);
 }
 
 function _destroyWidget(){
