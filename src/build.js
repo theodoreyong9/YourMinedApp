@@ -269,6 +269,63 @@ async function render(containerArg,presetType){
 }
 
 // ── PATCH FLOW ────────────────────────────────────────────────
+const PATCH_PREFIX = 'ym_patch_';
+const THEO_RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
+const FILES_JSON_URL = THEO_RAW + 'files.json';
+const THEMES_FILES_JSON_URL = THEO_RAW + 'themes-files.json';
+
+function getFileName(url){ return url.split('/').pop().split('?')[0]; }
+
+async function validatePatchUrl(url){
+  const fname = getFileName(url);
+
+  // Exception: liste.js from theo repo
+  if(fname === 'liste.js') return {type:'system', name:'liste.js', valid:true};
+
+  // Sphere: ends with .sphere.js — check files.json
+  if(fname.endsWith('.sphere.js')){
+    try{
+      const r = await fetch(FILES_JSON_URL+'?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok) throw new Error('Cannot fetch files.json');
+      const list = await r.json();
+      const found = list.find(s=>(s.fileName===fname||s.codeUrl&&getFileName(s.codeUrl)===fname));
+      if(found) return {type:'sphere', name:fname, valid:true};
+      return {type:'sphere', name:fname, valid:false, reason:'Sphere not found in files.json'};
+    }catch(e){ return {type:'sphere', name:fname, valid:false, reason:e.message}; }
+  }
+
+  // Theme: ends with .theme.html — check themes-files.json
+  if(fname.endsWith('.theme.html')||fname.endsWith('.html')){
+    try{
+      const r = await fetch(THEMES_FILES_JSON_URL+'?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok) throw new Error('Cannot fetch themes-files.json');
+      const list = await r.json();
+      const found = list.find(t=>(t===fname||(typeof t==='object'&&(t.fileName===fname||t.file===fname))));
+      if(found) return {type:'theme', name:fname, valid:true};
+      return {type:'theme', name:fname, valid:false, reason:'Theme not found in themes-files.json'};
+    }catch(e){ return {type:'theme', name:fname, valid:false, reason:e.message}; }
+  }
+
+  return {type:'unknown', name:fname, valid:false, reason:'Only registered spheres, themes, or liste.js can be patched'};
+}
+
+function saveActivePatch(name, url, code){
+  localStorage.setItem(PATCH_PREFIX+name, JSON.stringify({name,url,code,ts:Date.now()}));
+}
+function removeActivePatch(name){
+  localStorage.removeItem(PATCH_PREFIX+name);
+}
+function getActivePatches(){
+  const patches=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith(PATCH_PREFIX)){
+      try{patches.push(JSON.parse(localStorage.getItem(k)));}catch{}
+    }
+  }
+  return patches.sort((a,b)=>b.ts-a.ts);
+}
+
 function renderPatchContent(body){
   body.innerHTML='';
   body.style.cssText='padding:16px;display:flex;flex-direction:column;gap:10px';
@@ -335,30 +392,29 @@ function renderPatchContent(body){
       .trim();
     if(!url){toast('Enter a URL first','warn');return;}
     fetchBtn.disabled=true;fetchBtn.textContent='…';
-    status.textContent='';
+    applyBtn.disabled=true;
+    status.textContent='Validating…';
     try{
+      // Validate before fetching
+      const validated=await validatePatchUrl(url);
+      if(!validated.valid){
+        typeBadge.innerHTML='<span style="color:var(--red)">✗ Not allowed</span>';
+        throw new Error(validated.reason||'This file cannot be patched');
+      }
+      _detectedType=validated.type;_detectedName=validated.name;
+      const typeLabels={'sphere':'<span style="color:var(--gold)">⬡ Sphere</span>','theme':'<span style="color:var(--cyan)">🎨 Theme</span>','system':'<span style="color:var(--green)">⚙ liste.js</span>'};
+      typeBadge.innerHTML=(typeLabels[validated.type]||'?')+' — '+esc(validated.name)+' <span style="color:var(--green)">✓ verified</span>';
+
+      // Fetch content
       const r=await fetch(url);
       if(!r.ok)throw new Error('HTTP '+r.status);
       const text=await r.text();
       editor.value=text;
-
-      // Detect type from URL
-      const fname=url.split('/').pop().split('?')[0];
-      if(fname.endsWith('.sphere.js')){
-        _detectedType='sphere';_detectedName=fname;
-        typeBadge.innerHTML='<span style="color:var(--gold)">⬡ Sphere</span> — '+esc(fname);
-      } else if(fname.endsWith('.theme.html')||fname.endsWith('.html')){
-        _detectedType='theme';_detectedName=fname;
-        typeBadge.innerHTML='<span style="color:var(--cyan)">🎨 Theme</span> — '+esc(fname);
-      } else {
-        _detectedType='sphere';_detectedName=fname;
-        typeBadge.innerHTML='<span style="color:var(--text3)">? Unknown type — will try as sphere</span>';
-      }
-
       applyBtn.disabled=false;
-      status.innerHTML='<span style="color:var(--green)">✓ Loaded '+text.length+' chars</span>';
+      status.innerHTML='<span style="color:var(--green)">✓ Loaded '+text.length+' chars — verified</span>';
     }catch(e){
       status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';
+      applyBtn.disabled=true;
     }finally{
       fetchBtn.disabled=false;fetchBtn.textContent='⬇ Load';
     }
@@ -367,6 +423,42 @@ function renderPatchContent(body){
   urlInput.addEventListener('keydown',e=>{if(e.key==='Enter')fetchBtn.click();});
 
   // ── Apply ──
+  // ── Active patches list ──
+  const patchesSection=document.createElement('div');
+  patchesSection.id='active-patches-section';
+  patchesSection.style.cssText='display:flex;flex-direction:column;gap:6px';
+  body.appendChild(patchesSection);
+
+  function renderActivePatches(){
+    patchesSection.innerHTML='';
+    const patches=getActivePatches();
+    if(!patches.length)return;
+    const title=document.createElement('div');
+    title.style.cssText='font-size:9px;color:var(--text3);font-family:var(--font-m,inherit);text-transform:uppercase;letter-spacing:1px;margin-top:4px';
+    title.textContent='Active patches ('+patches.length+')';
+    patchesSection.appendChild(title);
+    patches.forEach(function(p){
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(34,217,138,.04);border:1px solid rgba(34,217,138,.1);border-radius:4px';
+      const nameEl=document.createElement('div');
+      nameEl.style.cssText='flex:1;font-size:10px;font-family:var(--font-m,inherit);color:var(--text2)';
+      nameEl.textContent=p.name;
+      const removeBtn=document.createElement('button');
+      removeBtn.className='ym-btn ym-btn-ghost';
+      removeBtn.style.cssText='font-size:9px;padding:3px 8px;color:var(--red);border-color:rgba(255,69,96,.2)';
+      removeBtn.textContent='✕ Remove';
+      removeBtn.addEventListener('click',function(){
+        removeActivePatch(p.name);
+        toast(p.name+' patch removed — reload to restore original','info');
+        renderActivePatches();
+      });
+      row.appendChild(nameEl);row.appendChild(removeBtn);
+      patchesSection.appendChild(row);
+    });
+  }
+
+  renderActivePatches();
+
   applyBtn.addEventListener('click',async()=>{
     const code=editor.value.trim();
     if(!code){toast('Nothing to apply','warn');return;}
@@ -374,46 +466,51 @@ function renderPatchContent(body){
     status.textContent='';
 
     try{
+      const name=_detectedName||'patch.js';
       if(_detectedType==='theme'){
-        // Inject theme HTML into body
         const div=document.createElement('div');
         div.innerHTML=code;
-        // Execute scripts
         div.querySelectorAll('script').forEach(oldScript=>{
-          const s=document.createElement('script');
-          s.textContent=oldScript.textContent;
+          const s=document.createElement('script');s.textContent=oldScript.textContent;
           document.head.appendChild(s);
         });
-        // Apply styles
-        div.querySelectorAll('style').forEach(st=>{
-          document.head.appendChild(st.cloneNode(true));
-        });
-        status.innerHTML='<span style="color:var(--green)">✓ Theme patch applied — some changes may require reload</span>';
+        div.querySelectorAll('style').forEach(st=>{document.head.appendChild(st.cloneNode(true));});
+        saveActivePatch(name,urlInput.value.trim(),code);
+        status.innerHTML='<span style="color:var(--green)">✓ Theme patch applied</span>';
         toast('Theme patch applied','success');
-      } else {
-        // Load as sphere via blob
-        const name=_detectedName||'patch.sphere.js';
+        renderActivePatches();
+      } else if(_detectedType==='system'){
+        // liste.js — reload with patched version via blob
         const blob=new Blob([code],{type:'text/javascript'});
         const blobUrl=URL.createObjectURL(blob);
-        // Deactivate existing if any
+        const s=document.createElement('script');
+        s.src=blobUrl;s.dataset.patch=name;
+        s.onload=()=>{URL.revokeObjectURL(blobUrl);toast('liste.js patched','success');};
+        const old=document.querySelector('script[data-patch="'+name+'"]');
+        if(old)old.remove();
+        document.head.appendChild(s);
+        saveActivePatch(name,urlInput.value.trim(),code);
+        status.innerHTML='<span style="color:var(--green)">✓ liste.js patch applied</span>';
+        renderActivePatches();
+      } else {
+        // Sphere
+        const blob=new Blob([code],{type:'text/javascript'});
+        const blobUrl=URL.createObjectURL(blob);
         if(window.YM_sphereRegistry&&window.YM_sphereRegistry.has(name)){
           if(window.YM&&window.YM.deactivateSphere)window.YM.deactivateSphere(name);
           await new Promise(r=>setTimeout(r,200));
         }
-        // Load and activate
         if(window.YM&&window.YM.loadSphereFromURL){
           const obj=await window.YM.loadSphereFromURL(blobUrl,name);
           URL.revokeObjectURL(blobUrl);
           if(obj){
             if(window.YM.activateSphere)await window.YM.activateSphere(name,obj);
+            saveActivePatch(name,urlInput.value.trim(),code);
             status.innerHTML='<span style="color:var(--green)">✓ Sphere patch applied — '+esc(obj.name||name)+'</span>';
             toast((obj.name||name)+' patch applied','success');
-          } else {
-            throw new Error('Sphere loaded but not found in registry');
-          }
-        } else {
-          throw new Error('YM not ready');
-        }
+            renderActivePatches();
+          } else throw new Error('Sphere loaded but not found in registry');
+        } else throw new Error('YM not ready');
       }
     }catch(e){
       status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';
@@ -815,6 +912,28 @@ window.addEventListener('ym:switch-mine-tab',e=>{
   bar.querySelectorAll('.ym-tab').forEach(t=>t.classList.toggle('active',t.dataset.mineTab===tab));
   if(window.app_switchMineTab)window.app_switchMineTab(tab);
 });
+
+// ── Restore persisted patches on boot ──
+(function restorePatches(){
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(!k||!k.startsWith(PATCH_PREFIX))continue;
+    try{
+      const p=JSON.parse(localStorage.getItem(k));
+      if(!p||!p.code)continue;
+      const detected=detectPatchType(p.url||p.name);
+      if(detected.type==='system'&&p.name==='liste.js'){
+        const blob=new Blob([p.code],{type:'text/javascript'});
+        const blobUrl=URL.createObjectURL(blob);
+        const s=document.createElement('script');
+        s.src=blobUrl;s.dataset.patch=p.name;
+        s.onload=()=>URL.revokeObjectURL(blobUrl);
+        document.head.appendChild(s);
+        console.log('[YM Patch] restored liste.js');
+      }
+    }catch(e){console.warn('[YM Patch] restore error',e);}
+  }
+})();
 
 window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t)};
 })();
