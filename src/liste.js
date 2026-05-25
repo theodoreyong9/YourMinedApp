@@ -13,6 +13,8 @@ const CACHE_KEY = 'ym_liste_cache_v4';
 const CACHE_TTL = 5 * 60 * 1000;
 
 let _sphereList = [];
+const PAGE_SIZE = 20;
+let _listPage = 0;
 let _loaded     = false;
 let _filterText   = '';
 let _filterCat    = '';
@@ -219,6 +221,7 @@ async function render(containerArg){
   let _openDropdown=null; // 'type'|'cat'|'status'|null
 
   searchInput.addEventListener('input',e=>{
+    _listPage=0;
     const v=e.target.value.toLowerCase();
     _filterText=v;_themeSearch=v;
     if(_listType==='spheres')renderList(content);
@@ -290,7 +293,7 @@ async function render(containerArg){
       cPill.addEventListener('click',()=>{
         _openDrop('cat',CAT_OPTS.map(c=>({id:c,label:c,active:c===curCat})),opt=>{
           _filterCat=opt.id==='All'?'':opt.id;
-          renderFilterRow();renderList(content);
+          _listPage=0;renderFilterRow();renderList(content);
         });
       });
       filterRow.appendChild(cPill);
@@ -309,7 +312,7 @@ async function render(containerArg){
         if(opt.id==='active')_listShowWip=false;
         if(opt.id==='wip')_filterActive=false;
         if(opt.id==='all'){_filterActive=false;_listShowWip=false;}
-        renderFilterRow();
+        _listPage=0;renderFilterRow();
         if(_listType==='spheres')renderList(content);
         else{const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
       });
@@ -890,6 +893,12 @@ function renderList(body){
   }
   if(!filtered.length){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No spheres found.</div>';return;}
 
+  // Reset page on fresh render (search/filter change resets page)
+  if(listEl.dataset.filtered!==JSON.stringify(filtered.map(s=>s.fileName))){
+    _listPage=0;
+    listEl.dataset.filtered=JSON.stringify(filtered.map(s=>s.fileName));
+  }
+
   listEl.innerHTML='';
 
   let _openSphereCard = null; // track expanded card
@@ -903,7 +912,10 @@ function renderList(body){
     else card.appendChild(newBar);
   }
 
-  filtered.forEach(sphere=>{
+  function renderPage(page){
+    const start=page*PAGE_SIZE;
+    const slice=filtered.slice(start,start+PAGE_SIZE);
+    slice.forEach(sphere=>{
     const active=isSphereActive(sphere.fileName);
     const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
     const siteUrl=sphere.siteUrl||null;
@@ -959,7 +971,41 @@ function renderList(body){
     });
 
     listEl.appendChild(card);
-  });
+    }); // end slice.forEach
+  } // end renderPage
+
+  // Render first page
+  renderPage(_listPage);
+
+  // Load more indicator
+  if(filtered.length > PAGE_SIZE){
+    const total=document.createElement('div');
+    total.style.cssText='font-size:9px;color:var(--text3);text-align:center;padding:8px 0;font-family:var(--font-m)';
+    total.id='crm-page-total';
+    total.textContent='Showing '+(Math.min((_listPage+1)*PAGE_SIZE,filtered.length))+' of '+filtered.length;
+    listEl.appendChild(total);
+
+    // Sentinel for infinite scroll
+    const sentinel=document.createElement('div');
+    sentinel.id='list-scroll-sentinel';
+    sentinel.style.cssText='height:1px;margin-top:4px';
+    listEl.appendChild(sentinel);
+
+    const obs=new IntersectionObserver(function(entries){
+      if(!entries[0].isIntersecting)return;
+      const nextStart=(_listPage+1)*PAGE_SIZE;
+      if(nextStart>=filtered.length){obs.disconnect();return;}
+      _listPage++;
+      renderPage(_listPage);
+      // Update total
+      const tot=listEl.querySelector('#crm-page-total');
+      if(tot)tot.textContent='Showing '+Math.min((_listPage+1)*PAGE_SIZE,filtered.length)+' of '+filtered.length;
+      // Move sentinel to end
+      listEl.appendChild(sentinel);
+      listEl.appendChild(tot);
+    },{root:listEl.closest('[style*="overflow"]')||null,threshold:0.1});
+    obs.observe(sentinel);
+  }
 }
 
 function _setInactive(fileName){setActiveSpheres(getActiveSpheres().filter(s=>s!==fileName));}
