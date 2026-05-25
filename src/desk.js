@@ -572,7 +572,7 @@ function ejectFromFolder(ic){
     toast('Folder removed','info');
   }else if(newFI.length===1){
     const solo=newFI[0];const idx=found.parent.findIndex(x=>x.id===topIc.id);if(idx>=0)found.parent.splice(idx,1);
-    found.parent.push({id:solo.id,icon:solo.icon,label:solo.label,page:topIc.page||0,col:topIc.col||0,row:topIc.row||0,notif:solo.notif||0,folder:solo.folder||false,folderItems:deepCopyFolderItems(solo.folderItems)});
+    found.parent.push(copyIcon(solo,{page:topIc.page||0,col:topIc.col||0,row:topIc.row||0}));
     SD(d);toast('Folder dissolved','info');
     if(inSubFolder){folderStack.pop();const parentEntry=folderStack[folderStack.length-1];const pFound=findIconParent(parentEntry.ic.id,LD());if(pFound){parentEntry.ic=pFound.item;renderFolderPanel(pFound.item);}}
     else{folderStack.length=0;rmEl('panel-folder');rmEl('panel-overlay');}
