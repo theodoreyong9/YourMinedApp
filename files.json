@@ -213,5 +213,41 @@
     "merged_at": 1777741104,
     "burnSlot": 456713132,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/alerte.sphere.js"
+  },
+  {
+    "filename": "meteo.sphere.js",
+    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+    "ghAuthor": "Keanuji",
+    "last_committer": "Keanuji",
+    "score": 0.931732,
+    "laps": 7887308,
+    "timestamp": 1776619834,
+    "merged_at": 1776620204,
+    "burnSlot": 448770336,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/meteo.sphere.js"
+  },
+  {
+    "filename": "finance.sphere.js",
+    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+    "ghAuthor": "Keanuji",
+    "last_committer": "Keanuji",
+    "score": 0.030993,
+    "laps": 2903156,
+    "timestamp": 1777741079,
+    "merged_at": 1777741104,
+    "burnSlot": 456713132,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/finance.sphere.js"
+  },
+  {
+    "filename": "cameras.sphere.js",
+    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+    "ghAuthor": "Keanuji",
+    "last_committer": "Keanuji",
+    "score": 0.030993,
+    "laps": 2903156,
+    "timestamp": 1777741079,
+    "merged_at": 1777741104,
+    "burnSlot": 456713132,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/cameras.sphere.js"
   }
 ]
