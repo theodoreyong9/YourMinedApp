@@ -10,7 +10,7 @@ const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAM
 const FILES_JSON_URL = RAW_BASE+'files.json';
 
 const CACHE_KEY = 'ym_liste_cache_v4';
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 30 * 60 * 1000;
 
 let _sphereList = [];
 const PAGE_SIZE = 20;
@@ -21,8 +21,8 @@ let _filterCat    = '';
 let _filterActive = false;
 let _filterSocial = null;
 
-function _readCache(){
-  try{const raw=localStorage.getItem(CACHE_KEY);if(!raw)return null;const c=JSON.parse(raw);if(Date.now()-c.ts>CACHE_TTL)return null;return c;}catch{return null;}
+function _readCache(allowStale=false){
+  try{const raw=localStorage.getItem(CACHE_KEY);if(!raw)return null;const c=JSON.parse(raw);if(!allowStale&&Date.now()-c.ts>CACHE_TTL)return null;return c;}catch{return null;}
 }
 function _writeCache(list){
   try{localStorage.setItem(CACHE_KEY,JSON.stringify({list,ts:Date.now()}));}catch{}
@@ -51,25 +51,60 @@ async function _doFetch(){
   if(!entries.length){_sphereList=[];_loaded=true;_writeCache(_sphereList);return _sphereList;}
   const cachedMap={};
   if(cached)cached.list.forEach(s=>{cachedMap[s.fileName]=s;});
-  _sphereList=await Promise.all(entries.map(async entry=>{
+  // Start with cached or placeholder entries for instant display
+  _sphereList=entries.map(entry=>{
     const fileName=entry.filename;
     const url=RAW_BASE+fileName;
     const ghAuthor=entry.ghAuthor||entry.last_committer||'';
     const codeUrl=entry.codeUrl||(ghAuthor?'https://raw.githubusercontent.com/'+ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/'+fileName:null);
-    if(cachedMap[fileName]){return{...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};}
-    const meta=await fetchSphereMeta(url,fileName,codeUrl);
-    return{...meta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
-  }));
+    if(cachedMap[fileName])return{...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};
+    return{name:fileName.replace('.sphere.js',''),icon:'⬡',category:'Other',description:'',url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,_loading:true};
+  });
   _sphereList.sort(function(a,b){return (b.score||0)-(a.score||0);});
-  _writeCache(_sphereList);
   _loaded=true;
+
+  // Fetch missing metadata progressively
+  const needFetch=_sphereList.filter(s=>s._loading);
+  if(needFetch.length){
+    needFetch.forEach(async sphere=>{
+      const meta=await fetchSphereMeta(sphere.url,sphere.fileName,sphere.codeUrl);
+      const idx=_sphereList.findIndex(s=>s.fileName===sphere.fileName);
+      if(idx!==-1){
+        _sphereList[idx]={..._sphereList[idx],...meta,_loading:false};
+        // Trigger re-render of just this card if list is visible
+        const listEl=document.getElementById('sphere-list-inner');
+        if(listEl){
+          const card=listEl.querySelector('[data-sphere="'+sphere.fileName+'"]');
+          if(card){
+            const isActive=isSphereActive(sphere.fileName);
+            const iconEl=card.querySelector('.sphere-icon-el');
+            const nameEl=card.querySelector('.sphere-name-el');
+            const descEl=card.querySelector('.sphere-desc-el');
+            if(iconEl)iconEl.textContent=meta.icon||'⬡';
+            if(nameEl)nameEl.textContent=meta.name||sphere.fileName;
+            if(descEl)descEl.textContent=meta.description||'';
+          }
+        }
+      }
+    });
+    // Write cache after all fetches complete
+    Promise.all(needFetch.map(s=>fetchSphereMeta(s.url,s.fileName,s.codeUrl))).then(()=>{
+      _writeCache(_sphereList);
+    });
+  } else {
+    _writeCache(_sphereList);
+  }
   return _sphereList;
 }
 
 async function fetchSphereMeta(url,fileName,codeUrl){
+  // Check stale cache first for this specific sphere
+  const stale=_readCache(true);
+  const staleEntry=stale&&stale.list&&stale.list.find(s=>s.fileName===fileName);
   try{
     const fetchUrl=codeUrl||url;
-    const res=await fetch(fetchUrl+'?t='+Date.now(),{cache:'no-store'});
+    const res=await fetch(fetchUrl+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
     const code=await res.text();
     return{
       name:extractField(code,'name')||fileName.replace('.sphere.js',''),
@@ -78,7 +113,11 @@ async function fetchSphereMeta(url,fileName,codeUrl){
       description:extractField(code,'description')||'',
       fileName
     };
-  }catch{return{name:fileName.replace('.sphere.js',''),icon:'⬡',category:'Other',description:'',fileName};}
+  }catch{
+    // Fallback to stale cache entry if available
+    if(staleEntry)return staleEntry;
+    return{name:fileName.replace('.sphere.js',''),icon:'⬡',category:'Other',description:'',fileName};
+  }
 }
 
 function extractField(code,field){
@@ -925,14 +964,15 @@ function renderList(body){
 
     const card=document.createElement('div');
     card.className='ym-card';
+    card.dataset.sphere=sphere.fileName;
     card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s'+(active?';border-color:var(--accent-dim)':'');
 
     card.innerHTML=
       '<div style="display:flex;align-items:center;gap:12px">'+
-        '<div style="flex-shrink:0;line-height:1">'+iconHtml+'</div>'+
+        '<div class="sphere-icon-el" style="flex-shrink:0;line-height:1">'+iconHtml+'</div>'+
         '<div style="flex:1;min-width:0">'+
           '<div data-name-line style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">'+
-            '<div style="font-weight:600;font-size:14px;color:var(--text)">'+esc(sphere.name)+'</div>'+
+            '<div class="sphere-name-el" style="font-weight:600;font-size:14px;color:var(--text)">'+esc(sphere.name)+'</div>'+
             (active?'<span class="pill active">active</span>':'')+
             wipBadge+
           '</div>'+
@@ -941,7 +981,7 @@ function renderList(body){
             '<span style="color:var(--text3);font-size:9px">·</span>'+
             '<span style="font-size:9px;color:var(--text3)">by <b style="color:var(--accent)">@'+esc(sphere.ghAuthor||'unknown')+'</b></span>'+
           '</div>'+
-          '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(sphere.description||'—')+'</div>'+
+          '<div class="sphere-desc-el" style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(sphere.description||'—')+'</div>'+
         '</div>'+
         '<div style="font-size:18px;color:var(--text3);flex-shrink:0;transition:transform .2s" data-chevron>›</div>'+
       '</div>';
