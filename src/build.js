@@ -337,7 +337,7 @@ function renderPatchContent(body){
 
   const sub=document.createElement('div');
   sub.style.cssText='font-size:10px;color:var(--text3);line-height:1.5';
-  sub.textContent='Load any sphere or theme from a URL, edit it, and apply directly — no GitHub needed.';
+  sub.textContent='Patch any registered sphere, theme, or liste.js — verified against the registry before apply.';
   body.appendChild(sub);
 
   // URL input
