@@ -855,15 +855,15 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       await deactivateSphere(sphere);
-      const lb=_currentBody||document.getElementById('panel-spheres-body')||document.getElementById('panel-mine-liste');
-      if(lb)renderList(lb);
+      const _lbOff=document.getElementById('list-content');
+      if(_lbOff){const _liOff=_lbOff.querySelector('#sphere-list-inner');if(_liOff)renderList(_lbOff);}
     }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       card.style.opacity='.6';
       await activateSphere(sphere);
       card.style.opacity='1';
-      const lb=_currentBody||document.getElementById('panel-spheres-body')||document.getElementById('panel-mine-liste');
-      if(lb)renderList(lb);
+      const _lbOn=document.getElementById('list-content');
+      if(_lbOn){const _liOn=_lbOn.querySelector('#sphere-list-inner');if(_liOn)renderList(_lbOn);}
     }}] : []),
   ]);
   bar.dataset.barEl='1';
