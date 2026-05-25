@@ -11,6 +11,8 @@ let _timer = null;
 let _weather = null;
 let _location = null;
 let _unit = 'celsius'; // celsius | fahrenheit
+let _widget = null;
+let _widgetEnabled = localStorage.getItem('meteo_widget') !== 'false';
 
 // ── API ──────────────────────────────────────────────────────
 async function getLocation(){
@@ -22,10 +24,10 @@ async function getLocation(){
       async ()=>{
         // Fallback: ip-api
         try{
-          const r=await fetch('https://ip-api.com/json/?fields=lat,lon,city,country');
+          const r=await fetch('https://ipapi.co/json/');
           if(!r.ok)throw new Error();
           const d=await r.json();
-          resolve({lat:d.lat,lon:d.lon,name:d.city+', '+d.country});
+          resolve({lat:d.latitude||d.lat,lon:d.longitude||d.lon,name:(d.city||'Unknown')+', '+(d.country_name||d.country||'')});
         }catch{resolve(null);}
       },
       {timeout:5000}
@@ -125,11 +127,18 @@ function renderPanel(container){
     '<div style="font-size:13px;color:var(--text2);margin-bottom:4px">'+weatherDesc(cur.weather_code)+'</div>'+
     '<div style="font-size:11px;color:var(--text3);font-family:var(--font-m,monospace)">'+esc(_location.name)+'</div>'+
     '<div style="position:absolute;top:12px;right:12px;display:flex;gap:6px">'+
+      '<button id="meteo-widget-toggle" title="'+('' )+(_widgetEnabled?'Hide':'Show')+' widget" style="background:'+(_widgetEnabled?'rgba(240,168,48,.15)':'rgba(255,255,255,.06)')+';border:1px solid '+(_widgetEnabled?'rgba(240,168,48,.3)':'rgba(255,255,255,.1)')+';border-radius:6px;color:'+(_widgetEnabled?'var(--gold,#f0a830)':'rgba(228,230,244,.4)')+';font-size:12px;padding:3px 8px;cursor:pointer">🪟</button>'+
       '<button id="meteo-unit-toggle" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:10px;padding:3px 8px;cursor:pointer;font-family:var(--font-m,monospace)">'+(_unit==='celsius'?'°F':'°C')+'</button>'+
       '<button id="meteo-refresh" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text2);font-size:14px;padding:3px 8px;cursor:pointer">⟳</button>'+
     '</div>';
   container.appendChild(header);
 
+  header.querySelector('#meteo-widget-toggle').addEventListener('click',()=>{
+    _widgetEnabled=!_widgetEnabled;
+    localStorage.setItem('meteo_widget',_widgetEnabled?'true':'false');
+    if(_widgetEnabled)_buildWidget();else _destroyWidget();
+    renderPanel(container);
+  });
   header.querySelector('#meteo-unit-toggle').addEventListener('click',()=>{
     _unit=_unit==='celsius'?'fahrenheit':'celsius';
     renderPanel(container);
@@ -211,6 +220,52 @@ function renderPanel(container){
   container.appendChild(forecastWrap);
 }
 
+// ── Widget ──────────────────────────────────────────────────
+function _buildWidget(){
+  if(_widget&&document.body.contains(_widget))return;
+  if(!_widgetEnabled)return;
+  if(!_weather||!_location)return;
+
+  _widget=document.createElement('div');
+  _widget.id='ym-meteo-widget';
+  const cur=_weather.current;
+  _widget.style.cssText=
+    'position:fixed;bottom:96px;left:12px;z-index:350;'+
+    'background:rgba(6,6,18,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'+
+    'border:1px solid rgba(255,255,255,.1);border-radius:14px;'+
+    'padding:10px 14px;cursor:move;user-select:none;'+
+    'display:flex;align-items:center;gap:10px;min-width:140px;'+
+    'box-shadow:0 4px 20px rgba(0,0,0,.4)';
+
+  function refresh(){
+    if(!_weather)return;
+    const c=_weather.current;
+    _widget.innerHTML=
+      '<div style="font-size:28px;flex-shrink:0">'+weatherCode(c.weather_code)+'</div>'+
+      '<div>'+
+        '<div style="font-size:15px;font-weight:600;color:#e4e6f4;font-family:var(--font-m,monospace)">'+tempStr(c.temperature_2m)+'</div>'+
+        '<div style="font-size:9px;color:rgba(228,230,244,.4);margin-top:1px">'+(_location?_location.name.split(',')[0]:'')+'</div>'+
+      '</div>';
+  }
+  refresh();
+  document.body.appendChild(_widget);
+
+  // Drag
+  let ox=0,oy=0,dragging=false;
+  _widget.addEventListener('mousedown',e=>{
+    if(e.button!==0)return;
+    dragging=true;ox=e.clientX-_widget.getBoundingClientRect().left;oy=e.clientY-_widget.getBoundingClientRect().top;
+    document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);
+  });
+  function onMove(e){if(!dragging)return;_widget.style.left=(e.clientX-ox)+'px';_widget.style.top=(e.clientY-oy)+'px';_widget.style.bottom='';}
+  function onUp(){dragging=false;document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);}
+}
+
+function _destroyWidget(){
+  if(_widget&&document.body.contains(_widget))document.body.removeChild(_widget);
+  _widget=null;
+}
+
 // ── broadcastData ──
 function broadcastData(){
   if(!_weather||!_location)return{};
@@ -230,12 +285,13 @@ window.YM_S[SPHERE_ID]={
 
   activate(ctx){
     _ctx=ctx;
-    refresh();
-    _timer=setInterval(()=>{refresh();},10*60*1000); // refresh every 10min
+    refresh().then(()=>_buildWidget());
+    _timer=setInterval(()=>{refresh().then(()=>{if(_widgetEnabled&&(!_widget||!document.body.contains(_widget)))_buildWidget();});},10*60*1000);
   },
 
   deactivate(){
     if(_timer){clearInterval(_timer);_timer=null;}
+    _destroyWidget();
     _ctx=null;
   },
 
