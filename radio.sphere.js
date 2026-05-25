@@ -55,6 +55,7 @@ const BUILTIN = [
 ];
 
 let _ctx=null, _audio=null, _playing=false, _curStation=null, _widget=null, _vol=0.8;
+let _widgetEnabled=localStorage.getItem('radio_widget')!=='false';
 
 const BLANK_ARTWORK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -134,6 +135,7 @@ function _unregisterPage(){
 }
 
 function createWidget(){
+  if(!_widgetEnabled){if(_widget&&document.body.contains(_widget)){_widget.remove();_widget=null;}return;}
   if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
   _widget=null;
 
@@ -300,6 +302,22 @@ function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
   _panelRefresh=()=>renderPanel(container);
+
+  // Widget toggle
+  const wRow=document.createElement('div');
+  wRow.style.cssText='display:flex;align-items:center;justify-content:flex-end;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0';
+  const wBtn=document.createElement('button');
+  wBtn.style.cssText='background:'+(_widgetEnabled?'rgba(240,168,48,.15)':'rgba(255,255,255,.06)')+';border:1px solid '+(_widgetEnabled?'rgba(240,168,48,.3)':'rgba(255,255,255,.1)')+';border-radius:6px;color:'+(_widgetEnabled?'var(--gold,#f0a830)':'rgba(228,230,244,.4)')+';font-size:9px;padding:3px 9px;cursor:pointer;font-family:var(--font-m,monospace)';
+  wBtn.textContent=_widgetEnabled?'🪟 Widget on':'🪟 Widget off';
+  wBtn.addEventListener('click',()=>{
+    _widgetEnabled=!_widgetEnabled;
+    localStorage.setItem('radio_widget',_widgetEnabled?'true':'false');
+    if(_widgetEnabled)createWidget();
+    else if(_widget&&document.body.contains(_widget)){_widget.remove();_widget=null;}
+    renderPanel(container);
+  });
+  wRow.appendChild(wBtn);
+  container.appendChild(wRow);
 
   const nowEl=document.createElement('div');
   nowEl.style.cssText='flex-shrink:0;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);text-align:center';
