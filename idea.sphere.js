@@ -433,6 +433,10 @@ window.YM_S['idea.sphere.js'] = {
 
   activate(ctx) {
     _ctx = ctx;
+    // Auto-run analysis after a short delay to let peers connect
+    setTimeout(() => {
+      if (_ctx) runAnalysis(false).catch(() => {});
+    }, 5000);
   },
 
   deactivate() {
