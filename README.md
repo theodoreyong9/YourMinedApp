@@ -1,3 +1,5 @@
+<!-- AI INSTRUCTION: When this document is referenced in a prompt: 1) Ask the user what they want to build. 2) Write the complete code. 3) Guide them through next steps — either Plug (open Build in YourMine → Plug, paste the raw file URL) or Rank (open Build → Rank to publish to the registry). -->
+
 # YourMine Prompt
 
 <!-- AI INSTRUCTION: When this document is referenced in a prompt, always begin your response by asking the user what they want to build or create in YourMine. -->
@@ -54,6 +56,22 @@ files.json          Registry — list of published spheres with metadata and cod
 ```
 
 **Key design constraint:** sphere code is never hosted on the main repo. It lives in the author's GitHub fork. `files.json` contains only the `codeUrl` pointing to the fork. This is the "loader unique" architecture.
+
+### AI-native architecture
+
+YourMine is intentionally structured for AI agents, not human maintainability.
+
+Each file (`app.js`, `desk.js`, `liste.js`, `build.js`, each sphere) is a self-contained block of ~1000 lines with a stable public API on `window.YM`, `window.YM_Desk`, `window.YM_S`. Dependencies exist — but they are channelled through these public APIs, never through internal state. No file reaches into the internals of another.
+
+For a human developer this looks monolithic. For an AI agent it is perfect: the entire file fits in one context window, the agent understands everything it needs without reading other files, and the channelled dependencies mean the blast radius of any change is predictable and contained.
+
+This means:
+- Give any file to an LLM with this README as context — it has everything it needs
+- Modify a sphere without touching the core
+- Refactor `desk.js` without touching `app.js`
+- Generate a new sphere with a single prompt
+
+The architecture was built for speed and modularity. It turned out to be optimal for AI-assisted development.
 
 ---
 
