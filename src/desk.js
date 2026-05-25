@@ -584,7 +584,12 @@ function ejectFromFolder(ic){
       const parentEntry=folderStack[folderStack.length-1];
       const parentFound=findIconParent(parentEntry.ic.id,d2);
       if(parentFound){const pFI=parentFound.item.folderItems||[];const pos=findEmptyInFolder(pFI);pFI.push(copyIcon(ic,{page:0,col:pos.col,row:pos.row}));parentFound.item.folderItems=pFI;parentEntry.ic=parentFound.item;SD(d2);}
-    }else{const empty=findEmptyIn(d2,curPg);d2.push(copyIcon(ic,{page:curPg,col:empty?empty.col:0,row:empty?empty.row:0}));SD(d2);}
+    }else{
+      let tPg=curPg;
+      let empty=findEmptyIn(d2,tPg);
+      while(!empty){tPg++;if(tPg>=getPgCount()){setPgCount(tPg+1);buildSlider();}empty=findEmptyIn(d2,tPg);}
+      d2.push(copyIcon(ic,{page:tPg,col:empty.col,row:empty.row}));SD(d2);
+    }
   }
   renderDesk();if(folderStack.length)refreshFolderPanel();
 }
