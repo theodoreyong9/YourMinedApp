@@ -269,9 +269,24 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="mf-sep"></div>
 
     <div class="mf-section-label">I. Mining — the patience formula</div>
+    <div class="mf-p" style="font-size:10px;color:var(--text3);margin-bottom:6px">Standard form:</div>
     <div class="mf-code">       S · t^α
 ─────────────────────────────
 [ln(A^β(1−T) + C)]^γ</div>
+    <div class="mf-p" style="font-size:10px;color:var(--text3);margin:8px 0 6px">Computationally safe form (avoids overflow when A is large):</div>
+    <div class="mf-code">              S · t^α
+──────────────────────────────────────────────────────
+[β(1−T)·ln(A) + ln(1 + C / A^β(1−T))]^γ</div>
+    <div class="mf-primitives" style="margin-top:10px">
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:#ff4560">S</strong> — amount of the last burn</div>
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:#ff4560">t</strong> — time elapsed since last action (Solana slots)</div>
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:var(--purple)">T</strong> — patience rate chosen by the user (0–1)</div>
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:var(--gold,#f0a830)">A</strong> — protocol age (Solana block height)</div>
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:var(--text2)">C</strong> — stabilisation constant</div>
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:var(--text2)">α</strong> — temporal growth exponent</div>
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:var(--text2)">β</strong> — patience / age interaction</div>
+      <div class="mf-primitive" style="font-family:var(--font-m,monospace);font-size:11px"><strong style="color:var(--text2)">γ</strong> — concentration compression</div>
+    </div>
 
     <div class="mf-primitives">
       <div class="mf-primitive"><strong style="color:var(--gold,#f0a830)">S · t^α</strong> — burn amount × time elapsed. The longer you wait after burning, the more you earn. Time is in the numerator. Rushing is penalized.</div>
@@ -280,6 +295,18 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     </div>
 
     <div class="mf-p" style="margin-top:8px">The deep property: this formula cannot be gamed by speed. The only variables you control are <code style="color:var(--gold,#f0a830)">S</code> (how much you burn) and <code style="color:var(--purple)">T</code> (how patient you declare yourself). Everything else — time, protocol age — is objective. <strong style="color:rgba(255,255,255,.6)">You cannot fake will.</strong></div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label" style="color:#ff4560">Anti-Sybil by construction</div>
+    <div class="mf-p">Creating multiple wallets does not multiply rewards. This is not a policy — it is a mathematical consequence of the formula.</div>
+    <div class="mf-primitives">
+      <div class="mf-primitive"><strong style="color:var(--gold,#f0a830)">t starts at zero</strong> for every new wallet. A fresh wallet has small <code>t</code> — small numerator — regardless of how many wallets you control.</div>
+      <div class="mf-primitive"><strong style="color:#ff4560">S must be burned for real</strong> on every wallet. A Sybil with 100 wallets must burn 100× more tokens. There is no free multiplication.</div>
+      <div class="mf-primitive"><strong style="color:var(--purple)">T must be maintained over time</strong>. Patience cannot be simulated by wallets created at the last moment. The declaration of patience is worthless without the elapsed time to back it.</div>
+      <div class="mf-primitive"><strong style="color:var(--text2)">A is global</strong> — protocol age is the same for everyone. It cannot be gamed per wallet.</div>
+    </div>
+    <div class="mf-p" style="margin-top:8px">The cost of a Sybil attack scales <strong style="color:#ff4560">linearly</strong> with the number of fake identities — no advantage is gained. This is structurally different from systems where creating an address is free. Here, <strong style="color:rgba(255,255,255,.7)">time is the non-duplicable resource</strong>. And time cannot be owned by more than one identity at once.</div>
 
     <div class="mf-sep"></div>
 
