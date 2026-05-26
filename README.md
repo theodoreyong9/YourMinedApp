@@ -606,6 +606,20 @@ window.YM_WALLPAPER_PRESETS = [
 
 `YM_WALLPAPER_PRESETS` must be defined by the theme, not by `desk.js`. Each theme owns its wallpaper collection.
 
+### Event listeners in themes
+
+Themes are injected dynamically into the DOM. Scripts run before the HTML is fully parsed. Any `getElementById` or `addEventListener` must be deferred:
+
+```js
+// Always wrap DOM listeners in setTimeout(0) in themes
+setTimeout(function(){
+  var btn = document.getElementById('my-btn');
+  if (btn) btn.addEventListener('click', function(){ /* ... */ });
+}, 0);
+```
+
+Without this, `getElementById` returns `null` because the elements don't exist yet when the script executes.
+
 ### Theme picker script
 
 ```js
