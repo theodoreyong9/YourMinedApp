@@ -216,6 +216,7 @@ ctx.storage.del(key)          // removes key
 ctx.toast(msg, type)          // type: 'success' | 'error' | 'info' | 'warn'
 ctx.openPanel(renderFn)       // opens panel-sphere and calls renderFn(container)
 ctx.setNotification(n)        // sets badge count on desktop icon
+ctx.setIcon(icon)             // updates the sphere icon on the desktop (emoji or image URL)
 
 ctx.send(type, data)          // broadcast to all peers (rate-limited: 10/s)
 ctx.onReceive(callback)       // callback(type, data, peerId) — auto-cleaned on deactivate
