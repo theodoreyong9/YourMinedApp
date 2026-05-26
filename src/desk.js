@@ -723,8 +723,12 @@ document.getElementById('bg-dlg').addEventListener('click',e=>{if(e.target===doc
 function deskInit(){
   applyWP();
   const icons=LD();
+  // Use saved pageCount — autoCleanPages already cleaned empty pages before save
+  // Ensure pageCount covers all icon pages
   const maxPage=icons.length?Math.max(...icons.map(i=>i.page)):0;
-  setPgCount(maxPage+1);buildSlider();goPage(0,false);
+  const savedCount=getPgCount();
+  const count=Math.max(savedCount,maxPage+1);
+  setPgCount(count);buildSlider();goPage(0,false);
 }
 
 window.YM_Desk={
