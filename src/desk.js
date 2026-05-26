@@ -215,7 +215,8 @@ function goPage(n,anim){
 function autoCleanPages(){
   const icons=LD();const n=getPgCount();const occupied=new Set(icons.map(i=>i.page));
   for(const p of _widgetPages.values())occupied.add(p);
-  occupied.add(0);const kept=[];
+  // Page 0 protected only if it's the only page
+  if(n===1)occupied.add(0);const kept=[];
   for(let p=0;p<n;p++){if(occupied.has(p))kept.push(p);}
   if(kept.length===n)return;
   const remap=new Map();kept.forEach((oldP,newP)=>remap.set(oldP,newP));
