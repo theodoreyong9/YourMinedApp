@@ -35,12 +35,53 @@ function dateStr(d){
 function _updateIcon(){
   if(!_ctx||!_ctx.setIcon)return;
   const d=now();
-  const h=d.getHours();
-  const m=d.getMinutes();
-  // Clock emoji based on hour
-  const clockEmojis=['🕛','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚'];
-  const emoji=clockEmojis[h%12];
-  _ctx.setIcon(emoji);
+  const h=d.getHours(),m=d.getMinutes();
+  const timeLabel=pad(h)+':'+pad(m);
+
+  // Generate a canvas image with the current time
+  try{
+    const canvas=document.createElement('canvas');
+    canvas.width=60;canvas.height=60;
+    const ctx2=canvas.getContext('2d');
+
+    // Background
+    ctx2.fillStyle='rgba(6,6,18,0)';
+    ctx2.clearRect(0,0,60,60);
+
+    // Circle background
+    ctx2.beginPath();ctx2.arc(30,30,28,0,Math.PI*2);
+    ctx2.fillStyle='rgba(240,168,48,.15)';ctx2.fill();
+    ctx2.strokeStyle='rgba(240,168,48,.5)';ctx2.lineWidth=1.5;ctx2.stroke();
+
+    // Hour and minute hands (mini analog)
+    const hAngle=((h%12)+m/60)*Math.PI/6;
+    const mAngle=(m/60)*Math.PI*2;
+
+    // Hour hand
+    ctx2.beginPath();ctx2.moveTo(30,30);
+    ctx2.lineTo(30+Math.sin(hAngle)*13,30-Math.cos(hAngle)*13);
+    ctx2.strokeStyle='#e4e6f4';ctx2.lineWidth=2.5;ctx2.lineCap='round';ctx2.stroke();
+    // Minute hand
+    ctx2.beginPath();ctx2.moveTo(30,30);
+    ctx2.lineTo(30+Math.sin(mAngle)*19,30-Math.cos(mAngle)*19);
+    ctx2.strokeStyle='#e4e6f4';ctx2.lineWidth=1.5;ctx2.lineCap='round';ctx2.stroke();
+    // Center dot
+    ctx2.beginPath();ctx2.arc(30,30,2.5,0,Math.PI*2);
+    ctx2.fillStyle='#f0a830';ctx2.fill();
+
+    // Time text below
+    ctx2.font='bold 10px monospace';
+    ctx2.fillStyle='rgba(228,230,244,.8)';
+    ctx2.textAlign='center';ctx2.textBaseline='bottom';
+    ctx2.fillText(timeLabel,30,58);
+
+    const url=canvas.toDataURL('image/png');
+    _ctx.setIcon(url);
+  }catch{
+    // Fallback to emoji
+    const clockEmojis=['🕛','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚'];
+    _ctx.setIcon(clockEmojis[h%12]);
+  }
 }
 
 // ── Alarms ────────────────────────────────────────────────────
