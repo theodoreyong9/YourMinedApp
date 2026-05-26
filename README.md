@@ -472,22 +472,42 @@ activate(ctx) {
 
 ### Bring your own infrastructure
 
+YourMine P2P uses **Trystero** over **Nostr relays** (WebSocket). The default relays are:
+
 ```js
-// Custom WebSocket relay
-const ws = new WebSocket('wss://my-relay.example.com');
-ws.onmessage = e => handleMessage(JSON.parse(e.data));
-
-// Gun.js
-const gun = Gun(['https://gun-relay.example.com/gun']);
-
-// WebRTC via Nostr signaling
-ctx.onReceive((type, data, peerId) => {
-  if (type === 'mygame:sdp-offer') {
-    const pc = new RTCPeerConnection();
-    pc.setRemoteDescription(data.sdp);
-  }
-});
+const YM_RELAYS = [
+  'wss://nos.lol',
+  'wss://relay.primal.net',
+  'wss://relay.nostr.wirednet.jp',
+  'wss://nostr.oxtr.dev'
+];
 ```
+
+To use your own relay infrastructure, override `window.YM_RELAYS` before `app.js` initializes P2P:
+
+```js
+// In your theme or index.html, before app.js boots:
+window.YM_RELAYS_OVERRIDE = [
+  'wss://my-relay.example.com',
+  'wss://backup-relay.example.com'
+];
+```
+
+To create an isolated private network (your own YourMine instance):
+
+```js
+// Override both relay URLs and appId
+window.YM_APPID_OVERRIDE = 'myapp-v1';   // isolates your network from the public YourMine network
+window.YM_ROOM_OVERRIDE  = 'my-room';    // optional: custom room name
+```
+
+**Run your own Nostr relay:**
+Any Nostr-compatible relay works. Lightweight options:
+- [nostream](https://github.com/Cameri/nostream) — Node.js, PostgreSQL
+- [strfry](https://github.com/hoytech/strfry) — C++, minimal
+- [nostr-rs-relay](https://github.com/scsibug/nostr-rs-relay) — Rust
+
+**Add your relay to the default pool** (contributes to the public YourMine network): open a PR to add your `wss://` URL to `YM_RELAYS` in `app.js`.
 
 ---
 
