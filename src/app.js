@@ -970,7 +970,9 @@
   /* ═══════════════════════════════════════════════════════════
    * P2P (Trystero)
    * ═══════════════════════════════════════════════════════════ */
-  const YM_RELAYS = ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
+  const YM_RELAYS = window.YM_RELAYS_OVERRIDE || ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
+  const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
+  const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
 
   async function initP2P() {
     window.addEventListener('error', e => { if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) e.stopImmediatePropagation(); }, true);
@@ -981,7 +983,7 @@
     for (const cdn of ['https://cdn.jsdelivr.net/npm/trystero@0.21.0/+esm', 'https://esm.run/trystero@0.21.0']) {
       try {
         const { joinRoom } = await import(cdn);
-        const room = joinRoom({ appId: 'yourmine-v1', relayUrls: YM_RELAYS }, 'ym-main');
+        const room = joinRoom({ appId: YM_APPID, relayUrls: YM_RELAYS }, YM_ROOM);
         const [send, recv] = room.makeAction('ym');
         recv((data, pid) => {
           if ((data && data.type === 'social:presence') || cR(pid))
