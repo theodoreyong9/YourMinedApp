@@ -109,7 +109,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.3);letter-spacing:.15em;}
 
 /* Manifesto overlay */
-#manifesto-overlay{
+#pow-overlay,#theory-overlay,#manifesto-overlay{
   position:fixed;inset:0;z-index:1000;
   background:rgba(5,5,7,.96);
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
@@ -254,7 +254,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 </div>
 
 <!-- Proof of Will overlay -->
-<div id="pow-overlay" style="position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease">
+<div id="pow-overlay">
   <button id="pow-close" style="position:fixed;top:20px;right:20px;z-index:1001;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:18px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--font-b)">✕</button>
   <div style="max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px))">
 
@@ -330,7 +330,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 </div>
 
 <!-- Theory overlay -->
-<div id="theory-overlay" style="position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease">
+<div id="theory-overlay">
   <button id="theory-close" style="position:fixed;top:20px;right:20px;z-index:1001;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:18px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:var(--font-b)">✕</button>
   <div style="max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px))">
 
