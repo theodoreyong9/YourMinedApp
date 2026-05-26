@@ -38,50 +38,40 @@ function _updateIcon(){
   const h=d.getHours(),m=d.getMinutes();
   const timeLabel=pad(h)+':'+pad(m);
 
-  // Generate a canvas image with the current time
-  try{
-    const canvas=document.createElement('canvas');
-    canvas.width=60;canvas.height=60;
-    const ctx2=canvas.getContext('2d');
+  // Generate canvas clock icon
+  const canvas=document.createElement('canvas');
+  canvas.width=72;canvas.height=72;
+  const ctx2=canvas.getContext('2d');
 
-    // Background
-    ctx2.fillStyle='rgba(6,6,18,0)';
-    ctx2.clearRect(0,0,60,60);
+  // Circle
+  ctx2.beginPath();ctx2.arc(36,36,33,0,Math.PI*2);
+  ctx2.fillStyle='rgba(240,168,48,.12)';ctx2.fill();
+  ctx2.strokeStyle='rgba(240,168,48,.6)';ctx2.lineWidth=2;ctx2.stroke();
 
-    // Circle background
-    ctx2.beginPath();ctx2.arc(30,30,28,0,Math.PI*2);
-    ctx2.fillStyle='rgba(240,168,48,.15)';ctx2.fill();
-    ctx2.strokeStyle='rgba(240,168,48,.5)';ctx2.lineWidth=1.5;ctx2.stroke();
+  // Hands
+  const hAngle=((h%12)+m/60)*Math.PI/6;
+  const mAngle=(m/60)*Math.PI*2;
+  ctx2.lineCap='round';
+  // Hour
+  ctx2.beginPath();ctx2.moveTo(36,36);
+  ctx2.lineTo(36+Math.sin(hAngle)*15,36-Math.cos(hAngle)*15);
+  ctx2.strokeStyle='#e4e6f4';ctx2.lineWidth=3;ctx2.stroke();
+  // Minute
+  ctx2.beginPath();ctx2.moveTo(36,36);
+  ctx2.lineTo(36+Math.sin(mAngle)*22,36-Math.cos(mAngle)*22);
+  ctx2.strokeStyle='#e4e6f4';ctx2.lineWidth=2;ctx2.stroke();
+  // Center
+  ctx2.beginPath();ctx2.arc(36,36,3,0,Math.PI*2);
+  ctx2.fillStyle='#f0a830';ctx2.fill();
 
-    // Hour and minute hands (mini analog)
-    const hAngle=((h%12)+m/60)*Math.PI/6;
-    const mAngle=(m/60)*Math.PI*2;
+  // Time text
+  ctx2.font='bold 11px monospace';
+  ctx2.fillStyle='rgba(240,168,48,.9)';
+  ctx2.textAlign='center';ctx2.textBaseline='middle';
+  ctx2.fillText(timeLabel,36,62);
 
-    // Hour hand
-    ctx2.beginPath();ctx2.moveTo(30,30);
-    ctx2.lineTo(30+Math.sin(hAngle)*13,30-Math.cos(hAngle)*13);
-    ctx2.strokeStyle='#e4e6f4';ctx2.lineWidth=2.5;ctx2.lineCap='round';ctx2.stroke();
-    // Minute hand
-    ctx2.beginPath();ctx2.moveTo(30,30);
-    ctx2.lineTo(30+Math.sin(mAngle)*19,30-Math.cos(mAngle)*19);
-    ctx2.strokeStyle='#e4e6f4';ctx2.lineWidth=1.5;ctx2.lineCap='round';ctx2.stroke();
-    // Center dot
-    ctx2.beginPath();ctx2.arc(30,30,2.5,0,Math.PI*2);
-    ctx2.fillStyle='#f0a830';ctx2.fill();
-
-    // Time text below
-    ctx2.font='bold 10px monospace';
-    ctx2.fillStyle='rgba(228,230,244,.8)';
-    ctx2.textAlign='center';ctx2.textBaseline='bottom';
-    ctx2.fillText(timeLabel,30,58);
-
-    const url=canvas.toDataURL('image/png');
-    _ctx.setIcon(url);
-  }catch{
-    // Fallback to emoji
-    const clockEmojis=['🕛','🕐','🕑','🕒','🕓','🕔','🕕','🕖','🕗','🕘','🕙','🕚'];
-    _ctx.setIcon(clockEmojis[h%12]);
-  }
+  const url=canvas.toDataURL();
+  if(url&&url.length>100)_ctx.setIcon(url);
 }
 
 // ── Alarms ────────────────────────────────────────────────────
