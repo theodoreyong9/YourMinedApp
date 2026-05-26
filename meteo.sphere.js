@@ -13,6 +13,25 @@ let _location = null;
 let _unit = 'celsius'; // celsius | fahrenheit
 let _widget = null;
 let _widgetEnabled = localStorage.getItem('meteo_widget') !== 'false';
+const WIDGET_ID = 'meteo';
+const POS_KEY = 'ym_meteo_widget_pos';
+function _loadPos(){try{return JSON.parse(localStorage.getItem(POS_KEY)||'{}');}catch{return{};}}
+function _savePos(p){localStorage.setItem(POS_KEY,JSON.stringify(p));}
+function _registerPage(page){if(window.YM_Desk&&window.YM_Desk.registerWidgetPage)window.YM_Desk.registerWidgetPage(WIDGET_ID,page);}
+function _unregisterPage(){if(window.YM_Desk&&window.YM_Desk.unregisterWidget)window.YM_Desk.unregisterWidget(WIDGET_ID);}
+const _onPageChange=()=>_syncWidgetPage();
+function _syncWidgetPage(){
+  if(!_widget||!document.body.contains(_widget))return;
+  if(window.YM_Desk&&window.YM_Desk.registeredWidgetPage){
+    const rp=window.YM_Desk.registeredWidgetPage(WIDGET_ID);
+    if(rp!==null&&rp!==undefined){
+      const cur=window._deskCurPage||0;
+      _widget.style.display=rp===cur?'flex':'none';
+      return;
+    }
+  }
+  _widget.style.display='flex';
+}
 
 // ── API ──────────────────────────────────────────────────────
 async function getLocation(){
@@ -234,49 +253,93 @@ function renderPanel(container){
 }
 
 // ── Widget ──────────────────────────────────────────────────
+function _refreshWidget(){
+  if(!_widget)return;
+  if(!_weather||!_location){_widget.style.display='none';return;}
+  const c=_weather.current;
+  _widget.innerHTML=
+    '<div style="font-size:26px;flex-shrink:0">'+weatherCode(c.weather_code)+'</div>'+
+    '<div>'+
+      '<div style="font-size:14px;font-weight:600;color:#e4e6f4;font-family:var(--font-m,monospace)">'+tempStr(c.temperature_2m)+'</div>'+
+      '<div style="font-size:9px;color:rgba(228,230,244,.4);margin-top:1px">'+_location.name.split(',')[0]+'</div>'+
+    '</div>';
+}
+
 function _buildWidget(){
-  if(_widget&&document.body.contains(_widget))return;
-  if(!_widgetEnabled)return;
+  if(!_widgetEnabled){_destroyWidget();return;}
+  if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
   if(!_weather||!_location)return;
+  _widget=null;
+
+  const spawnPage=window._deskCurPage||0;
+  const pos=_loadPos();
+  const savedPage=pos.page||0;
+  const targetPage=localStorage.getItem(POS_KEY)?savedPage:spawnPage;
 
   _widget=document.createElement('div');
   _widget.id='ym-meteo-widget';
-  const cur=_weather.current;
   _widget.style.cssText=
-    'position:fixed;bottom:96px;left:12px;z-index:290;'+
-    'background:rgba(6,6,18,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'+
-    'border:1px solid rgba(255,255,255,.1);border-radius:14px;'+
-    'padding:10px 14px;cursor:move;user-select:none;'+
+    'position:fixed;z-index:250;'+
+    'background:rgba(6,6,18,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);'+
+    'border:1px solid rgba(255,255,255,.12);border-radius:14px;'+
+    'padding:10px 14px;touch-action:none;user-select:none;-webkit-user-select:none;'+
     'display:flex;align-items:center;gap:10px;min-width:140px;'+
-    'box-shadow:0 4px 20px rgba(0,0,0,.4)';
+    'box-shadow:0 4px 24px rgba(0,0,0,.5);'+
+    'right:'+(pos.right||12)+'px;bottom:'+(pos.bottom||96)+'px';
 
-  function refresh(){
-    if(!_weather)return;
-    const c=_weather.current;
-    _widget.innerHTML=
-      '<div style="font-size:28px;flex-shrink:0">'+weatherCode(c.weather_code)+'</div>'+
-      '<div>'+
-        '<div style="font-size:15px;font-weight:600;color:#e4e6f4;font-family:var(--font-m,monospace)">'+tempStr(c.temperature_2m)+'</div>'+
-        '<div style="font-size:9px;color:rgba(228,230,244,.4);margin-top:1px">'+(_location?_location.name.split(',')[0]:'')+'</div>'+
-      '</div>';
-  }
-  refresh();
+  _refreshWidget();
   document.body.appendChild(_widget);
 
-  // Drag (mouse + touch)
-  let ox=0,oy=0,dragging=false;
-  function startDrag(cx,cy){dragging=true;const r=_widget.getBoundingClientRect();ox=cx-r.left;oy=cy-r.top;}
-  function moveDrag(cx,cy){if(!dragging)return;const x=Math.max(0,Math.min(window.innerWidth-_widget.offsetWidth,cx-ox));const y=Math.max(0,Math.min(window.innerHeight-_widget.offsetHeight,cy-oy));_widget.style.left=x+'px';_widget.style.top=y+'px';_widget.style.bottom='';_widget.style.right='';}
-  function endDrag(){dragging=false;}
-  _widget.addEventListener('mousedown',e=>{if(e.button!==0)return;startDrag(e.clientX,e.clientY);document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);});
-  function onMove(e){moveDrag(e.clientX,e.clientY);}
-  function onUp(){endDrag();document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);}
-  _widget.addEventListener('touchstart',e=>{const t=e.touches[0];startDrag(t.clientX,t.clientY);},{passive:true});
-  _widget.addEventListener('touchmove',e=>{e.preventDefault();const t=e.touches[0];moveDrag(t.clientX,t.clientY);},{passive:false});
-  _widget.addEventListener('touchend',endDrag);
+  _registerPage(targetPage);
+  _syncWidgetPage();
+
+  if(!localStorage.getItem(POS_KEY)){
+    const navH=window.YM_Desk&&window.YM_Desk.safeBottom||90;
+    _savePos({right:12,bottom:navH+14,page:targetPage});
+  }
+
+  window.addEventListener('ym:page-change',_onPageChange);
+
+  // Drag
+  let dragging=false,ox=0,oy=0;
+  const onMove=(cx,cy)=>{
+    if(!dragging||!_widget)return;
+    const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
+    const x=Math.max(0,Math.min(window.innerWidth-ww,cx-ox));
+    const y=Math.max(0,Math.min(window.innerHeight-wh,cy-oy));
+    _widget.style.left=x+'px';_widget.style.top=y+'px';
+    _widget.style.right='';_widget.style.bottom='';
+  };
+  const onEnd=()=>{
+    if(!dragging)return;
+    dragging=false;
+    document.removeEventListener('mousemove',onMouseMove);
+    document.removeEventListener('mouseup',onEnd);
+    document.removeEventListener('touchmove',onTouchMove);
+    document.removeEventListener('touchend',onEnd);
+    if(_widget){
+      const r=_widget.getBoundingClientRect();
+      const page=window._deskCurPage||0;
+      _savePos({left:r.left,top:r.top,right:window.innerWidth-r.right,bottom:window.innerHeight-r.bottom,page});
+      _registerPage(page);
+    }
+  };
+  const onMouseMove=e=>onMove(e.clientX,e.clientY);
+  const onTouchMove=e=>{e.preventDefault();onMove(e.touches[0].clientX,e.touches[0].clientY);};
+  _widget.addEventListener('mousedown',e=>{
+    if(e.button!==0)return;
+    dragging=true;const r=_widget.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;
+    document.addEventListener('mousemove',onMouseMove);document.addEventListener('mouseup',onEnd);
+  });
+  _widget.addEventListener('touchstart',e=>{
+    dragging=true;const t=e.touches[0];const r=_widget.getBoundingClientRect();ox=t.clientX-r.left;oy=t.clientY-r.top;
+    document.addEventListener('touchmove',onTouchMove,{passive:false});document.addEventListener('touchend',onEnd);
+  },{passive:true});
 }
 
 function _destroyWidget(){
+  window.removeEventListener('ym:page-change',_onPageChange);
+  _unregisterPage();
   if(_widget&&document.body.contains(_widget))document.body.removeChild(_widget);
   _widget=null;
 }
