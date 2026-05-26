@@ -156,12 +156,16 @@ function setIcon(id,icon){
 
 // ── WIDGET PAGE REGISTRY ──────────────────────────────────────
 const _widgetPages=new Map();
+const WIDGET_PAGES_KEY='ym_widget_pages';
+function _saveWidgetPages(){try{localStorage.setItem(WIDGET_PAGES_KEY,JSON.stringify([..._widgetPages]));}catch{}}
+function _loadWidgetPages(){try{const d=JSON.parse(localStorage.getItem(WIDGET_PAGES_KEY)||'[]');d.forEach(([k,v])=>_widgetPages.set(k,v));}catch{}}
 
 function registerWidgetPage(widgetId,page){
   _widgetPages.set(widgetId,page);
+  _saveWidgetPages();
   if(page>=getPgCount()){setPgCount(page+1);buildSlider();goPage(curPg,false);}
 }
-function unregisterWidget(widgetId){_widgetPages.delete(widgetId);}
+function unregisterWidget(widgetId){_widgetPages.delete(widgetId);_saveWidgetPages();}
 function isPageOccupiedByWidget(page){for(const p of _widgetPages.values()){if(p===page)return true;}return false;}
 
 // ── NEW: expose widget page lookup ────────────────────────────
@@ -722,6 +726,7 @@ document.getElementById('bg-dlg').addEventListener('click',e=>{if(e.target===doc
 
 function deskInit(){
   applyWP();
+  _loadWidgetPages();
   const icons=LD();
   // Use saved pageCount — autoCleanPages already cleaned empty pages before save
   // Ensure pageCount covers all icon pages
