@@ -158,8 +158,15 @@ function setIcon(id,icon){
 const _widgetPages=new Map(); // widgetId -> page
 const _widgetPosKeys=new Map(); // widgetId -> localStorage key for position
 const WIDGET_PAGES_KEY='ym_widget_pages';
-function _saveWidgetPages(){try{localStorage.setItem(WIDGET_PAGES_KEY,JSON.stringify([..._widgetPages]));}catch{}}
-function _loadWidgetPages(){try{const d=JSON.parse(localStorage.getItem(WIDGET_PAGES_KEY)||'[]');d.forEach(([k,v])=>_widgetPages.set(k,v));}catch{}}
+const WIDGET_POSKEYS_KEY='ym_widget_poskeys';
+function _saveWidgetPages(){
+  try{localStorage.setItem(WIDGET_PAGES_KEY,JSON.stringify([..._widgetPages]));}catch{}
+  try{localStorage.setItem(WIDGET_POSKEYS_KEY,JSON.stringify([..._widgetPosKeys]));}catch{}
+}
+function _loadWidgetPages(){
+  try{const d=JSON.parse(localStorage.getItem(WIDGET_PAGES_KEY)||'[]');d.forEach(([k,v])=>_widgetPages.set(k,v));}catch{}
+  try{const d=JSON.parse(localStorage.getItem(WIDGET_POSKEYS_KEY)||'[]');d.forEach(([k,v])=>_widgetPosKeys.set(k,v));}catch{}
+}
 
 function registerWidgetPage(widgetId,page,posKey){
   _widgetPages.set(widgetId,page);
