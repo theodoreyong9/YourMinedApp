@@ -849,7 +849,7 @@ function renderPublishTab(body,container){
       updateBanner.style.cssText='background:rgba(34,217,138,.04);border:1px solid rgba(34,217,138,.15);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:8px';
       updateBanner.innerHTML=
         '<span style="font-size:16px">📄</span>'+
-        '<div style="flex:1">CV already published. Update doesn't require wallet.<br><span style="font-size:10px;color:var(--text3)">'+esc(myCV.split('/').pop())+'</span></div>';
+        '<div style="flex:1">CV already published. Update does not require wallet.<br><span style="font-size:10px;color:var(--text3)">'+esc(myCV.split('/').pop())+'</span></div>';
       container.appendChild(updateBanner);
     }
 
@@ -866,8 +866,7 @@ function renderPublishTab(body,container){
     });
 
     [{id:'cv-pub-summary',rows:3,placeholder:'Short professional summary…'},
-     {id:'cv-pub-exp',rows:5,placeholder:'Experience (one per line):
-Senior Dev @ Acme · 2021-2024 · Led team of 5…'}
+     {id:'cv-pub-exp',rows:5,placeholder:'Experience (one per line): Senior Dev @ Acme · 2021-2024 · Led team of 5…'}
     ].forEach(f=>{
       const ta=document.createElement('textarea');
       ta.id=f.id;ta.className='ym-input';ta.rows=f.rows;ta.placeholder=f.placeholder;
