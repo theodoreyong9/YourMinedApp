@@ -128,7 +128,7 @@ let _panelRefresh=null;
 function _refreshPanel(){if(_panelRefresh)_panelRefresh();}
 
 function _registerPage(page){
-  if(window.YM_Desk&&window.YM_Desk.registerWidgetPage)window.YM_Desk.registerWidgetPage(WIDGET_ID,page);
+  if(window.YM_Desk&&window.YM_Desk.registerWidgetPage)window.YM_Desk.registerWidgetPage(WIDGET_ID,page,POS_KEY);
 }
 function _unregisterPage(){
   if(window.YM_Desk&&window.YM_Desk.unregisterWidget)window.YM_Desk.unregisterWidget(WIDGET_ID);
@@ -144,6 +144,7 @@ function createWidget(){
   const savedPage=pos.page||0;
   // Use savedPage if POS_KEY exists, otherwise spawn on current page
   // Do NOT clamp to pageCount — registerWidgetPage will create the page if needed
+  // If desk already knows our page (from _widgetPages persistence), trust it
   const targetPage=localStorage.getItem(POS_KEY)?savedPage:spawnPage;
 
   _widget=document.createElement('div');
