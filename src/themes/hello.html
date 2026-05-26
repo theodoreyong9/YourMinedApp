@@ -603,25 +603,26 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var s1=document.getElementById('lp-start-btn');if(s1)s1.addEventListener('click',goDefault);
   var s2=document.getElementById('lp-start-btn-2');if(s2)s2.addEventListener('click',goDefault);
 
-  // Proof of Will
-  var powOverlay=document.getElementById('pow-overlay');
-  var powClose=document.getElementById('pow-close');
-  function openPOW(){if(powOverlay)powOverlay.classList.add('open');}
-  function closePOW(){if(powOverlay)powOverlay.classList.remove('open');}
-  var pb1=document.getElementById('lp-pow-btn');if(pb1)pb1.addEventListener('click',openPOW);
-  var pb2=document.getElementById('lp-pow-btn-2');if(pb2)pb2.addEventListener('click',openPOW);
-  if(powClose)powClose.addEventListener('click',closePOW);
-  if(powOverlay)powOverlay.addEventListener('click',function(e){if(e.target===powOverlay)closePOW();});
+  // Proof of Will + Theory — delayed to ensure DOM is ready after innerHTML injection
+  setTimeout(function(){
+    var powOverlay=document.getElementById('pow-overlay');
+    var powClose=document.getElementById('pow-close');
+    function openPOW(){if(powOverlay)powOverlay.classList.add('open');}
+    function closePOW(){if(powOverlay)powOverlay.classList.remove('open');}
+    var pb1=document.getElementById('lp-pow-btn');if(pb1)pb1.addEventListener('click',openPOW);
+    var pb2=document.getElementById('lp-pow-btn-2');if(pb2)pb2.addEventListener('click',openPOW);
+    if(powClose)powClose.addEventListener('click',closePOW);
+    if(powOverlay)powOverlay.addEventListener('click',function(e){if(e.target===powOverlay)closePOW();});
 
-  // Theory
-  var theoryOverlay=document.getElementById('theory-overlay');
-  var theoryClose=document.getElementById('theory-close');
-  function openTheory(){if(theoryOverlay)theoryOverlay.classList.add('open');}
-  function closeTheory(){if(theoryOverlay)theoryOverlay.classList.remove('open');}
-  var tb1=document.getElementById('lp-theory-btn');if(tb1)tb1.addEventListener('click',openTheory);
-  var tb2=document.getElementById('lp-theory-btn-2');if(tb2)tb2.addEventListener('click',openTheory);
-  if(theoryClose)theoryClose.addEventListener('click',closeTheory);
-  if(theoryOverlay)theoryOverlay.addEventListener('click',function(e){if(e.target===theoryOverlay)closeTheory();});
+    var theoryOverlay=document.getElementById('theory-overlay');
+    var theoryClose=document.getElementById('theory-close');
+    function openTheory(){if(theoryOverlay)theoryOverlay.classList.add('open');}
+    function closeTheory(){if(theoryOverlay)theoryOverlay.classList.remove('open');}
+    var tb1=document.getElementById('lp-theory-btn');if(tb1)tb1.addEventListener('click',openTheory);
+    var tb2=document.getElementById('lp-theory-btn-2');if(tb2)tb2.addEventListener('click',openTheory);
+    if(theoryClose)theoryClose.addEventListener('click',closeTheory);
+    if(theoryOverlay)theoryOverlay.addEventListener('click',function(e){if(e.target===theoryOverlay)closeTheory();});
+  },0);
 
   // Manifesto
   var overlay=document.getElementById('manifesto-overlay');
