@@ -1221,12 +1221,15 @@
 
     const p = LP();
     if (p && p.spheres && p.spheres.length) {
-      for (const sname of p.spheres) {
-        if (!window.YM_sphereRegistry || !window.YM_sphereRegistry.has(sname)) {
-          try { if (window.YM_Liste) await window.YM_Liste.activateSphereByName(sname); }
-          catch (e) { console.warn('[YM] restore:', sname, e.message); }
-        }
-      }
+      // Activate spheres in parallel — much faster with 20+ spheres
+      await Promise.allSettled(
+        p.spheres
+          .filter(sname => !window.YM_sphereRegistry || !window.YM_sphereRegistry.has(sname))
+          .map(sname => window.YM_Liste
+            ? window.YM_Liste.activateSphereByName(sname).catch(e => console.warn('[YM] restore:', sname, e.message))
+            : Promise.resolve()
+          )
+      );
     }
 
     const _socId = 'social.sphere.js';
