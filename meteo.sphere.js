@@ -300,7 +300,7 @@ function _buildWidget(){
 
   window.addEventListener('ym:page-change',_onPageChange);
 
-  // Drag with edge-scroll page change (same as radio widget)
+  // Drag — Pointer Events API like radio widget (prevents disappearing)
   let dragging=false,ox=0,oy=0,wx=0,wy=0,_edgeT=null;
   const _isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
 
@@ -314,72 +314,54 @@ function _buildWidget(){
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
 
-    // Edge scroll — use finger position like radio widget
+    // Edge scroll
     const vw=_isPC()?window.innerWidth-72:window.innerWidth;
     const ew=vw*0.15;
     const curPage=window._deskCurPage||0;
     if(cx<ew&&curPage>0){
       if(!_edgeT)_edgeT=setTimeout(()=>{
-        _edgeT=null;
-        const tp=curPage-1;
+        _edgeT=null;const tp=curPage-1;
         if(window.YM_Desk)window.YM_Desk.goPage(tp);
-        _registerPage(tp);
-        const p=_loadPos();_savePos(Object.assign({},p,{page:tp}));
+        _registerPage(tp);_savePos(Object.assign({},_loadPos(),{page:tp}));
       },500);
     }else if(cx>vw-ew){
       if(!_edgeT)_edgeT=setTimeout(()=>{
-        _edgeT=null;
-        const tp=(window._deskCurPage||0)+1;
+        _edgeT=null;const tp=(window._deskCurPage||0)+1;
         if(window.YM_Desk)window.YM_Desk.goPageOrCreate(tp);
-        _registerPage(tp);
-        const p=_loadPos();_savePos(Object.assign({},p,{page:tp}));
+        _registerPage(tp);_savePos(Object.assign({},_loadPos(),{page:tp}));
       },500);
     }else{clearTimeout(_edgeT);_edgeT=null;}
   };
 
   const onEnd=()=>{
     if(!dragging)return;
-    dragging=false;
+    dragging=false;_widget._dragging=false;
     clearTimeout(_edgeT);_edgeT=null;
-    document.removeEventListener('mousemove',onMouseMove);
-    document.removeEventListener('mouseup',onEnd);
-    document.removeEventListener('touchmove',onTouchMove);
-    document.removeEventListener('touchend',onEnd);
-    if(_widget){
-      const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
-      const r=Math.max(0,window.innerWidth-wx-ww);
-      const b=Math.max(0,window.innerHeight-wy-wh);
-      const page=window._deskCurPage||0;
-      _registerPage(page);
-      _savePos({right:r,bottom:b,page});
-      _syncWidgetPage();
-      setTimeout(()=>{if(window.YM_Desk)window.YM_Desk.autoCleanPages();},100);
-    }
+    const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
+    const r=Math.max(0,window.innerWidth-wx-ww);
+    const b=Math.max(0,window.innerHeight-wy-wh);
+    const page=window._deskCurPage||0;
+    _registerPage(page);
+    _savePos({right:r,bottom:b,page});
+    _syncWidgetPage();
+    setTimeout(()=>{if(window.YM_Desk)window.YM_Desk.autoCleanPages();},100);
   };
 
-  const onMouseMove=e=>onMove(e.clientX,e.clientY);
-  const onTouchMove=e=>{e.preventDefault();onMove(e.touches[0].clientX,e.touches[0].clientY);};
-
-  function _startDrag(cx,cy){
-    dragging=true;
+  // Pointer Events API — captures pointer so widget never loses contact
+  _widget.addEventListener('pointerdown',e=>{
+    if(e.target.closest('button'))return;
+    dragging=true;_widget._dragging=true;
     const r=_widget.getBoundingClientRect();
-    ox=cx;oy=cy;wx=r.left;wy=r.top;
-    // Convert to left/top immediately to avoid jump
+    wx=r.left;wy=r.top;
     _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
-  }
-  _widget.addEventListener('mousedown',e=>{
-    if(e.button!==0)return;
-    _startDrag(e.clientX,e.clientY);
-    document.addEventListener('mousemove',onMouseMove);
-    document.addEventListener('mouseup',onEnd);
-  });
-  _widget.addEventListener('touchstart',e=>{
-    const t=e.touches[0];
-    _startDrag(t.clientX,t.clientY);
-    document.addEventListener('touchmove',onTouchMove,{passive:false});
-    document.addEventListener('touchend',onEnd);
-  },{passive:true});
+    ox=e.clientX;oy=e.clientY;
+    e.preventDefault();
+    _widget.setPointerCapture(e.pointerId);
+  },{passive:false});
+  _widget.addEventListener('pointermove',e=>{if(dragging)onMove(e.clientX,e.clientY);},{passive:false});
+  _widget.addEventListener('pointerup',onEnd);
+  _widget.addEventListener('pointercancel',onEnd);
 }
 
 function _destroyWidget(){
