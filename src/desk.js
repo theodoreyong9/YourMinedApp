@@ -155,13 +155,15 @@ function setIcon(id,icon){
 }
 
 // ── WIDGET PAGE REGISTRY ──────────────────────────────────────
-const _widgetPages=new Map();
+const _widgetPages=new Map(); // widgetId -> page
+const _widgetPosKeys=new Map(); // widgetId -> localStorage key for position
 const WIDGET_PAGES_KEY='ym_widget_pages';
 function _saveWidgetPages(){try{localStorage.setItem(WIDGET_PAGES_KEY,JSON.stringify([..._widgetPages]));}catch{}}
 function _loadWidgetPages(){try{const d=JSON.parse(localStorage.getItem(WIDGET_PAGES_KEY)||'[]');d.forEach(([k,v])=>_widgetPages.set(k,v));}catch{}}
 
-function registerWidgetPage(widgetId,page){
+function registerWidgetPage(widgetId,page,posKey){
   _widgetPages.set(widgetId,page);
+  if(posKey)_widgetPosKeys.set(widgetId,posKey);
   _saveWidgetPages();
   if(page>=getPgCount()){setPgCount(page+1);buildSlider();goPage(curPg,false);}
 }
@@ -213,10 +215,10 @@ function autoCleanPages(){
   icons.forEach(i=>{if(remap.has(i.page))i.page=remap.get(i.page);});SD(icons);
   for(const[id,p] of _widgetPages){if(remap.has(p))_widgetPages.set(id,remap.get(p));}
   _saveWidgetPages();
-  // Also update each widget's own POS_KEY in localStorage
-  // Widget POS keys follow convention 'ym_WIDGETID_widget_pos'
-  for(const[id,newP] of _widgetPages){
-    const posKey='ym_'+id+'_widget_pos';
+  // Update each widget's own position storage
+  for(const[id] of _widgetPages){
+    const posKey=_widgetPosKeys.get(id);
+    if(!posKey)continue;
     try{
       const pos=JSON.parse(localStorage.getItem(posKey)||'{}');
       if(pos&&typeof pos.page==='number'&&remap.has(pos.page)){
