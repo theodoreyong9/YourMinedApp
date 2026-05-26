@@ -864,15 +864,29 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       await deactivateSphere(sphere);
-      const _lbOff=document.getElementById('list-content');
-      if(_lbOff)renderList(_lbOff);
+      // Just re-render the bar on this card — no full list re-render
+      if(document.body.contains(card)){
+        const newBar=_buildSphereActionBar(sphere,false,card);
+        const oldBar=card.querySelector('[data-bar-el]');
+        if(oldBar)oldBar.replaceWith(newBar);
+        const pill=card.querySelector('.pill.active');if(pill)pill.remove();
+      }
     }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       card.style.opacity='.6';
       await activateSphere(sphere);
       card.style.opacity='1';
-      const _lbOn=document.getElementById('list-content');
-      if(_lbOn)renderList(_lbOn);
+      // Just re-render the bar on this card — no full list re-render
+      if(document.body.contains(card)){
+        const newBar=_buildSphereActionBar(sphere,true,card);
+        const oldBar=card.querySelector('[data-bar-el]');
+        if(oldBar)oldBar.replaceWith(newBar);
+        const nameLine=card.querySelector('[data-name-line]');
+        if(nameLine&&!nameLine.querySelector('.pill.active')){
+          const p=document.createElement('span');p.className='pill active';p.textContent='active';
+          nameLine.appendChild(p);
+        }
+      }
     }}] : []),
   ]);
   bar.dataset.barEl='1';
