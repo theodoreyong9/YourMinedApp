@@ -767,7 +767,6 @@ function renderPublishTab(body,container){
   wrap.style.cssText='padding:14px;display:flex;flex-direction:column;gap:10px';
   body.appendChild(wrap);
 
-  // Type selector: CV or Job
   let _pubType='cv';
   const typeRow=document.createElement('div');
   typeRow.style.cssText='display:flex;gap:4px;border:1px solid rgba(255,255,255,.1);border-radius:8px;overflow:hidden;flex-shrink:0;align-self:flex-start';
@@ -780,20 +779,18 @@ function renderPublishTab(body,container){
   typeRow.appendChild(btnCV);typeRow.appendChild(btnJob);
   wrap.appendChild(typeRow);
 
-  // Step: GitHub token
+  // GitHub step
   const ghStep=_careerStep('GitHub',window._career_token?'✓ @'+window._career_token.username:null);
   wrap.appendChild(ghStep.el);
   if(window._career_token){
     ghStep.body.innerHTML=
       '<div class="ym-notice success" style="font-size:11px;margin-bottom:6px">@<b>'+esc(window._career_token.username)+'</b></div>'+
       '<button id="career-disc" class="ym-btn ym-btn-ghost" style="font-size:11px;width:100%">Disconnect</button>';
-    ghStep.body.querySelector('#career-disc').addEventListener('click',()=>{
-      window._career_token=null;renderPublishTab(body,container);
-    });
+    ghStep.body.querySelector('#career-disc').addEventListener('click',()=>{window._career_token=null;renderPublishTab(body,container);});
   }else{
     ghStep.body.innerHTML=
       '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
-        '<input id="career-tok" class="ym-input" type="password" placeholder="ghp_… (scope: repo)" style="flex:1;font-size:11px">'+
+        '<input id="career-tok" class="ym-input" type="password" placeholder="ghp_... (scope: repo)" style="flex:1;font-size:11px">'+
         '<button id="career-tok-ok" class="ym-btn ym-btn-accent" style="padding:8px 14px">→</button>'+
       '</div>'+
       '<a href="https://github.com/settings/tokens/new?scopes=repo" target="_blank" rel="noopener" style="font-size:10px;color:var(--cyan,#08e0f8)">↗ Create token</a>';
@@ -811,218 +808,173 @@ function renderPublishTab(body,container){
     ghStep.body.querySelector('#career-tok').addEventListener('keydown',e=>{if(e.key==='Enter')ghStep.body.querySelector('#career-tok-ok').click();});
   }
 
-  // Step: Wallet (only for new publish, not update)
+  // Wallet step
   const pk=pubkey();
-  const walletStep=_careerStep('Wallet',pk?'✓ '+pk.slice(0,8)+'…':null);
+  const walletStep=_careerStep('Wallet',pk?'✓ '+pk.slice(0,8)+'...':null);
   wrap.appendChild(walletStep.el);
   if(pk){
-    walletStep.body.innerHTML='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pk.slice(0,12)+'…'+pk.slice(-8))+'</div>';
-    walletStep.el.querySelector('.career-step-label').innerHTML+=' <span style="font-size:9px;color:var(--text3)">(required for new publish)</span>';
+    walletStep.body.innerHTML='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pk.slice(0,12)+'...'+pk.slice(-8))+'</div>';
   }else{
-    walletStep.body.innerHTML=
-      '<div class="ym-notice warn" style="font-size:11px">Connect your Solana wallet in the Wallet tab to publish.<br><span style="color:var(--text3)">Not needed for updates.</span></div>';
+    walletStep.body.innerHTML='<div class="ym-notice warn" style="font-size:11px">Connect wallet in Wallet tab.<br><span style="color:var(--text3);font-size:10px">Required for first publish only.</span></div>';
   }
 
-  // Form container
-  const formWrap=document.createElement('div');
-  formWrap.style.cssText='display:flex;flex-direction:column;gap:10px';
-  wrap.appendChild(formWrap);
+  // File step
+  const fileStep=_careerStep('File','');
+  wrap.appendChild(fileStep.el);
 
   function switchType(t){
     _pubType=t;
     btnCV.style.cssText=t==='cv'?'background:rgba(240,168,48,.1);border:none;color:var(--gold,#f0a830);font-size:10px;padding:5px 14px;cursor:pointer':'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 14px;cursor:pointer';
     btnJob.style.cssText=t==='job'?'background:rgba(8,224,248,.1);border:none;color:var(--cyan,#08e0f8);font-size:10px;padding:5px 14px;cursor:pointer':'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 14px;cursor:pointer';
-    formWrap.innerHTML='';
-    if(t==='cv')_renderCVForm(formWrap);
-    else _renderJobForm(formWrap);
+    renderFileStep(fileStep.body,t);
   }
-
   btnCV.addEventListener('click',()=>switchType('cv'));
   btnJob.addEventListener('click',()=>switchType('job'));
-  switchType('cv');
+  renderFileStep(fileStep.body,'cv');
+}
 
-  function _renderCVForm(container){
-    // Check if already published (update mode)
-    const myCV=localStorage.getItem('career_my_cv_url');
-    if(myCV){
-      const updateBanner=document.createElement('div');
-      updateBanner.style.cssText='background:rgba(34,217,138,.04);border:1px solid rgba(34,217,138,.15);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:8px';
-      updateBanner.innerHTML=
-        '<span style="font-size:16px">📄</span>'+
-        '<div style="flex:1">CV already published. Update does not require wallet.<br><span style="font-size:10px;color:var(--text3)">'+esc(myCV.split('/').pop())+'</span></div>';
-      container.appendChild(updateBanner);
-    }
+function renderFileStep(container,type){
+  container.innerHTML='';
+  const isCv=type==='cv';
+  const ext=isCv?'.cv.js':'.job.js';
 
-    const fields=[
-      {id:'cv-pub-name',placeholder:'Full name *'},
-      {id:'cv-pub-title',placeholder:'Job title *'},
-      {id:'cv-pub-location',placeholder:'Location (optional)'},
-      {id:'cv-pub-email',placeholder:'Email (optional)'},
-    ];
-    fields.forEach(f=>{
-      const inp=document.createElement('input');
-      inp.id=f.id;inp.className='ym-input';inp.placeholder=f.placeholder;inp.style.cssText='font-size:12px';
-      container.appendChild(inp);
-    });
+  // URL option
+  const urlLabel=document.createElement('div');
+  urlLabel.style.cssText='font-size:9px;color:var(--text3);font-family:var(--font-m,monospace);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px';
+  urlLabel.textContent='Option 1 — URL of your '+ext;
+  container.appendChild(urlLabel);
 
-    [{id:'cv-pub-summary',rows:3,placeholder:'Short professional summary…'},
-     {id:'cv-pub-exp',rows:5,placeholder:'Experience (one per line): Senior Dev @ Acme · 2021-2024 · Led team of 5…'}
-    ].forEach(f=>{
-      const ta=document.createElement('textarea');
-      ta.id=f.id;ta.className='ym-input';ta.rows=f.rows;ta.placeholder=f.placeholder;
-      ta.style.cssText='font-size:11px;font-family:var(--font-m,monospace);resize:vertical;line-height:1.6';
-      container.appendChild(ta);
-    });
+  const urlRow=document.createElement('div');
+  urlRow.style.cssText='display:flex;gap:6px;margin-bottom:14px';
+  const urlInput=document.createElement('input');
+  urlInput.className='ym-input';
+  urlInput.placeholder='https://raw.githubusercontent.com/you/YourMinedApp/main/src/'+(isCv?'cv/you.cv.js':'jobs/you-title.job.js');
+  urlInput.style.cssText='flex:1;font-size:10px;font-family:var(--font-m,monospace)';
+  const urlBtn=document.createElement('button');
+  urlBtn.className='ym-btn ym-btn-accent';urlBtn.textContent='Publish';urlBtn.style.cssText='font-size:11px;flex-shrink:0';
+  urlRow.appendChild(urlInput);urlRow.appendChild(urlBtn);
+  container.appendChild(urlRow);
 
-    const skillsInp=document.createElement('input');
-    skillsInp.id='cv-pub-skills';skillsInp.className='ym-input';
-    skillsInp.placeholder='Skills: React, Python, Design…';skillsInp.style.cssText='font-size:12px';
-    container.appendChild(skillsInp);
+  // OR separator
+  const sep=document.createElement('div');
+  sep.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:14px';
+  sep.innerHTML='<div style="flex:1;height:1px;background:rgba(255,255,255,.06)"></div><div style="font-size:9px;color:var(--text3);font-family:var(--font-m,monospace)">OR</div><div style="flex:1;height:1px;background:rgba(255,255,255,.06)"></div>';
+  container.appendChild(sep);
 
-    const status=document.createElement('div');status.style.cssText='font-size:10px;min-height:14px';
-    container.appendChild(status);
+  // Code option
+  const codeLabel=document.createElement('div');
+  codeLabel.style.cssText='font-size:9px;color:var(--text3);font-family:var(--font-m,monospace);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px';
+  codeLabel.textContent='Option 2 — Paste your '+ext+' code';
+  container.appendChild(codeLabel);
 
-    const btn=document.createElement('button');
-    btn.className='ym-btn ym-btn-accent';btn.style.cssText='width:100%;font-size:13px;padding:12px';
-    btn.textContent=myCV?'💾 Update CV (GitHub only)':'🚀 Publish CV (wallet + GitHub)';
-    btn.addEventListener('click',async()=>{
-      if(!window._career_token){toast('Connect GitHub first','warn');return;}
-      const name=document.getElementById('cv-pub-name')?.value.trim();
-      const title=document.getElementById('cv-pub-title')?.value.trim();
-      if(!name||!title){toast('Name and title required','warn');return;}
-      if(!myCV&&!pk){toast('Connect wallet to publish for the first time','warn');return;}
+  const codeArea=document.createElement('textarea');
+  codeArea.className='ym-input';codeArea.rows=8;
+  codeArea.placeholder='(function(){\n  window.YM_'+(isCv?'CV_DATA':'JOB_DATA')+' = { name: "..." };\n  window.YM_render'+(isCv?'CV':'Job')+'=function(container){ /* render your '+(isCv?'CV':'job offer')+'here */ };\n})();';
+  codeArea.style.cssText='font-size:10px;font-family:var(--font-m,monospace);resize:vertical;min-height:160px;line-height:1.5';
+  container.appendChild(codeArea);
 
-      btn.disabled=true;btn.textContent='⏳…';
-      status.innerHTML='<span style="color:var(--text3)">Publishing…</span>';
+  const status=document.createElement('div');
+  status.style.cssText='font-size:10px;min-height:14px;margin-top:6px';
+  container.appendChild(status);
 
-      try{
-        if(!myCV){
-          // First publish — wallet signature required
-          const sig=await window.YM_Mine_sign?.('career:publish:cv:'+pk+':'+Date.now());
-          if(!sig)throw new Error('Wallet signature required');
-        }
+  const codeBtn=document.createElement('button');
+  codeBtn.className='ym-btn ym-btn-accent';
+  codeBtn.style.cssText='width:100%;font-size:13px;padding:12px;margin-top:4px'+(isCv?'':';background:var(--cyan,#08e0f8);color:#06060e');
+  codeBtn.textContent='🚀 Push & Publish '+(isCv?'CV':'Job');
+  container.appendChild(codeBtn);
 
-        const token=window._career_token;
-        const username=token.username;
-        const expLines=(document.getElementById('cv-pub-exp')?.value||'').split('\n').filter(Boolean);
-        const experience=expLines.map(l=>{const p=l.split('@');return{role:(p[0]||'').trim(),company:(p[1]||'').split('·')[0].trim(),description:(p[1]||'').split('·').slice(2).join('·').trim()};});
-        const cvData={name,title,
-          location:document.getElementById('cv-pub-location')?.value.trim()||'',
-          email:document.getElementById('cv-pub-email')?.value.trim()||'',
-          summary:document.getElementById('cv-pub-summary')?.value.trim()||'',
-          skills:(document.getElementById('cv-pub-skills')?.value||'').split(',').map(s=>s.trim()).filter(Boolean),
-          experience,github:username,wallet:pk||'',publishedAt:Date.now()
-        };
-        const code=generateCVFile(cvData);
-        const filePath='src/cv/'+username+'.cv.js';
-        const rawUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/'+GH_BRANCH+'/'+filePath;
+  async function doPublish(code,url){
+    const token=window._career_token;
+    if(!token){toast('Connect GitHub first','warn');return;}
+    const pk=pubkey();
+    const existingCV=isCv?localStorage.getItem('career_my_cv_url'):null;
+    if(!existingCV&&!pk){toast('Connect wallet for first publish','warn');return;}
 
-        await ensureFork(token.value,username);
-        await ghPush(token.value,username,filePath,code,(myCV?'update':'feat')+': CV @'+username);
-
-        if(!myCV){
-          // New publish — update cv.json and open PR
-          let cvList=[];
-          try{const rr=await fetch(CV_JSON+'?t='+Date.now(),{cache:'no-store'});if(rr.ok)cvList=await rr.json();}catch{}
-          cvList=cvList.filter(c=>c.github!==username);
-          cvList.push({name,title,github:username,wallet:pk,skills:cvData.skills,summary:cvData.summary,codeUrl:rawUrl,publishedAt:cvData.publishedAt});
-          await ghPush(token.value,username,'cv.json',JSON.stringify(cvList,null,2),'feat: CV registry - @'+username);
-          await openPR(token.value,username,'CV: '+name+' (@'+username+')');
-          localStorage.setItem('career_my_cv_url',rawUrl);
-          status.innerHTML='<span style="color:var(--green,#22d98a)">✓ CV published — PR submitted</span>';
-        }else{
-          status.innerHTML='<span style="color:var(--green,#22d98a)">✓ CV updated on GitHub</span>';
-        }
-        toast(myCV?'CV updated':'CV published!','success');
-        _cvs=null;
-      }catch(e){
-        status.innerHTML='<span style="color:var(--red,#ff4560)">✗ '+esc(e.message)+'</span>';
-      }finally{btn.disabled=false;btn.textContent=myCV?'💾 Update CV':'🚀 Publish CV';}
-    });
-    container.appendChild(btn);
-  }
-
-  function _renderJobForm(container){
-    const fields=[
-      {id:'job-pub-title',placeholder:'Job title *'},
-      {id:'job-pub-company',placeholder:'Company *'},
-      {id:'job-pub-location',placeholder:'Location'},
-      {id:'job-pub-salary',placeholder:'Salary (optional)'},
-      {id:'job-pub-type',placeholder:'CDI / Freelance / CDD…'},
-    ];
-    fields.forEach(f=>{
-      const inp=document.createElement('input');
-      inp.id=f.id;inp.className='ym-input';inp.placeholder=f.placeholder;inp.style.cssText='font-size:12px';
-      container.appendChild(inp);
-    });
-
-    [{id:'job-pub-desc',rows:4,placeholder:'Job description…'},{id:'job-pub-req',rows:3,placeholder:'Requirements…'}].forEach(f=>{
-      const ta=document.createElement('textarea');ta.id=f.id;ta.className='ym-input';ta.rows=f.rows;ta.placeholder=f.placeholder;
-      ta.style.cssText='font-size:12px;resize:vertical';container.appendChild(ta);
-    });
-
-    // Weights
-    const wLabel=document.createElement('div');
-    wLabel.style.cssText='font-size:9px;color:var(--text3);font-family:var(--font-m,monospace);text-transform:uppercase;letter-spacing:1px';
-    wLabel.textContent='Scoring weights';container.appendChild(wLabel);
-    const wGrid=document.createElement('div');wGrid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:6px';
-    const dw={skills:40,experience:30,education:15,culture:15};
-    Object.entries(dw).forEach(([k,v])=>{
-      const cell=document.createElement('div');
-      cell.style.cssText='display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.03);border-radius:6px;padding:6px 10px;border:1px solid rgba(255,255,255,.06)';
-      cell.innerHTML='<div style="flex:1;font-size:11px;color:var(--text2);text-transform:capitalize">'+k+'</div>'+
-        '<input type="number" id="jw-'+k+'" min="0" max="100" value="'+v+'" style="width:44px;background:transparent;border:none;color:var(--gold,#f0a830);font-family:var(--font-m,monospace);font-size:12px;text-align:right;outline:none">'+
-        '<span style="font-size:10px;color:var(--text3)">%</span>';
-      wGrid.appendChild(cell);
-    });
-    container.appendChild(wGrid);
-
-    const status=document.createElement('div');status.style.cssText='font-size:10px;min-height:14px';container.appendChild(status);
-
-    const btn=document.createElement('button');
-    btn.className='ym-btn ym-btn-accent';
-    btn.style.cssText='width:100%;font-size:13px;padding:12px;background:var(--cyan,#08e0f8);color:#06060e';
-    btn.textContent='🚀 Publish job (wallet + GitHub)';
-    btn.addEventListener('click',async()=>{
-      if(!window._career_token){toast('Connect GitHub first','warn');return;}
-      if(!pk){toast('Connect wallet to publish','warn');return;}
-      const title=document.getElementById('job-pub-title')?.value.trim();
-      const company=document.getElementById('job-pub-company')?.value.trim();
-      const desc=document.getElementById('job-pub-desc')?.value.trim();
-      if(!title||!desc){toast('Title and description required','warn');return;}
-      btn.disabled=true;btn.textContent='⏳…';
-      status.innerHTML='<span style="color:var(--text3)">Signing…</span>';
-      try{
-        const sig=await window.YM_Mine_sign?.('career:publish:job:'+pk+':'+Date.now());
+    status.innerHTML='<span style="color:var(--text3)">Publishing...</span>';
+    try{
+      if(!existingCV&&pk){
+        const sig=await window.YM_Mine_sign?.('career:publish:'+(isCv?'cv':'job')+':'+pk+':'+Date.now());
         if(!sig)throw new Error('Wallet signature required');
-        const token=window._career_token;const username=token.username;
-        const w={};Object.keys(dw).forEach(k=>{const el=document.getElementById('jw-'+k);if(el)w[k]=parseInt(el.value)||0;});
-        const jobData={title,company,
-          location:document.getElementById('job-pub-location')?.value.trim()||'',
-          salary:document.getElementById('job-pub-salary')?.value.trim()||'',
-          type:document.getElementById('job-pub-type')?.value.trim()||'',
-          description:desc,requirements:document.getElementById('job-pub-req')?.value.trim()||'',
-          weights:w,github:username,wallet:pk,publishedAt:Date.now()
-        };
-        const slug=title.toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40);
-        const filePath='src/jobs/'+username+'-'+slug+'.job.js';
-        const rawUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/'+GH_BRANCH+'/'+filePath;
-        const code=generateJobFile(jobData);
+      }
+
+      let fileUrl=url;
+      if(!fileUrl){
+        // Push code to GitHub
+        const username=token.username;
+        const nameMatch=code.match(/name['"\s:]+['"]([^'"]+)['"]/);
+        const slug=nameMatch?nameMatch[1].toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40):'my';
+        const filePath=isCv?'src/cv/'+username+'.cv.js':'src/jobs/'+username+'-'+slug+'.job.js';
+        fileUrl='https://raw.githubusercontent.com/'+username+'/'+GH_REPO+'/'+GH_BRANCH+'/'+filePath;
+        status.innerHTML='<span style="color:var(--text3)">Pushing to GitHub...</span>';
         await ensureFork(token.value,username);
-        await ghPush(token.value,username,filePath,code,'feat: job offer - '+title);
-        let jobList=[];
-        try{const rr=await fetch(JOBS_JSON+'?t='+Date.now(),{cache:'no-store'});if(rr.ok)jobList=await rr.json();}catch{}
-        jobList.push({title,company,location:jobData.location,salary:jobData.salary,description:desc.slice(0,200),github:username,wallet:pk,weights:w,codeUrl:rawUrl,publishedAt:jobData.publishedAt});
-        await ghPush(token.value,username,'jobs.json',JSON.stringify(jobList,null,2),'feat: jobs registry - '+title);
-        await openPR(token.value,username,'Job: '+title+' @ '+company);
-        status.innerHTML='<span style="color:var(--green,#22d98a)">✓ Job published — PR submitted</span>';
-        toast('Job published!','success');_jobs=null;
-      }catch(e){
-        status.innerHTML='<span style="color:var(--red,#ff4560)">✗ '+esc(e.message)+'</span>';
-      }finally{btn.disabled=false;btn.textContent='🚀 Publish job';}
-    });
-    container.appendChild(btn);
+        await ghPush(token.value,username,filePath,code,(existingCV?'update':'feat')+': '+(isCv?'CV':'job')+' @'+username);
+      }
+
+      await _registerFile(fileUrl,code,isCv,pk,status);
+    }catch(e){
+      status.innerHTML='<span style="color:var(--red,#ff4560)">✗ '+esc(e.message)+'</span>';
+    }
   }
+
+  urlBtn.addEventListener('click',async()=>{
+    const url=urlInput.value.trim();
+    if(!url){toast('Enter a URL','warn');return;}
+    urlBtn.disabled=true;urlBtn.textContent='...';
+    try{
+      const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+      if(!r.ok)throw new Error('Cannot fetch: HTTP '+r.status);
+      const code=await r.text();
+      await doPublish(code,url);
+    }catch(e){status.innerHTML='<span style="color:var(--red,#ff4560)">✗ '+esc(e.message)+'</span>';}
+    finally{urlBtn.disabled=false;urlBtn.textContent='Publish';}
+  });
+
+  codeBtn.addEventListener('click',async()=>{
+    const code=codeArea.value.trim();
+    if(!code){toast('Paste your code first','warn');return;}
+    codeBtn.disabled=true;codeBtn.textContent='...';
+    await doPublish(code,null);
+    codeBtn.disabled=false;codeBtn.textContent='🚀 Push & Publish '+(isCv?'CV':'Job');
+  });
+}
+
+async function _registerFile(url,code,isCv,pk,status){
+  const token=window._career_token;
+  const username=token.username;
+  const existingCV=isCv?localStorage.getItem('career_my_cv_url'):null;
+
+  if(isCv){
+    const nameM=code.match(/name['"\s:]+['"]([^'"]+)['"]/);
+    const titleM=code.match(/title['"\s:]+['"]([^'"]+)['"]/);
+    const name=nameM?nameM[1]:username;
+    const title=titleM?titleM[1]:'';
+    if(!existingCV){
+      let cvList=[];
+      try{const rr=await fetch(CV_JSON+'?t='+Date.now(),{cache:'no-store'});if(rr.ok)cvList=await rr.json();}catch{}
+      cvList=cvList.filter(c=>c.github!==username);
+      cvList.push({name,title,github:username,wallet:pk||'',codeUrl:url,publishedAt:Date.now()});
+      await ghPush(token.value,username,'cv.json',JSON.stringify(cvList,null,2),'feat: CV registry @'+username);
+      await openPR(token.value,username,'CV: '+name+' (@'+username+')');
+      localStorage.setItem('career_my_cv_url',url);
+      status.innerHTML='<span style="color:var(--green,#22d98a)">✓ CV published — PR submitted</span>';
+    }else{
+      status.innerHTML='<span style="color:var(--green,#22d98a)">✓ CV updated</span>';
+    }
+    _cvs=null;
+  }else{
+    const titleM=code.match(/title['"\s:]+['"]([^'"]+)['"]/);
+    const compM=code.match(/company['"\s:]+['"]([^'"]+)['"]/);
+    const title=titleM?titleM[1]:'Job offer';
+    const company=compM?compM[1]:'';
+    let jobList=[];
+    try{const rr=await fetch(JOBS_JSON+'?t='+Date.now(),{cache:'no-store'});if(rr.ok)jobList=await rr.json();}catch{}
+    jobList.push({title,company,github:username,wallet:pk||'',codeUrl:url,publishedAt:Date.now()});
+    await ghPush(token.value,username,'jobs.json',JSON.stringify(jobList,null,2),'feat: jobs registry - '+title);
+    await openPR(token.value,username,'Job: '+title+' @ '+company);
+    status.innerHTML='<span style="color:var(--green,#22d98a)">✓ Job published — PR submitted</span>';
+    _jobs=null;
+  }
+  toast(isCv?'CV published!':'Job published!','success');
 }
 
 // ── Sphere object ─────────────────────────────────────────────
