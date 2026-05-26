@@ -111,7 +111,7 @@ function saveZones(z){localStorage.setItem('clock_zones',JSON.stringify(z));}
 function _isPC(){return window.matchMedia('(hover:hover) and (pointer:fine)').matches;}
 function _loadPos(){try{return JSON.parse(localStorage.getItem(POS_KEY)||'{}');}catch{return{};}}
 function _savePos(p){localStorage.setItem(POS_KEY,JSON.stringify(p));}
-function _registerPage(page){if(window.YM_Desk&&window.YM_Desk.registerWidgetPage)window.YM_Desk.registerWidgetPage(WIDGET_ID,page);}
+function _registerPage(page){if(window.YM_Desk&&window.YM_Desk.registerWidgetPage)window.YM_Desk.registerWidgetPage(WIDGET_ID,page,POS_KEY);}
 function _unregisterPage(){if(window.YM_Desk&&window.YM_Desk.unregisterWidget)window.YM_Desk.unregisterWidget(WIDGET_ID);}
 const _onPageChange=()=>_syncWidgetPage();
 
