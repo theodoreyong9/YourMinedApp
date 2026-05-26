@@ -31,7 +31,7 @@
   {
     "filename": "zone.theme.html",
     "name": "zone",
-    "icon": "🧠",
+    "icon": "🌍",
     "description": "Cyberpunk dark theme with cyan and gold accents.",
     "ghAuthor": "keanuji",
     "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/zone.theme.html",
@@ -56,7 +56,7 @@
   {
     "filename": "command.theme.html",
     "name": "command",
-    "icon": "🧠",
+    "icon": "🌋",
     "description": "Alerte dashboard",
     "ghAuthor": "keanuji",
     "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/command.theme.html",
@@ -90,7 +90,7 @@
   {
     "filename": "crm.theme.html",
     "name": "crm",
-    "icon": "🧠",
+    "icon": "💴",
     "description": "",
     "ghAuthor": "keanuji",
     "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/crm.theme.html",
