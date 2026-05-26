@@ -361,7 +361,7 @@ function renderPanel(container){
   // Tabs
   const tabs=document.createElement('div');
   tabs.style.cssText='display:flex;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;background:rgba(0,0,0,.2)';
-  [{id:'cvs',label:'📄 CVs'},{id:'jobs',label:'💼 Jobs'},{id:'publish',label:'+ Publish'}].forEach(t=>{
+  [{id:'cvs',label:'📄 CVs'},{id:'jobs',label:'💼 Jobs'},{id:'publish',label:'+ Publish'},{id:'wallet',label:'🔑 Wallet'}].forEach(t=>{
     const tab=document.createElement('div');
     tab.style.cssText='flex:1;padding:11px 4px 9px;text-align:center;font-size:10px;font-family:var(--font-m,monospace);cursor:pointer;transition:all .15s;border-top:2px solid '+(_tab===t.id?'var(--gold,#f0a830)':'transparent')+';color:'+(_tab===t.id?'var(--gold,#f0a830)':'rgba(255,255,255,.35)');
     tab.textContent=t.label;
@@ -376,7 +376,8 @@ function renderPanel(container){
 
   if(_tab==='cvs') renderCVsTab(body,container);
   else if(_tab==='jobs') renderJobsTab(body,container);
-  else renderPublishTab(body,container);
+  else if(_tab==='publish') renderPublishTab(body,container);
+  else renderWalletTab(body,container);
 }
 
 // ── CVs tab ───────────────────────────────────────────────────
@@ -750,7 +751,7 @@ async function renderBestCVs(job,body,wrap){
 // ── Step card helper ────────────────────────────────────────
 function _careerStep(label,status){
   const el=document.createElement('div');
-  el.style.cssText='border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden';
+  el.style.cssText='border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden;margin-bottom:2px';
   el.innerHTML=
     '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">'+
       '<div class="career-step-label" style="font-family:var(--font-d,inherit);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">'+label+'</div>'+
@@ -764,12 +765,13 @@ function _careerStep(label,status){
 function renderPublishTab(body,container){
   body.innerHTML='';
   const wrap=document.createElement('div');
-  wrap.style.cssText='padding:14px;display:flex;flex-direction:column;gap:10px';
+  wrap.style.cssText='padding:14px;display:flex;flex-direction:column;gap:8px';
   body.appendChild(wrap);
 
+  // Type selector
   let _pubType='cv';
   const typeRow=document.createElement('div');
-  typeRow.style.cssText='display:flex;gap:4px;border:1px solid rgba(255,255,255,.1);border-radius:8px;overflow:hidden;flex-shrink:0;align-self:flex-start';
+  typeRow.style.cssText='display:flex;gap:4px;border:1px solid rgba(255,255,255,.1);border-radius:8px;overflow:hidden;flex-shrink:0;align-self:flex-start;margin-bottom:4px';
   const btnCV=document.createElement('button');
   btnCV.style.cssText='background:rgba(240,168,48,.1);border:none;color:var(--gold,#f0a830);font-size:10px;padding:5px 14px;cursor:pointer';
   btnCV.textContent='📄 CV';
@@ -779,7 +781,7 @@ function renderPublishTab(body,container){
   typeRow.appendChild(btnCV);typeRow.appendChild(btnJob);
   wrap.appendChild(typeRow);
 
-  // GitHub step
+  // Step GitHub
   const ghStep=_careerStep('GitHub',window._career_token?'✓ @'+window._career_token.username:null);
   wrap.appendChild(ghStep.el);
   if(window._career_token){
@@ -808,30 +810,62 @@ function renderPublishTab(body,container){
     ghStep.body.querySelector('#career-tok').addEventListener('keydown',e=>{if(e.key==='Enter')ghStep.body.querySelector('#career-tok-ok').click();});
   }
 
-  // Wallet step
+  // Step Wallet — hidden by default, shown only for new files
+  const walletStepEl=document.createElement('div');
+  walletStepEl.style.display='none';
+  const walletStep=_careerStep('Wallet','');
+  walletStepEl.appendChild(walletStep.el);
   const pk=pubkey();
-  const walletStep=_careerStep('Wallet',pk?'✓ '+pk.slice(0,8)+'...':null);
-  wrap.appendChild(walletStep.el);
   if(pk){
     walletStep.body.innerHTML='<div class="ym-notice success" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0">🔓 '+esc(pk.slice(0,12)+'...'+pk.slice(-8))+'</div>';
   }else{
-    walletStep.body.innerHTML='<div class="ym-notice warn" style="font-size:11px">Connect wallet in Wallet tab.<br><span style="color:var(--text3);font-size:10px">Required for first publish only.</span></div>';
+    walletStep.body.innerHTML=
+      '<div class="ym-notice warn" style="font-size:11px;margin-bottom:6px">🔒 Wallet required for new publish</div>'+
+      '<button class="ym-btn ym-btn-ghost" id="career-open-wallet" style="width:100%;font-size:11px">→ Open Wallet tab</button>';
+    walletStep.body.querySelector('#career-open-wallet').addEventListener('click',()=>{
+      _tab='wallet';renderPanel(container);
+    });
   }
+  wrap.appendChild(walletStepEl);
 
-  // File step
+  // Step File
   const fileStep=_careerStep('File','');
   wrap.appendChild(fileStep.el);
+
+  // Status line (new vs update)
+  const fileStatus=document.createElement('div');
+  fileStatus.style.cssText='font-size:10px;min-height:14px;padding:0 2px';
+  wrap.appendChild(fileStatus);
+
+  function _checkExisting(type){
+    if(type==='cv'){
+      const existing=localStorage.getItem('career_my_cv_url');
+      if(existing){
+        fileStatus.innerHTML='<span style="color:var(--gold,#f0a830)">⬆ Update</span> · '+esc(existing.split('/').pop());
+        walletStepEl.style.display='none';
+      }else{
+        fileStatus.innerHTML='<span style="color:var(--green,#22d98a)">✦ New CV</span>';
+        walletStepEl.style.display='block';
+      }
+    }else{
+      // Jobs are always new
+      fileStatus.innerHTML='<span style="color:var(--cyan,#08e0f8)">✦ New Job</span>';
+      walletStepEl.style.display='block';
+    }
+  }
 
   function switchType(t){
     _pubType=t;
     btnCV.style.cssText=t==='cv'?'background:rgba(240,168,48,.1);border:none;color:var(--gold,#f0a830);font-size:10px;padding:5px 14px;cursor:pointer':'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 14px;cursor:pointer';
     btnJob.style.cssText=t==='job'?'background:rgba(8,224,248,.1);border:none;color:var(--cyan,#08e0f8);font-size:10px;padding:5px 14px;cursor:pointer':'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 14px;cursor:pointer';
     renderFileStep(fileStep.body,t);
+    _checkExisting(t);
   }
   btnCV.addEventListener('click',()=>switchType('cv'));
   btnJob.addEventListener('click',()=>switchType('job'));
-  renderFileStep(fileStep.body,'cv');
+  switchType('cv');
 }
+
 
 function renderFileStep(container,type){
   container.innerHTML='';
@@ -975,6 +1009,70 @@ async function _registerFile(url,code,isCv,pk,status){
     _jobs=null;
   }
   toast(isCv?'CV published!':'Job published!','success');
+}
+
+// ── Wallet tab ───────────────────────────────────────────────
+function renderWalletTab(body,container){
+  body.innerHTML='';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='padding:16px;display:flex;flex-direction:column;gap:12px';
+  body.appendChild(wrap);
+
+  const pk=pubkey();
+
+  if(pk){
+    // Connected
+    const card=document.createElement('div');
+    card.style.cssText='background:rgba(34,217,138,.04);border:1px solid rgba(34,217,138,.15);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px';
+    card.innerHTML=
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:20px">🔓</span>'+
+        '<div>'+
+          '<div style="font-size:12px;font-weight:600;color:var(--green,#22d98a)">Wallet connected</div>'+
+          '<div style="font-size:10px;color:var(--text3);font-family:var(--font-m,monospace);margin-top:2px">'+esc(pk.slice(0,16)+'…'+pk.slice(-8))+'</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text2)">Your wallet is linked to your CV and job offers as proof of identity.</div>';
+    wrap.appendChild(card);
+  }else{
+    // Not connected
+    const card=document.createElement('div');
+    card.style.cssText='background:rgba(240,168,48,.04);border:1px solid rgba(240,168,48,.15);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px';
+    card.innerHTML=
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:20px">🔒</span>'+
+        '<div>'+
+          '<div style="font-size:12px;font-weight:600;color:var(--gold,#f0a830)">No wallet connected</div>'+
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">Required for first CV or job publish</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text2);line-height:1.6">Connect your Solana wallet in the <strong style="color:var(--gold,#f0a830)">Mine → Wallet</strong> tab. Your wallet signs your publications as proof of identity — it cannot be faked.</div>';
+
+    const openMineBtn=document.createElement('button');
+    openMineBtn.className='ym-btn ym-btn-accent';
+    openMineBtn.style.cssText='width:100%;font-size:12px';
+    openMineBtn.textContent='→ Open Mine Wallet';
+    openMineBtn.addEventListener('click',()=>{
+      // Switch to Mine panel wallet tab
+      window.dispatchEvent(new CustomEvent('ym:switch-mine-tab',{detail:{tab:'wallet'}}));
+      if(window.app_openPanel)window.app_openPanel('panel-mine');
+      else{const btn=document.getElementById('btn-figure');if(btn)btn.click();}
+    });
+    card.appendChild(openMineBtn);
+    wrap.appendChild(card);
+  }
+
+  // Info about wallet usage in career
+  const info=document.createElement('div');
+  info.style.cssText='background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px';
+  info.innerHTML=
+    '<div style="font-size:9px;color:var(--text3);font-family:var(--font-m,monospace);text-transform:uppercase;letter-spacing:1px">Why wallet?</div>'+
+    '<div style="font-size:11px;color:var(--text2);line-height:1.7">'+
+      'Your wallet signature proves that your CV or job offer was published by you — not someone else. '+
+      'It is stored in <code style="color:var(--cyan,#08e0f8)">cv.json</code> / <code style="color:var(--cyan,#08e0f8)">jobs.json</code> alongside your GitHub handle.<br><br>'+
+      '<span style="color:var(--text3)">Updates (CV or job edits) only require GitHub — no wallet needed.</span>'+
+    '</div>';
+  wrap.appendChild(info);
 }
 
 // ── Sphere object ─────────────────────────────────────────────
