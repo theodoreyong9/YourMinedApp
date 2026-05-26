@@ -260,14 +260,28 @@ function renderPanel(container){
 // ── Widget ──────────────────────────────────────────────────
 function _refreshWidget(){
   if(!_widget)return;
-  if(!_weather||!_location){_widget.style.display='none';return;}
+  if(!_weather||!_location){return;}
   const c=_weather.current;
+  const icon=weatherCode(c.weather_code);
+
+  // Update sphere icon on desktop
+  if(_ctx&&_ctx.setIcon)_ctx.setIcon(icon);
+
   _widget.innerHTML=
-    '<div style="font-size:26px;flex-shrink:0">'+weatherCode(c.weather_code)+'</div>'+
-    '<div>'+
+    '<div style="font-size:26px;flex-shrink:0;cursor:pointer" id="mw-icon">'+icon+'</div>'+
+    '<div style="flex:1;min-width:0">'+
       '<div style="font-size:14px;font-weight:600;color:#e4e6f4;font-family:var(--font-m,monospace)">'+tempStr(c.temperature_2m)+'</div>'+
-      '<div style="font-size:9px;color:rgba(228,230,244,.4);margin-top:1px">'+_location.name.split(',')[0]+'</div>'+
-    '</div>';
+      '<div style="font-size:9px;color:rgba(228,230,244,.4);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+_location.name.split(',')[0]+'</div>'+
+    '</div>'+
+    '<button id="mw-open" style="background:none;border:none;color:rgba(228,230,244,.3);font-size:14px;cursor:pointer;padding:4px;flex-shrink:0;line-height:1" title="Open panel">⌵</button>';
+
+  // Open panel on icon or button click
+  const openPanel=()=>{
+    if(window.YM&&window.YM.openSpherePanel)window.YM.openSpherePanel(SPHERE_ID);
+    else if(_ctx&&_ctx.openPanel)_ctx.openPanel(renderPanel);
+  };
+  _widget.querySelector('#mw-icon').addEventListener('click',openPanel);
+  _widget.querySelector('#mw-open').addEventListener('click',openPanel);
 }
 
 function _isPC(){return window.matchMedia('(hover:hover) and (pointer:fine)').matches;}
@@ -411,7 +425,11 @@ window.YM_S[SPHERE_ID]={
 
   activate(ctx){
     _ctx=ctx;
-    refresh().then(()=>_buildWidget());
+    refresh().then(()=>{
+      _buildWidget();
+      // Set initial icon based on weather
+      if(_weather&&_ctx&&_ctx.setIcon)_ctx.setIcon(weatherCode(_weather.current.weather_code));
+    });
     _timer=setInterval(()=>{refresh().then(()=>{if(_widgetEnabled&&(!_widget||!document.body.contains(_widget)))_buildWidget();});},10*60*1000);
   },
 
