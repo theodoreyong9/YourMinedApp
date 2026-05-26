@@ -51,49 +51,19 @@ async function _doFetch(){
   if(!entries.length){_sphereList=[];_loaded=true;_writeCache(_sphereList);return _sphereList;}
   const cachedMap={};
   if(cached)cached.list.forEach(s=>{cachedMap[s.fileName]=s;});
-  // Start with cached or placeholder entries for instant display
-  _sphereList=entries.map(entry=>{
+  const _fetchedList=await Promise.all(entries.map(async entry=>{
     const fileName=entry.filename;
     const url=RAW_BASE+fileName;
     const ghAuthor=entry.ghAuthor||entry.last_committer||'';
     const codeUrl=entry.codeUrl||(ghAuthor?'https://raw.githubusercontent.com/'+ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/'+fileName:null);
     if(cachedMap[fileName])return{...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};
-    return{name:fileName.replace('.sphere.js',''),icon:'⬡',category:'Other',description:'',url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,_loading:true};
-  });
-  _sphereList.sort(function(a,b){return (b.score||0)-(a.score||0);});
+    const meta=await fetchSphereMeta(url,fileName,codeUrl);
+    return{...meta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
+  }));
+  _fetchedList.sort(function(a,b){return (b.score||0)-(a.score||0);});
+  _sphereList=_fetchedList;
+  _writeCache(_sphereList);
   _loaded=true;
-
-  // Fetch missing metadata progressively
-  const needFetch=_sphereList.filter(s=>s._loading);
-  if(needFetch.length){
-    needFetch.forEach(async sphere=>{
-      const meta=await fetchSphereMeta(sphere.url,sphere.fileName,sphere.codeUrl);
-      const idx=_sphereList.findIndex(s=>s.fileName===sphere.fileName);
-      if(idx!==-1){
-        _sphereList[idx]={..._sphereList[idx],...meta,_loading:false};
-        // Trigger re-render of just this card if list is visible
-        const listEl=document.getElementById('sphere-list-inner');
-        if(listEl){
-          const card=listEl.querySelector('[data-sphere="'+sphere.fileName+'"]');
-          if(card){
-            const isActive=isSphereActive(sphere.fileName);
-            const iconEl=card.querySelector('.sphere-icon-el');
-            const nameEl=card.querySelector('.sphere-name-el');
-            const descEl=card.querySelector('.sphere-desc-el');
-            if(iconEl)iconEl.textContent=meta.icon||'⬡';
-            if(nameEl)nameEl.textContent=meta.name||sphere.fileName;
-            if(descEl)descEl.textContent=meta.description||'';
-          }
-        }
-      }
-    });
-    // Write cache after all fetches complete
-    Promise.all(needFetch.map(s=>fetchSphereMeta(s.url,s.fileName,s.codeUrl))).then(()=>{
-      _writeCache(_sphereList);
-    });
-  } else {
-    _writeCache(_sphereList);
-  }
   return _sphereList;
 }
 
@@ -895,14 +865,14 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
       btn.innerHTML='…';btn.style.pointerEvents='none';
       await deactivateSphere(sphere);
       const _lbOff=document.getElementById('list-content');
-      if(_lbOff){const _liOff=_lbOff.querySelector('#sphere-list-inner');if(_liOff)renderList(_lbOff);}
+      if(_lbOff)renderList(_lbOff);
     }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       card.style.opacity='.6';
       await activateSphere(sphere);
       card.style.opacity='1';
       const _lbOn=document.getElementById('list-content');
-      if(_lbOn){const _liOn=_lbOn.querySelector('#sphere-list-inner');if(_liOn)renderList(_lbOn);}
+      if(_lbOn)renderList(_lbOn);
     }}] : []),
   ]);
   bar.dataset.barEl='1';
