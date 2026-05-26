@@ -803,6 +803,7 @@
         del(k)    { localStorage.removeItem('ym_s|' + name + '|' + k); },
       },
       setNotification(n) { if (window.YM_Desk) window.YM_Desk.setNotif(name, n); },
+      setIcon(icon) { if (window.YM_Desk) window.YM_Desk.setIcon(name, icon); },
       openPanel(fn) {
         if (fn) { document.getElementById('panel-sphere-body').innerHTML = ''; fn(document.getElementById('panel-sphere-body')); }
         openPanel('panel-sphere');
