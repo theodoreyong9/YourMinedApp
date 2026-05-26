@@ -264,8 +264,8 @@ function _refreshWidget(){
   const c=_weather.current;
   const icon=weatherCode(c.weather_code);
 
-  // Update sphere icon on desktop
-  if(_ctx&&_ctx.setIcon)_ctx.setIcon(icon);
+  // Update sphere icon on desktop (defer to ensure DOM is ready)
+  if(_ctx&&_ctx.setIcon)setTimeout(()=>{if(_ctx)_ctx.setIcon(icon);},300);
 
   _widget.innerHTML=
     '<div style="font-size:26px;flex-shrink:0;cursor:pointer" id="mw-icon">'+icon+'</div>'+
@@ -277,8 +277,9 @@ function _refreshWidget(){
 
   // Open panel on icon or button click
   const openPanel=()=>{
+    // openSpherePanel takes the sphere filename as registered in YM_sphereRegistry
     if(window.YM&&window.YM.openSpherePanel)window.YM.openSpherePanel(SPHERE_ID);
-    else if(_ctx&&_ctx.openPanel)_ctx.openPanel(renderPanel);
+    else if(_ctx&&_ctx.openPanel)_ctx.openPanel(container=>renderPanel(container));
   };
   _widget.querySelector('#mw-icon').addEventListener('click',openPanel);
   _widget.querySelector('#mw-open').addEventListener('click',openPanel);
