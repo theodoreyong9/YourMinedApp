@@ -493,8 +493,8 @@ function setupDrag(wrap,ic,isFolder){
     e.preventDefault();
     ghost.style.left=Math.max(0,Math.min(e.clientX-26,window.innerWidth-54))+'px';ghost.style.top=Math.max(0,Math.min(e.clientY-33,window.innerHeight-54))+'px';
     if(!isFolder){
-      const vw=window.innerWidth,ew=vw*0.14;
-      if(e.clientX<ew&&curPg>0){if(!_edgeT)_edgeT=setTimeout(()=>{_edgeT=null;goPage(curPg-1,true);},550);}
+      const vw=window.innerWidth,ew=vw*0.08;
+      if(e.clientX<ew&&curPg>0){if(!_edgeT)_edgeT=setTimeout(()=>{_edgeT=null;goPage(curPg-1,true);},800);}
       else if(e.clientX>vw-ew-(isPC()?64:0)){
         if(!_edgeT)_edgeT=setTimeout(()=>{
           _edgeT=null;
