@@ -300,40 +300,80 @@ function _buildWidget(){
 
   window.addEventListener('ym:page-change',_onPageChange);
 
-  // Drag
-  let dragging=false,ox=0,oy=0;
+  // Drag with edge-scroll page change (same as radio widget)
+  let dragging=false,ox=0,oy=0,wx=0,wy=0,_edgeT=null;
+  const _isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+
   const onMove=(cx,cy)=>{
     if(!dragging||!_widget)return;
     const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
-    const x=Math.max(0,Math.min(window.innerWidth-ww,cx-ox));
-    const y=Math.max(0,Math.min(window.innerHeight-wh,cy-oy));
-    _widget.style.left=x+'px';_widget.style.top=y+'px';
+    const rawX=wx+(cx-ox);const rawY=wy+(cy-oy);
+    ox=cx;oy=cy;
+    wx=Math.max(0,Math.min(window.innerWidth-ww,rawX));
+    wy=Math.max(0,Math.min(window.innerHeight-wh,rawY));
+    _widget.style.left=wx+'px';_widget.style.top=wy+'px';
     _widget.style.right='';_widget.style.bottom='';
+
+    // Edge scroll
+    const vw=_isPC()?window.innerWidth-72:window.innerWidth;
+    const ew=vw*0.15;
+    const curPage=window._deskCurPage||0;
+    if(cx<ew&&curPage>0){
+      if(!_edgeT)_edgeT=setTimeout(()=>{
+        _edgeT=null;
+        const tp=curPage-1;
+        if(window.YM_Desk)window.YM_Desk.goPage(tp);
+        _registerPage(tp);
+        const p=_loadPos();_savePos(Object.assign({},p,{page:tp}));
+      },500);
+    }else if(cx>vw-ew){
+      if(!_edgeT)_edgeT=setTimeout(()=>{
+        _edgeT=null;
+        const tp=(window._deskCurPage||0)+1;
+        if(window.YM_Desk)window.YM_Desk.goPageOrCreate(tp);
+        _registerPage(tp);
+        const p=_loadPos();_savePos(Object.assign({},p,{page:tp}));
+      },500);
+    }else{clearTimeout(_edgeT);_edgeT=null;}
   };
+
   const onEnd=()=>{
     if(!dragging)return;
     dragging=false;
+    clearTimeout(_edgeT);_edgeT=null;
     document.removeEventListener('mousemove',onMouseMove);
     document.removeEventListener('mouseup',onEnd);
     document.removeEventListener('touchmove',onTouchMove);
     document.removeEventListener('touchend',onEnd);
     if(_widget){
-      const r=_widget.getBoundingClientRect();
+      const ww=_widget.offsetWidth,wh=_widget.offsetHeight;
+      const r=Math.max(0,window.innerWidth-wx-ww);
+      const b=Math.max(0,window.innerHeight-wy-wh);
       const page=window._deskCurPage||0;
-      _savePos({left:r.left,top:r.top,right:window.innerWidth-r.right,bottom:window.innerHeight-r.bottom,page});
       _registerPage(page);
+      _savePos({right:r,bottom:b,page});
+      _syncWidgetPage();
+      setTimeout(()=>{if(window.YM_Desk)window.YM_Desk.autoCleanPages();},100);
     }
   };
+
   const onMouseMove=e=>onMove(e.clientX,e.clientY);
   const onTouchMove=e=>{e.preventDefault();onMove(e.touches[0].clientX,e.touches[0].clientY);};
+
   _widget.addEventListener('mousedown',e=>{
     if(e.button!==0)return;
-    dragging=true;const r=_widget.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top;
-    document.addEventListener('mousemove',onMouseMove);document.addEventListener('mouseup',onEnd);
+    dragging=true;
+    const r=_widget.getBoundingClientRect();
+    ox=e.clientX;oy=e.clientY;wx=r.left;wy=r.top;
+    document.addEventListener('mousemove',onMouseMove);
+    document.addEventListener('mouseup',onEnd);
   });
   _widget.addEventListener('touchstart',e=>{
-    dragging=true;const t=e.touches[0];const r=_widget.getBoundingClientRect();ox=t.clientX-r.left;oy=t.clientY-r.top;
-    document.addEventListener('touchmove',onTouchMove,{passive:false});document.addEventListener('touchend',onEnd);
+    dragging=true;
+    const t=e.touches[0];const r=_widget.getBoundingClientRect();
+    ox=t.clientX;oy=t.clientY;wx=r.left;wy=r.top;
+    document.addEventListener('touchmove',onTouchMove,{passive:false});
+    document.addEventListener('touchend',onEnd);
   },{passive:true});
 }
 
