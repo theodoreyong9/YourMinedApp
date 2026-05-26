@@ -760,7 +760,9 @@ color:      var(--accent, var(--gold, #f0a830));
 
 ```js
 // Register widget on a specific page
-window.YM_Desk.registerWidgetPage(widgetId, page);
+window.YM_Desk.registerWidgetPage(widgetId, page, posKey?);
+// posKey: optional localStorage key where the widget stores its position
+// When provided, desk.js updates it automatically when pages are remapped by autoCleanPages
 
 // Unregister on deactivate
 window.YM_Desk.unregisterWidget(widgetId);
