@@ -142,7 +142,7 @@ async function poll() {
   // Badge = number of high-relevance alerts
   const high = _alerts.filter(a => a.score >= 3).length;
   const badge = high > 0 ? high : (_alerts.length > 0 ? _alerts.length : 0);
-  if (_ctx) { _ctx.setNotification(badge); if(_ctx.setIcon)_ctx.setIcon(_alerteIcon(badge>0)); }
+  if (_ctx) { _ctx.setNotification(badge); if(_ctx.setIcon)_ctx.setIcon(_alerteIcon()); }
 
   _refreshPanel();
 }
@@ -255,17 +255,15 @@ function _fmtAge(ts) {
   return Math.round(s/3600) + 'h';
 }
 
-function _alerteIcon(hasAlerts){
-  // Animated SVG icon — pulses red when alerts, static amber when quiet
-  const color = hasAlerts ? '#ff4560' : '#f0a830';
-  const anim = hasAlerts
-    ? '<animate attributeName="opacity" values="1;0.3;1" dur="1.2s" repeatCount="indefinite"/>'
-    : '';
+function _alerteIcon(){
+  // Always animated — red pulsing warning triangle
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
-    <polygon points="18,3 33,30 3,30" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round">
-      ${anim}
+    <polygon points="18,3 33,30 3,30" fill="rgba(255,69,96,0.15)" stroke="#ff4560" stroke-width="2.5" stroke-linejoin="round">
+      <animate attributeName="opacity" values="1;0.35;1" dur="1s" repeatCount="indefinite"/>
     </polygon>
-    <text x="18" y="26" text-anchor="middle" font-size="14" font-family="monospace" fill="${color}" font-weight="bold">!</text>
+    <text x="18" y="26" text-anchor="middle" font-size="15" font-family="monospace" fill="#ff4560" font-weight="bold">
+      !<animate attributeName="opacity" values="1;0.35;1" dur="1s" repeatCount="indefinite"/>
+    </text>
   </svg>`;
   return 'data:image/svg+xml;base64,' + btoa(svg);
 }
@@ -279,7 +277,7 @@ window.YM_S['alerte.sphere.js'] = {
   activate(ctx) {
     _ctx = ctx;
     // Set initial icon
-    if(ctx.setIcon) ctx.setIcon(_alerteIcon(false));
+    if(ctx.setIcon) ctx.setIcon(_alerteIcon());
     // First fetch
     poll();
     // Poll every minute
@@ -291,7 +289,7 @@ window.YM_S['alerte.sphere.js'] = {
     _ctx = null;
     _alerts = [];
     _panelRefresh = null;
-    if (_ctx) { _ctx.setNotification(0); if(_ctx.setIcon)_ctx.setIcon(_alerteIcon(false)); }
+    if (_ctx) { _ctx.setNotification(0); if(_ctx.setIcon)_ctx.setIcon(_alerteIcon()); }
   },
 
   renderPanel,
