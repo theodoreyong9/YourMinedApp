@@ -218,6 +218,23 @@ ctx.openPanel(renderFn)       // opens panel-sphere and calls renderFn(container
 ctx.setNotification(n)        // sets badge count on desktop icon
 ctx.setIcon(icon)             // updates the sphere icon on the desktop (emoji or image URL)
 
+// Example — adaptive icon based on state (e.g. meteo.sphere.js)
+activate(ctx) {
+  _ctx = ctx;
+  fetchWeather().then(data => {
+    ctx.setIcon(weatherEmoji(data.current.weather_code)); // ☀️ ⛅ 🌧 ❄️
+    ctx.setNotification(data.current.precipitation > 0 ? 1 : 0);
+  });
+},
+
+// ctx.setIcon accepts any emoji or image URL
+ctx.setIcon('🌧');
+ctx.setIcon('https://openweathermap.org/img/wn/10d@2x.png');
+
+// Can also be called directly on desk (from themes or external code)
+window.YM_Desk.setIcon(sphereFileName, icon);
+// e.g. window.YM_Desk.setIcon('meteo.sphere.js', '☀️');
+
 ctx.send(type, data)          // broadcast to all peers (rate-limited: 10/s)
 ctx.onReceive(callback)       // callback(type, data, peerId) — auto-cleaned on deactivate
 
