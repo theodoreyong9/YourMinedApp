@@ -117,6 +117,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   transition:opacity .35s ease;
 }
 #manifesto-overlay.open{opacity:1;pointer-events:all;}
+#theory-overlay.open{opacity:1;pointer-events:all;}
+#pow-overlay.open{opacity:1;pointer-events:all;}
 #manifesto-inner{
   max-width:680px;margin:0 auto;
   padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));
@@ -149,6 +151,10 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .mf-primitive strong{color:var(--purple);}
 .mf-end{font-family:var(--font-d);font-size:clamp(14px,2.5vw,20px);font-weight:800;color:var(--text);text-align:center;margin:40px 0 8px;line-height:1.4;}
 .mf-end-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);text-align:center;letter-spacing:.1em;}
+.lp-btn-theory{background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.18);color:rgba(34,211,238,.7);}
+.lp-btn-theory:hover{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.35);color:var(--cyan)}
+.lp-btn-pow{background:rgba(255,69,96,.07);border:1px solid rgba(255,69,96,.18);color:rgba(255,69,96,.7);}
+.lp-btn-pow:hover{background:rgba(255,69,96,.12);border-color:rgba(255,69,96,.35);color:#ff4560}
 </style>
 
 <canvas id="ym-canvas"></canvas>
@@ -164,6 +170,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
       <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
       <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
       <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn">✦ Manifesto</button>
+      <button class="lp-btn lp-btn-theory" id="lp-theory-btn">∂ Theory</button>
+      <button class="lp-btn lp-btn-pow" id="lp-pow-btn">◈ Proof of Will</button>
     </div>
   </div>
   <div class="lp lp-body">
@@ -232,6 +240,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
         <button class="lp-btn lp-btn-primary" id="lp-start-btn-2">&#9654; Start</button>
         <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
         <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn-2">✦ Manifesto</button>
+        <button class="lp-btn lp-btn-theory" id="lp-theory-btn-2">∂ Theory</button>
+        <button class="lp-btn lp-btn-pow" id="lp-pow-btn-2">◈ Proof of Will</button>
       </div>
     </div>
   </div>
@@ -239,6 +249,161 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="lp-footer-logo">YOURMINE</div>
     <div class="lp-footer-sub">Code. Remix. Connect. Repeat.</div>
     <div class="lp-footer-tag">No limits.</div>
+  </div>
+</div>
+
+<!-- Proof of Will overlay -->
+<div id="pow-overlay" style="position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease">
+  <button id="pow-close" style="position:fixed;top:20px;right:20px;z-index:1001;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:18px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:var(--font-b)">✕</button>
+  <div style="max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px))">
+
+    <div class="mf-eyebrow" style="color:#ff4560">Protocol</div>
+    <div class="mf-title" style="background:linear-gradient(135deg,#ff4560,var(--gold,#f0a830));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Proof of Will</div>
+    <div class="mf-subtitle">The three formulas that make participation irreversible</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-p">Most blockchain protocols reward computation — proof of work — or capital — proof of stake. YourMine rewards something different: <strong style="color:#ff4560">will</strong>. The deliberate choice to participate, to wait, to contribute quality over quantity. Three formulas encode this intent into the protocol.</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">I. Mining — the patience formula</div>
+    <div class="mf-code">       S · t^α
+─────────────────────────────
+[ln(A^β(1−T) + C)]^γ</div>
+
+    <div class="mf-primitives">
+      <div class="mf-primitive"><strong style="color:var(--gold,#f0a830)">S · t^α</strong> — burn amount × time elapsed. The longer you wait after burning, the more you earn. Time is in the numerator. Rushing is penalized.</div>
+      <div class="mf-primitive"><strong style="color:#ff4560">ln(A^β(1−T) + C)^γ</strong> — protocol age in the denominator. As YourMine matures, the same action yields less. Early participants are structurally rewarded. Anti-inflation is not a policy — it is a mathematical consequence.</div>
+      <div class="mf-primitive"><strong style="color:var(--purple)">T — the patience rate</strong> — chosen freely by the user between 0 and 1. It modulates how age affects your reward. This is the "will" in Proof of Will: you declare your temporal commitment, and the protocol encodes it permanently.</div>
+    </div>
+
+    <div class="mf-p" style="margin-top:8px">The deep property: this formula cannot be gamed by speed. The only variables you control are <code style="color:var(--gold,#f0a830)">S</code> (how much you burn) and <code style="color:var(--purple)">T</code> (how patient you declare yourself). Everything else — time, protocol age — is objective. <strong style="color:rgba(255,255,255,.6)">You cannot fake will.</strong></div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">II. Permission score — the quality gate</div>
+    <div class="mf-code">(score_now + 1) / (laps_now + 1)  >  (score_last + 1) / (laps_last + 1)</div>
+
+    <div class="mf-p">To publish a new file in the registry, your current ratio must exceed your previous ratio. The +1 is a Laplace smoothing — your first publication is always allowed. After that, each new contribution must improve your average.</div>
+
+    <div class="mf-primitives">
+      <div class="mf-primitive"><strong style="color:#ff4560">Anti-spam by construction</strong> — you cannot flood the registry with mediocre files. Each new sphere must be better than your average to be admitted.</div>
+      <div class="mf-primitive"><strong style="color:var(--gold,#f0a830)">No subjective curation</strong> — quality is not judged by a committee or an algorithm. It is judged by the network, which votes with score. The gate is mathematical, not editorial.</div>
+      <div class="mf-primitive"><strong style="color:var(--purple)">Updates are free</strong> — improving an existing sphere requires only ownership verification. The quality gate applies only to new files, not to iterations. Improvement is always rewarded.</div>
+    </div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">III. Rank — the frozen reputation</div>
+    <div class="mf-code">rank = score / laps</div>
+
+    <div class="mf-p">Score is frozen at merge time. Rank is computed from this frozen score, divided by the number of publications. It never changes retroactively. No algorithm boosts new files. No editorial decision modifies it.</div>
+
+    <div class="mf-primitives">
+      <div class="mf-primitive"><strong style="color:#ff4560">Immutability</strong> — once merged, your contribution's rank is permanent. The network cannot rewrite history.</div>
+      <div class="mf-primitive"><strong style="color:var(--gold,#f0a830)">No recency bias</strong> — a sphere published two years ago competes equally with one published today. Reputation accumulates slowly and cannot be manufactured.</div>
+      <div class="mf-primitive"><strong style="color:var(--purple)">No central authority</strong> — rank is a pure ratio, computed on-chain from public data. No one decides who rises. The formula decides.</div>
+    </div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">The system as a whole</div>
+    <div class="mf-p">Each formula attacks a different pathology of existing contribution systems:</div>
+    <table class="mf-table">
+      <tr><th>Pathology</th><th>Formula</th><th>Mechanism</th></tr>
+      <tr><td>Inflation / rush</td><td>Mining</td><td>Time in numerator, age in denominator</td></tr>
+      <tr><td>Spam / low quality</td><td>Permission</td><td>Ratio must improve with each new file</td></tr>
+      <tr><td>Manipulation / curation</td><td>Rank</td><td>Frozen at merge, no retroactive change</td></tr>
+    </table>
+
+    <div class="mf-p" style="margin-top:12px">Together they create a system where the only winning strategy is to <strong style="color:#ff4560">participate genuinely, wait patiently, and contribute quality</strong>. There is no shortcut. There is no exploit. The protocol is the will of the network, formalized.</div>
+
+    <div class="mf-sep"></div>
+    <div class="mf-end">"You cannot fake will.<br>You can only demonstrate it."</div>
+    <div class="mf-end-sub" style="margin-top:16px">
+      MINE token · Solana · <a href="https://github.com/theodoreyong9/YourMinedApp" target="_blank" rel="noopener" style="color:rgba(255,69,96,.4);text-decoration:none;font-size:10px">github.com/theodoreyong9/YourMinedApp</a>
+    </div>
+
+  </div>
+</div>
+
+<!-- Theory overlay -->
+<div id="theory-overlay" style="position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease">
+  <button id="theory-close" style="position:fixed;top:20px;right:20px;z-index:1001;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:18px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:var(--font-b)">✕</button>
+  <div style="max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px))">
+
+    <div class="mf-eyebrow" style="color:var(--cyan)">Theory</div>
+    <div class="mf-title" style="background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Toward a Compositional Theory of Participation</div>
+    <div class="mf-subtitle">A bridge between information theory and the participation substrate</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">Starting point</div>
+    <div class="mf-p">In information theory, any system that produces sequences — a language model, a communication channel, a dynamic process — can be characterized by a single number: its <strong style="color:var(--cyan)">entropy rate</strong>. This measures how much genuine uncertainty the system produces per step. A deterministic system has entropy rate zero. A purely random one has maximum entropy rate. Intelligence operates in between.</div>
+    <div class="mf-p">The <strong style="color:var(--cyan)">Logarithmic Theory of Compositional Irreversibility (TLIC)</strong> applies this framework rigorously to language models — modeling them as Markov kernels in a category of probability spaces, with the entropy rate as the central invariant. It produces precise, falsifiable predictions about training dynamics, scaling laws, and phase transitions.</div>
+    <div class="mf-p">But TLIC describes an isolated module. It does not describe what happens when modules — human and machine — compose into a living network. That is the extension this note proposes.</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">1. What TLIC formalizes</div>
+    <div class="mf-p">TLIC establishes that a language model <code style="color:var(--cyan)">θ</code> defines a Markov kernel <code style="color:var(--cyan)">K_θ: S ⇝ S</code> in <code style="color:var(--cyan)">Kl(G)</code>. Under ergodicity and finite entropy, the Shannon entropy rate is a well-defined invariant — the Kolmogorov-Sinaï entropy of the system. It characterizes three regimes:</div>
+    <div class="mf-primitives">
+      <div class="mf-primitive"><strong style="color:var(--cyan)">Contracting</strong> <code>h(K) = 0</code> — deterministic attractor. The system converges.</div>
+      <div class="mf-primitive"><strong style="color:var(--gold,#f0a830)">Critical</strong> <code>0 &lt; h(K) &lt; log|S|</code> — structured exploration. Intelligence operates here.</div>
+      <div class="mf-primitive"><strong style="color:var(--purple)">Diffusive</strong> <code>h(K) = log|S|</code> — uniform random walk. No macroscopic structure.</div>
+    </div>
+    <div class="mf-p">This is a complete theory of the isolated cognitive module. What it does not address is what happens when modules interact — when humans, language models, and spheres compose into a participation substrate.</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">2. The missing level</div>
+    <div class="mf-p">TLIC operates at the level of a single kernel. The participation substrate operates at a different level:</div>
+    <div class="mf-code">TLIC:         token sequence → K_θ → next token
+Participation: participant_i ⊗ participant_j ⊗ modules → composed state</div>
+    <div class="mf-p">The relevant question is not "what is the entropy rate of this module?" but "what is the dimension of the configuration space opened by their composition?" This is not a refinement of TLIC. It is a different invariant, at a different level of the hierarchy.</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">3. The compositional invariant</div>
+    <div class="mf-p">Each sphere <code style="color:var(--cyan)">s ∈ Σ</code> contributes an independent dimension to the configuration space through <code style="color:var(--cyan)">peerSection(s, i, j)</code>. Under orthogonality of sphere contributions:</div>
+    <div class="mf-code">n spheres → 2ⁿ configurations  (expansion)
+n spheres → n options          (amplification)</div>
+    <div class="mf-quote">A system is an expander if and only if each sphere introduces a relational dimension not spanned by existing spheres.</div>
+    <div class="mf-p">The Hausdorff dimension of the configuration space <code style="color:var(--cyan)">dim_H(C(P,Σ))</code> is the formal counterpart of the distinction between diversity and expansion.</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">4. Human as Markov kernel</div>
+    <div class="mf-p">TLIC treats language models as Markov kernels. The participation theory requires treating humans as Markov kernels as well — not metaphorically, but structurally. A participant <code style="color:var(--cyan)">i</code> defines a kernel <code style="color:var(--cyan)">K_i: Σ × Context → Actions</code>. A participation substrate is then a composition of heterogeneous kernels:</div>
+    <div class="mf-code">K_substrate = K_θn ∘ K_im ∘ ... ∘ K_θ1 ∘ K_i1</div>
+    <div class="mf-p">The entropy rate of this composed system is well-defined, and characterizes the cognitive regime of the entire substrate. The intelligence of the substrate is <strong style="color:var(--purple)">not the sum</strong> of the entropy rates of its components — it is a property of the composed system.</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">5. Bifurcation and emergence</div>
+    <div class="mf-p">TLIC identifies grokking as a bifurcation of the stationary measure <code style="color:var(--cyan)">π_{K_θ}</code>. The participation substrate exhibits an analogous phenomenon: when an orthogonal sphere is introduced, the stationary measure <code style="color:var(--cyan)">π_{K_substrate}</code> bifurcates — the system reorganizes around new attractors structurally unreachable before.</div>
+    <div class="mf-quote">Emergence is not a property of participation.<br>It is a property of the rewriting of the rules of participation themselves — a structural transition of the Markov kernel, not merely a distributional shift within a fixed kernel.</div>
+    <div class="mf-p">In TLIC terms: not a change in <code style="color:var(--cyan)">π_K</code> but a change in <code style="color:var(--cyan)">K</code> itself — the system evolves rather than grows.</div>
+
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">Relation to TLIC</div>
+    <table class="mf-table">
+      <tr><th>TLIC</th><th>Participation Extension</th></tr>
+      <tr><td>Single kernel K_θ</td><td>Composed kernel K_substrate</td></tr>
+      <tr><td>Entropy rate h(K)</td><td>Hausdorff dim of config space</td></tr>
+      <tr><td>Stationary measure π_K</td><td>Living profile distribution</td></tr>
+      <tr><td>Grokking = bifurcation of π_K</td><td>Emergence = bifurcation of K</td></tr>
+      <tr><td>Ledrappier-Young universality</td><td>Sphere orthogonality condition</td></tr>
+    </table>
+
+    <div class="mf-sep"></div>
+    <div class="mf-end">"The mathematics to characterize this substrate rigorously remains largely open.<br>That is the program."</div>
+    <div class="mf-end-sub" style="margin-top:16px">
+      TLIC × YourMine · <a href="https://github.com/theodoreyong9/YourMinedApp" target="_blank" rel="noopener" style="color:rgba(34,211,238,.4);text-decoration:none;font-size:10px">github.com/theodoreyong9/YourMinedApp</a>
+    </div>
+
   </div>
 </div>
 
@@ -437,6 +602,26 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var s1=document.getElementById('lp-start-btn');if(s1)s1.addEventListener('click',goDefault);
   var s2=document.getElementById('lp-start-btn-2');if(s2)s2.addEventListener('click',goDefault);
 
+  // Proof of Will
+  var powOverlay=document.getElementById('pow-overlay');
+  var powClose=document.getElementById('pow-close');
+  function openPOW(){if(powOverlay)powOverlay.classList.add('open');}
+  function closePOW(){if(powOverlay)powOverlay.classList.remove('open');}
+  var pb1=document.getElementById('lp-pow-btn');if(pb1)pb1.addEventListener('click',openPOW);
+  var pb2=document.getElementById('lp-pow-btn-2');if(pb2)pb2.addEventListener('click',openPOW);
+  if(powClose)powClose.addEventListener('click',closePOW);
+  if(powOverlay)powOverlay.addEventListener('click',function(e){if(e.target===powOverlay)closePOW();});
+
+  // Theory
+  var theoryOverlay=document.getElementById('theory-overlay');
+  var theoryClose=document.getElementById('theory-close');
+  function openTheory(){if(theoryOverlay)theoryOverlay.classList.add('open');}
+  function closeTheory(){if(theoryOverlay)theoryOverlay.classList.remove('open');}
+  var tb1=document.getElementById('lp-theory-btn');if(tb1)tb1.addEventListener('click',openTheory);
+  var tb2=document.getElementById('lp-theory-btn-2');if(tb2)tb2.addEventListener('click',openTheory);
+  if(theoryClose)theoryClose.addEventListener('click',closeTheory);
+  if(theoryOverlay)theoryOverlay.addEventListener('click',function(e){if(e.target===theoryOverlay)closeTheory();});
+
   // Manifesto
   var overlay=document.getElementById('manifesto-overlay');
   var closeBtn=document.getElementById('manifesto-close');
@@ -446,7 +631,7 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var mb2=document.getElementById('lp-manifesto-btn-2');if(mb2)mb2.addEventListener('click',openManifesto);
   if(closeBtn)closeBtn.addEventListener('click',closeManifesto);
   if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeManifesto();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeManifesto();closeTheory();closePOW();}});
 
   var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:.12});
   document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
