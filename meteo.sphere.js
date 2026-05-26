@@ -360,18 +360,23 @@ function _buildWidget(){
   const onMouseMove=e=>onMove(e.clientX,e.clientY);
   const onTouchMove=e=>{e.preventDefault();onMove(e.touches[0].clientX,e.touches[0].clientY);};
 
-  _widget.addEventListener('mousedown',e=>{
-    if(e.button!==0)return;
+  function _startDrag(cx,cy){
     dragging=true;
     const r=_widget.getBoundingClientRect();
-    ox=e.clientX;oy=e.clientY;wx=r.left;wy=r.top;
+    ox=cx;oy=cy;wx=r.left;wy=r.top;
+    // Convert to left/top immediately to avoid jump
+    _widget.style.left=wx+'px';_widget.style.top=wy+'px';
+    _widget.style.right='';_widget.style.bottom='';
+  }
+  _widget.addEventListener('mousedown',e=>{
+    if(e.button!==0)return;
+    _startDrag(e.clientX,e.clientY);
     document.addEventListener('mousemove',onMouseMove);
     document.addEventListener('mouseup',onEnd);
   });
   _widget.addEventListener('touchstart',e=>{
-    dragging=true;
-    const t=e.touches[0];const r=_widget.getBoundingClientRect();
-    ox=t.clientX;oy=t.clientY;wx=r.left;wy=r.top;
+    const t=e.touches[0];
+    _startDrag(t.clientX,t.clientY);
     document.addEventListener('touchmove',onTouchMove,{passive:false});
     document.addEventListener('touchend',onEnd);
   },{passive:true});
