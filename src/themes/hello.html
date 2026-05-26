@@ -134,6 +134,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .mf-subtitle{font-family:var(--font-m);font-size:clamp(10px,1.5vw,12px);color:var(--text3);margin-bottom:40px;line-height:1.6;}
 .mf-sep{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);margin:32px 0;}
 .mf-section-label{font-family:var(--font-m);font-size:8px;color:var(--purple);letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;opacity:.6;}
+.mf-sub-label{font-family:var(--font-m);font-size:8px;color:rgba(167,139,250,.4);letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px;padding-left:12px;border-left:1px solid rgba(167,139,250,.2);}
 .mf-section-title{font-family:var(--font-d);font-size:clamp(16px,3vw,24px);font-weight:800;color:var(--text);margin-bottom:12px;line-height:1.2;}
 .mf-p{font-size:clamp(13px,1.8vw,15px);color:var(--text2);line-height:1.85;margin-bottom:10px;}
 .mf-p+.mf-p{margin-top:0;}
@@ -250,15 +251,14 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="mf-sep"></div>
 
     <div class="mf-section-label">1. The limits of attention</div>
-    <div class="mf-p">The transformer architecture demonstrated that a single mechanism — scaled attention over token sequences — could unify language understanding and generation. Eight years later, transformers dominate AI. Yet a structural tension has emerged: the systems we build are increasingly centralized, stateless between sessions, and dependent on frozen knowledge.</div>
-    <div class="mf-p">A transformer has no memory beyond what fits in its context. Every session begins from zero. The world it knows is the world that existed when its training data was collected. The intelligence lives in data centers. Users are endpoints.</div>
-    <div class="mf-p">These are not engineering failures. They are consequences of the transformer's fundamental design: a stateless function over a fixed vocabulary, trained to predict the next token.</div>
+    <div class="mf-p">The transformer architecture demonstrated that a single mechanism — scaled attention over token sequences — could unify language understanding and generation. Eight years later, transformers dominate AI. Yet a structural tension has emerged: centralized, stateless, dependent on frozen knowledge.</div>
+    <div class="mf-p">A transformer has no memory beyond its context window. Every session begins from zero. The intelligence lives in data centers. Users are endpoints. These are not engineering failures — they are consequences of the fundamental design.</div>
 
     <div class="mf-sep"></div>
 
     <div class="mf-section-label">2. What participation offers</div>
     <div class="mf-quote">Participation generates persistent state.<br>Participation distributes knowledge across time.<br>Participation decentralizes intelligence.</div>
-    <div class="mf-p">When a user participates in a network, they leave traces — not logs, not surveillance data — but structured behavioral signals that accumulate into a living representation. This representation persists between sessions because it is not a context window: it is a profile that evolves.</div>
+    <div class="mf-p">When a user participates in a network, structured behavioral signals accumulate into a living representation. This persists between sessions because it is not a context window — it is a profile that evolves.</div>
 
     <div class="mf-sep"></div>
 
@@ -276,136 +276,61 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="mf-sep"></div>
 
     <div class="mf-section-label">4. Attention ≠ Participation</div>
-    <div class="mf-p">Social networks — Facebook, X, TikTok — are not participation systems. They are attention extraction systems in which participation is the means, not the end. Their fundamental metric is time on screen, clicks, engagement. Not contribution, coordination, or emergence.</div>
-    <div class="mf-quote">Social networks failed to produce collective intelligence not because collective intelligence is impossible, but because they were never designed for it.</div>
+    <div class="mf-p">Social networks are not participation systems. They are attention extraction systems. Their metric is time on screen, clicks, engagement — not contribution, coordination, or emergence.</div>
+    <div class="mf-quote">Social networks failed to produce collective intelligence not because it is impossible, but because they were never designed for it.</div>
     <div class="mf-p">The opposition is not individual ↔ crowd. It is <strong style="color:var(--purple)">attention ↔ participation</strong>.</div>
+    <div class="mf-primitives">
+      <div class="mf-primitive"><strong>Intelligence as representation</strong> — the system builds a model and responds. Intelligence localized in weights. Benchmarkable.</div>
+      <div class="mf-primitive"><strong>Intelligence as dynamics</strong> — the system evolves toward better configurations. Intelligence in the trajectory. The question is not "what does it know?" but "where does it go?"</div>
+    </div>
 
     <div class="mf-sep"></div>
 
     <div class="mf-section-label">5. Collective reasoning is reorganization</div>
-    <div class="mf-p">The transformer paradigm defines reasoning as: question → analysis → answer. This is inference. A static function applied to an input, producing an output.</div>
-    <div class="mf-p">What the participation substrate describes is different:</div>
     <div class="mf-code">participants → interactions → network reorganization → emergence</div>
-    <div class="mf-p">The result is not an answer. The result is a transformation of the state of the system. A city does not reason by producing a sentence — it reasons by reorganizing. A market does not answer a question — it converges toward a state. An ant colony does not compute the optimal path — the path appears.</div>
+    <div class="mf-p">The result is not an answer. It is a transformation of the state of the system. A city reasons by reorganizing. A market converges toward a state. An ant colony does not compute the optimal path — the path appears.</div>
+    <div class="mf-quote">We have spent eight years optimizing the individual cognitive mechanism — attention — and almost no work has been done on the social substrate in which cognition is embedded.</div>
 
     <div class="mf-sep"></div>
 
     <div class="mf-section-label">6. The four primitives</div>
     <div class="mf-primitives">
-      <div class="mf-primitive"><strong>Persistent identity</strong> — participants must be recognizable across time, not by name, but by accumulated participation history.</div>
-      <div class="mf-primitive"><strong>Structured broadcast</strong> — participants must emit structured signals about their current state to the network.</div>
-      <div class="mf-primitive"><strong>Composition</strong> — the intersection of two participants' states must produce something neither held alone.</div>
-      <div class="mf-primitive"><strong>Incentive alignment</strong> — participation must generate value for participants, not extract value from them.</div>
+      <div class="mf-primitive"><strong>Persistent identity</strong> — recognizable across time by accumulated participation history, not by name.</div>
+      <div class="mf-primitive"><strong>Structured broadcast</strong> — participants emit structured signals about their current state to the network.</div>
+      <div class="mf-primitive"><strong>Composition</strong> — the intersection of two participants' states produces something neither held alone.</div>
+      <div class="mf-primitive"><strong>Incentive alignment</strong> — participation generates value for participants, not extract value from them.</div>
     </div>
 
     <div class="mf-sep"></div>
 
-    <div class="mf-section-label">7. The real critique</div>
-    <div class="mf-p">The argument is not: transformers will be replaced. It is:</div>
-    <div class="mf-quote">We have spent eight years optimizing the individual cognitive mechanism — attention — and almost no work has been done on the social substrate in which cognition is embedded.</div>
-    <div class="mf-p">Transformer scaling has been remarkable, but it has been scaling one dimension. The collective substrate — how agents coordinate, how knowledge propagates, how emergence occurs — has been left to the application layer, which means it has been left to social networks, which means it has been optimized for attention, which means it has been actively undermined.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">8. A critical response</div>
-    <div class="mf-section-title">Sharpening the Argument</div>
-
-    <div class="mf-p">Social networks — Facebook, X, TikTok — are not participation systems. They are attention extraction systems in which participation is the means, not the end. Their fundamental metric is time on screen, clicks, engagement. Not contribution, coordination, or emergence.</div>
-    <div class="mf-quote">Social networks failed to produce collective intelligence not because collective intelligence is impossible, but because they were never designed for it.</div>
-    <div class="mf-p">The opposition is not individual ↔ crowd. It is <strong style="color:var(--purple)">attention ↔ participation</strong>.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">Collective reasoning is reorganization</div>
-    <div class="mf-p">The transformer paradigm defines reasoning as: question → analysis → answer. This is inference — a static function applied to an input, producing an output.</div>
-    <div class="mf-code">participants → interactions → network reorganization → emergence</div>
-    <div class="mf-p">A city does not reason by producing a sentence — it reasons by reorganizing. A market does not answer a question — it converges toward a state. An ant colony does not compute the optimal path — the path appears.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">Two senses of intelligence</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive"><strong>Intelligence as representation</strong> — the system builds a model of the world and responds to queries. The transformer paradigm. Intelligence is localized in the weights.</div>
-      <div class="mf-primitive"><strong>Intelligence as dynamics</strong> — the system evolves toward configurations better adapted to its environment. The intelligence is in the trajectory of the network, not any static snapshot.</div>
-    </div>
-    <div class="mf-p">You cannot evaluate a participation substrate with benchmarks. The question to ask is not "what does it know?" but "where does it go?"</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">The real critique</div>
-    <div class="mf-quote">We have spent eight years optimizing the individual cognitive mechanism — attention — and almost no work has been done on the social substrate in which cognition is embedded.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">9. The human is not the user</div>
-    <div class="mf-section-title">The Human is a Component of the System</div>
-
+    <div class="mf-section-label">7. The human is a component</div>
     <div class="mf-p">In the current dominant architecture:</div>
     <div class="mf-code">Human → AI → Response</div>
-    <div class="mf-p">The human is exterior to the cognitive system. Even "human-in-the-loop" frames the human as a correction mechanism — not a constitutive component of cognition. The loop is the model's loop. The human closes it from outside.</div>
-
-    <div class="mf-quote">The human is not the user of the system.<br>The human is a component of the system.</div>
-
-    <div class="mf-p">What the participation paradigm proposes is structurally different:</div>
+    <div class="mf-p">The human is exterior to the cognitive system. Even "human-in-the-loop" frames the human as a correction mechanism, not a constitutive component. What the participation paradigm proposes:</div>
     <div class="mf-code">Human ↔ Network ↔ Modules ↔ AI</div>
-    <div class="mf-p">None of these elements is the center. The intelligence is not in the model. It is not in the human individual either. It is in the dynamics of their interaction.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">Stability</div>
-    <div class="mf-p">An engineer asks: how do we prevent drift? How do we ensure stability?</div>
-    <div class="mf-p">This assumes the transformer frame. The participation paradigm inverts it. Drift, convergence, reorganization, and stabilization are not problems to be solved. They are <strong style="color:var(--purple)">the phenomenon to observe</strong>. The system does not produce outputs. It produces states.</div>
-    <div class="mf-code">participation → reorganization → new collective state</div>
-    <div class="mf-p">The new collective state is not a text. Not a prediction. Not a response. It is a configuration of the network that did not exist before the participation occurred.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">The unit is participation</div>
-    <div class="mf-p">The fundamental unit of the system is not the user. It is not even the profile. It is participation itself — a shift parallel to physics moving from objects to interactions.</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive">The profile does not exist before participation. It has no fixed form. Identity is not the input. <strong>Identity is the output.</strong></div>
-    </div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">A movement, not a system</div>
-    <div class="mf-p">A crowd disperses. A movement persists despite the turnover of its components.</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive">A city is a movement. A language is a movement. Open source is a movement. Even a blockchain is a movement — miners and holders change, the pattern persists.</div>
-    </div>
-    <div class="mf-p">The stability question, properly framed, is not: <em>how do we prevent the system from changing?</em> It is: <em>what is the pattern that must persist as everything else changes?</em></div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">Self-organization, not production</div>
+    <div class="mf-quote">The human is not the user of the system.<br>The human is a component of the system.</div>
+    <div class="mf-p">The fundamental unit is not the user. It is participation itself. Identity is not the input — identity is the output. A city is a movement. A language is a movement. YourMine is designed to be a movement: the pattern persists as participants enter and leave.</div>
     <div class="mf-quote">The AI field asks: how do we produce a better representation of the world?<br><br>The participation paradigm asks: how do we create the conditions for a world to self-organize?</div>
-    <div class="mf-p">These are not variations on the same ambition. The first is production engineering. The second is closer to theoretical biology, complex systems theory, urban planning. You do not produce the city. You create the conditions — and the city emerges.</div>
-    <div class="mf-p">Intelligence, in this frame, is not a property of any component. It is a property of the relationship between components. It cannot be extracted, packaged, or deployed. It can only be <strong style="color:var(--purple)">participated in</strong>.</div>
 
     <div class="mf-sep"></div>
 
-    <div class="mf-section-label">10. The critical condition</div>
-    <div class="mf-section-title">Expansion, Not Amplification</div>
-
-    <div class="mf-p">The claim "participation creates more participation" is true — but only under a specific condition:</div>
+    <div class="mf-section-label">8. Expansion, not amplification</div>
     <div class="mf-quote">Participation creates more participation if and only if it expands the configuration space of the system.</div>
-    <div class="mf-p">Without this condition, participation produces not emergence but amplification. And amplification of an existing pattern is not intelligence — it is repetition at scale.</div>
-
-    <table class="mf-table">
-      <tr><th>System</th><th>Loop effect</th></tr>
-      <tr><td>Attention</td><td>Intensification of signal</td></tr>
-      <tr><td>Poorly designed participation</td><td>Amplification of noise</td></tr>
-      <tr><td>Well-designed participation</td><td>Emergence of new behaviors</td></tr>
-    </table>
-
-    <div class="mf-p">The sphere architecture answers this directly. Each new sphere adds not one more option — it adds one more <strong style="color:var(--purple)">dimension</strong> to the configuration space:</div>
+    <div class="mf-p">Without this condition, participation produces amplification — not emergence. And amplification of an existing pattern is not intelligence. It is repetition at scale.</div>
+    <div class="mf-primitives">
+      <div class="mf-primitive"><strong>Diversity</strong> — more variations within the same rules. Same interactions, same structures. Still amplification.</div>
+      <div class="mf-primitive"><strong>Expansion</strong> — new dimensions of rules become possible. Interactions that were structurally impossible before. The coordinate system changes.</div>
+    </div>
     <div class="mf-code">n spheres → n options          (amplification)
 n spheres → 2ⁿ configurations (expansion)</div>
-    <div class="mf-p">The composition primitive — <code style="color:var(--cyan)">peerSection()</code> — is what converts the system from an amplifier to an expander. Without it, spheres are apps. With it, spheres are dimensions.</div>
+    <div class="mf-p">The composition primitive — <code style="color:var(--cyan)">peerSection()</code> — converts the system from amplifier to expander. Without it, spheres are apps. With it, spheres are dimensions.</div>
 
-    <div class="mf-p" style="margin-top:12px">The test is not: does participation increase? The test is: <strong style="color:var(--purple)">do new forms of participation become possible?</strong></div>
+    <div class="mf-sep"></div>
+
+    <div class="mf-section-label">9. The open question</div>
+    <div class="mf-quote">Emergence is not a property of participation.<br>It is a property of the rewriting of the rules of participation themselves.</div>
+    <div class="mf-p">The highest bar: not new interactions within existing rules — new rules that make previously impossible interactions possible. Participants can currently add spheres. They cannot yet change the grammar of participation itself. That is the frontier.</div>
+    <div class="mf-p">The system is running. The observation is ongoing. The question is not whether participation increases. The question is whether <strong style="color:var(--purple)">new things become possible</strong>.</div>
 
     <div class="mf-sep"></div>
     <div class="mf-end">"A city is not its buildings.<br>A language is not its words.<br>A movement is not its members.<br>YourMine is not its code."</div>
