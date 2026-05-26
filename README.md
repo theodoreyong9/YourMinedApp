@@ -770,6 +770,106 @@ function _syncWidgetPage() {
 
 **Important:** do NOT clamp `targetPage` to `pageCount - 1` at spawn. `registerWidgetPage` creates the page if needed. Clamping would reset the widget to page 0 on reload when `pageCount=1` at boot.
 
+### Widget drag and page change
+
+The correct drag pattern for a desktop widget uses the **Pointer Events API** — not `mousedown`/`touchstart`. Using mouse/touch events causes the widget to disappear from under the finger during drag because pointer capture is not guaranteed.
+
+```js
+// Required helpers
+function _getNavBounds(){
+  const navBar = document.getElementById('nav-bar');
+  if (!navBar) return { maxRight: window.innerWidth, maxBottom: window.innerHeight };
+  const r = navBar.getBoundingClientRect();
+  if (_isPC()) return { maxRight: r.left, maxBottom: window.innerHeight };
+  else return { maxRight: window.innerWidth, maxBottom: r.top };
+}
+function _clampPos(wx, wy){
+  const bounds = _getNavBounds();
+  const ww = _widget ? _widget.offsetWidth : 160;
+  const wh = _widget ? _widget.offsetHeight : 60;
+  return {
+    x: Math.max(0, Math.min(bounds.maxRight - ww, wx)),
+    y: Math.max(0, Math.min(bounds.maxBottom - wh, wy))
+  };
+}
+```
+
+```js
+// Drag with edge-scroll page change
+let dragging = false, ox = 0, oy = 0, wx = 0, wy = 0, _edgeT = null;
+
+const onMove = (cx, cy) => {
+  if (!dragging) return;
+  const rawX = wx + (cx - ox);
+  const rawY = wy + (cy - oy);
+  ox = cx; oy = cy;
+  const clamped = _clampPos(rawX, rawY);
+  wx = clamped.x; wy = clamped.y;
+  _widget.style.left = wx + 'px'; _widget.style.top = wy + 'px';
+  _widget.style.right = ''; _widget.style.bottom = '';
+
+  // Edge scroll: drag to screen edge to change page
+  const vw = _isPC() ? window.innerWidth - 72 : window.innerWidth;
+  const ew = vw * 0.15;
+  const curPage = window._deskCurPage || 0;
+  if (cx < ew && curPage > 0) {
+    if (!_edgeT) _edgeT = setTimeout(() => {
+      _edgeT = null;
+      const tp = curPage - 1;
+      window.YM_Desk?.goPage(tp);
+      _registerPage(tp);
+      savePos(Object.assign({}, loadPos(), { page: tp }));
+    }, 500);
+  } else if (cx > vw - ew) {
+    if (!_edgeT) _edgeT = setTimeout(() => {
+      _edgeT = null;
+      const tp = (window._deskCurPage || 0) + 1;
+      window.YM_Desk?.goPageOrCreate(tp);
+      _registerPage(tp);
+      savePos(Object.assign({}, loadPos(), { page: tp }));
+    }, 500);
+  } else { clearTimeout(_edgeT); _edgeT = null; }
+};
+
+const onEnd = () => {
+  if (!dragging) return;
+  dragging = false; _widget._dragging = false;
+  clearTimeout(_edgeT); _edgeT = null;
+  const ww = _widget.offsetWidth, wh = _widget.offsetHeight;
+  const r = Math.max(0, window.innerWidth - wx - ww);
+  const b = Math.max(0, window.innerHeight - wy - wh);
+  const curPage = window._deskCurPage || 0;
+  _registerPage(curPage);
+  savePos({ right: r, bottom: b, page: curPage });
+  _syncWidgetPage();
+  setTimeout(() => window.YM_Desk?.autoCleanPages(), 100);
+};
+
+// Use Pointer Events — setPointerCapture keeps widget under finger
+_widget.addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return;
+  dragging = true; _widget._dragging = true;
+  const rect = _widget.getBoundingClientRect();
+  wx = rect.left; wy = rect.top;
+  _widget.style.left = wx + 'px'; _widget.style.top = wy + 'px';
+  _widget.style.right = ''; _widget.style.bottom = '';
+  ox = e.clientX; oy = e.clientY;
+  e.preventDefault();
+  _widget.setPointerCapture(e.pointerId); // critical — prevents losing the pointer
+}, { passive: false });
+_widget.addEventListener('pointermove', e => { if (dragging) onMove(e.clientX, e.clientY); }, { passive: false });
+_widget.addEventListener('pointerup', onEnd);
+_widget.addEventListener('pointercancel', onEnd);
+```
+
+**Key rules:**
+- Use `pointerdown`/`pointermove`/`pointerup` — never `mousedown`/`touchstart` for widget drag
+- Call `_widget.setPointerCapture(e.pointerId)` in `pointerdown` — this prevents the widget from losing the pointer when the finger moves fast
+- Convert `right/bottom` to `left/top` immediately at drag start — avoids the visual jump
+- Use `opacity:0/1` + `pointerEvents:none/all` in `_syncWidgetPage`, never `display:none` — `display:none` breaks pointer capture during page transitions
+- Set `_widget._dragging = true` during drag and check it in `_syncWidgetPage` to prevent hiding during page change
+- Edge scroll threshold: 15% of viewport width on each side, 500ms delay
+
 ---
 
 ## Sphere Visibility
