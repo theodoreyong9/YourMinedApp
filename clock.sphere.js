@@ -156,8 +156,9 @@ function _buildWidget(){
   if(_widget&&document.body.contains(_widget)){_refreshWidget();_syncWidgetPage();return;}
   _widget=null;
 
+  const spawnPage=window._deskCurPage||0;
   const pos=_loadPos();
-  const targetPage=pos.page||0;
+  const targetPage=localStorage.getItem(POS_KEY)?(pos.page||0):spawnPage;
 
   _widget=document.createElement('div');
   _widget.id='ym-clock-widget';
