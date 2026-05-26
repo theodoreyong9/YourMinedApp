@@ -181,10 +181,17 @@ textarea.ym-input{resize:vertical;font-family:var(--font-m);font-size:12px}
 .formula-var{background:rgba(255,255,255,.03);border-radius:6px;padding:7px 8px;font-size:11px;color:var(--text2);line-height:1.4}
 .formula-var b{color:var(--gold);font-family:var(--font-m)}
 body.has-wallpaper #ym-wp{
-  background-size:120% auto;
+  background-size:cover;
+  overflow:hidden;
+}
+body.has-wallpaper #ym-wp::after{
+  content:'';
+  position:absolute;inset:-10%;
+  background:inherit;
+  background-size:cover;
+  background-position:center;
   will-change:transform;
   animation:wpPan 120s linear infinite alternate;
-  transform-origin:center center;
 }
 @keyframes wpPan{
   0%{transform:translateX(-8%)}
