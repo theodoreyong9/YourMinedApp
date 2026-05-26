@@ -22,15 +22,20 @@ function _unregisterPage(){if(window.YM_Desk&&window.YM_Desk.unregisterWidget)wi
 const _onPageChange=()=>_syncWidgetPage();
 function _syncWidgetPage(){
   if(!_widget||!document.body.contains(_widget))return;
+  if(_widget._dragging)return;
+  let widgetPage=0;
   if(window.YM_Desk&&window.YM_Desk.registeredWidgetPage){
     const rp=window.YM_Desk.registeredWidgetPage(WIDGET_ID);
-    if(rp!==null&&rp!==undefined){
-      const cur=window._deskCurPage||0;
-      _widget.style.display=rp===cur?'flex':'none';
-      return;
-    }
+    if(rp!=null)widgetPage=rp;
+    else widgetPage=_loadPos().page||0;
+  }else{
+    widgetPage=_loadPos().page||0;
   }
-  _widget.style.display='flex';
+  const curPage=window._deskCurPage!=null?window._deskCurPage:0;
+  const visible=curPage===widgetPage;
+  _widget.style.transition='opacity .25s ease';
+  _widget.style.opacity=visible?'1':'0';
+  _widget.style.pointerEvents=visible?'all':'none';
 }
 
 // ── API ──────────────────────────────────────────────────────
