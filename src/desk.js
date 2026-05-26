@@ -212,6 +212,19 @@ function autoCleanPages(){
   const remap=new Map();kept.forEach((oldP,newP)=>remap.set(oldP,newP));
   icons.forEach(i=>{if(remap.has(i.page))i.page=remap.get(i.page);});SD(icons);
   for(const[id,p] of _widgetPages){if(remap.has(p))_widgetPages.set(id,remap.get(p));}
+  _saveWidgetPages();
+  // Also update each widget's own POS_KEY in localStorage
+  // Widget POS keys follow convention 'ym_WIDGETID_widget_pos'
+  for(const[id,newP] of _widgetPages){
+    const posKey='ym_'+id+'_widget_pos';
+    try{
+      const pos=JSON.parse(localStorage.getItem(posKey)||'{}');
+      if(pos&&typeof pos.page==='number'&&remap.has(pos.page)){
+        pos.page=remap.get(pos.page);
+        localStorage.setItem(posKey,JSON.stringify(pos));
+      }
+    }catch{}
+  }
   const newN=kept.length;setPgCount(newN);if(curPg>=newN)curPg=newN-1;buildSlider();goPage(curPg,false);
 }
 
