@@ -747,6 +747,19 @@ async function renderBestCVs(job,body,wrap){
   }
 }
 
+// ── Step card helper ────────────────────────────────────────
+function _careerStep(label,status){
+  const el=document.createElement('div');
+  el.style.cssText='border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden';
+  el.innerHTML=
+    '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">'+
+      '<div class="career-step-label" style="font-family:var(--font-d,inherit);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">'+label+'</div>'+
+      (status?'<div style="font-size:10px;color:var(--green,#22d98a);font-family:var(--font-m,monospace)">'+esc(status)+'</div>':'')+
+    '</div>'+
+    '<div class="career-step-body" style="padding:12px 14px"></div>';
+  return{el,body:el.querySelector('.career-step-body')};
+}
+
 // ── Publish tab ─────────────────────────────────────────────
 function renderPublishTab(body,container){
   body.innerHTML='';
@@ -827,19 +840,6 @@ function renderPublishTab(body,container){
   btnCV.addEventListener('click',()=>switchType('cv'));
   btnJob.addEventListener('click',()=>switchType('job'));
   switchType('cv');
-
-  // Helper: step card
-  function _careerStep(label,status){
-    const el=document.createElement('div');
-    el.style.cssText='border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden';
-    el.innerHTML=
-      '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.06)">'+
-        '<div class="career-step-label" style="font-family:var(--font-d,inherit);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">'+label+'</div>'+
-        (status?'<div style="font-size:10px;color:var(--green,#22d98a);font-family:var(--font-m,monospace)">'+esc(status)+'</div>':'')+
-      '</div>'+
-      '<div class="career-step-body" style="padding:12px 14px"></div>';
-    return{el,body:el.querySelector('.career-step-body')};
-  }
 
   function _renderCVForm(container){
     // Check if already published (update mode)
