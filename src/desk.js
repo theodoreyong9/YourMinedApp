@@ -27,7 +27,8 @@ function renderIconContent(icon){
   if(isImageURL(icon)){
     const img=document.createElement('img');
     img.src=icon;img.alt='';
-    img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:8px;display:block';
+    img.draggable=false;
+    img.style.cssText='width:36px;height:36px;object-fit:contain;border-radius:8px;display:block;-webkit-user-select:none;user-select:none;pointer-events:none';
     return img;
   }
   const span=document.createElement('span');span.textContent=icon||'⬡';return span;
@@ -215,8 +216,7 @@ function goPage(n,anim){
 function autoCleanPages(){
   const icons=LD();const n=getPgCount();const occupied=new Set(icons.map(i=>i.page));
   for(const p of _widgetPages.values())occupied.add(p);
-  // Page 0 protected only if it's the only page
-  if(n===1)occupied.add(0);const kept=[];
+  occupied.add(0);const kept=[];
   for(let p=0;p<n;p++){if(occupied.has(p))kept.push(p);}
   if(kept.length===n)return;
   const remap=new Map();kept.forEach((oldP,newP)=>remap.set(oldP,newP));
