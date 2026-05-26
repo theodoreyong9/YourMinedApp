@@ -180,8 +180,16 @@ textarea.ym-input{resize:vertical;font-family:var(--font-m);font-size:12px}
 .formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .formula-var{background:rgba(255,255,255,.03);border-radius:6px;padding:7px 8px;font-size:11px;color:var(--text2);line-height:1.4}
 .formula-var b{color:var(--gold);font-family:var(--font-m)}
-body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
-@keyframes wpPan{0%{background-position:0% center}100%{background-position:100% center}}
+body.has-wallpaper #ym-wp{
+  background-size:120% auto;
+  will-change:transform;
+  animation:wpPan 120s linear infinite alternate;
+  transform-origin:center center;
+}
+@keyframes wpPan{
+  0%{transform:translateX(-8%)}
+  100%{transform:translateX(8%)}
+}
 #panel-switcher{position:fixed;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));max-height:calc(80dvh - var(--dock-h) - var(--safe-b));background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);z-index:298;transform:translateY(calc(100% + 20px));transition:transform .4s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;border-radius:30px 30px 0 0;overflow:hidden}
 #panel-switcher::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 #panel-switcher.open{transform:translateY(0);z-index:303}
