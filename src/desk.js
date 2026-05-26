@@ -137,6 +137,23 @@ function setNotif(id,n){
   _refreshParentFolderBadges(LD());
 }
 
+function setIcon(id,icon){
+  // Update stored data
+  const d=LD(),found=findIconParent(id,d);
+  if(found){found.item.icon=icon;SD(d);}
+  // Update live DOM — find icon-body for this id
+  const wrap=document.querySelector('.icon-wrap[data-id="'+id+'"]');
+  if(!wrap)return;
+  const body=wrap.querySelector('.icon-body');
+  if(!body)return;
+  // Replace icon content (first non-del, non-notif child)
+  const existing=body.querySelector('span,img');
+  if(existing){
+    const newContent=renderIconContent(icon);
+    existing.replaceWith(newContent);
+  }
+}
+
 // ── WIDGET PAGE REGISTRY ──────────────────────────────────────
 const _widgetPages=new Map();
 
@@ -711,7 +728,7 @@ function deskInit(){
 }
 
 window.YM_Desk={
-  addIcon,removeIcon,setNotif,renderDesk,goPage,getPgCount,buildSlider,autoCleanPages,enterEdit,exitEdit,
+  addIcon,removeIcon,setNotif,setIcon,renderDesk,goPage,getPgCount,buildSlider,autoCleanPages,enterEdit,exitEdit,
   registerWidgetPage,unregisterWidget,
   // ── NEW: expose widget page for radio/widget sync ──
   registeredWidgetPage,
