@@ -1219,34 +1219,36 @@
     setTimeout(_wrapSignWithConfirmation, 2000);
     window.addEventListener('ym:wallet-unlocked', _wrapSignWithConfirmation);
 
-    try { if (window.YM_Liste && window.YM_Liste.fetchSphereList) await window.YM_Liste.fetchSphereList(); } catch {}
-
-    const p = LP();
-    if (p && p.spheres && p.spheres.length) {
-      // Activate spheres in parallel — much faster with 20+ spheres
-      await Promise.allSettled(
-        p.spheres
-          .filter(sname => !window.YM_sphereRegistry || !window.YM_sphereRegistry.has(sname))
-          .map(sname => window.YM_Liste
-            ? window.YM_Liste.activateSphereByName(sname).catch(e => console.warn('[YM] restore:', sname, e.message))
-            : Promise.resolve()
-          )
-      );
-    }
-
-    const _socId = 'social.sphere.js';
-    if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
-      try { await window.YM_Liste.activateSphereByName(_socId); }
-      catch (e) { console.warn('[YM] social:', e.message); }
-    }
-
-    const _safId = 'safety.sphere.js';
-    if (window.YM_Liste && !window.YM_sphereRegistry.has(_safId)) {
-      try { await window.YM_Liste.activateSphereByName(_safId); }
-      catch (e) { console.warn('[YM] safety:', e.message); }
-    }
-
+    // Desk renders first — spheres activate after
     initP2P();
+
+    setTimeout(async function() {
+      try { if (window.YM_Liste && window.YM_Liste.fetchSphereList) await window.YM_Liste.fetchSphereList(); } catch {}
+
+      const p = LP();
+      if (p && p.spheres && p.spheres.length) {
+        await Promise.allSettled(
+          p.spheres
+            .filter(sname => !window.YM_sphereRegistry || !window.YM_sphereRegistry.has(sname))
+            .map(sname => window.YM_Liste
+              ? window.YM_Liste.activateSphereByName(sname).catch(e => console.warn('[YM] restore:', sname, e.message))
+              : Promise.resolve()
+            )
+        );
+      }
+
+      const _socId = 'social.sphere.js';
+      if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
+        try { await window.YM_Liste.activateSphereByName(_socId); }
+        catch (e) { console.warn('[YM] social:', e.message); }
+      }
+
+      const _safId = 'safety.sphere.js';
+      if (window.YM_Liste && !window.YM_sphereRegistry.has(_safId)) {
+        try { await window.YM_Liste.activateSphereByName(_safId); }
+        catch (e) { console.warn('[YM] safety:', e.message); }
+      }
+    }, 0);
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 
