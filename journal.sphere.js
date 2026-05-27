@@ -14,7 +14,7 @@ const RAW_BASE   = 'https://raw.githubusercontent.com/'+GH_OWNER+'/'+GH_REPO+'/'
 const JOURNAL_JSON = RAW_BASE+'journals.json';
 
 let _ctx  = null;
-let _tab  = 'browse'; // browse | mine | publish
+let _tab  = 'feed'; // browse | mine | publish
 let _journals = null;
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -196,7 +196,7 @@ function renderPanel(container){
 
   const tabs=document.createElement('div');
   tabs.style.cssText='display:flex;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;background:rgba(0,0,0,.2)';
-  [{id:'browse',label:'📖 Browse'},{id:'mine',label:'✏️ My Journal'},{id:'publish',label:'+ Publish'}].forEach(t=>{
+  [{id:'feed',label:'📡 Feed'},{id:'browse',label:'📖 Browse'},{id:'mine',label:'✏️ My Journal'},{id:'publish',label:'+ Publish'}].forEach(t=>{
     const tab=document.createElement('div');
     tab.style.cssText='flex:1;padding:11px 4px 9px;text-align:center;font-size:10px;font-family:var(--font-m,monospace);cursor:pointer;transition:all .15s;border-top:2px solid '+(_tab===t.id?'var(--gold,#f0a830)':'transparent')+';color:'+(_tab===t.id?'var(--gold,#f0a830)':'rgba(255,255,255,.35)');
     tab.textContent=t.label;
@@ -209,12 +209,113 @@ function renderPanel(container){
   body.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
   container.appendChild(body);
 
-  if(_tab==='browse') renderBrowseTab(body);
+  if(_tab==='feed') renderFeedTab(body);
+  else if(_tab==='browse') renderBrowseTab(body);
   else if(_tab==='mine') renderMineTab(body,container);
   else renderPublishTab(body,container);
 }
 
-// ── Browse tab ────────────────────────────────────────────────
+// ── Feed tab ─────────────────────────────────────────────────
+function renderFeedTab(body){
+  body.innerHTML='';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='padding:12px;display:flex;flex-direction:column;gap:10px';
+  body.appendChild(wrap);
+
+  // Section builder
+  function _section(label){
+    const s=document.createElement('div');
+    s.style.cssText='font-size:9px;color:var(--text3);font-family:var(--font-m,monospace);text-transform:uppercase;letter-spacing:1px;padding:4px 0 6px;border-bottom:1px solid rgba(255,255,255,.04);margin-bottom:4px';
+    s.textContent=label;
+    wrap.appendChild(s);
+  }
+
+  function _journalCard(bd,uuid){
+    if(!bd?.journal_url)return null;
+    const card=document.createElement('div');
+    card.style.cssText='background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s';
+    card.innerHTML=
+      '<span style="font-size:24px;flex-shrink:0">'+(bd.journal_icon||'📖')+'</span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:12px;font-weight:600;color:var(--text,#e4e6f4)">'+esc(bd.journal_title||'Journal')+'</div>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:1px">'+(bd.journal_entries||0)+' entries</div>'+
+      '</div>'+
+      (bd.journal_updated?'<div style="font-size:9px;color:var(--text3);font-family:var(--font-m,monospace);flex-shrink:0">'+new Date(bd.journal_updated).toLocaleDateString('en',{month:'short',day:'numeric'})+'</div>':'');
+    card.addEventListener('click',()=>openJournalPanel(bd.journal_url));
+    card.addEventListener('mouseenter',()=>card.style.borderColor='rgba(240,168,48,.3)');
+    card.addEventListener('mouseleave',()=>card.style.borderColor='rgba(255,255,255,.06)');
+    return card;
+  }
+
+  let hasContent=false;
+
+  // Near — P2P connected peers
+  const near=window.YM_Social&&window.YM_Social._nearUsers;
+  const nearJournals=[];
+  if(near&&near.size){
+    near.forEach((u,uuid)=>{
+      const bd=u.broadcastData&&u.broadcastData['journal.sphere.js'];
+      if(bd?.journal_url)nearJournals.push({bd,uuid,name:u.profile?.name||uuid.slice(0,6)});
+    });
+  }
+  if(nearJournals.length){
+    hasContent=true;
+    _section('📡 Near — '+nearJournals.length+' peer'+(nearJournals.length>1?'s':'')+' online');
+    nearJournals.forEach(({bd,uuid})=>{
+      const card=_journalCard(bd,uuid);
+      if(card)wrap.appendChild(card);
+    });
+  }
+
+  // Contacts — from Social sphere
+  const contacts=window.YM_Social&&window.YM_Social._contacts||[];
+  const contactJournals=[];
+  if(contacts.length){
+    contacts.forEach(c=>{
+      const bd=c.broadcastData&&c.broadcastData['journal.sphere.js'];
+      if(bd?.journal_url)contactJournals.push({bd,uuid:c.uuid});
+    });
+  }
+  if(contactJournals.length){
+    hasContent=true;
+    _section('👥 Contacts');
+    contactJournals.forEach(({bd,uuid})=>{
+      const card=_journalCard(bd,uuid);
+      if(card)wrap.appendChild(card);
+    });
+  }
+
+  // Rank — top journals from registry
+  loadJournals().then(journals=>{
+    if(journals&&journals.length){
+      hasContent=true;
+      const rankSection=document.createElement('div');
+      rankSection.style.cssText='font-size:9px;color:var(--text3);font-family:var(--font-m,monospace);text-transform:uppercase;letter-spacing:1px;padding:4px 0 6px;border-bottom:1px solid rgba(255,255,255,.04);margin-bottom:4px';
+      rankSection.textContent='⭐ Top journals';
+      wrap.appendChild(rankSection);
+      journals.slice(0,5).forEach(j=>{
+        const card=document.createElement('div');
+        card.style.cssText='background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s';
+        card.innerHTML=
+          '<span style="font-size:24px;flex-shrink:0">'+(j.icon||'📖')+'</span>'+
+          '<div style="flex:1;min-width:0">'+
+            '<div style="font-size:12px;font-weight:600;color:var(--text,#e4e6f4)">'+esc(j.title||'Journal')+'</div>'+
+            '<div style="font-size:10px;color:var(--text3)">@'+esc(j.github)+' · '+(j.entryCount||0)+' entries</div>'+
+          '</div>';
+        card.addEventListener('click',()=>openJournalPanel(j.codeUrl));
+        card.addEventListener('mouseenter',()=>card.style.borderColor='rgba(240,168,48,.3)');
+        card.addEventListener('mouseleave',()=>card.style.borderColor='rgba(255,255,255,.06)');
+        wrap.appendChild(card);
+      });
+    }
+
+    if(!hasContent&&!journals?.length){
+      wrap.innerHTML='<div style="padding:32px;text-align:center;font-size:11px;color:var(--text3);line-height:1.8">No journals in your feed yet.<br>Publish yours or connect peers.</div>';
+    }
+  });
+}
+
+// ── Browse tab ─────────────────────────────────────────────────
 async function renderBrowseTab(body){
   body.innerHTML='<div style="padding:16px;font-size:11px;color:var(--text3);font-family:var(--font-m,monospace)">Loading journals…</div>';
   const journals=await loadJournals();
