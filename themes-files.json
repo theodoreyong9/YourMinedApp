@@ -1,34 +1,5 @@
 [
   {
-    "filename": "default.theme.html",
-    "name": "Default",
-    "icon": "🏠",
-    "description": "The default YourMine theme. Clean dark UI with gold and cyan accents.",
-    "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/default.theme.html",
-    "wip": false,
-    "score": 0,
-    "laps": 0,
-    "timestamp": 1700000000,
-    "merged_at": 1700000100,
-    "media": {
-      "photos": [
-        "https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=1400&q=80",
-        "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=1400&q=80",
-        "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1400&q=80",
-        "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1400&q=80",
-        "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=1400&q=80",
-        "https://images.unsplash.com/photo-1543722530-d2c3201371e7?w=1400&q=80",
-        "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1400&q=80",
-        "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=1400&q=80",
-        "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1400&q=80",
-        "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1400&q=80",
-        "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1400&q=80"
-      ],
-      "videos": []
-      }
-    },
-  {
     "filename": "zone.theme.html",
     "name": "zone",
     "icon": "🌍",
@@ -50,57 +21,6 @@
         "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1400&q=80",
         "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1400&q=80"
       ],
-      "videos": []
-    }
-  },
-  {
-    "filename": "command.theme.html",
-    "name": "command",
-    "icon": "🌋",
-    "description": "Alerte dashboard",
-    "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/command.theme.html",
-    "wip": false,
-    "score": 0,
-    "laps": 0,
-    "timestamp": 1700000000,
-    "merged_at": 1700000100,
-    "media": {
-      "photos": [],
-      "videos": []
-    }
-  },
-  {
-    "filename": "Nexthink.theme.html",
-    "name": "Nexthink",
-    "icon": "🧠",
-    "description": "Behavorial Intelligence",
-    "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/Nexthink.theme.html",
-    "wip": false,
-    "score": 0,
-    "laps": 0,
-    "timestamp": 1700000000,
-    "merged_at": 1700000100,
-    "media": {
-      "photos": [],
-      "videos": []
-    }
-  },
-  {
-    "filename": "crm.theme.html",
-    "name": "crm",
-    "icon": "💴",
-    "description": "",
-    "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/crm.theme.html",
-    "wip": false,
-    "score": 0,
-    "laps": 0,
-    "timestamp": 1700000000,
-    "merged_at": 1700000100,
-    "media": {
-      "photos": [],
       "videos": []
     }
   }
