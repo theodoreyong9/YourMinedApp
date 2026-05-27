@@ -36,54 +36,6 @@
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/anonmessenger.sphere.js"
   },
   {
-    "filename": "call.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.931716,
-    "laps": 7887189,
-    "timestamp": 1776619789,
-    "merged_at": 1776620204,
-    "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/call.sphere.js"
-  },
-  {
-    "filename": "dropsharing.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.931732,
-    "laps": 7887308,
-    "timestamp": 1776619834,
-    "merged_at": 1776620204,
-    "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/dropsharing.sphere.js"
-  },
-  {
-    "filename": "messenger.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.931807,
-    "laps": 7887887,
-    "timestamp": 1776620048,
-    "merged_at": 1776620204,
-    "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/messenger.sphere.js"
-  },
-  {
-    "filename": "poker.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.931822,
-    "laps": 7888004,
-    "timestamp": 1776620089,
-    "merged_at": 1776620204,
-    "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/poker.sphere.js"
-  },
-  {
     "filename": "radio.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
@@ -107,30 +59,6 @@
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/jackpot.sphere.js"
   },
   {
-    "filename": "towerdefense.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.00138,
-    "laps": 171383,
-    "timestamp": 1776705800,
-    "merged_at": 1776705823,
-    "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/towerdefense.sphere.js"
-  },
-  {
-    "filename": "meshai.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.931771,
-    "laps": 7887608,
-    "timestamp": 1776619935,
-    "merged_at": 1776620204,
-    "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/meshai.sphere.js"
-  },
-  {
     "filename": "social.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
@@ -141,30 +69,6 @@
     "merged_at": 1776620204,
     "burnSlot": 448770336,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/social.sphere.js"
-  },
-  {
-    "filename": "video.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.01217,
-    "laps": 1240271,
-    "timestamp": 1777111030,
-    "merged_at": 1777111062,
-    "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/video.sphere.js"
-  },
-  {
-    "filename": "bomb.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.01217,
-    "laps": 1240271,
-    "timestamp": 1777111030,
-    "merged_at": 1777111062,
-    "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/bomb.sphere.js"
   },
   {
     "filename": "test.sphere.js",
@@ -191,30 +95,6 @@
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/idea.sphere.js"
   },
   {
-    "filename": "zone.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.030993,
-    "laps": 2903156,
-    "timestamp": 1777741079,
-    "merged_at": 1777741104,
-    "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/zone.sphere.js"
-  },
-  {
-    "filename": "alerte.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.030993,
-    "laps": 2903156,
-    "timestamp": 1777741079,
-    "merged_at": 1777741104,
-    "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/alerte.sphere.js"
-  },
-  {
     "filename": "meteo.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
@@ -225,30 +105,6 @@
     "merged_at": 1776620204,
     "burnSlot": 448770336,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/meteo.sphere.js"
-  },
-  {
-    "filename": "finance.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.030993,
-    "laps": 2903156,
-    "timestamp": 1777741079,
-    "merged_at": 1777741104,
-    "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/finance.sphere.js"
-  },
-  {
-    "filename": "cameras.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.030993,
-    "laps": 2903156,
-    "timestamp": 1777741079,
-    "merged_at": 1777741104,
-    "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/cameras.sphere.js"
   },
   {
     "filename": "clock.sphere.js",
