@@ -1,797 +1,325 @@
-<!--
-  YourMine — Nexthink Theme
-  GitHub: theodoreyong9/YourMinedApp/src/themes/nexthink.theme.html
-  Behavioral intelligence — navigate active spheres + network analysis
--->
-<script>
-window.YM_THEME_META = {"name":"Nexthink","icon":"⬡","description":"Navigate your active spheres and network intelligence"};
-window.YM_WALLPAPER_PRESETS = [];
-window.YM_Desk_pageUnit = function(){ return '100vw'; };
-</script>
-
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=block" rel="stylesheet">
-
-<style>
-:root {
-  color-scheme: dark;
-  --bg: #080c10;
-  --bg2: #0d1117;
-  --bg3: #111820;
-  --border: rgba(0,200,180,.12);
-  --border2: rgba(0,200,180,.06);
-  --text: #c8d8e8;
-  --text2: rgba(200,216,232,.5);
-  --text3: rgba(200,216,232,.22);
-  --accent: #00c8b4;
-  --accent2: #b8e8e0;
-  --green: #00e5a0;
-  --red: #ff4560;
-  --gold: #f0a830;
-  --cyan: #08e0f8;
-  --safe-b: env(safe-area-inset-bottom,0px);
-  --dock-h: 0px;
-  --font-m: 'IBM Plex Mono', monospace;
-  --font-b: 'IBM Plex Sans', sans-serif;
-  --font-d: 'IBM Plex Mono', monospace;
-  --glass: rgba(8,12,16,.92);
-  --blur: blur(32px) saturate(180%);
-  --cols: 4; --rows: 6;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent }
-html { height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--bg) }
-body { height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--bg); color: var(--text); font-family: var(--font-b); padding-top: env(safe-area-inset-top,0px) }
-body::before { content: ""; position: fixed; top: 0; left: 0; width: 100%; height: env(safe-area-inset-top,0px); background: var(--bg); z-index: 9999; pointer-events: none }
-body * { scrollbar-width: thin; scrollbar-color: rgba(0,200,180,.15) transparent }
-::-webkit-scrollbar { width: 2px } ::-webkit-scrollbar-thumb { background: rgba(0,200,180,.2); border-radius: 1px }
-
-#ym-wp { position: fixed; inset: 0; z-index: 0 }
-#ym-bg {
-  position: fixed; inset: 0; z-index: 1; pointer-events: none;
-  background:
-    linear-gradient(rgba(0,200,180,.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,200,180,.025) 1px, transparent 1px),
-    var(--bg);
-  background-size: 48px 48px;
-}
-#ym-bg::before {
-  content: ''; position: absolute;
-  width: 700px; height: 700px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(0,200,180,.05), transparent 70%);
-  top: -200px; right: -150px;
-}
-
-/* ── Topbar ── */
-#nx-topbar {
-  position: fixed;
-  top: env(safe-area-inset-top,0px);
-  left: 0; right: 0;
-  height: 40px; z-index: 200;
-  display: flex; align-items: center;
-  padding: 0 14px; gap: 10px;
-  background: rgba(8,12,16,.95);
-  border-bottom: 1px solid var(--border2);
-  backdrop-filter: blur(16px);
-}
-#nx-logo {
-  font-family: var(--font-m); font-size: 9px; font-weight: 600;
-  letter-spacing: 3px; text-transform: uppercase;
-  color: var(--accent); flex-shrink: 0;
-  display: flex; align-items: center; gap: 6px;
-}
-#nx-logo::before { content: '⬡'; font-size: 14px }
-#nx-ticker {
-  flex: 1; overflow: hidden; white-space: nowrap;
-  font-family: var(--font-m); font-size: 8px;
-  color: var(--text3); letter-spacing: .3px;
-}
-#nx-ticker-inner { display: inline-block; animation: nxtick 20s linear infinite }
-@keyframes nxtick { 0% { transform: translateX(60vw) } 100% { transform: translateX(-100%) } }
-#nx-status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); flex-shrink: 0; animation: nxpulse 2s ease-in-out infinite }
-@keyframes nxpulse { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
-#nx-status-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent) }
-.nx-topbar-btn { background: none; border: none; color: var(--text3); font-size: 16px; cursor: pointer; padding: 5px 7px; border-radius: 4px; transition: all .15s; font-family: var(--font-m); display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; flex-shrink: 0 }
-.nx-topbar-btn:hover { color: var(--accent); background: rgba(0,200,180,.08) }
-.nx-topbar-btn:active { transform: scale(.88) }
-
-/* ── Main layout ── */
-#nx-layout {
-  position: fixed;
-  top: calc(env(safe-area-inset-top,0px) + 40px);
-  left: 0; right: 0;
-  bottom: var(--safe-b);
-  display: flex; z-index: 10;
-}
-
-/* Left — sphere list */
-#nx-left {
-  width: 200px; flex-shrink: 0;
-  display: flex; flex-direction: column;
-  border-right: 1px solid var(--border2);
-  background: var(--bg2);
-}
-#nx-mobile-select {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-  background: var(--surface2);
-}
-#nx-mobile-select select {
-  flex: 1;
-  background: var(--surface3);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-family: var(--font-m);
-  font-size: 11px;
-  padding: 6px 10px;
-  outline: none;
-  letter-spacing: .05em;
-}
-#nx-mobile-select-label {
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: .15em;
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-#nx-left-header {
-  padding: 12px 12px 8px;
-  border-bottom: 1px solid var(--border2);
-  flex-shrink: 0;
-}
-#nx-left-title {
-  font-family: var(--font-m); font-size: 7px;
-  letter-spacing: 2px; text-transform: uppercase;
-  color: var(--text3); margin-bottom: 6px;
-}
-#nx-sphere-count {
-  font-family: var(--font-m); font-size: 20px;
-  font-weight: 300; color: var(--accent);
-  line-height: 1;
-}
-#nx-sphere-count-label {
-  font-family: var(--font-m); font-size: 8px;
-  color: var(--text3); margin-top: 2px;
-}
-#nx-sphere-list { flex: 1; overflow-y: auto; padding: 6px 0 }
-.nx-sphere-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; cursor: pointer;
-  transition: background .15s;
-  border-left: 2px solid transparent;
-  position: relative;
-}
-.nx-sphere-item:hover { background: rgba(0,200,180,.04) }
-.nx-sphere-item.active { background: rgba(0,200,180,.07); border-left-color: var(--accent) }
-.nx-sphere-icon { font-size: 20px; flex-shrink: 0; width: 28px; text-align: center }
-.nx-sphere-info { flex: 1; min-width: 0 }
-.nx-sphere-name { font-family: var(--font-m); font-size: 10px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.nx-sphere-cat { font-size: 8px; color: var(--text3); letter-spacing: .3px; margin-top: 1px }
-.nx-sphere-notif { width: 14px; height: 14px; border-radius: 2px; background: var(--accent); color: #000; font-size: 8px; font-weight: 600; display: flex; align-items: center; justify-content: center; font-family: var(--font-m); flex-shrink: 0 }
-#nx-empty-spheres { padding: 24px 12px; text-align: center; font-size: 9px; color: var(--text3); font-family: var(--font-m); line-height: 1.8 }
-
-/* Center — sphere panel */
-#nx-center { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0 }
-#nx-center-header {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border2);
-  flex-shrink: 0;
-  display: flex; align-items: center; gap: 10px;
-  background: rgba(8,12,16,.5);
-}
-#nx-center-icon { font-size: 22px; flex-shrink: 0 }
-#nx-center-name { font-family: var(--font-m); font-size: 11px; font-weight: 500; color: var(--text); flex: 1 }
-#nx-center-desc { font-size: 9px; color: var(--text3); font-family: var(--font-m) }
-#nx-center-body { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch }
-#nx-no-sphere {
-  flex: 1; display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 10px; color: var(--text3); font-family: var(--font-m);
-  font-size: 10px; text-align: center; line-height: 1.8;
-  padding: 24px;
-}
-#nx-no-sphere-icon { font-size: 40px; opacity: .2; animation: nxpulse 3s ease-in-out infinite }
-
-/* Right — intelligence panel */
-#nx-right {
-  width: 260px; flex-shrink: 0;
-  display: flex; flex-direction: column;
-  border-left: 1px solid var(--border2);
-  background: var(--bg2);
-}
-#nx-right-header {
-  padding: 10px 12px 8px;
-  border-bottom: 1px solid var(--border2);
-  flex-shrink: 0;
-  display: flex; align-items: center; gap: 6px;
-}
-#nx-right-title { font-family: var(--font-m); font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); flex: 1 }
-#nx-analyse-btn {
-  padding: 4px 8px;
-  background: rgba(0,200,180,.08);
-  border: 1px solid rgba(0,200,180,.2);
-  border-radius: 3px;
-  color: var(--accent); font-family: var(--font-m);
-  font-size: 8px; letter-spacing: 1px; text-transform: uppercase;
-  cursor: pointer; transition: all .15s; flex-shrink: 0;
-}
-#nx-analyse-btn:hover { background: rgba(0,200,180,.14) }
-#nx-analyse-btn:disabled { opacity: .4; cursor: not-allowed }
-#nx-right-body { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px }
-
-/* Signal card */
-.nx-signal-card {
-  background: rgba(0,200,180,.03);
-  border: 1px solid var(--border2);
-  border-left: 2px solid var(--accent);
-  border-radius: 4px; padding: 12px;
-}
-.nx-sig-icon { font-size: 30px; display: block; margin-bottom: 8px; animation: nxfloat 3s ease-in-out infinite }
-@keyframes nxfloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-4px) } }
-.nx-sig-label { font-family: var(--font-m); font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); margin-bottom: 4px }
-.nx-sig-name { font-family: var(--font-m); font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px }
-.nx-sig-tagline { font-size: 10px; color: var(--text2); line-height: 1.5; margin-bottom: 8px }
-.nx-sig-why { font-size: 9px; color: var(--text3); line-height: 1.6; padding-top: 8px; border-top: 1px solid var(--border2); margin-bottom: 8px }
-.nx-sig-trend { font-size: 9px; color: rgba(0,132,255,.7); line-height: 1.5; padding: 5px 7px; background: rgba(0,132,255,.05); border-radius: 3px; border: 1px solid rgba(0,132,255,.12); margin-bottom: 8px }
-.nx-sig-trend::before { content: '↗ ' }
-.nx-sig-copy { width: 100%; padding: 7px; background: rgba(0,200,180,.08); border: 1px solid rgba(0,200,180,.2); border-radius: 3px; color: var(--accent); font-family: var(--font-m); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all .15s }
-.nx-sig-copy:hover { background: rgba(0,200,180,.14) }
-
-/* Peers */
-.nx-peers-card { background: rgba(0,200,180,.02); border: 1px solid var(--border2); border-radius: 4px; padding: 10px }
-.nx-peers-title { font-family: var(--font-m); font-size: 7px; letter-spacing: 2px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px }
-.nx-peer-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border2) }
-.nx-peer-row:last-child { border-bottom: none }
-.nx-peer-avatar { width: 22px; height: 22px; border-radius: 4px; background: rgba(0,200,180,.1); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; overflow: hidden }
-.nx-peer-avatar img { width: 100%; height: 100%; object-fit: cover }
-.nx-peer-name { font-family: var(--font-m); font-size: 9px; color: var(--text2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.nx-peer-spheres { font-size: 8px; color: var(--text3) }
-
-/* Network stats */
-.nx-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
-.nx-stat-item { background: rgba(0,200,180,.02); border: 1px solid var(--border2); border-radius: 4px; padding: 8px }
-.nx-stat-val { font-family: var(--font-m); font-size: 20px; font-weight: 300; color: var(--accent); line-height: 1 }
-.nx-stat-label { font-family: var(--font-m); font-size: 7px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px }
-
-/* Waiting state */
-.nx-waiting { text-align: center; padding: 20px 0; font-family: var(--font-m); font-size: 9px; color: var(--text3); line-height: 1.8 }
-.nx-waiting-icon { font-size: 28px; opacity: .3; display: block; margin-bottom: 8px; animation: nxpulse 2s ease-in-out infinite }
-
-/* Mobile */
-@media(max-width:700px) {
-  #nx-left { display: none }
-  #nx-mobile-select { display: flex }
-  #nx-right { display: none }
-  #nx-layout { flex-direction: column }
-}
-@media(hover:hover) and (pointer:fine) {
-  :root { --cols: 8; --rows: 5 }
-}
-
-/* ── Nav (hidden, required by app.js) ── */
-#nav-bar { display: none !important }
-#page-dots { display: none }
-#desktop { display: none !important }
-#desktop-slider { display: none !important }
-.desktop-page { display: none !important }
-.cell-hl { display: none !important }
-
-/* ── Panels ── */
-.ym-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: transparent; z-index: 300; opacity: 0; pointer-events: none; transition: opacity .3s }
-.ym-overlay.open { opacity: 1; pointer-events: all }
-.ym-panel { position: fixed; left: 0; right: 0; bottom: 0; max-height: 90dvh; background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border: none; z-index: 301; transform: translateY(calc(100% + 20px)); transition: transform .4s cubic-bezier(.32,.72,0,1), visibility 0s .4s; visibility: hidden; display: flex; flex-direction: column; border-radius: 12px 12px 0 0; overflow: hidden }
-.ym-panel.open { transform: translateY(0); visibility: visible; transition: transform .4s cubic-bezier(.32,.72,0,1), visibility 0s }
-.ym-panel::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; z-index: 2; background: linear-gradient(90deg, transparent, var(--accent) 30%, var(--cyan) 70%, transparent) }
-@media(hover:hover) and (pointer:fine) {
-  .ym-panel { left: auto; right: 0; bottom: 0; top: 0; width: min(520px,100vw); max-height: none; border-radius: 0; transform: translateX(calc(100% + 10px)) }
-  .ym-panel.open { transform: translateX(0) }
-  .ym-panel::before { top: 0; left: 0; right: auto; bottom: 0; width: 1px; height: auto; background: linear-gradient(180deg, transparent, var(--accent) 30%, var(--cyan) 70%, transparent) }
-}
-.panel-handle { width: 36px; height: 3px; border-radius: 2px; background: var(--border); margin: 12px auto 2px; flex-shrink: 0; cursor: grab }
-.panel-head { display: flex; align-items: center; padding: 8px 18px 12px; gap: 10px; border-bottom: 1px solid var(--border2); flex-shrink: 0; min-height: 44px }
-.panel-head h2 { font-family: var(--font-m); font-size: 9px; font-weight: 500; letter-spacing: 4px; text-transform: uppercase; color: var(--accent) }
-.panel-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0 }
-#panel-sphere-body { display: flex; flex-direction: column; padding: 0 }
-.ym-input { width: 100%; background: rgba(0,200,180,.04); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; color: var(--text); font-family: var(--font-m); font-size: 12px; outline: none; transition: border-color .2s }
-.ym-input:focus { border-color: rgba(0,200,180,.4) }
-.ym-input::placeholder { color: var(--text3) }
-textarea.ym-input { resize: vertical; font-size: 11px }
-.ym-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 16px; border-radius: 4px; font-family: var(--font-m); font-size: 11px; font-weight: 500; cursor: pointer; transition: all .2s; border: 1px solid transparent; letter-spacing: .5px }
-.ym-btn-accent { background: var(--accent); color: #000; font-weight: 600 }
-.ym-btn-ghost { background: rgba(0,200,180,.04); border-color: var(--border); color: var(--text2) }
-.ym-btn-ghost:hover { border-color: rgba(0,200,180,.3); color: var(--accent) }
-.ym-btn-danger { background: transparent; border-color: rgba(255,69,96,.3); color: var(--red) }
-.ym-btn:disabled { opacity: .3; cursor: not-allowed }
-.ym-card { background: rgba(0,200,180,.025); border: 1px solid var(--border2); border-radius: 6px; padding: 14px; margin-bottom: 10px }
-.ym-card-title { font-family: var(--font-m); font-size: 8px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: rgba(0,200,180,.45); margin-bottom: 10px }
-.ym-stat-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border2) }
-.ym-stat-row:last-child { border-bottom: none }
-.ym-stat-label { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; font-family: var(--font-m) }
-.ym-stat-value { font-family: var(--font-m); font-size: 12px; color: var(--text) }
-.ym-stat-value.gold { color: var(--gold) } .ym-stat-value.cyan { color: var(--cyan) } .ym-stat-value.green { color: var(--green) }
-.ym-notice { padding: 9px 12px; border-radius: 4px; font-size: 11px; display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; line-height: 1.5; font-family: var(--font-m) }
-.ym-notice.info { background: rgba(8,224,248,.05); border: 1px solid rgba(8,224,248,.15); color: var(--cyan) }
-.ym-notice.success { background: rgba(0,229,160,.05); border: 1px solid rgba(0,229,160,.15); color: var(--green) }
-.ym-notice.error { background: rgba(255,69,96,.05); border: 1px solid rgba(255,69,96,.15); color: var(--red) }
-.ym-notice.warn { background: rgba(240,168,48,.05); border: 1px solid rgba(240,168,48,.15); color: var(--gold) }
-.ym-separator { height: 1px; background: var(--border2); margin: 10px 0 }
-.ym-tabs { display: flex; flex-shrink: 0; background: rgba(0,0,0,.3); border-top: 1px solid var(--border2) }
-.ym-tab { flex: 1; padding: 12px 4px 10px; text-align: center; font-size: 9px; font-family: var(--font-m); letter-spacing: 1px; text-transform: uppercase; color: var(--text3); cursor: pointer; transition: all .15s; border-top: 2px solid transparent }
-.ym-tab.active { color: var(--accent); background: rgba(0,200,180,.04); border-top-color: var(--accent) }
-.ym-tab-badge { position: absolute; top: 3px; right: 8px; min-width: 14px; height: 14px; border-radius: 2px; background: var(--accent); color: #000; font-size: 8px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0 3px; font-family: var(--font-m) }
-.pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 10px; font-size: 9px; font-family: var(--font-m); background: rgba(0,200,180,.04); border: 1px solid var(--border2); color: var(--text3); margin: 2px }
-.pill.active { background: rgba(0,200,180,.1); border-color: rgba(0,200,180,.25); color: var(--accent) }
-.profile-avatar { width: 64px; height: 64px; border-radius: 4px; background: rgba(0,200,180,.06); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 10px; cursor: pointer; overflow: hidden }
-.profile-avatar img { width: 100%; height: 100%; object-fit: cover }
-.uuid-display { font-family: var(--font-m); font-size: 9px; color: var(--text3); word-break: break-all; cursor: pointer; padding: 5px 8px; background: rgba(0,200,180,.03); border-radius: 3px; border: 1px solid var(--border2); margin-bottom: 8px }
-.formula-section { background: rgba(0,200,180,.025); border: 1px solid var(--border2); border-radius: 6px; padding: 12px; margin-bottom: 10px }
-.formula-title { font-family: var(--font-m); font-size: 8px; font-weight: 500; letter-spacing: 2px; text-transform: uppercase; color: rgba(0,200,180,.5); margin-bottom: 8px }
-.formula-big { font-family: var(--font-m); font-size: 16px; color: var(--accent); text-align: center; padding: 12px; background: rgba(0,200,180,.04); border-radius: 4px; margin: 6px 0; line-height: 1.6 }
-.formula-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px }
-.formula-var { background: rgba(255,255,255,.02); border-radius: 3px; padding: 6px 8px; font-size: 10px; color: var(--text2); line-height: 1.4; font-family: var(--font-m) }
-.formula-var b { color: var(--accent) }
-#panel-switcher { position: fixed; left: 0; right: 0; bottom: 0; max-height: 80dvh; background: var(--glass); backdrop-filter: var(--blur); z-index: 298; transform: translateY(calc(100% + 20px)); transition: transform .4s cubic-bezier(.32,.72,0,1); display: flex; flex-direction: column; border-radius: 12px 12px 0 0; overflow: hidden }
-#panel-switcher::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; z-index: 2; background: linear-gradient(90deg, transparent, var(--accent) 30%, var(--cyan) 70%, transparent) }
-#panel-switcher.open { transform: translateY(0); z-index: 303 }
-#switcher-grid { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: min-content; gap: 5px; align-content: start }
-.sw-card { height: 130px; border-radius: 6px; background: rgba(8,12,16,.98); border: 1px solid var(--border2); cursor: pointer; overflow: hidden; position: relative; touch-action: pan-y; isolation: isolate }
-.icon-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; padding: 4px; border-radius: 6px; position: relative; touch-action: none; -webkit-user-select: none; user-select: none; width: fit-content; height: fit-content; place-self: center; transform: translateZ(0) }
-.icon-body { width: 56px; height: 56px; border-radius: 8px; background: rgba(0,200,180,.06); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0; position: relative; isolation: isolate }
-.icon-body::before { content: ''; position: absolute; inset: 0; border-radius: inherit; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: -1 }
-.icon-body img { width: 30px; height: 30px; object-fit: contain; border-radius: 4px }
-.icon-label--below { order: 1!important }
-.icon-label { font-size: 9px; color: var(--text2); text-align: center; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-m); order: -1 }
-.icon-notif { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; border-radius: 2px; background: var(--accent); color: #000; font-size: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; font-weight: 600; border: 1px solid var(--bg); z-index: 2; font-family: var(--font-m) }
-.icon-del { position: absolute; top: -6px; left: -6px; width: 18px; height: 18px; border-radius: 2px; background: var(--red); color: #fff; font-size: 10px; display: none; align-items: center; justify-content: center; z-index: 10; cursor: pointer; pointer-events: all }
-body.edit-mode .icon-del { display: flex }
-body.edit-mode .folder-body > .icon-del { display: none!important }
-.icon-del-hidden { display: none!important }
-body.edit-mode .icon-body { animation: wob .44s ease-in-out infinite }
-@keyframes wob { 0% { transform: rotate(-2deg) scale(.97) } 50% { transform: rotate(2deg) scale(.97) } 100% { transform: rotate(-2deg) scale(.97) } }
-.folder-body { background: rgba(0,200,180,.03); border-radius: 8px }
-.folder-grid { position: absolute; inset: 8px; display: grid; grid-template-columns: repeat(2,1fr); grid-template-rows: repeat(2,1fr); gap: 2px; overflow: hidden; border-radius: 4px }
-.folder-grid .fi { font-size: 12px; display: flex; align-items: center; justify-content: center }
-.folder-grid .fi .fi__img { width: 13px; height: 13px; object-fit: contain; border-radius: 2px }
-#drag-ghost { position: fixed; pointer-events: none; z-index: 9800; opacity: .7; transform: scale(1.1) rotate(2deg); display: none }
-.drag-ghost__body { width: 44px; height: 44px; border-radius: 4px; display: flex; align-items: center; justify-content: center }
-.sw-preview { position: absolute; top: 0; left: 0; right: 0; bottom: 26px; overflow: hidden; border-radius: 7px 7px 0 0; background: rgba(8,12,16,.9); pointer-events: none }
-.sw-preview::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 32px; background: linear-gradient(transparent, rgba(8,12,16,.95)); z-index: 3 }
-.sw-clone-wrap { position: absolute; top: 0; left: 0; transform-origin: top left; pointer-events: none; overflow: hidden }
-.sw-label { position: absolute; bottom: 0; left: 0; right: 0; height: 26px; display: flex; align-items: center; padding: 0 8px; background: rgba(4,8,14,.98); font-family: var(--font-m); font-size: 8px; font-weight: 500; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(0,200,180,.8); border-top: 1px solid var(--border2) }
-.dlg { position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 500; display: none; align-items: center; justify-content: center; backdrop-filter: blur(12px); user-select: none }
-.dlg.open { display: flex }
-.dlg-box { background: var(--glass); border: 1px solid var(--border); border-top: 1px solid rgba(0,200,180,.3); border-radius: 8px; padding: 20px; width: min(300px,92vw); display: flex; flex-direction: column; gap: 12px }
-.dlg-title { font-family: var(--font-m); font-size: 9px; font-weight: 500; letter-spacing: 3px; color: var(--accent); text-align: center; text-transform: uppercase }
-#toasts { position: fixed; top: 48px; left: 50%; transform: translateX(-50%); z-index: 700; display: flex; flex-direction: column; gap: 5px; min-width: 200px; max-width: 320px; pointer-events: none }
-.toast { background: var(--glass); backdrop-filter: var(--blur); border: 1px solid var(--border); border-radius: 4px; padding: 9px 13px; font-size: 11px; font-family: var(--font-m); animation: tin .2s cubic-bezier(.34,1.56,.64,1); display: flex; align-items: center; gap: 8px }
-@keyframes tin { from { opacity: 0; transform: translateY(-8px) scale(.95) } to { opacity: 1; transform: translateY(0) scale(1) } }
-.toast.success { border-color: rgba(0,229,160,.3); color: var(--green) }
-.toast.error { border-color: rgba(255,69,96,.3); color: var(--red) }
-.toast.info { border-color: rgba(8,224,248,.3); color: var(--cyan) }
-.toast.warn { border-color: rgba(240,168,48,.3); color: var(--gold) }
-#ym-sign-dlg { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 9000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(14px) }
-#ym-sign-dlg.open { display: flex }
-#ym-sign-box { background: var(--glass); border: 1px solid rgba(255,69,96,.3); border-top: 1px solid rgba(255,69,96,.5); border-radius: 8px; padding: 20px; width: min(300px,92vw); display: flex; flex-direction: column; gap: 12px }
-#ym-loader { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; transition: opacity .5s, visibility 0s .5s }
-#ym-loader.hidden { opacity: 0; pointer-events: none; visibility: hidden }
-.ldr-logo { font-family: var(--font-m); font-size: 11px; font-weight: 500; letter-spacing: 6px; color: var(--accent); text-transform: uppercase; animation: nxpulse 2s ease-in-out infinite }
-.ldr-bar { width: 100px; height: 1px; overflow: hidden; background: rgba(0,200,180,.1) }
-.ldr-fill { height: 100%; background: var(--accent); box-shadow: 0 0 8px rgba(0,200,180,.5); animation: ldr 1.2s ease infinite }
-@keyframes ldr { 0% { width: 0; margin-left: 0 } 50% { width: 60%; margin-left: 20% } 100% { width: 0; margin-left: 100% } }
-.ldr-sub { font-family: var(--font-m); font-size: 8px; color: var(--text3); letter-spacing: 3px; text-transform: uppercase }
-#pwa-install-btn { display: none!important }
-#ym-edge-back { display: none }
-#ym-edge-back-btn { display: none }
-.folder-breadcrumb { display: flex; align-items: center; gap: 5px; flex: 1; overflow: hidden; min-width: 0; padding: 0 4px }
-.folder-breadcrumb__sep { color: var(--text3); font-size: 12px }
-.folder-breadcrumb__item { font-size: 10px; color: var(--text3); cursor: pointer; padding: 2px 4px; border-radius: 3px; font-family: var(--font-m) }
-.folder-breadcrumb__item--active { font-size: 10px; color: var(--text); font-weight: 500; cursor: default; font-family: var(--font-m) }
-.folder-breadcrumb__item--editing { background: rgba(0,200,180,.1); outline: 1px solid var(--accent) }
-.folder-drop-zone { flex-shrink: 0; padding: 6px 14px; border-bottom: 1px dashed rgba(0,200,180,.25); font-size: 10px; color: var(--accent); text-align: center; background: rgba(0,200,180,.04); font-family: var(--font-m) }
-.folder-drop-zone--hidden { display: none }
-.folder-panel-body { padding: 0; overflow: hidden; display: flex; flex-direction: column }
-.folder-content { flex: 1; overflow-y: auto; overflow-x: hidden }
-.folder-desktop-page { height: auto; min-height: 100%; background: transparent; padding: 6px 12px 10px; gap: 6px; display: grid; grid-template-columns: repeat(var(--cols),1fr) }
-</style>
-
-<!-- ── DOM ── -->
-<div id="ym-wp"></div>
-<div id="ym-bg"></div>
-<div id="ym-loader">
-  <div class="ldr-logo">⬡ Nexthink</div>
-  <div class="ldr-bar"><div class="ldr-fill"></div></div>
-  <div class="ldr-sub">Loading intelligence</div>
-</div>
-<div id="toasts"></div>
-<div id="desktop" style="display:none"><div id="desktop-slider"></div></div>
-<div id="drag-ghost"></div>
-<div id="page-dots"></div>
-
-<!-- Topbar -->
-<div id="nx-topbar">
-  <div id="nx-logo">Nexthink</div>
-  <div id="nx-ticker"><span id="nx-ticker-inner">BEHAVIORAL INTELLIGENCE LAYER — ACTIVATE SPHERES TO BEGIN</span></div>
-  <div id="nx-status-dot"></div>
-  <button class="nx-topbar-btn" id="nx-btn-back" onclick="document.getElementById('btn-back')&&document.getElementById('btn-back').click()" title="Back">&#8249;</button>
-  <button class="nx-topbar-btn" id="nx-btn-profile" onclick="document.getElementById('btn-profile')&&document.getElementById('btn-profile').click()" title="Profile">
-    <svg width="14" height="14" viewBox="0 0 22 22" fill="none"><line x1="11" y1="1" x2="11" y2="11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><line x1="11" y1="11" x2="1.6" y2="17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><line x1="11" y1="11" x2="20.4" y2="17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-  </button>
-  <button class="nx-topbar-btn" id="nx-btn-mine" onclick="document.getElementById('btn-figure')&&document.getElementById('btn-figure').click()" title="YourMine">
-    <img src="https://yourmine-dapp.web.app/ym512.png" style="width:18px;height:18px;object-fit:contain;border-radius:2px" alt="YM">
-  </button>
-</div>
-
-<!-- Main layout -->
-<div id="nx-layout">
-
-  <!-- Left: sphere list -->
-  <div id="nx-left">
-    <div id="nx-left-header">
-      <div id="nx-left-title">Active spheres</div>
-      <div id="nx-sphere-count">0</div>
-      <div id="nx-sphere-count-label">spheres active</div>
-    </div>
-    <div id="nx-sphere-list">
-      <div id="nx-empty-spheres">No spheres active.<br>Open Apps to activate.</div>
-    </div>
-  </div>
-
-  <!-- Mobile sphere selector -->
-  <div id="nx-mobile-select">
-    <span id="nx-mobile-select-label">Sphere</span>
-    <select id="nx-mobile-sphere-select">
-      <option value="">— Select a sphere —</option>
-    </select>
-  </div>
-
-  <!-- Center: sphere panel -->
-  <div id="nx-center">
-    <div id="nx-no-sphere">
-      <span id="nx-no-sphere-icon">⬡</span>
-      <div>Select a sphere<br>to view its panel</div>
-    </div>
-    <div id="nx-sphere-detail" style="display:none;flex-direction:column;height:100%;overflow:hidden">
-      <div id="nx-center-header">
-        <span id="nx-center-icon">⬡</span>
-        <div style="flex:1;min-width:0">
-          <div id="nx-center-name">—</div>
-          <div id="nx-center-desc"></div>
-        </div>
-      </div>
-      <div id="nx-center-body"></div>
-    </div>
-  </div>
-
-  <!-- Right: intelligence -->
-  <div id="nx-right">
-    <div id="nx-right-header">
-      <div id="nx-right-title">⬡ Intelligence</div>
-      <button id="nx-analyse-btn">⟳ Analyse</button>
-    </div>
-    <div id="nx-right-body">
-      <div class="nx-stat-grid" id="nx-stats">
-        <div class="nx-stat-item"><div class="nx-stat-val" id="nx-stat-spheres">0</div><div class="nx-stat-label">Spheres</div></div>
-        <div class="nx-stat-item"><div class="nx-stat-val" id="nx-stat-peers">0</div><div class="nx-stat-label">Peers</div></div>
-      </div>
-      <div id="nx-signal-section">
-        <div class="nx-waiting">
-          <span class="nx-waiting-icon">✦</span>
-          Activate idea.sphere.js<br>and run analysis<br>to see network signals
-        </div>
-      </div>
-      <div id="nx-peers-section"></div>
-    </div>
-  </div>
-
-</div>
-
-<!-- Required hidden nav -->
-<div id="nav-bar" style="display:none">
-  <div id="dock">
-    <button class="dbtn" id="btn-back"></button>
-    <button class="dbtn" id="btn-profile"></button>
-    <button class="dbtn" id="btn-figure"></button>
-  </div>
-</div>
-
-<!-- Required panels -->
-<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">New Folder</div><input class="ym-input" id="folder-name-input" placeholder="Folder name"><div style="display:flex;gap:8px"><button class="ym-btn ym-btn-ghost" style="flex:1" id="folder-cancel">Cancel</button><button class="ym-btn ym-btn-accent" style="flex:1" id="folder-confirm">Create</button></div></div></div>
-<div class="dlg" id="bg-dlg"><div class="dlg-box" style="width:min(360px,94vw);max-height:85vh;display:flex;flex-direction:column;overflow:hidden">
-  <div class="dlg-title" id="bg-dlg-title">Settings</div>
-  <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border2)">
-    <div style="font-size:8px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1.5px;font-family:var(--font-m)">Theme</div>
-    <div id="theme-list" style="display:flex;flex-direction:column;gap:3px;margin-bottom:6px"></div>
-    <div style="display:flex;gap:5px"><input id="theme-custom-input" class="ym-input" placeholder="Custom theme URL…" style="font-size:10px;padding:6px 10px;flex:1"><button id="theme-custom-btn" class="ym-btn ym-btn-ghost" style="padding:6px 10px;font-size:10px;flex-shrink:0">Use</button></div>
-  </div>
-  <div style="display:flex;gap:6px;margin-bottom:6px"><button class="ym-btn ym-btn-ghost" id="bg-wp" style="flex:1;font-size:11px">Upload BG</button><button class="ym-btn ym-btn-ghost" id="bg-remove" style="font-size:11px;color:var(--text3)">Remove</button></div>
-  <div id="bg-presets" style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;overflow-y:auto;flex:1"></div>
-  <div id="bg-spheres" style="display:none"></div>
-  <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:5px">Delete page</button>
-</div></div>
-
-<script>
+/* jshint esversion:11, browser:true */
+// alerte.sphere.js — YourMine Global Signals
+// Polls Osiris public APIs, cross-references peer network, badges on alerts
 (function(){
-  var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-  var GH_BLOB='https://github.com/theodoreyong9/YourMinedApp/blob/main/src/themes/';
-  var DEF_THEME=GH_RAW+'themes/default.theme.html';
-  var INDEX_URL=GH_RAW+'themes/index.json';
-  var THEME_KEY='ym_theme_url';
-  function activeUrl(){return localStorage.getItem(THEME_KEY)||DEF_THEME;}
-  function fileToLabel(n){return n.replace(/\.html$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
-  function applyTheme(url,label){if(!url||url===activeUrl())return;localStorage.setItem(THEME_KEY,url);localStorage.removeItem('ym_theme_cache');if(location.pathname!=='/')history.replaceState(null,'','/');window.YM_toast&&window.YM_toast('\u2736 '+label+' \u2014 reloading\u2026','success',1500);setTimeout(function(){location.reload();},1500);}
-  function buildList(files){var c=document.getElementById('theme-list');if(!c)return;c.innerHTML='';var cur=activeUrl(),curFile=cur.split('/').pop(),all=files.slice();if(all.indexOf(curFile)===-1)all.unshift(curFile);all.forEach(function(f){var url=f.startsWith('http')?f:(GH_RAW+'themes/'+f);var label=fileToLabel(f.split('/').pop());var isActive=(f===curFile)||(url===cur);var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:3px;cursor:pointer;'+(isActive?'background:rgba(0,200,180,.08);border:1px solid rgba(0,200,180,.2)':'background:rgba(255,255,255,.02);border:1px solid var(--border2)');var dot=document.createElement('div');dot.style.cssText='width:6px;height:6px;border-radius:1px;flex-shrink:0;'+(isActive?'background:var(--accent)':'background:rgba(255,255,255,.1)');var name=document.createElement('span');name.style.cssText='flex:1;font-size:11px;font-family:var(--font-m);'+(isActive?'color:var(--accent);font-weight:500':'color:var(--text2)');name.textContent=label;var cb=document.createElement('a');cb.href=GH_BLOB+f.split('/').pop();cb.target='_blank';cb.rel='noopener';cb.style.cssText='font-size:9px;font-family:var(--font-m);color:var(--text3);text-decoration:none;padding:2px 5px;border-radius:2px;border:1px solid var(--border2);background:rgba(255,255,255,.02);flex-shrink:0';cb.textContent='</>';cb.addEventListener('click',function(e){e.stopPropagation();});row.appendChild(dot);row.appendChild(name);row.appendChild(cb);row.addEventListener('click',function(){if(url!==activeUrl())applyTheme(url,label);});c.appendChild(row);});}
-  function loadThemeList(){fetch(INDEX_URL).then(function(r){if(!r.ok)throw new Error();return r.text();}).then(function(t){var f=JSON.parse(t);if(!Array.isArray(f)||!f.length)f=['default.theme.html'];buildList(f);}).catch(function(){buildList(['default.theme.html']);});}
-  document.getElementById('theme-custom-btn').addEventListener('click',function(){var inp=document.getElementById('theme-custom-input'),url=(inp?inp.value:'').trim();if(!url){window.YM_toast&&window.YM_toast('Enter a URL','warn');return;}url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');applyTheme(url,fileToLabel(url.split('/').pop()));if(inp)inp.value='';});
-  document.getElementById('theme-custom-input').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('theme-custom-btn').click();});
-  loadThemeList();
-})();
-</script>
+'use strict';
+window.YM_S = window.YM_S || {};
 
-<div class="ym-overlay" id="panel-overlay"></div>
-<div class="ym-panel" id="panel-spheres"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn ym-btn-ghost" id="spheres-build-btn" style="margin-left:auto;padding:3px 8px;font-size:10px">&#9000; Build</button></div><div class="panel-body" id="panel-spheres-body">Loading...</div></div>
-<div class="ym-panel" id="panel-profile"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn ym-btn-ghost" style="margin-left:auto;padding:3px 7px;font-size:12px;min-height:unset">&#128279;</button></div><div class="panel-body" id="panel-profile-body"></div></div>
-<div class="ym-panel" id="panel-build"><div class="panel-handle"></div><div class="panel-head"><h2>Publish</h2></div><div class="panel-body" id="panel-build-body">Loading...</div></div>
-<div class="ym-panel" id="panel-mine">
-  <div class="panel-handle"></div>
-  <div class="panel-head"><h2>YourMine</h2></div>
-  <div class="panel-body" style="overflow:hidden;min-height:0;display:flex;flex-direction:column">
-    <div id="panel-mine-wallet" style="display:none;flex-direction:column;flex:1;overflow-y:auto;min-height:0"></div>
-    <div id="panel-mine-build" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
-    <div id="panel-mine-formula" style="display:none;flex-direction:column;flex:1;overflow-y:auto;padding:14px"></div>
-    <div id="panel-mine-liste" style="display:none;flex-direction:column;flex:1;overflow:hidden;min-height:0"></div>
-  </div>
-  <div class="ym-tabs" id="mine-tabs-bar">
-    <div class="ym-tab active" data-mine-tab="wallet">&#9935; Wallet</div>
-    <div class="ym-tab" data-mine-tab="build" style="flex:0 0 auto;padding:10px 16px;font-size:18px;font-weight:300;border-left:1px solid var(--border2);border-right:1px solid var(--border2);background:var(--accent);color:#000;border-top-color:transparent">+</div>
-    <div class="ym-tab" data-mine-tab="liste">&#9633; Apps</div>
-  </div>
-</div>
-<div class="ym-panel" id="panel-sphere"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
-<div class="ym-panel" id="panel-profile-view"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
-<div id="ym-sign-dlg"><div id="ym-sign-box"><div style="font-family:var(--font-m);font-size:9px;font-weight:500;letter-spacing:3px;color:var(--red);text-align:center;text-transform:uppercase">&#9888; Signature Request</div><div id="ym-sign-sphere" style="font-size:11px;color:var(--text2);text-align:center;font-family:var(--font-m)"></div><div id="ym-sign-detail" style="font-size:9px;font-family:var(--font-m);color:var(--text3);background:rgba(255,255,255,.02);border-radius:3px;padding:8px;max-height:80px;overflow-y:auto;word-break:break-all;line-height:1.6"></div><div style="font-size:10px;color:var(--text3);text-align:center;font-family:var(--font-m)">A sphere is requesting your wallet signature.<br>Only confirm if you trust this sphere.</div><div style="display:flex;gap:8px"><button id="ym-sign-reject" class="ym-btn ym-btn-danger" style="flex:1">&#10007; Reject</button><button id="ym-sign-confirm" class="ym-btn ym-btn-accent" style="flex:1">&#10003; Sign</button></div></div></div>
-<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
-<button id="pwa-install-btn" style="display:none">INSTALL</button>
-<div id="ym-edge-back"></div>
-<button id="ym-edge-back-btn" style="display:none">&#8249;</button>
+// Direct public APIs — no backend needed
 
-<!-- Nexthink Logic -->
-<script>
-(function(){
-  'use strict';
-  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-  function toast(m,t){window.YM_toast&&window.YM_toast(m,t);}
+const POLL_INTERVAL  = 60 * 1000;  // 60s
+const QUAKE_MIN_MAG  = 5.0;        // magnitude minimum pour alerter
+const MARKET_MOVE    = 2.0;        // % de variation pour alerter
 
-  var _selectedSphere=null;
+let _ctx       = null;
+let _timer     = null;
+let _alerts    = [];   // alertes actives
+let _lastFetch = 0;
 
-  // ── Sphere list ──
-  function renderSphereList(){
-    var list=document.getElementById('nx-sphere-list');
-    var empty=document.getElementById('nx-empty-spheres');
-    var countEl=document.getElementById('nx-sphere-count');
-    var registry=window.YM_sphereRegistry;
-    if(!registry||!registry.size){
-      if(list)list.innerHTML='';
-      if(empty)empty.style.display='block';
-      if(countEl)countEl.textContent='0';
+// ── FETCH OSIRIS ──────────────────────────────────────────────
+async function fetchQuakes() {
+  try {
+    // USGS public API — no key needed
+    const r = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson', { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return (data.features || [])
+      .filter(f => (f.properties?.mag || 0) >= QUAKE_MIN_MAG)
+      .map(f => ({
+        type: 'quake',
+        icon: '🌍',
+        title: 'M' + f.properties.mag.toFixed(1) + ' — ' + (f.properties.place || 'Unknown'),
+        mag: f.properties.mag,
+        coords: f.geometry?.coordinates,
+        ts: f.properties.time,
+      }));
+  } catch { return []; }
+}
+
+async function fetchConflicts() {
+  try {
+    // GDELT public API — world events last 24h
+    const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=conflict%20OR%20war%20OR%20attack&mode=artlist&maxrecords=5&format=json';
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const data = await r.json();
+    const articles = data.articles || [];
+    return articles.slice(0, 5).map(e => ({
+      type: 'conflict',
+      icon: '⚠',
+      title: e.title || 'Conflict event',
+      location: e.sourcecountry || '',
+      ts: Date.now(),
+    }));
+  } catch { return []; }
+}
+
+async function fetchMarkets() {
+  try {
+    // CoinGecko public API — no key needed
+    const r = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana&order=market_cap_desc&price_change_percentage=24h', { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return data
+      .filter(t => Math.abs(t.price_change_percentage_24h || 0) >= MARKET_MOVE)
+      .map(t => ({
+        type: 'market',
+        icon: (t.price_change_percentage_24h > 0) ? '📈' : '📉',
+        title: t.symbol.toUpperCase() + ' ' + (t.price_change_percentage_24h > 0 ? '+' : '') + t.price_change_percentage_24h.toFixed(1) + '%',
+        symbol: t.symbol,
+        change: t.price_change_percentage_24h,
+        ts: Date.now(),
+      }));
+  } catch { return []; }
+}
+
+async function fetchMilitary() {
+  try {
+    // OpenSky Network — tracked aircraft in Europe (public, no key)
+    const r = await fetch('https://opensky-network.org/api/states/all?lamin=35&lomin=-10&lamax=70&lomax=40', { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return [];
+    const data = await r.json();
+    const states = data.states || [];
+    // Filter callsigns that look military (start with common military prefixes)
+    const military = states.filter(s => {
+      const cs = (s[1] || '').trim().toUpperCase();
+      return /^(NATO|RFF|BAF|GAF|FAF|RAF|USAF|MATZ|LVOC|CTM|FREG|RSAF)/.test(cs);
+    });
+    const count = military.length;
+    if (count === 0) return [];
+    return [{
+      type: 'military',
+      icon: '✈',
+      title: count + ' military aircraft tracked over Europe',
+      count,
+      ts: Date.now(),
+    }];
+  } catch { return []; }
+}
+
+// ── PEER CONTEXT ──────────────────────────────────────────────
+// Extracts location keywords from peer bios and sphere categories
+function getPeerContext() {
+  const keywords = new Set();
+  const nearUsers = window.YM_Social?._nearUsers;
+  if (!nearUsers) return keywords;
+
+  nearUsers.forEach((userData) => {
+    const bio = userData.profile?.bio || '';
+    const name = userData.profile?.name || '';
+    // Extract capitalised words as potential locations
+    const words = (bio + ' ' + name).match(/[A-Z][a-z]{2,}/g) || [];
+    words.forEach(w => keywords.add(w.toLowerCase()));
+
+    // Sphere categories
+    const spheres = userData.profile?.spheres || [];
+    spheres.forEach(sid => {
+      const obj = window.YM_sphereRegistry?.get(sid);
+      if (obj?.category) keywords.add(obj.category.toLowerCase());
+    });
+  });
+
+  return keywords;
+}
+
+// ── POLL ──────────────────────────────────────────────────────
+async function poll() {
+  const [quakes, conflicts, markets, military] = await Promise.all([
+    fetchQuakes(),
+    fetchConflicts(),
+    fetchMarkets(),
+    fetchMilitary(),
+  ]);
+
+  const peerCtx = getPeerContext();
+
+  // Score alerts — boost if matches peer context
+  const score = (alert) => {
+    const text = (alert.title + ' ' + (alert.location || '')).toLowerCase();
+    let s = 1;
+    peerCtx.forEach(kw => { if (text.includes(kw)) s += 2; });
+    return s;
+  };
+
+  const all = [...quakes, ...conflicts, ...markets, ...military];
+  all.forEach(a => { a.score = score(a); a.id = a.type + '_' + a.ts; });
+  all.sort((a, b) => b.score - a.score);
+
+  _alerts = all.slice(0, 20);
+  _lastFetch = Date.now();
+
+  // Badge = number of high-relevance alerts
+  const high = _alerts.filter(a => a.score >= 3).length;
+  const badge = high > 0 ? high : (_alerts.length > 0 ? _alerts.length : 0);
+  if (_ctx) { _ctx.setNotification(badge); if(_ctx.setIcon)_ctx.setIcon(_alerteIcon()); }
+
+  _refreshPanel();
+}
+
+let _panelRefresh = null;
+function _refreshPanel() { if (_panelRefresh) _panelRefresh(); }
+
+// ── RENDER ────────────────────────────────────────────────────
+function renderPanel(container) {
+  container.innerHTML = '';
+  container.style.cssText = 'display:flex;flex-direction:column;height:100%;overflow:hidden';
+  _panelRefresh = () => renderPanel(container);
+
+  // Header
+  const head = document.createElement('div');
+  head.style.cssText = 'flex-shrink:0;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px';
+  container.appendChild(head);
+
+  function updateHead() {
+    const age = _lastFetch ? Math.round((Date.now() - _lastFetch) / 1000) : null;
+    head.innerHTML =
+      '<div style="flex:1">' +
+        '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2)">Global Signals</div>' +
+        '<div style="font-size:9px;color:var(--text3);margin-top:2px">' +
+          (age !== null ? 'Updated ' + (age < 60 ? age + 's' : Math.round(age/60) + 'min') + ' ago' : 'Fetching…') +
+        '</div>' +
+      '</div>' +
+      '<button data-refresh style="background:none;border:none;color:var(--text3);font-size:14px;cursor:pointer;padding:4px">↺</button>';
+    head.querySelector('[data-refresh]').addEventListener('click', () => {
+      head.querySelector('[data-refresh]').style.opacity = '.4';
+      poll().then(() => { head.querySelector('[data-refresh]') && (head.querySelector('[data-refresh]').style.opacity = '1'); updateHead(); });
+    });
+  }
+  updateHead();
+
+  // Filter pills
+  const filters = document.createElement('div');
+  filters.style.cssText = 'flex-shrink:0;display:flex;gap:5px;padding:8px 16px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid rgba(255,255,255,.06)';
+  const TYPES = [
+    { id: 'all',      label: 'All'      },
+    { id: 'quake',    label: '🌍 Quakes' },
+    { id: 'conflict', label: '⚠ Conflict'},
+    { id: 'market',   label: '📈 Markets'},
+    { id: 'military', label: '✈ Military'},
+  ];
+  let _filter = 'all';
+  TYPES.forEach(t => {
+    const p = document.createElement('span');
+    p.className = 'pill' + (t.id === _filter ? ' active' : '');
+    p.style.cssText = 'cursor:pointer;font-size:10px;flex-shrink:0;white-space:nowrap';
+    p.textContent = t.label;
+    p.addEventListener('click', () => {
+      _filter = t.id;
+      filters.querySelectorAll('.pill').forEach(x => x.classList.remove('active'));
+      p.classList.add('active');
+      renderList();
+    });
+    filters.appendChild(p);
+  });
+  container.appendChild(filters);
+
+  // List
+  const list = document.createElement('div');
+  list.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch';
+  container.appendChild(list);
+
+  function renderList() {
+    list.innerHTML = '';
+    const filtered = _filter === 'all' ? _alerts : _alerts.filter(a => a.type === _filter);
+
+    if (!filtered.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'padding:32px 16px;text-align:center;color:var(--text3);font-size:12px';
+      empty.textContent = _lastFetch ? 'No signals' : 'Loading…';
+      list.appendChild(empty);
       return;
     }
-    if(empty)empty.style.display='none';
-    if(countEl)countEl.textContent=registry.size;
-    list.innerHTML='';
-    // Update mobile select
-    var mobileSelect=document.getElementById('nx-mobile-sphere-select');
-    if(mobileSelect){
-      var currentVal=mobileSelect.value;
-      mobileSelect.innerHTML='<option value="">— Select a sphere —</option>';
-      registry.forEach(function(s,n){
-        var opt=document.createElement('option');
-        opt.value=n;opt.textContent=(s.icon||'⬡')+' '+(s.name||n.replace('.sphere.js',''));
-        if(n===_selectedSphere)opt.selected=true;
-        mobileSelect.appendChild(opt);
-      });
-      mobileSelect.onchange=function(){
-        var name=mobileSelect.value;if(!name)return;
-        var sObj=registry.get(name);if(!sObj)return;
-        _selectedSphere=name;renderSphereList();renderSpherePanel(name,sObj);
-      };
-    }
 
-    registry.forEach(function(ctx,name){
-      var sObj=ctx; // YM_sphereRegistry stores the sphere object directly
-      if(!sObj||!sObj.name)return;
-      var item=document.createElement('div');
-      item.className='nx-sphere-item'+(name===_selectedSphere?' active':'');
-      item.dataset.name=name;
-      var icon=document.createElement('div');icon.className='nx-sphere-icon';icon.textContent=sObj.icon||'⬡';
-      var info=document.createElement('div');info.className='nx-sphere-info';
-      var nameEl=document.createElement('div');nameEl.className='nx-sphere-name';nameEl.textContent=sObj.name||name.replace('.sphere.js','');
-      var cat=document.createElement('div');cat.className='nx-sphere-cat';cat.textContent=sObj.category||'';
-      info.appendChild(nameEl);info.appendChild(cat);
-      item.appendChild(icon);item.appendChild(info);
-      // Notification badge
-      if(ctx&&ctx._notif>0){
-        var badge=document.createElement('div');badge.className='nx-sphere-notif';badge.textContent=ctx._notif;
-        item.appendChild(badge);
-      }
-      item.addEventListener('click',function(){
-        _selectedSphere=name;
-        renderSphereList();
-        renderSpherePanel(name,sObj);
-      });
-      list.appendChild(item);
+    filtered.forEach(alert => {
+      const row = document.createElement('div');
+      const isPeer = alert.score >= 3;
+      row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.04);' +
+        (isPeer ? 'background:rgba(240,168,48,.04)' : '');
+
+      row.innerHTML =
+        '<div style="font-size:20px;flex-shrink:0;margin-top:1px">' + alert.icon + '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;color:var(--text);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(alert.title) + '</div>' +
+          (alert.location ? '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + esc(alert.location) + '</div>' : '') +
+          (isPeer ? '<div style="font-size:9px;color:var(--gold);margin-top:2px">● Relevant to your network</div>' : '') +
+        '</div>' +
+        '<div style="font-size:9px;color:var(--text3);flex-shrink:0;white-space:nowrap">' + _fmtAge(alert.ts) + '</div>';
+
+      list.appendChild(row);
     });
   }
 
-  // ── Sphere panel ──
-  function renderSpherePanel(name,sObj){
-    var noSphere=document.getElementById('nx-no-sphere');
-    var detail=document.getElementById('nx-sphere-detail');
-    var body=document.getElementById('nx-center-body');
-    if(!noSphere||!detail||!body)return;
-    noSphere.style.display='none';
-    detail.style.display='flex';
-    document.getElementById('nx-center-icon').textContent=sObj.icon||'⬡';
-    document.getElementById('nx-center-name').textContent=sObj.name||name;
-    document.getElementById('nx-center-desc').textContent=sObj.description||'';
-    body.innerHTML='';
-    if(typeof sObj.renderPanel==='function'){
-      try{ sObj.renderPanel(body); }
-      catch(e){ body.innerHTML='<div style="padding:16px;font-size:10px;color:var(--text3);font-family:var(--font-m)">Panel error: '+esc(e.message)+'</div>'; }
-    } else {
-      body.innerHTML='<div style="padding:16px;font-size:10px;color:var(--text3);font-family:var(--font-m)">No panel available for this sphere.</div>';
-    }
-  }
+  renderList();
 
-  // ── Intelligence panel ──
-  function renderIntelligence(){
-    var near=window.YM_Social&&window.YM_Social._nearUsers;
-    var registry=window.YM_sphereRegistry;
-    var peerCount=near?near.size:0;
-    var sphereCount=registry?registry.size:0;
+  // Start polling if not already
+  if (!_lastFetch) poll();
+}
 
-    // Stats
-    var statSpheres=document.getElementById('nx-stat-spheres');
-    var statPeers=document.getElementById('nx-stat-peers');
-    var dot=document.getElementById('nx-status-dot');
-    if(statSpheres)statSpheres.textContent=sphereCount;
-    if(statPeers)statPeers.textContent=peerCount;
-    if(dot){dot.classList.toggle('active',sphereCount>0||peerCount>0);}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _fmtAge(ts) {
+  if (!ts) return '';
+  const s = Math.round((Date.now() - ts) / 1000);
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.round(s/60) + 'min';
+  return Math.round(s/3600) + 'h';
+}
 
-    // Ticker
-    var tickerInner=document.getElementById('nx-ticker-inner');
-    if(tickerInner){
-      var parts=[];
-      if(sphereCount)parts.push(sphereCount+' SPHERE'+(sphereCount>1?'S':'')+' ACTIVE');
-      if(peerCount)parts.push(peerCount+' PEER'+(peerCount>1?'S':'')+' IN RANGE');
-      if(near&&near.size){
-        near.forEach(function(u){
-          var bd=u.broadcastData;
-          if(bd&&Object.keys(bd).length){
-            var p=u.profile||{};
-            var kv=Object.entries(bd).slice(0,2).map(function(e){return e[0]+':'+String(e[1]).slice(0,10);}).join(' ');
-            parts.push((p.name||'PEER')+' {'+kv+'}');
-          }
-        });
-      }
-      if(!parts.length)parts=['BEHAVIORAL INTELLIGENCE LAYER — ACTIVATE SPHERES TO BEGIN'];
-      tickerInner.textContent=parts.join('     ◆     ');
-    }
+function _alerteIcon(){
+  // Always animated — red pulsing warning triangle
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36">
+    <polygon points="18,3 33,30 3,30" fill="rgba(255,69,96,0.15)" stroke="#ff4560" stroke-width="2.5" stroke-linejoin="round">
+      <animate attributeName="opacity" values="1;0.35;1" dur="1s" repeatCount="indefinite"/>
+    </polygon>
+    <text x="18" y="26" text-anchor="middle" font-size="15" font-family="monospace" fill="#ff4560" font-weight="bold">
+      !<animate attributeName="opacity" values="1;0.35;1" dur="1s" repeatCount="indefinite"/>
+    </text>
+  </svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+}
 
-    // Signal from idea
-    var signalSection=document.getElementById('nx-signal-section');
-    if(signalSection){
-      var ideaObj=window.YM_S&&window.YM_S['idea.sphere.js'];
-      var cache=ideaObj&&ideaObj._analysisCache;
-      var s=cache&&cache.suggestion;
-      if(s){
-        var age=Math.round((Date.now()-cache.timestamp)/60000);
-        signalSection.innerHTML=
-          '<div class="nx-signal-card">'+
-          '<span class="nx-sig-icon">'+esc(s.icon||'⬡')+'</span>'+
-          '<div class="nx-sig-label">⬡ Next signal · '+(age<1?'now':age+'m ago')+'</div>'+
-          '<div class="nx-sig-name">'+esc(s.name||'')+'</div>'+
-          '<div class="nx-sig-tagline">'+esc(s.tagline||'')+'</div>'+
-          (s.why?'<div class="nx-sig-why">'+esc(s.why)+'</div>':'')+
-          (s.trend?'<div class="nx-sig-trend">'+esc(s.trend)+'</div>':'')+
-          (s.prompt?'<button class="nx-sig-copy" id="nx-copy-prompt">⎘ Copy Build Prompt</button>':'')+
-          '</div>';
-        var copyBtn=signalSection.querySelector('#nx-copy-prompt');
-        if(copyBtn&&s.prompt){
-          copyBtn.addEventListener('click',function(){
-            navigator.clipboard&&navigator.clipboard.writeText(s.prompt).then(function(){toast('Prompt copied','success');});
-          });
-        }
-      } else if(sphereCount>0){
-        signalSection.innerHTML='<div class="nx-waiting"><span class="nx-waiting-icon">✦</span>Click ⟳ Analyse<br>to generate network signals</div>';
-      } else {
-        signalSection.innerHTML='<div class="nx-waiting"><span class="nx-waiting-icon">✦</span>Activate idea.sphere.js<br>and run analysis<br>to see network signals</div>';
-      }
-    }
+window.YM_S['alerte.sphere.js'] = {
+  name: 'Alerte',
+  icon: '⚠',
+  category: 'Media',
+  description: 'Global signals — earthquakes, conflicts, markets, military. Cross-referenced with your network.',
 
-    // Peers
-    var peersSection=document.getElementById('nx-peers-section');
-    if(peersSection&&near&&near.size){
-      var html='<div class="nx-peers-card"><div class="nx-peers-title">Peers ('+near.size+')</div>';
-      var i=0;
-      near.forEach(function(u){
-        if(i>=4)return;i++;
-        var p=u.profile||{};
-        var spheres=(p.activeSpheres||[]).slice(0,2).map(function(s){return s.replace('.sphere.js','');}).join(', ');
-        html+='<div class="nx-peer-row">'+
-          '<div class="nx-peer-avatar">'+(p.avatar?'<img src="'+esc(p.avatar)+'" alt="">':esc(p.emoji||p.name&&p.name[0]||'?'))+'</div>'+
-          '<div class="nx-peer-name">'+esc(p.name||u.uuid.slice(0,8)+'…')+'</div>'+
-          '<div class="nx-peer-spheres">'+esc(spheres||'—')+'</div>'+
-          '</div>';
-      });
-      html+='</div>';
-      peersSection.innerHTML=html;
-    } else if(peersSection){
-      peersSection.innerHTML='';
-    }
-  }
+  activate(ctx) {
+    _ctx = ctx;
+    // Set initial icon
+    if(ctx.setIcon) ctx.setIcon(_alerteIcon());
+    // First fetch
+    poll();
+    // Poll every minute
+    _timer = setInterval(poll, POLL_INTERVAL);
+  },
 
-  // ── Analyse button ──
-  document.getElementById('nx-analyse-btn').addEventListener('click',function(){
-    var btn=this;
-    var ideaObj=window.YM_S&&window.YM_S['idea.sphere.js'];
-    if(!ideaObj){toast('Activate idea.sphere.js first','warn');return;}
-    btn.disabled=true;btn.textContent='…';
-    ideaObj._runAnalysis(true).then(function(){
-      renderIntelligence();
-      btn.disabled=false;btn.textContent='⟳ Analyse';
-      toast('Analysis complete','success');
-    }).catch(function(e){
-      btn.disabled=false;btn.textContent='⟳ Analyse';
-      toast(e.message,'error');
-    });
-  });
+  deactivate() {
+    if (_timer) { clearInterval(_timer); _timer = null; }
+    _ctx = null;
+    _alerts = [];
+    _panelRefresh = null;
+    if (_ctx) { _ctx.setNotification(0); if(_ctx.setIcon)_ctx.setIcon(_alerteIcon()); }
+  },
 
-  // ── Auto-activate ──
-  function autoActivate(){
-    if(window.YM_Liste&&window.YM_Liste.activateSphereByName){
-      ['social.sphere.js','idea.sphere.js'].forEach(function(name){
-        if(!window.YM_sphereRegistry||!window.YM_sphereRegistry.has(name)){
-          try{window.YM_Liste.activateSphereByName(name);}catch(e){}
-        }
-      });
-    }
-  }
-  var _boot=setInterval(function(){
-    if(window.YM_Liste){clearInterval(_boot);autoActivate();setTimeout(autoActivate,3000);}
-  },200);
+  renderPanel,
 
-  // ── Listen for sphere activations ──
-  window.addEventListener('ym:sphere-activated',function(){
-    setTimeout(function(){renderSphereList();renderIntelligence();},300);
-  });
-  window.addEventListener('ym:sphere-deactivated',function(){
-    setTimeout(function(){renderSphereList();renderIntelligence();},300);
-  });
+  profileSection(container) {
+    container.innerHTML = '';
+    const info = document.createElement('div');
+    info.style.cssText = 'font-size:11px;color:var(--text3);line-height:1.7';
+    info.textContent = _alerts.length
+      ? _alerts.length + ' signal' + (_alerts.length > 1 ? 's' : '') + ' active · ' +
+        _alerts.filter(a => a.score >= 3).length + ' relevant to your network'
+      : 'No signals yet.';
+    container.appendChild(info);
+  },
 
-  // ── Poll ──
-  setInterval(function(){renderSphereList();renderIntelligence();},2000);
-  // Aggressive boot poll until spheres appear
-  var _bootPoll=setInterval(function(){
-    if(window.YM_sphereRegistry&&window.YM_sphereRegistry.size>0){
-      clearInterval(_bootPoll);
-      renderSphereList();renderIntelligence();
-    }
-  },300);
-  setTimeout(function(){clearInterval(_bootPoll);renderSphereList();renderIntelligence();},20000);
-
-  // Hide widgets injected dynamically
-  var _obs=new MutationObserver(function(muts){
-    muts.forEach(function(m){
-      m.addedNodes.forEach(function(n){
-        if(n.nodeType!==1)return;
-        if((n.id||'').indexOf('widget')>=0){
-          n.style.cssText='display:none!important;visibility:hidden!important';
-        }
-      });
-    });
-  });
-  _obs.observe(document.body,{childList:true,subtree:false});
+  peerSection(container) {
+    container.innerHTML = '';
+    const info = document.createElement('div');
+    info.style.cssText = 'font-size:11px;color:var(--text3)';
+    info.textContent = '⚠ Also monitors global signals';
+    container.appendChild(info);
+  },
+};
 })();
-</script>
