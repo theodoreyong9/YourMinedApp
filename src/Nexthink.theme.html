@@ -545,8 +545,8 @@ body.edit-mode .icon-body { animation: wob .44s ease-in-out infinite }
     if(countEl)countEl.textContent=registry.size;
     list.innerHTML='';
     registry.forEach(function(ctx,name){
-      var sObj=window.YM_S&&window.YM_S[name];
-      if(!sObj)return;
+      var sObj=ctx; // YM_sphereRegistry stores the sphere object directly
+      if(!sObj||!sObj.name)return;
       var item=document.createElement('div');
       item.className='nx-sphere-item'+(name===_selectedSphere?' active':'');
       item.dataset.name=name;
@@ -725,6 +725,19 @@ body.edit-mode .icon-body { animation: wob .44s ease-in-out infinite }
       renderSphereList();renderIntelligence();
     }
   },300);
-  setTimeout(function(){clearInterval(_bootPoll);},15000);
+  setTimeout(function(){clearInterval(_bootPoll);renderSphereList();renderIntelligence();},20000);
+
+  // Hide widgets injected dynamically
+  var _obs=new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        if((n.id||'').indexOf('widget')>=0){
+          n.style.cssText='display:none!important;visibility:hidden!important';
+        }
+      });
+    });
+  });
+  _obs.observe(document.body,{childList:true,subtree:false});
 })();
 </script>
