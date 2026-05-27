@@ -109,6 +109,33 @@ body * { scrollbar-width: thin; scrollbar-color: rgba(0,200,180,.15) transparent
   border-right: 1px solid var(--border2);
   background: var(--bg2);
 }
+#nx-mobile-select {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--surface2);
+}
+#nx-mobile-select select {
+  flex: 1;
+  background: var(--surface3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-m);
+  font-size: 11px;
+  padding: 6px 10px;
+  outline: none;
+  letter-spacing: .05em;
+}
+#nx-mobile-select-label {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
 #nx-left-header {
   padding: 12px 12px 8px;
   border-bottom: 1px solid var(--border2);
@@ -235,6 +262,7 @@ body * { scrollbar-width: thin; scrollbar-color: rgba(0,200,180,.15) transparent
 /* Mobile */
 @media(max-width:700px) {
   #nx-left { display: none }
+  #nx-mobile-select { display: flex }
   #nx-right { display: none }
   #nx-layout { flex-direction: column }
 }
@@ -410,6 +438,14 @@ body.edit-mode .icon-body { animation: wob .44s ease-in-out infinite }
     </div>
   </div>
 
+  <!-- Mobile sphere selector -->
+  <div id="nx-mobile-select">
+    <span id="nx-mobile-select-label">Sphere</span>
+    <select id="nx-mobile-sphere-select">
+      <option value="">— Select a sphere —</option>
+    </select>
+  </div>
+
   <!-- Center: sphere panel -->
   <div id="nx-center">
     <div id="nx-no-sphere">
@@ -544,6 +580,24 @@ body.edit-mode .icon-body { animation: wob .44s ease-in-out infinite }
     if(empty)empty.style.display='none';
     if(countEl)countEl.textContent=registry.size;
     list.innerHTML='';
+    // Update mobile select
+    var mobileSelect=document.getElementById('nx-mobile-sphere-select');
+    if(mobileSelect){
+      var currentVal=mobileSelect.value;
+      mobileSelect.innerHTML='<option value="">— Select a sphere —</option>';
+      registry.forEach(function(s,n){
+        var opt=document.createElement('option');
+        opt.value=n;opt.textContent=(s.icon||'⬡')+' '+(s.name||n.replace('.sphere.js',''));
+        if(n===_selectedSphere)opt.selected=true;
+        mobileSelect.appendChild(opt);
+      });
+      mobileSelect.onchange=function(){
+        var name=mobileSelect.value;if(!name)return;
+        var sObj=registry.get(name);if(!sObj)return;
+        _selectedSphere=name;renderSphereList();renderSpherePanel(name,sObj);
+      };
+    }
+
     registry.forEach(function(ctx,name){
       var sObj=ctx; // YM_sphereRegistry stores the sphere object directly
       if(!sObj||!sObj.name)return;
