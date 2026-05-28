@@ -106,14 +106,66 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
-  // ── GENERATION ────────────────────────────────────────────────
-  // 1. WebLLM (WebGPU local) → 2. Lemonade (localhost:13305) → 3. Ollama (localhost:11434)
-  async function detectEngine() {
-    // 1. WebLLM
-    const llm = window.__webllm;
-    if (llm && typeof llm.chat?.completions?.create === 'function') {
-      return { type: 'webllm', label: 'WebLLM local (WebGPU)', models: ['webllm'] };
+  // ── WEBLLM CONFIG ────────────────────────────────────────────
+  const WEBLLM_CDN = 'https://esm.run/@mlc-ai/web-llm';
+  const WEBLLM_MODEL = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'; // ~900MB, fast on mobile
+  let _webllmLoading = false;
+  let _webllmReady = false;
+  let _webllmEngine = null;
+  let _webllmProgress = null; // callback for progress updates
+
+  async function initWebLLM(onProgress) {
+    if (_webllmReady && _webllmEngine) return _webllmEngine;
+    if (_webllmLoading) {
+      // Wait for existing load
+      await new Promise(r => { const iv = setInterval(() => { if (!_webllmLoading) { clearInterval(iv); r(); } }, 300); });
+      return _webllmEngine;
     }
+    _webllmLoading = true;
+    _webllmProgress = onProgress || null;
+    try {
+      // Load WebLLM from CDN
+      if (!window.webllm) {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.type = 'module';
+          s.textContent = `
+            import * as webllm from '${WEBLLM_CDN}';
+            window.webllm = webllm;
+            window.dispatchEvent(new Event('webllm-loaded'));
+          `;
+          document.head.appendChild(s);
+          window.addEventListener('webllm-loaded', resolve, { once: true });
+          setTimeout(() => reject(new Error('WebLLM CDN timeout')), 30000);
+        });
+      }
+      if (_webllmProgress) _webllmProgress({ text: 'Initializing engine…', progress: 0 });
+      const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
+        initProgressCallback: (p) => {
+          if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress });
+        },
+      });
+      _webllmEngine = engine;
+      window.__webllm = engine;
+      _webllmReady = true;
+      return engine;
+    } finally {
+      _webllmLoading = false;
+    }
+  }
+
+  // ── GENERATION ────────────────────────────────────────────────
+  // 1. Ollama (desktop) → 2. Lemonade (desktop) → 3. WebLLM Q4 (universal, auto-load)
+  async function detectEngine() {
+    // 1. Ollama
+    try {
+      const r = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(800) });
+      if (r.ok) {
+        const d = await r.json();
+        const models = (d.models || []).map(m => m.name).filter(Boolean);
+        return { type: 'ollama', label: 'Ollama (local)', models: models.length ? models : ['llama3'] };
+      }
+    } catch {}
     // 2. Lemonade
     try {
       const r = await fetch('http://localhost:13305/api/v1/models', { signal: AbortSignal.timeout(800) });
@@ -123,21 +175,16 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         return { type: 'lemonade', label: 'Lemonade (local)', models: models.length ? models : ['default'] };
       }
     } catch {}
-    // 3. Ollama
-    try {
-      const r = await fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(800) });
-      if (r.ok) {
-        const d = await r.json();
-        const models = (d.models || []).map(m => m.name).filter(Boolean);
-        return { type: 'ollama', label: 'Ollama (local)', models: models.length ? models : ['llama3'] };
-      }
-    } catch {}
-    return { type: 'none', label: 'No engine detected', models: [] };
+    // 3. WebLLM — always available, loads on demand
+    const label = _webllmReady ? 'WebLLM ' + WEBLLM_MODEL : 'WebLLM (loading on first use…)';
+    return { type: 'webllm', label, models: ['webllm'] };
   }
 
-  async function* streamGenerate(engine, model, systemPrompt, userPrompt) {
+  async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress) {
     if (engine.type === 'webllm') {
-      const llm = window.__webllm;
+      // Auto-load if not ready
+      const llm = await initWebLLM(onProgress);
+      if (!llm) throw new Error('WebLLM failed to initialize');
       const stream = await llm.chat.completions.create({
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
         temperature: 0.3, max_tokens: 4096, stream: true,
@@ -221,7 +268,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const ok = _engine.type !== 'none';
       engRow.innerHTML =
         '<div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:' + (ok ? 'var(--green)' : 'var(--red)') + '"></div>' +
-        '<span style="font-size:9px;color:var(--text3);flex:1">' + esc(_engine.label) + '</span>' +
+        '<span style="font-size:9px;color:var(--text3);flex:1">' + esc(_webllmReady && _engine.type==='webllm' ? 'WebLLM ' + WEBLLM_MODEL + ' ✓' : _engine.label) + '</span>' +
         (_engine.models.length > 1 ?
           '<select id="ai-model" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text2);font-size:10px;border-radius:6px;padding:2px 6px;cursor:pointer">' +
           _engine.models.map(m => '<option value="' + esc(m) + '"' + (m === _model ? ' selected' : '') + '>' + esc(m) + '</option>').join('') +
@@ -309,7 +356,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const genBtn  = body.querySelector('#ai-generate');
 
       if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
-      if (_engine.type === 'none') { toast('No engine available — install Lemonade or Ollama', 'error'); return; }
+      // Engine always available — WebLLM loads on demand
 
       const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
       const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '');
@@ -328,14 +375,24 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       genBtn.textContent = '⏳ Generating…';
       outEl.value = '';
       charsEl.textContent = '0 chars';
-      progEl.textContent = 'Starting…';
+      progEl.textContent = _engine.type === 'webllm' && !_webllmReady ? 'Loading AI model (first time ~1GB)…' : 'Starting…';
+
+      // Progress callback for WebLLM download
+      function onProgress(p) {
+        if (p.progress < 1) {
+          const pct = Math.round(p.progress * 100);
+          progEl.innerHTML = '<span style="color:var(--cyan)">⬇ ' + pct + '% — ' + (p.text || 'Loading model…') + '</span>';
+        } else {
+          progEl.textContent = 'Generating…';
+        }
+      }
 
       let fullCode = '';
       let tokenCount = 0;
       const t0 = Date.now();
 
       try {
-        for await (const chunk of streamGenerate(_engine, _model, SYSTEM_SPHERE, userPrompt)) {
+        for await (const chunk of streamGenerate(_engine, _model, SYSTEM_SPHERE, userPrompt, onProgress)) {
           fullCode += chunk;
           tokenCount++;
           outEl.value = fullCode;
