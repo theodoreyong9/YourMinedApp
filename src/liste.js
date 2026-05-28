@@ -56,7 +56,24 @@ async function _doFetch(){
     const url=RAW_BASE+fileName;
     const ghAuthor=entry.ghAuthor||entry.last_committer||'';
     const codeUrl=entry.codeUrl||(ghAuthor?'https://raw.githubusercontent.com/'+ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/'+fileName:null);
-    if(cachedMap[fileName])return{...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};
+    // Use metadata from files.json directly if available — no need to fetch sphere code
+    const entryMeta={
+      name:entry.name||null,
+      icon:entry.icon||null,
+      category:entry.category||null,
+      description:entry.description||null,
+    };
+    const hasEntryMeta=entryMeta.name&&entryMeta.icon;
+    if(cachedMap[fileName]){
+      const cached={...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};
+      // Override with files.json metadata if available
+      if(hasEntryMeta)Object.assign(cached,entryMeta);
+      return cached;
+    }
+    // If files.json has metadata, use it directly without fetching sphere code
+    if(hasEntryMeta){
+      return{...entryMeta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
+    }
     const meta=await fetchSphereMeta(url,fileName,codeUrl);
     return{...meta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
   }));
@@ -830,7 +847,15 @@ function renderSpheresContent(container,catRow){
   }
 
   renderList(container);
-  fetchSphereList().then(()=>renderList(container));
+  // Guard against parallel fetches — only one at a time
+  if(!window._ymListeFetching){
+    window._ymListeFetching=true;
+    fetchSphereList().then(()=>{
+      window._ymListeFetching=false;
+      // Re-render only if container still in DOM
+      if(document.body.contains(container))renderList(container);
+    }).catch(()=>{window._ymListeFetching=false;});
+  }
 }
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
