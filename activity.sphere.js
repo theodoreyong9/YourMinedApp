@@ -200,7 +200,7 @@ function renderZonesTab(container){
     if(_map){try{_map.remove();}catch(e){}_map=null;}
     var L=window.L;
     _map=L.map('act-map',{zoomControl:true,attributionControl:false});
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:''}).addTo(_map);
     window._actMapCenter=_map.getCenter();
     _map.on('moveend',function(){window._actMapCenter=_map.getCenter();});
     setTimeout(function(){if(_map)_map.invalidateSize();},300);
