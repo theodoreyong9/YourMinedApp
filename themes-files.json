@@ -76,12 +76,12 @@
     }
   },
   {
-    "filename": "wiki.theme.html",
-    "name": "wiki",
+    "filename": "wikipedia.theme.html",
+    "name": "wikipedia",
     "icon": "🌍",
     "description": "",
     "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/wiki.theme.html",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/wikipedia.theme.html",
     "wip": false,
     "score": 0,
     "laps": 0,
