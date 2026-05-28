@@ -75,7 +75,7 @@ function serInit(){return new Uint8Array([175,175,109,31,13,152,155,237])}
 async function buildSend(tx){const conn=await getConn(),kp=_wallet.keypair;if(!kp)throw Error('Wallet locked');const{blockhash}=await conn.getLatestBlockhash('confirmed');tx.recentBlockhash=blockhash;tx.feePayer=kp.publicKey;tx.sign(kp);const sig=await conn.sendRawTransaction(tx.serialize());await conn.confirmTransaction(sig,'confirmed');return sig;}
 async function ensureInit(){if(_state.programInitialized)return;if(!_pdas.globalState)throw Error('PDAs not initialized');const conn=await getConn(),sol=window.solanaWeb3;const info=await conn.getAccountInfo(_pdas.globalState);if(info){_state.programInitialized=true;return}const tx=new sol.Transaction();tx.add(new sol.TransactionInstruction({keys:[{pubkey:_pdas.globalState,isSigner:false,isWritable:true},{pubkey:_pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:_wallet.keypair.publicKey,isSigner:true,isWritable:true},{pubkey:new sol.PublicKey(TOKEN_PGM),isSigner:false,isWritable:false},{pubkey:sol.SystemProgram.programId,isSigner:false,isWritable:false}],programId:new sol.PublicKey(PID),data:serInit()}));await buildSend(tx);_state.programInitialized=true;}
 async function doBurn(amt,tax){const sol=window.solanaWeb3,lam=Math.floor(amt*sol.LAMPORTS_PER_SOL);if(!_pdas.globalState)await computePDAs(_wallet.keypair.publicKey);await ensureInit();const tx=new sol.Transaction();tx.add(new sol.TransactionInstruction({keys:[{pubkey:_pdas.globalState,isSigner:false,isWritable:true},{pubkey:_pdas.userAccount,isSigner:false,isWritable:true},{pubkey:_pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:_pdas.userToken,isSigner:false,isWritable:true},{pubkey:_pdas.solVault,isSigner:false,isWritable:true},{pubkey:new sol.PublicKey(CREATOR),isSigner:false,isWritable:true},{pubkey:_wallet.keypair.publicKey,isSigner:true,isWritable:true},{pubkey:new sol.PublicKey(TOKEN_PGM),isSigner:false,isWritable:false},{pubkey:new sol.PublicKey(ASSOC_PGM),isSigner:false,isWritable:false},{pubkey:sol.SystemProgram.programId,isSigner:false,isWritable:false}],programId:new sol.PublicKey(PID),data:serBurn(lam,tax)}));return buildSend(tx);}
-async function doClaim(){if(!_pdas.globalState)await computePDAs(_wallet.keypair.publicKey);const sol=window.solanaWeb3,tx=new sol.Transaction();tx.add(new sol.TransactionInstruction({keys:[{pubkey:_pdas.globalState,isSigner:false,isWritable:true},{pubkey:_pdas.userAccount,isSigner:false,isWritable:true},{pubkey:_pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:_pdas.userToken,isSigner:false,isWritable:true},{pubkey:_wallet.keypair.publicKey,isSigner:true,isWritable:false},{pubkey:new sol.PublicKey(TOKEN_PGM),isSigner:false,isWritable:false}],programId:new sol.PublicKey(PID),data:serClaim()}));return buildSend(tx);}
+async function doClaim(){if(!_pdas.globalState)await computePDAs(_wallet.keypair.publicKey);const sol=window.solanaWeb3,tx=new sol.Transaction();tx.add(new sol.TransactionInstruction({keys:[{pubkey:_pdas.globalState,isSigner:false,isWritable:true},{pubkey:_pdas.userAccount,isSigner:false,isWritable:true},{pubkey:_pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:_pdas.userToken,isSigner:false,isWritable:true},{pubkey:_wallet.keypair.publicKey,isSigner:false,isWritable:false},{pubkey:new sol.PublicKey(TOKEN_PGM),isSigner:false,isWritable:false}],programId:new sol.PublicKey(PID),data:serClaim()}));return buildSend(tx);}
 async function doSend(to,amt){const sol=window.solanaWeb3,tx=new sol.Transaction().add(sol.SystemProgram.transfer({fromPubkey:_wallet.keypair.publicKey,toPubkey:new sol.PublicKey(to),lamports:Math.floor(amt*sol.LAMPORTS_PER_SOL)}));return buildSend(tx);}
 
 async function signMessage(message){
@@ -126,11 +126,108 @@ function lockWallet(){if(_wallet.keypair&&_wallet.keypair.secretKey)_wallet.keyp
 async function createWallet(phrase,pw){const sol=window.solanaWeb3;let secret,kp;if(phrase&&phrase.trim()){const w=phrase.trim().replace(/\s+/g,' ').toLowerCase().split(' ');if(w.length!==12&&w.length!==24)throw Error('Need 12 or 24 words');secret='phrase:'+w.join(' ');kp=await kpFromSecret(secret);}else{kp=sol.Keypair.generate();secret='privkey:'+B58.encode(kp.secretKey);}await saveEnc(secret,pw,kp);return kp;}
 async function importWallet(raw,pw){const sol=window.solanaWeb3;let kp;if(raw.startsWith('[')){kp=sol.Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw)));}else{let bytes;try{bytes=B58.decode(raw)}catch{bytes=/^[0-9a-f]+$/i.test(raw)?Uint8Array.from(raw.match(/.{2}/g).map(b=>parseInt(b,16))):new Uint8Array(JSON.parse(raw))}kp=bytes.length===64?sol.Keypair.fromSecretKey(bytes):sol.Keypair.fromSeed(bytes);}const secret='privkey:'+B58.encode(kp.secretKey);await saveEnc(secret,pw,kp);return kp;}
 
+// ── PROOF OF WILL OVERLAY ──────────────────────────────────────
+function showProofOfWill(){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;transition:opacity .3s ease';
+  
+  const closeBtn=document.createElement('button');
+  closeBtn.style.cssText='position:fixed;top:20px;right:20px;z-index:1001;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:18px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center';
+  closeBtn.textContent='✕';
+  closeBtn.addEventListener('click',()=>overlay.remove());
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+  document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){overlay.remove();document.removeEventListener('keydown',esc);}});
+
+  const wrap=document.createElement('div');
+  wrap.style.cssText='max-width:640px;margin:0 auto;padding:60px 24px 80px;font-family:Inter,sans-serif;color:#e4e6f4';
+
+  wrap.innerHTML=
+    '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px">Protocol</div>'+
+    '<div style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#ff4560,#f0a830);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px">Proof of Will</div>'+
+    '<div style="font-size:13px;color:rgba(240,240,248,.4);margin-bottom:24px">The three formulas that make participation irreversible</div>'+
+
+    '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);margin-bottom:24px"></div>'+
+
+    '<div style="font-size:13px;color:rgba(240,240,248,.6);line-height:1.8;margin-bottom:24px">Most protocols reward computation or capital. YourMine rewards <strong style="color:#ff4560">will</strong> — the deliberate choice to participate, to wait, to contribute quality over quantity.</div>'+
+
+    '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px">I. Mining — the patience formula</div>'+
+    '<div style="font-size:10px;color:rgba(240,240,248,.4);margin-bottom:6px">Standard form:</div>'+
+    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:13px;color:rgba(34,211,238,.8);margin-bottom:8px;line-height:2">       S · t<sup style="font-size:9px">α</sup><br>─────────────────────────<br>[ln(A<sup style="font-size:9px">β</sup>(1−T) + C)]<sup style="font-size:9px">γ</sup></div>'+
+    '<div style="font-size:10px;color:rgba(240,240,248,.4);margin-bottom:6px">Computationally safe form (avoids overflow):</div>'+
+    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:11px;color:rgba(34,211,238,.7);margin-bottom:14px;line-height:2">              S · t<sup style="font-size:9px">α</sup><br>──────────────────────────────────────────<br>[β(1−T)·ln(A) + ln(1 + C / A<sup style="font-size:9px">β(1−T)</sup>)]<sup style="font-size:9px">γ</sup></div>'+
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">'+
+      _powVar('S','Amount of the last burn')+
+      _powVar('t','Time elapsed since last action (Solana slots)')+
+      _powVar('T','Patience rate — chosen freely by the user (0–1)')+
+      _powVar('A','Protocol age (Solana block height)')+
+      _powVar('C','Stabilisation constant')+
+      _powVar('α','Temporal growth exponent')+
+      _powVar('β','Patience / age interaction')+
+      _powVar('γ','Concentration compression')+
+    '</div>'+
+
+    '<div style="background:rgba(255,69,96,.04);border:1px solid rgba(255,69,96,.15);border-radius:10px;padding:14px 16px;margin-bottom:24px;font-size:12px;color:rgba(240,240,248,.6);line-height:1.7">'+
+      'The only variables you control are <strong style="color:#f0a830">S</strong> and <strong style="color:#a78bfa">T</strong>. Everything else is objective. <strong style="color:rgba(255,255,255,.7)">You cannot fake will.</strong>'+
+    '</div>'+
+
+    '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin-bottom:20px"></div>'+
+
+    '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">Anti-Sybil by construction</div>'+
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">'+
+      _powItem('t starts at zero','For every new wallet. A fresh wallet has small t — small numerator — regardless of how many wallets you control.','#f0a830')+
+      _powItem('S must be burned for real','On every wallet. A Sybil with 100 wallets must burn 100× more tokens. No free multiplication.','#ff4560')+
+      _powItem('T must be maintained over time','Patience cannot be simulated by wallets created at the last moment. The declaration is worthless without elapsed time.','#a78bfa')+
+      _powItem('A is global','Protocol age is the same for everyone. It cannot be gamed per wallet.','rgba(240,240,248,.5)')+
+    '</div>'+
+    '<div style="font-size:12px;color:rgba(240,240,248,.5);line-height:1.7;margin-bottom:24px">The cost of a Sybil attack scales <strong style="color:#ff4560">linearly</strong> with the number of fake identities. <strong style="color:rgba(255,255,255,.7)">Time is the non-duplicable resource.</strong></div>'+
+
+    '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin-bottom:20px"></div>'+
+
+    '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">II. Permission score — the quality gate</div>'+
+    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:11px;color:rgba(34,211,238,.7);margin-bottom:12px">(score+1) / (laps+1)  &gt;  (score_last+1) / (laps_last+1)</div>'+
+    '<div style="font-size:12px;color:rgba(240,240,248,.55);line-height:1.7;margin-bottom:8px">To publish a new file, your current ratio must exceed your previous one. The +1 is a Laplace smoothing — your first publication is always allowed. After that, each new contribution must improve your average.</div>'+
+    '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:24px">'+
+      _powItem('Anti-spam by construction','You cannot flood the registry with mediocre files. Each new sphere must improve your ratio.','#ff4560')+
+      _powItem('No subjective curation','Quality is judged by the network score, not an editorial committee.','#f0a830')+
+      _powItem('Updates are free','Improving an existing sphere only requires ownership. The gate applies to new files only.','#a78bfa')+
+    '</div>'+
+
+    '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin-bottom:20px"></div>'+
+
+    '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">III. Rank — the frozen reputation</div>'+
+    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:13px;color:rgba(34,211,238,.7);margin-bottom:12px">rank = score / laps</div>'+
+    '<div style="font-size:12px;color:rgba(240,240,248,.55);line-height:1.7;margin-bottom:8px">Score is frozen at merge time. Never changes retroactively. No recency bias, no editorial boost.</div>'+
+
+    '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin:24px 0"></div>'+
+
+    '<div style="text-align:center;font-size:14px;color:rgba(240,240,248,.4);font-style:italic;line-height:1.8">'+
+      '"You cannot fake will.<br>You can only demonstrate it."'+
+    '</div>';
+
+  overlay.appendChild(closeBtn);
+  overlay.appendChild(wrap);
+  document.body.appendChild(overlay);
+  setTimeout(()=>overlay.style.opacity='1',10);
+}
+
+function _powVar(key,desc){
+  return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:6px;padding:8px 10px;display:flex;gap:8px;align-items:flex-start">'+
+    '<span style="font-family:monospace;font-size:13px;color:#f0a830;flex-shrink:0;min-width:14px">'+key+'</span>'+
+    '<span style="font-size:11px;color:rgba(240,240,248,.5);line-height:1.5">'+desc+'</span>'+
+  '</div>';
+}
+function _powItem(title,desc,color){
+  return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-left:2px solid '+color+';border-radius:0 8px 8px 0;padding:10px 12px">'+
+    '<div style="font-size:12px;font-weight:600;color:'+color+';margin-bottom:3px">'+title+'</div>'+
+    '<div style="font-size:11px;color:rgba(240,240,248,.5);line-height:1.5">'+desc+'</div>'+
+  '</div>';
+}
+
 // ── RENDER ─────────────────────────────────────────────────────────────────
 async function render(container){
   await _loadSolana();await _loadQR();
   if(!container)return;
-  // Ne pas modifier style.cssText — switchMineTab gère le display
   container.innerHTML='';
   if(_wallet.locked)renderLocked(container);
   else renderUnlocked(container);
@@ -139,10 +236,8 @@ async function render(container){
 function renderLocked(body){
   const has=hasSaved(),hint=savedHint();
   const S=(s)=>'style="'+s+'"';
-  // Centrage vertical sur desktop
   const wrap=document.createElement('div');
   wrap.style.cssText='flex:1;display:flex;flex-direction:column;justify-content:center;padding:20px 16px;overflow-y:auto';
-
   const inner=document.createElement('div');
   inner.style.cssText='width:100%;max-width:360px;margin:0 auto';
 
@@ -221,30 +316,27 @@ function renderUnlocked(body){
   const short=addr.slice(0,6)+'…'+addr.slice(-6);
   const S=(s)=>'style="'+s+'"';
 
-  // Wrapper avec centrage vertical sur desktop
   const wrap=document.createElement('div');
   wrap.style.cssText='flex:1;display:flex;flex-direction:column;justify-content:center;padding:12px 16px;overflow-y:auto;min-height:0';
   const inner=document.createElement('div');
   inner.style.cssText='width:100%;max-width:400px;margin:0 auto;display:flex;flex-direction:column;gap:8px';
 
   inner.innerHTML=
-  // ── Address bar
   '<div '+S('display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px')+'>'+
     '<div '+S('display:flex;align-items:center;gap:6px')+'>'+
       '<div '+S('width:20px;height:20px;border-radius:5px;background:linear-gradient(135deg,var(--accent,#f0a830),#e08020);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0')+'">⛏</div>'+
       '<span id="mine-addr" '+S('font-family:var(--font-m);font-size:10px;color:var(--text2);cursor:pointer;letter-spacing:.5px')+'" title="Copy">'+short+'</span>'+
     '</div>'+
     '<div '+S('display:flex;gap:4px')+'>'+
+      '<button class="ym-btn ym-btn-ghost" id="mine-pow-btn" '+S('padding:3px 8px;font-size:11px;color:rgba(255,69,96,.7);border-color:rgba(255,69,96,.2)')+'">◈ PoW</button>'+
       '<button class="ym-btn ym-btn-ghost" id="mine-copy" '+S('padding:3px 8px;font-size:11px')+'">⧉</button>'+
       '<button class="ym-btn ym-btn-danger" id="mine-lock" '+S('padding:3px 8px;font-size:11px')+'">🔒</button>'+
     '</div>'+
   '</div>'+
-  // ── Balances
   '<div '+S('display:grid;grid-template-columns:1fr 1fr;gap:5px')+'>'+
     _tile('SOL','mine-sol',_state.sol.toFixed(4),'#60a5fa')+
     _tile('YRM','mine-yrm',_state.ym.toFixed(2),'var(--accent,#f0a830)')+
   '</div>'+
-  // ── Claim card
   '<div '+S('background:linear-gradient(135deg,rgba(34,211,238,.08),rgba(34,211,238,.04));border:1px solid rgba(34,211,238,.22);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px')+'>'+
     '<div '+S('display:flex;align-items:baseline;justify-content:space-between')+'>'+
       '<span '+S('font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(34,211,238,.6);font-family:var(--font-m)')+'">Claimable</span>'+
@@ -255,7 +347,6 @@ function renderUnlocked(body){
     '</div>'+
     '<button class="ym-btn ym-btn-accent" id="mine-claim-btn" '+S('width:100%;font-size:13px;font-weight:700;padding:10px;background:linear-gradient(135deg,#22d3ee,#0ea5e9);box-shadow:0 4px 20px rgba(34,211,238,.3);border:none')+'">⚡ Claim</button>'+
   '</div>'+
-  // ── Burn card
   '<div '+S('background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px')+'>'+
     '<div '+S('display:flex;align-items:center;justify-content:space-between')+'>'+
       '<span '+S('font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(240,168,48,.55);font-family:var(--font-m)')+'">Burn</span>'+
@@ -270,7 +361,6 @@ function renderUnlocked(body){
     '<button class="ym-btn ym-btn-accent" id="mine-burn-btn" '+S('width:100%;font-size:13px;font-weight:700;padding:10px;box-shadow:0 4px 20px rgba(240,168,48,.28)')+'">🔥 Burn</button>'+
     '<div id="mine-txmsg" class="ym-notice" '+S('display:none')+'"></div>'+
   '</div>'+
-  // ── Send / Receive
   '<div '+S('display:grid;grid-template-columns:auto 1fr;gap:8px')+'>'+
     '<div '+S('display:flex;flex-direction:column;align-items:center;gap:4px;background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:10px;padding:8px')+'>'+
       '<div '+S('font-size:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text3);align-self:flex-start;font-family:var(--font-m)')+'">Receive</div>'+
@@ -283,12 +373,10 @@ function renderUnlocked(body){
       '<button class="ym-btn ym-btn-accent" id="mine-send-btn" '+S('font-size:11px;padding:6px')+'">Send ↗</button>'+
     '</div>'+
   '</div>'+
-  // ── Footer
   '<div '+S('display:flex;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border,rgba(255,255,255,.06));align-items:center')+'>'+
     '<div '+S('display:flex;gap:4px;flex-wrap:wrap;flex:1')+'>'+
       FAUCETS.map(f=>'<a href="'+f.url+'" target="_blank" rel="noopener" '+S('font-size:10px;color:var(--cyan);text-decoration:none;opacity:.65')+'">↗ '+f.label+'</a>').join('')+
     '</div>'+
-    '<span '+S('font-size:9px;color:var(--text3);font-family:var(--font-m);white-space:nowrap')+'">S·t<sup>α</sup>/[ln(A<sup>β</sup>+C)]<sup>γ</sup></span>'+
     '<div '+S('display:flex;gap:4px;flex-basis:100%')+'>'+
       _badge('Slot','mine-slot',_state.currentSlot||'—')+
     '</div>'+
@@ -308,6 +396,7 @@ function renderUnlocked(body){
   if($('mine-copy'))$('mine-copy').addEventListener('click',copyAddr);
   if($('mine-addr'))$('mine-addr').addEventListener('click',copyAddr);
   if($('mine-lock'))$('mine-lock').addEventListener('click',()=>{lockWallet();render(body);});
+  if($('mine-pow-btn'))$('mine-pow-btn').addEventListener('click',showProofOfWill);
 
   if($('mine-burn-btn'))$('mine-burn-btn').addEventListener('click',async()=>{
     const amtEl=$('mine-bamt'),rslEl=$('mine-rslider');
