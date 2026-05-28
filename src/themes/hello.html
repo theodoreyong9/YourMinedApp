@@ -458,8 +458,12 @@ n spheres → 2ⁿ configurations (expansion)</div>
   if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeManifesto();});
 
-  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:.12});
-  document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
+  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:.12,root:document.getElementById('ym-landing')});
+  document.querySelectorAll('.reveal').forEach(function(el){
+    var r=el.getBoundingClientRect();
+    if(r.top<window.innerHeight&&r.bottom>0){el.classList.add('visible');}
+    else{io.observe(el);}
+  });
   function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
   blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
   var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0){n.style.cssText='display:none!important';}});});});
