@@ -202,6 +202,70 @@ body::before{
 
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .met-reveal{animation:fadeUp .35s ease forwards}
+
+/* ── THEME NAV BAR ── */
+#theme-nav{
+  flex-shrink:0;display:flex;align-items:center;
+  height:52px;padding-bottom:env(safe-area-inset-bottom,0px);
+  background:rgba(0,0,0,.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border-top:1px solid rgba(255,255,255,.06);
+  position:relative;z-index:50;
+}
+.tnav-btn{
+  width:64px;height:100%;background:none;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:rgba(255,255,255,.35);font-size:20px;
+  transition:color .15s;flex-shrink:0;
+}
+.tnav-btn:hover,.tnav-btn:active{color:rgba(255,255,255,.85)}
+.tnav-btn.tnav-disabled{opacity:.2;pointer-events:none}
+#tnav-center{
+  flex:1;height:100%;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;gap:6px;color:rgba(255,255,255,.3);transition:color .15s;
+}
+#tnav-center:hover{color:rgba(255,255,255,.7)}
+#tnav-center-lbl{
+  font-size:10px;letter-spacing:.08em;
+  max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+/* Picker */
+#tnav-picker{
+  position:fixed;inset:0;z-index:900;
+  background:rgba(0,0,0,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  display:none;flex-direction:column;
+}
+#tnav-picker-hd{
+  padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+}
+#tnav-picker-title{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.15em;flex:1}
+#tnav-picker-close{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  color:rgba(255,255,255,.5);font-size:16px;width:32px;height:32px;
+  border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+#tnav-picker-search-wrap{
+  padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;
+}
+#tnav-picker-q{
+  width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);
+  color:#fff;font-size:13px;padding:9px 14px;border-radius:8px;outline:none;
+}
+#tnav-picker-q::placeholder{color:rgba(255,255,255,.22)}
+#tnav-picker-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px}
+.tnav-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border-radius:10px;cursor:pointer;
+  transition:background .1s;margin-bottom:4px;
+}
+.tnav-item:hover{background:rgba(255,255,255,.06)}
+.tnav-item.tnav-current{background:rgba(255,255,255,.04)}
+.tnav-icon{font-size:24px;flex-shrink:0}
+.tnav-info{flex:1;min-width:0}
+.tnav-name{font-size:14px;font-weight:600;color:#fff;margin-bottom:2px}
+.tnav-desc{font-size:11px;color:rgba(255,255,255,.38);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tnav-badge{font-size:9px;color:rgba(255,255,255,.28);flex-shrink:0;letter-spacing:.05em}
+
 </style>
 
 <!-- YourMine DOM -->
@@ -251,6 +315,28 @@ body::before{
   <div id="met-content">
     <div class="met-loading">LOADING COLLECTION…</div>
   </div>
+<!-- Theme Nav Bar -->
+<div id="theme-nav">
+  <button class="tnav-btn" id="tnav-back" title="Previous theme">←</button>
+  <div id="tnav-center" title="Switch theme">
+    <span style="font-size:16px">⬡</span>
+    <span id="tnav-center-lbl">themes</span>
+  </div>
+  <button class="tnav-btn tnav-disabled" id="tnav-prev" title="Go back in theme">‹</button>
+</div>
+<!-- Theme Picker -->
+<div id="tnav-picker">
+  <div id="tnav-picker-hd">
+    <div id="tnav-picker-title">SWITCH THEME</div>
+    <button id="tnav-picker-close">✕</button>
+  </div>
+  <div id="tnav-picker-search-wrap">
+    <input id="tnav-picker-q" placeholder="Search themes…" autocomplete="off">
+  </div>
+  <div id="tnav-picker-list">
+    <div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.25)">Loading…</div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -338,17 +424,32 @@ body::before{
     }catch(e){content.innerHTML='<div class="met-loading">ERROR</div>';}
   }
 
+  // Curated queries per department for reliable results
+  var DEPT_QUERIES = {
+    0: ['portrait','landscape painting','sculpture marble','ancient vessel','illuminated manuscript'],
+    11: ['portrait oil painting','baroque landscape','renaissance madonna','dutch golden age'],
+    9: ['etching print','watercolor drawing','pen ink sketch','lithograph'],
+    6: ['chinese jade','japanese scroll','buddhist sculpture','silk textile'],
+    10: ['Egyptian mummy','hieroglyphs','pharaoh statue','ancient egypt'],
+    13: ['greek vase','roman bust','ancient amphora','marble relief'],
+    21: ['modern abstract','impressionism','cubism','surrealism'],
+    3: ['mesopotamia','cuneiform tablet','ancient near east relief']
+  };
+
   async function loadCollection(){
     content.innerHTML = '<div class="met-loading">LOADING…</div>';
     try{
+      var queries = DEPT_QUERIES[_dept] || DEPT_QUERIES[0];
+      var q = queries[Math.floor(Math.random()*queries.length)];
       var url = _dept === 0
-        ? API+'/search?hasImages=true&isPublicDomain=true&isHighlight=true&q=*'
-        : API+'/search?hasImages=true&isPublicDomain=true&departmentId='+_dept+'&q=*';
+        ? API+'/search?hasImages=true&isPublicDomain=true&isHighlight=true&q='+encodeURIComponent(q)
+        : API+'/search?hasImages=true&isPublicDomain=true&departmentId='+_dept+'&q='+encodeURIComponent(q);
       var r = await fetch(url);
       var d = await r.json();
-      var ids = shuffle(d.objectIDs||[]).slice(0,24);
+      if(!d.objectIDs||!d.objectIDs.length) throw new Error('No results');
+      var ids = shuffle(d.objectIDs).slice(0,24);
       loadObjectsGrid(ids, _deptName);
-    }catch(e){content.innerHTML='<div class="met-loading">ERROR</div>';}
+    }catch(e){content.innerHTML='<div class="met-loading">ERROR — '+e.message+'</div>';}
   }
 
   async function loadObjectsGrid(ids, title){
@@ -404,7 +505,7 @@ body::before{
         '<div class="met-detail-dept">'+(obj.department||'')+'</div>'+
         '<div class="met-detail-title">'+esc(obj.title||'Untitled')+'</div>'+
         '<div class="met-detail-artist">'+esc(obj.artistDisplayName||'Unknown artist')+
-          (obj.artistNationality?' ('+obj.artistNationality+')')+''+
+          (obj.artistNationality?' ('+esc(obj.artistNationality)+')':'')+
         '</div>'+
         '<div class="met-detail-sep"></div>'+
         '<div class="met-detail-grid">'+
@@ -446,5 +547,101 @@ body::before{
 
   var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
   obs.observe(document.body,{childList:true,subtree:false});
+// ── Theme Nav Bar ─────────────────────────────────────────────
+setTimeout(function(){
+  var RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
+  var _cur = localStorage.getItem('ym_theme_url')||'';
+  var _cache = null;
+  var _history = [];
+
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  // Back to previous theme
+  document.getElementById('tnav-back').addEventListener('click', function(){
+    var prev = localStorage.getItem('ym_prev_theme')||'';
+    localStorage.setItem('ym_theme_url', prev);
+    localStorage.removeItem('ym_theme_cache');
+    location.reload();
+  });
+
+  // In-theme back
+  var prevBtn = document.getElementById('tnav-prev');
+  window._themeNavBack = null;
+  function updatePrevBtn(){
+    if(typeof window._themeNavBack === 'function'){
+      prevBtn.classList.remove('tnav-disabled');
+    } else {
+      prevBtn.classList.add('tnav-disabled');
+    }
+  }
+  Object.defineProperty(window, '_themeNavBack', {
+    set: function(fn){ this.__tnb = fn; updatePrevBtn(); },
+    get: function(){ return this.__tnb || null; },
+    configurable: true
+  });
+  prevBtn.addEventListener('click', function(){
+    if(window._themeNavBack) window._themeNavBack();
+  });
+
+  // Picker
+  var picker = document.getElementById('tnav-picker');
+  document.getElementById('tnav-center').addEventListener('click', function(){
+    picker.style.display='flex';
+    loadThemeList();
+  });
+  document.getElementById('tnav-picker-close').addEventListener('click', function(){picker.style.display='none';});
+  picker.addEventListener('click', function(e){if(e.target===picker)picker.style.display='none';});
+  document.getElementById('tnav-picker-q').addEventListener('input', function(){
+    var q=this.value.toLowerCase();
+    document.querySelectorAll('.tnav-item').forEach(function(el){
+      var t=(el.querySelector('.tnav-name').textContent||'').toLowerCase();
+      var d=(el.querySelector('.tnav-desc').textContent||'').toLowerCase();
+      el.style.display=(t.includes(q)||d.includes(q))?'flex':'none';
+    });
+  });
+
+  async function loadThemeList(){
+    if(_cache){renderThemeList(_cache);return;}
+    try{
+      var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});
+      if(r.ok){_cache=await r.json();}else throw new Error();
+    }catch(e){
+      _cache=[
+        {filename:'wikipedia.theme.html',name:'Wikipedia',icon:'📖',description:'Free encyclopedia, redesigned'},
+        {filename:'nasa.theme.html',name:'NASA',icon:'🚀',description:'Space images and open data'},
+        {filename:'met.theme.html',name:'The Met',icon:'🏛',description:'400k artworks, free access'},
+        {filename:'hackernews.theme.html',name:'Hacker News',icon:'🔶',description:'Tech news and discussions'},
+        {filename:'github-trends.theme.html',name:'GitHub Trends',icon:'⭐',description:'Trending repos with README'},
+      ];
+    }
+    renderThemeList(_cache);
+  }
+
+  function renderThemeList(themes){
+    var list=document.getElementById('tnav-picker-list');
+    list.innerHTML='';
+    themes.forEach(function(t){
+      var url=t.codeUrl||(RAW+t.filename);
+      var isCur=_cur&&_cur.includes(t.filename);
+      var el=document.createElement('div');
+      el.className='tnav-item'+(isCur?' tnav-current':'');
+      el.innerHTML=
+        '<div class="tnav-icon">'+esc(t.icon||'⬡')+'</div>'+
+        '<div class="tnav-info">'+
+          '<div class="tnav-name">'+esc(t.name||t.filename)+'</div>'+
+          '<div class="tnav-desc">'+esc(t.description||'')+'</div>'+
+        '</div>'+
+        (isCur?'<div class="tnav-badge">current</div>':'');
+      el.addEventListener('click',function(){
+        localStorage.setItem('ym_prev_theme',_cur);
+        localStorage.setItem('ym_theme_url',url);
+        localStorage.removeItem('ym_theme_cache');
+        picker.style.display='none';
+        location.reload();
+      });
+      list.appendChild(el);
+    });
+  }
+},0);
 })();
 </script>
