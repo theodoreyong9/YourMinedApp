@@ -204,7 +204,7 @@ function renderFlow(buildContent){
       wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
       // 2.1 Copy AI Prompt
       wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Copy AI Prompt</div><div style="font-size:10px;color:var(--text3);margin-top:2px">and you are instantly part of a global orchestration layer for ever</div></div>',
+        '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Copy AI Prompt</div><div style="font-size:10px;color:var(--text3);margin-top:2px">as long as your web exists</div></div>',
         ()=>{
           const prompt='yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
           navigator.clipboard?.writeText(prompt).then(()=>{
