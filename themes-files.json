@@ -3,7 +3,7 @@
     "filename": "zone.theme.html",
     "name": "zone",
     "icon": "🌍",
-    "description": "Cyberpunk dark theme with cyan and gold accents.",
+    "description": "YourMine light",
     "ghAuthor": "keanuji",
     "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/zone.theme.html",
     "wip": false,
@@ -21,6 +21,74 @@
         "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1400&q=80",
         "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=1400&q=80"
       ],
+      "videos": []
+    }
+  },
+  {
+    "filename": "nasa.theme.html",
+    "name": "nasa",
+    "icon": "🌍",
+    "description": "",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/nasa.theme.html",
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100,
+    "media": {
+      "photos": [],
+      "videos": []
+    }
+  },
+  {
+    "filename": "museum.theme.html",
+    "name": "museum",
+    "icon": "🌍",
+    "description": "",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/museum.theme.html",
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100,
+    "media": {
+      "photos": [],
+      "videos": []
+    }
+  },
+  {
+    "filename": "news.theme.html",
+    "name": "news",
+    "icon": "🌍",
+    "description": "",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/news.theme.html",
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100,
+    "media": {
+      "photos": [],
+      "videos": []
+    }
+  },
+  {
+    "filename": "wiki.theme.html",
+    "name": "wiki",
+    "icon": "🌍",
+    "description": "",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/wiki.theme.html",
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100,
+    "media": {
+      "photos": [],
       "videos": []
     }
   }
