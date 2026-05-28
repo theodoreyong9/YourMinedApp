@@ -27,15 +27,60 @@ function safeParseJson(raw) {
   catch(e) { try { return JSON.parse(raw.replace(/,\s*([}\]])/g, '$1').trim()); } catch(e2) { return []; } }
 }
 
+// ── EXTRACT SPHERE METADATA ───────────────────────────────────────────────────
+function extractSphereField(code, field) {
+  const defMatch = code.match(/window\.YM_S\s*\[.*?\]\s*=\s*\{([\s\S]{0,1200})/);
+  const searchIn = defMatch ? defMatch[1] : code.slice(0, 3000);
+  const r1 = new RegExp("['\"]?" + field + "['\"]?\\s*:\\s*'([^'\\n\\$\\{\\}]{1,120})'");
+  const r2 = new RegExp('[\'"?]' + field + '[\'"]?\\s*:\\s*"([^"\\n\\x24\\x7B\\x7D]{1,120})"');
+  const m1 = searchIn.match(r1); if (m1) return m1[1].trim();
+  const m2 = searchIn.match(r2); if (m2) return m2[1].trim();
+  return null;
+}
+
+async function extractSphereMetadata(filename, codeUrl, forkOwner) {
+  try {
+    const url = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + BASE_REPO.split('/')[1] + '/main/' + filename);
+    const r = await fetch(url + '?t=' + Date.now(), {
+      headers: { 'Authorization': 'token ' + GITHUB_TOKEN }
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const code = await r.text();
+    const name     = extractSphereField(code, 'name')     || filename.replace('.sphere.js', '');
+    const icon     = extractSphereField(code, 'icon')     || '⬡';
+    const category = extractSphereField(code, 'category') || 'Other';
+    const description = extractSphereField(code, 'description') || '';
+    console.log('Metadata extracted from', filename, '—', name, icon, category);
+    return { name, icon, category, description };
+  } catch(e) {
+    console.warn('Could not extract metadata from', filename, ':', e.message);
+    return {
+      name: filename.replace('.sphere.js', ''),
+      icon: '⬡',
+      category: 'Other',
+      description: ''
+    };
+  }
+}
+
 // ── SPHÈRES ───────────────────────────────────────────────────────────────────
 async function updateSpheresJson(files, ghActor, forkOwner) {
   let filesJson = [];
   try { filesJson = safeParseJson(fs.readFileSync('files.json', 'utf8')); } catch(e) {}
 
-  for (const { filename, isUpdate, codeUrl, wallet, score, laps, timestamp, wip } of files.filter(f => f.filename && f.filename.endsWith('.sphere.js'))) {
+  for (const { filename, isUpdate, codeUrl, wallet, score, laps, timestamp, wip, transferTo } of files.filter(f => f.filename && f.filename.endsWith('.sphere.js'))) {
     const effectiveCodeUrl = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + BASE_REPO.split('/')[1] + '/main/' + filename);
+
+    // Extract name, icon, category, description from sphere code
+    const meta = await extractSphereMetadata(filename, effectiveCodeUrl, forkOwner);
+
+    const idx = filesJson.findIndex(f => f.filename === filename);
     const entry = {
       filename,
+      name:        meta.name,
+      icon:        meta.icon,
+      category:    meta.category,
+      description: meta.description,
       author:         wallet || '',
       ghAuthor:       ghActor,
       last_committer: ghActor,
@@ -46,11 +91,9 @@ async function updateSpheresJson(files, ghActor, forkOwner) {
       timestamp: timestamp || Math.floor(Date.now() / 1000),
       merged_at: Math.floor(Date.now() / 1000)
     };
-    // Transfer ownership si demandé
     if (transferTo) entry.owner = transferTo;
-    // Sinon préserve l'owner existant si déjà défini
     else if (idx >= 0 && filesJson[idx].owner) entry.owner = filesJson[idx].owner;
-    const idx = filesJson.findIndex(f => f.filename === filename);
+
     if (idx >= 0) {
       filesJson[idx] = Object.assign({}, filesJson[idx], entry);
       console.log('Updated sphere', filename);
@@ -72,7 +115,6 @@ async function updateThemesJson(files, ghActor, forkOwner) {
     const forkRepo   = BASE_REPO.split('/')[1];
     const effectiveCU = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + forkRepo + '/main/' + filename);
 
-    // Extrait les médias depuis le code HTML du thème dans le fork
     let media = { photos: [], videos: [] };
     try {
       const themeResp = await fetch(effectiveCU + '?t=' + Date.now(), {
@@ -127,7 +169,6 @@ async function main() {
 
   console.log('Merging ' + files.length + ' file(s) from @' + ghActor);
 
-  // Info PR pour récupérer le fork
   const prInfo = await ghAPI('/repos/' + BASE_REPO + '/pulls/' + PR_NUMBER);
   const forkOwner = prInfo.head && prInfo.head.repo && prInfo.head.repo.owner ? prInfo.head.repo.owner.login : ghActor;
   const forkRepo  = prInfo.head && prInfo.head.repo ? prInfo.head.repo.full_name : ghActor + '/' + BASE_REPO.split('/')[1];
@@ -137,7 +178,6 @@ async function main() {
   run('git checkout main');
   run('git pull origin main');
 
-  // Copie les events
   const prEventsDir = PR_CONTENT_DIR + '/events';
   if (fs.existsSync(prEventsDir)) {
     if (!fs.existsSync('events')) fs.mkdirSync('events');
@@ -150,17 +190,14 @@ async function main() {
     }
   }
 
-  // Met à jour files.json (sphères) et themes-files.json (thèmes)
   await updateSpheresJson(files, ghActor, forkOwner);
   await updateThemesJson(files, ghActor, forkOwner);
 
-  // Commit et push
   run('git add files.json themes-files.json events/');
   run('git commit -m "bot: merge @' + ghActor + ' — files.json + themes-files.json updated"');
   run('git push https://x-access-token:' + GITHUB_TOKEN + '@github.com/' + BASE_REPO + '.git main');
   console.log('Pushed to main');
 
-  // Ferme la PR avec commentaire
   try {
     const fileList = files.map(f =>
       '- `' + f.filename + '` (' + (f.isUpdate ? 'updated' : 'new') + ') → [code](' + (f.codeUrl || '') + ')'
@@ -172,7 +209,6 @@ async function main() {
     console.log('PR closed');
   } catch(e) { console.warn('Could not close PR:', e.message); }
 
-  // Synchronise le fork
   try {
     await ghAPI('/repos/' + forkRepo + '/merge-upstream', 'POST', { branch: 'main' });
     console.log('Fork synced');
