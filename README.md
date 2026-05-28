@@ -1542,4 +1542,109 @@ Score frozen at merge time. No editorial curation.
 
 ---
 
+## New Spheres (Session 6)
+
+### `career.sphere.js`
+CV and job board. Publish via GitHub + Solana wallet. Browse candidates ranked by AI. Adapt your CV to any offer.
+
+- `cv.json` at repo root — CV registry
+- `jobs.json` at repo root — job registry
+- `src/cv/username.cv.js` — CV file in user's fork
+- `src/jobs/username-slug.job.js` — job file in user's fork
+- First publish requires wallet signature. Updates require GitHub token only.
+- CV/job files must expose `window.YM_renderCV(container)` / `window.YM_renderJob(container)`
+
+### `journal.sphere.js`
+Social journal. One file per person, evolving over time. Publish via GitHub + wallet, update via GitHub only.
+
+- `journals.json` at repo root — journal registry
+- `src/journals/username.journal.js` — journal file in user's fork
+- Feed tab shows Near (P2P peers), Contacts (Social sphere), Top (registry)
+- Journal files must expose `window.YM_renderJournal(container)`
+
+### `status.sphere.js`
+Battery level and network status widget. Uses `navigator.getBattery()` (Chrome Android) and `navigator.connection`.
+
+---
+
+## Widget Rules
+
+### Build widget immediately in `activate()`
+
+Never build a widget inside an async Promise — it breaks `_syncWidgetPage`:
+
+```js
+// ✗ WRONG — widget built after async delay
+activate(ctx) {
+  _ctx = ctx;
+  getBattery().then(bat => {
+    _buildWidget(); // too late — _syncWidgetPage already ran
+  });
+}
+
+// ✓ CORRECT — widget built immediately
+activate(ctx) {
+  _ctx = ctx;
+  _buildWidget(); // sync — registers page immediately
+  getBattery().then(bat => {
+    if (!bat) return;
+    _battery = bat;
+    _refreshWidget(); // enrich after
+  }).catch(() => {});
+}
+```
+
+### Required widget pattern
+
+Every widget sphere must implement:
+
+```js
+const _onPageChange = () => _syncWidgetPage();
+
+function _syncWidgetPage() {
+  if (!_widget || !document.body.contains(_widget)) return;
+  if (_widget._dragging) return;
+  let widgetPage = 0;
+  if (window.YM_Desk && window.YM_Desk.registeredWidgetPage) {
+    const rp = window.YM_Desk.registeredWidgetPage(WIDGET_ID);
+    if (rp != null) widgetPage = rp;
+    else widgetPage = _loadPos().page || 0;
+  } else { widgetPage = _loadPos().page || 0; }
+  const curPage = window._deskCurPage != null ? window._deskCurPage : 0;
+  const visible = curPage === widgetPage;
+  _widget.style.transition = 'opacity .25s ease';
+  _widget.style.opacity = visible ? '1' : '0';
+  _widget.style.pointerEvents = visible ? 'all' : 'none';
+}
+
+function _registerPage(page) {
+  if (window.YM_Desk && window.YM_Desk.registerWidgetPage)
+    window.YM_Desk.registerWidgetPage(WIDGET_ID, page, POS_KEY);
+}
+```
+
+Attach the listener inside `_buildWidget`, not in `activate`:
+
+```js
+window.addEventListener('ym:page-change', _onPageChange);
+```
+
+Remove it in `deactivate`:
+
+```js
+window.removeEventListener('ym:page-change', _onPageChange);
+```
+
+---
+
+## Bot `merge.js` — Metadata extraction
+
+Since session 6, `merge.js` automatically extracts `name`, `icon`, `category`, `description` from sphere code at merge time and writes them into `files.json`. No manual metadata required.
+
+The bot reads these fields from the sphere's `window.YM_S['name.sphere.js'] = { name, icon, category, description }` declaration.
+
+This means `liste.js` can use metadata directly from `files.json` without fetching each sphere file individually — faster load, more robust.
+
+---
+
 *YourMine is open source and open by design. There is no central authority. Fork it, improve it, run it.*
