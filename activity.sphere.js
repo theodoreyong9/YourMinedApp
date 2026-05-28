@@ -55,7 +55,7 @@ function renderZonesTab(container){
 
   const mapEl=document.createElement('div');
   mapEl.id='act-map';
-  mapEl.style.cssText='flex:1;min-height:0;background:var(--surface2)';
+  mapEl.style.cssText='flex:1;min-height:260px;background:var(--surface2)';
   container.appendChild(mapEl);
 
   const searchBar=document.createElement('div');
@@ -203,7 +203,8 @@ function renderZonesTab(container){
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_map);
     window._actMapCenter=_map.getCenter();
     _map.on('moveend',function(){window._actMapCenter=_map.getCenter();});
-    setTimeout(function(){if(_map)_map.invalidateSize();},100);
+    setTimeout(function(){if(_map)_map.invalidateSize();},300);
+    setTimeout(function(){if(_map)_map.invalidateSize();},800);
 
     _map.on('click',function(e){
       var lat=e.latlng.lat,lng=e.latlng.lng;
