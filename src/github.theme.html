@@ -409,33 +409,79 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     });
   });
 
-  // Use GitHub search API as proxy for trending
-  // (github.com/trending has no public API — we use search sorted by stars with date filter)
+  // Scrape github.com/trending via CORS proxy — no API key, no rate limit
+  var CORS_PROXIES = [
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?',
+  ];
+
+  async function fetchTrendingHTML(lang, period){
+    var url = 'https://github.com/trending'+(lang?'/'+encodeURIComponent(lang):'')+'?since='+period;
+    for(var i=0;i<CORS_PROXIES.length;i++){
+      try{
+        var r = await fetch(CORS_PROXIES[i]+encodeURIComponent(url),{signal:AbortSignal.timeout(8000)});
+        if(r.ok){var t=await r.text();if(t.length>1000)return t;}
+      }catch(e){}
+    }
+    throw new Error('All proxies failed');
+  }
+
+  function parseTrendingHTML(html){
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(html,'text/html');
+    var repos = [];
+    doc.querySelectorAll('article.Box-row').forEach(function(article){
+      try{
+        var nameEl = article.querySelector('h2 a');
+        if(!nameEl)return;
+        var fullName = nameEl.getAttribute('href').replace(/^\//,'');
+        var parts = fullName.split('/');
+        var owner = parts[0], name = parts[1];
+
+        var desc = article.querySelector('p');
+        var langEl = article.querySelector('[itemprop="programmingLanguage"]');
+        var starsEl = article.querySelector('a[href*="/stargazers"]');
+        var forksEl = article.querySelector('a[href*="/forks"]');
+        var starsToday = article.querySelector('.float-sm-right');
+
+        var stars = starsEl ? starsEl.textContent.trim().replace(/,/g,'') : '0';
+        var forks = forksEl ? forksEl.textContent.trim().replace(/,/g,'') : '0';
+        var today = starsToday ? starsToday.textContent.trim() : '';
+
+        // Topics
+        var topics = [];
+        article.querySelectorAll('.topic-tag').forEach(function(t){topics.push(t.textContent.trim());});
+
+        repos.push({
+          full_name: fullName,
+          owner: {login:owner, avatar_url:'https://github.com/'+owner+'.png?size=64'},
+          name: name,
+          description: desc ? desc.textContent.trim() : '',
+          language: langEl ? langEl.textContent.trim() : '',
+          stargazers_count: parseInt(stars.replace(/[^0-9]/g,''))||0,
+          forks_count: parseInt(forks.replace(/[^0-9]/g,''))||0,
+          open_issues_count: 0,
+          html_url: 'https://github.com/'+fullName,
+          topics: topics,
+          stars_today: today,
+          watchers_count: 0,
+          license: null,
+          pushed_at: '',
+        });
+      }catch(e){}
+    });
+    return repos;
+  }
+
   async function loadTrending(){
     content.innerHTML='<div class="gh-loading">loading trending repos…</div>';
     try{
-      var date = new Date();
-      if(_period === 'daily') date.setDate(date.getDate()-1);
-      else if(_period === 'weekly') date.setDate(date.getDate()-7);
-      else date.setDate(date.getDate()-30);
-      var since = date.toISOString().slice(0,10);
-
-      var q = 'created:>'+since+(_lang?' language:'+_lang:'');
-      var url = 'https://api.github.com/search/repositories?q='+encodeURIComponent(q)+'&sort=stars&order=desc&per_page=30';
-      var r = await fetch(url, {headers:{'Accept':'application/vnd.github.v3+json'}});
-      if(!r.ok) throw new Error('Rate limit or error: '+r.status);
-      var d = await r.json();
-      renderRepos(d.items||[]);
+      var html = await fetchTrendingHTML(_lang, _period);
+      var repos = parseTrendingHTML(html);
+      if(!repos.length) throw new Error('No repos parsed');
+      renderRepos(repos);
     }catch(e){
-      // Fallback: most starred repos
-      try{
-        var q2 = 'stars:>1000'+(_lang?' language:'+_lang:'');
-        var r2 = await fetch('https://api.github.com/search/repositories?q='+encodeURIComponent(q2)+'&sort=stars&order=desc&per_page=30',{headers:{'Accept':'application/vnd.github.v3+json'}});
-        var d2 = await r2.json();
-        renderRepos(d2.items||[]);
-      }catch(e2){
-        content.innerHTML='<div class="gh-loading">API rate limit — try again in a moment</div>';
-      }
+      content.innerHTML='<div class="gh-loading">'+esc(e.message)+'<br><span style="font-size:9px;opacity:.5">try again in a moment</span></div>';
     }
   }
 
@@ -463,7 +509,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           '<span style="color:var(--text3)">'+esc(repo.owner.login)+' / </span>'+
           esc(repo.name)+
         '</div>'+
-        '<div class="gh-repo-stars-today">⭐ '+fmtNum(repo.stargazers_count)+'</div>'+
+        '<div class="gh-repo-stars-today">⭐ '+(repo.stars_today||fmtNum(repo.stargazers_count))+'</div>'+
       '</div>'+
       (repo.description?'<div class="gh-repo-desc">'+esc(repo.description)+'</div>':'')+
       '<div class="gh-repo-meta">'+
