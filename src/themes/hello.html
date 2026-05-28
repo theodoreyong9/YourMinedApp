@@ -441,11 +441,6 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var s1=document.getElementById('lp-start-btn');if(s1)s1.addEventListener('click',goDefault);
   var s2=document.getElementById('lp-start-btn-2');if(s2)s2.addEventListener('click',goDefault);
 
-  // Proof of Will + Theory — delayed to ensure DOM is ready after innerHTML injection
-  setTimeout(function(){
-
-  },0);
-
   // Manifesto
   var overlay=document.getElementById('manifesto-overlay');
   var closeBtn=document.getElementById('manifesto-close');
@@ -457,7 +452,7 @@ n spheres → 2ⁿ configurations (expansion)</div>
   if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeManifesto();});
 
-  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:.12,root:document.getElementById('ym-landing')});
+  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:.12});
   document.querySelectorAll('.reveal').forEach(function(el){
     var r=el.getBoundingClientRect();
     if(r.top<window.innerHeight&&r.bottom>0){el.classList.add('visible');}
