@@ -1,0 +1,475 @@
+<!-- YourMine — Hacker News Theme -->
+<script>
+window.YM_THEME_META = {"name":"Hacker News","icon":"🔶","description":"Hacker News redesigned — tech news, discussions, jobs, clean and fast"};
+window.YM_WALLPAPER_PRESETS = [];
+window.YM_NO_WIDGETS = true;
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=block" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#0d0d0d;--surface:#141414;--surface2:#1a1a1a;--surface3:#202020;
+  --text:#e8e8e8;--text2:rgba(232,232,232,.55);--text3:rgba(232,232,232,.28);
+  --accent:#ff6600;--accent2:#cc5200;--green:#22c55e;--blue:#60a5fa;
+  --border:rgba(255,102,0,.1);--border2:rgba(255,255,255,.06);
+  --font-m:'IBM Plex Mono',monospace;--font-b:'IBM Plex Sans',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b)}
+
+#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
+#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
+.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
+#ym-radio-widget,#desktop-slider .icon-wrap,
+.icon-wrap,.icon-body,.icon-label{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.pill{display:none!important}
+
+#hn-root{position:fixed;inset:0;display:flex;flex-direction:column;z-index:10}
+
+/* Header */
+#hn-header{
+  flex-shrink:0;
+  background:var(--accent);
+  display:flex;align-items:center;gap:0;
+}
+#hn-logo{
+  font-family:var(--font-m);font-size:13px;font-weight:500;
+  color:#fff;padding:10px 14px;
+  border:2px solid rgba(255,255,255,.3);margin:6px 0 6px 10px;
+  cursor:pointer;flex-shrink:0;letter-spacing:.02em;
+}
+#hn-tabs{
+  display:flex;flex:1;overflow-x:auto;scrollbar-width:none;
+}
+#hn-tabs::-webkit-scrollbar{display:none}
+.hn-tab{
+  font-family:var(--font-m);font-size:11px;
+  padding:10px 14px;color:rgba(255,255,255,.7);
+  cursor:pointer;white-space:nowrap;transition:color .1s;
+  flex-shrink:0;
+}
+.hn-tab:hover{color:#fff}
+.hn-tab.active{color:#fff;font-weight:500}
+#hn-search-wrap{
+  display:flex;align-items:center;padding:6px 10px;gap:6px;
+  background:var(--surface);border-bottom:1px solid var(--border2);
+  flex-shrink:0;
+}
+#hn-search{
+  flex:1;background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--font-m);font-size:11px;
+  padding:7px 10px;outline:none;border-radius:4px;
+  transition:border-color .15s;
+}
+#hn-search:focus{border-color:rgba(255,102,0,.3)}
+#hn-search::placeholder{color:var(--text3)}
+
+/* Content */
+#hn-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#hn-content::-webkit-scrollbar{width:2px}
+#hn-content::-webkit-scrollbar-thumb{background:rgba(255,102,0,.3)}
+
+/* Story */
+.hn-story{
+  padding:12px 14px;border-bottom:1px solid var(--border2);
+  display:flex;gap:10px;align-items:flex-start;
+}
+.hn-rank{
+  font-family:var(--font-m);font-size:11px;color:var(--text3);
+  width:22px;text-align:right;flex-shrink:0;padding-top:2px;
+}
+.hn-vote{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  flex-shrink:0;padding-top:1px;
+}
+.hn-vote-btn{
+  background:none;border:none;cursor:pointer;
+  font-size:12px;color:var(--text3);padding:1px;
+  transition:color .1s;line-height:1;
+}
+.hn-vote-btn:hover{color:var(--accent)}
+.hn-vote-score{font-family:var(--font-m);font-size:10px;color:var(--accent)}
+.hn-body{flex:1;min-width:0}
+.hn-title{
+  font-size:14px;font-weight:500;color:var(--text);
+  line-height:1.4;margin-bottom:4px;cursor:pointer;
+  transition:color .15s;
+}
+.hn-title:hover{color:var(--accent)}
+.hn-domain{
+  font-family:var(--font-m);font-size:10px;color:var(--text3);
+  margin-left:6px;
+}
+.hn-meta{
+  font-family:var(--font-m);font-size:10px;color:var(--text3);
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+}
+.hn-meta-by{color:var(--text2)}
+.hn-meta-comments{
+  color:var(--blue);cursor:pointer;transition:color .1s;
+}
+.hn-meta-comments:hover{color:#93c5fd}
+.hn-meta-time{color:var(--text3)}
+
+/* Comments */
+#hn-comments{
+  position:fixed;inset:0;z-index:600;
+  background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  display:none;
+}
+#hn-comments-close{
+  position:sticky;top:0;
+  background:var(--surface);border-bottom:1px solid var(--border2);
+  padding:10px 14px;display:flex;align-items:center;gap:10px;
+  z-index:2;
+}
+#hn-comments-back{
+  background:none;border:1px solid var(--border2);color:var(--text2);
+  font-family:var(--font-m);font-size:11px;padding:5px 10px;
+  cursor:pointer;border-radius:4px;transition:all .1s;flex-shrink:0;
+}
+#hn-comments-back:hover{border-color:var(--accent);color:var(--accent)}
+#hn-comments-title{font-size:13px;font-weight:500;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#hn-comments-inner{padding:0 0 80px}
+
+.hn-comment{
+  padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04);
+}
+.hn-comment-indent{border-left:2px solid var(--border2);margin-left:16px;padding-left:12px}
+.hn-comment-meta{
+  font-family:var(--font-m);font-size:10px;color:var(--text3);
+  margin-bottom:6px;display:flex;gap:8px;
+}
+.hn-comment-user{color:var(--accent)}
+.hn-comment-text{
+  font-size:13px;color:var(--text2);line-height:1.7;font-weight:300;
+}
+.hn-comment-text a{color:var(--blue);text-decoration:none}
+.hn-comment-text pre{
+  background:var(--surface2);padding:8px 10px;border-radius:4px;
+  overflow-x:auto;font-size:11px;margin:6px 0;
+}
+
+/* Job item */
+.hn-job{
+  padding:12px 14px;border-bottom:1px solid var(--border2);
+}
+.hn-job-title{font-size:14px;font-weight:500;color:var(--text);margin-bottom:4px}
+.hn-job-meta{font-family:var(--font-m);font-size:10px;color:var(--text3)}
+
+/* Loading */
+.hn-loading{
+  padding:40px;text-align:center;
+  font-family:var(--font-m);font-size:11px;color:var(--text3);
+  letter-spacing:.1em;
+}
+
+/* Section header */
+.hn-section-hd{
+  padding:8px 14px;background:var(--surface);
+  font-family:var(--font-m);font-size:9px;color:var(--text3);
+  letter-spacing:.1em;border-bottom:1px solid var(--border2);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.hn-section-count{color:var(--accent)}
+
+/* Ask/Show text */
+.hn-text-preview{
+  font-size:12px;color:var(--text3);line-height:1.6;
+  margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;
+}
+
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.hn-reveal{animation:fadeIn .2s ease forwards}
+</style>
+
+<!-- YourMine DOM -->
+<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
+<div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
+<div id="drag-ghost"></div><div id="page-dots"></div>
+<div id="nav-bar" style="display:none!important"><div id="dock"><button class="dbtn" id="btn-back"></button><button class="dbtn" id="btn-profile"></button><button class="dbtn" id="btn-figure"></button></div></div>
+<div id="panel-overlay" class="ym-overlay"></div>
+<div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
+<div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
+<div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
+<div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;flex-direction:column"></div><div id="panel-mine-formula" style="display:none;padding:16px"></div><div id="panel-mine-liste" style="display:none;flex-direction:column"></div></div><div class="ym-tabs" id="mine-tabs-bar"><div class="ym-tab active" data-mine-tab="wallet">Wallet</div><div class="ym-tab" data-mine-tab="liste">Apps</div></div></div>
+<div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
+<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
+<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
+<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
+<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
+<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column"><div class="dlg-title" id="bg-dlg-title">Background</div><div id="theme-list"></div><input id="theme-custom-input" class="ym-input"><button id="theme-custom-btn" class="ym-btn">Use</button><button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button><div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button><button class="ym-btn" id="bg-del" style="display:none"></button></div></div>
+<button id="pwa-install-btn" style="display:none"></button>
+
+<!-- Comments overlay -->
+<div id="hn-comments">
+  <div id="hn-comments-close">
+    <button id="hn-comments-back">← Back</button>
+    <div id="hn-comments-title"></div>
+  </div>
+  <div id="hn-comments-inner"></div>
+</div>
+
+<!-- HN Theme -->
+<div id="hn-root">
+  <div id="hn-header">
+    <div id="hn-logo">Y</div>
+    <div id="hn-tabs">
+      <div class="hn-tab active" data-tab="top">top</div>
+      <div class="hn-tab" data-tab="new">new</div>
+      <div class="hn-tab" data-tab="best">best</div>
+      <div class="hn-tab" data-tab="ask">ask</div>
+      <div class="hn-tab" data-tab="show">show</div>
+      <div class="hn-tab" data-tab="jobs">jobs</div>
+    </div>
+  </div>
+  <div id="hn-search-wrap">
+    <input id="hn-search" placeholder="Search Hacker News…" autocomplete="off">
+  </div>
+  <div id="hn-content">
+    <div class="hn-loading">loading…</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var API = 'https://hacker-news.firebaseio.com/v0';
+  var ALGOLIA = 'https://hn.algolia.com/api/v1';
+  var content = document.getElementById('hn-content');
+  var _tab = 'top';
+  var _page = 0;
+  var _ids = [];
+  var _loading = false;
+  var _searchTimer = null;
+  var _searching = false;
+
+  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function ago(ts){
+    var d=Date.now()/1000-ts;
+    if(d<3600)return Math.floor(d/60)+'m';
+    if(d<86400)return Math.floor(d/3600)+'h';
+    return Math.floor(d/86400)+'d';
+  }
+  function domain(url){
+    try{return new URL(url).hostname.replace('www.','');}catch{return '';}
+  }
+
+  // Tabs
+  document.querySelectorAll('.hn-tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      if(_searching){
+        document.getElementById('hn-search').value='';
+        _searching=false;
+      }
+      document.querySelectorAll('.hn-tab').forEach(function(t){t.classList.remove('active');});
+      tab.classList.add('active');
+      _tab = tab.dataset.tab;
+      loadTab(_tab);
+    });
+  });
+
+  // Search
+  document.getElementById('hn-search').addEventListener('input', function(){
+    var q = this.value.trim();
+    clearTimeout(_searchTimer);
+    if(!q){_searching=false;loadTab(_tab);return;}
+    _searching=true;
+    _searchTimer=setTimeout(function(){loadSearch(q);},400);
+  });
+
+  async function loadSearch(q){
+    content.innerHTML='<div class="hn-loading">searching…</div>';
+    try{
+      var r=await fetch(ALGOLIA+'/search?query='+encodeURIComponent(q)+'&tags=story&hitsPerPage=30');
+      var d=await r.json();
+      renderStories(d.hits.map(function(h){
+        return{
+          id:h.objectID,
+          title:h.title||h.story_title||'',
+          url:h.url||h.story_url||'',
+          score:h.points||0,
+          by:h.author||'',
+          time:h.created_at_i||0,
+          descendants:h.num_comments||0,
+          text:h.story_text||''
+        };
+      }), 'Search: "'+q+'"');
+    }catch(e){content.innerHTML='<div class="hn-loading">error</div>';}
+  }
+
+  async function loadTab(tab){
+    _page=0;_ids=[];
+    content.innerHTML='<div class="hn-loading">loading…</div>';
+    var endpoint = tab==='top'?'topstories':tab==='new'?'newstories':tab==='best'?'beststories':tab==='ask'?'askstories':tab==='show'?'showstories':'jobstories';
+    try{
+      var r=await fetch(API+'/'+endpoint+'.json');
+      _ids=await r.json();
+      await loadMore(true);
+    }catch(e){content.innerHTML='<div class="hn-loading">error</div>';}
+  }
+
+  async function loadMore(reset){
+    if(_loading)return;
+    _loading=true;
+    var batch=_ids.slice(_page*30,(_page+1)*30);
+    if(!batch.length){_loading=false;return;}
+    var items=await Promise.all(batch.map(function(id){
+      return fetch(API+'/item/'+id+'.json').then(function(r){return r.json();}).catch(function(){return null;});
+    }));
+    items=items.filter(Boolean);
+    if(reset){
+      content.innerHTML='';
+      renderStories(items, _tab.toUpperCase()+' · '+_ids.length+' stories');
+    }else{
+      var existing=content.querySelector('.hn-list');
+      if(existing)items.forEach(function(item){existing.appendChild(renderStoryEl(item,_page*30+items.indexOf(item)+1));});
+    }
+    _page++;
+    _loading=false;
+  }
+
+  function renderStories(items, title){
+    var wrap=document.createElement('div');
+    wrap.className='hn-reveal';
+    wrap.innerHTML='<div class="hn-section-hd"><span>'+esc(title)+'</span><span class="hn-section-count">'+items.length+'</span></div>';
+    var list=document.createElement('div');
+    list.className='hn-list';
+    items.forEach(function(item,i){list.appendChild(renderStoryEl(item,i+1));});
+    wrap.appendChild(list);
+    content.innerHTML='';
+    content.appendChild(wrap);
+
+    // Infinite scroll
+    content.addEventListener('scroll', function onScroll(){
+      if(_searching)return;
+      var bottom=content.scrollHeight-content.scrollTop-content.clientHeight;
+      if(bottom<200)loadMore(false);
+    },{passive:true});
+  }
+
+  function renderStoryEl(item, rank){
+    var el=document.createElement('div');
+    if(item.type==='job'){
+      el.className='hn-job';
+      el.innerHTML=
+        '<div class="hn-job-title">'+esc(item.title||'')+'</div>'+
+        '<div class="hn-job-meta">'+ago(item.time)+' · '+esc(item.by||'')+'</div>';
+      if(item.url)el.style.cursor='pointer';
+      el.addEventListener('click',function(){if(item.url)window.open(item.url,'_blank','noopener');});
+      return el;
+    }
+    el.className='hn-story';
+    el.innerHTML=
+      '<div class="hn-rank">'+rank+'</div>'+
+      '<div class="hn-vote">'+
+        '<button class="hn-vote-btn">▲</button>'+
+        '<div class="hn-vote-score">'+esc(String(item.score||0))+'</div>'+
+      '</div>'+
+      '<div class="hn-body">'+
+        '<div class="hn-title">'+esc(item.title||'')+(item.url?'<span class="hn-domain">('+esc(domain(item.url))+')</span>':'')+'</div>'+
+        (item.text&&!item.url?'<div class="hn-text-preview">'+item.text.replace(/<[^>]+>/g,'').slice(0,120)+'</div>':'')+
+        '<div class="hn-meta">'+
+          '<span class="hn-meta-by">'+esc(item.by||'')+'</span>'+
+          '<span class="hn-meta-time">'+ago(item.time||0)+'</span>'+
+          '<span class="hn-meta-comments" data-id="'+item.id+'">'+
+            (item.descendants||0)+' comments'+
+          '</span>'+
+        '</div>'+
+      '</div>';
+
+    // Click title → open URL
+    el.querySelector('.hn-title').addEventListener('click', function(){
+      if(item.url)window.open(item.url,'_blank','noopener');
+      else loadComments(item);
+    });
+
+    // Click comments
+    el.querySelector('.hn-meta-comments').addEventListener('click', function(e){
+      e.stopPropagation();
+      loadComments(item);
+    });
+
+    return el;
+  }
+
+  async function loadComments(item){
+    var commentsEl=document.getElementById('hn-comments');
+    var inner=document.getElementById('hn-comments-inner');
+    document.getElementById('hn-comments-title').textContent=item.title||'';
+    inner.innerHTML='<div class="hn-loading">loading comments…</div>';
+    commentsEl.style.display='block';
+    commentsEl.scrollTop=0;
+
+    try{
+      // Reload fresh item
+      var r=await fetch(API+'/item/'+item.id+'.json');
+      var fresh=await r.json();
+      inner.innerHTML='';
+
+      // Story header
+      var hd=document.createElement('div');
+      hd.style.cssText='padding:14px;border-bottom:1px solid rgba(255,255,255,.06)';
+      hd.innerHTML=
+        '<div style="font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px">'+esc(fresh.title||'')+'</div>'+
+        '<div style="font-family:var(--font-m);font-size:10px;color:var(--text3);display:flex;gap:8px">'+
+          '<span style="color:var(--accent)">'+esc(fresh.by||'')+'</span>'+
+          '<span>'+ago(fresh.time||0)+'</span>'+
+          '<span>'+esc(String(fresh.score||0))+' points</span>'+
+          (fresh.url?'<a href="'+esc(fresh.url)+'" target="_blank" style="color:var(--blue);text-decoration:none">↗ '+esc(domain(fresh.url))+'</a>':'')+
+        '</div>'+
+        (fresh.text?'<div style="font-size:13px;color:var(--text2);line-height:1.7;margin-top:10px;font-weight:300">'+fresh.text+'</div>':'');
+      inner.appendChild(hd);
+
+      if(fresh.kids&&fresh.kids.length){
+        await loadCommentTree(fresh.kids.slice(0,20),inner,0);
+      }else{
+        inner.innerHTML+='<div class="hn-loading">no comments yet</div>';
+      }
+    }catch(e){
+      inner.innerHTML='<div class="hn-loading">error loading comments</div>';
+    }
+  }
+
+  async function loadCommentTree(ids, container, depth){
+    var items=await Promise.all(ids.map(function(id){
+      return fetch(API+'/item/'+id+'.json').then(function(r){return r.json();}).catch(function(){return null;});
+    }));
+    for(var i=0;i<items.length;i++){
+      var item=items[i];
+      if(!item||item.deleted||item.dead)continue;
+      var el=document.createElement('div');
+      el.className='hn-comment'+(depth>0?' hn-comment-indent':'');
+      el.innerHTML=
+        '<div class="hn-comment-meta">'+
+          '<span class="hn-comment-user">'+esc(item.by||'[deleted]')+'</span>'+
+          '<span>'+ago(item.time||0)+'</span>'+
+        '</div>'+
+        '<div class="hn-comment-text">'+(item.text||'')+'</div>';
+      container.appendChild(el);
+      if(item.kids&&item.kids.length&&depth<3){
+        await loadCommentTree(item.kids.slice(0,5),container,depth+1);
+      }
+    }
+  }
+
+  document.getElementById('hn-comments-back').addEventListener('click',function(){
+    document.getElementById('hn-comments').style.display='none';
+  });
+
+  setTimeout(function(){
+    document.getElementById('theme-custom-btn')&&document.getElementById('theme-custom-btn').addEventListener('click',function(){
+      var inp=document.getElementById('theme-custom-input');
+      var url=(inp?inp.value:'').trim();if(!url)return;
+      var u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+      localStorage.setItem('ym_theme_url',u);localStorage.removeItem('ym_theme_cache');location.reload();
+    });
+  },0);
+
+  loadTab('top');
+
+  var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
+  obs.observe(document.body,{childList:true,subtree:false});
+})();
+</script>
