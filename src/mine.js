@@ -157,14 +157,14 @@ function showProofOfWill(){
     '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:11px;color:rgba(34,211,238,.7);margin-bottom:14px;line-height:2">              S · t<sup style="font-size:9px">α</sup><br>──────────────────────────────────────────<br>[β(1−T)·ln(A) + ln(1 + C / A<sup style="font-size:9px">β(1−T)</sup>)]<sup style="font-size:9px">γ</sup></div>'+
 
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">'+
-      _powVar('S','Amount of the last burn')+
-      _powVar('t','Time elapsed since last action (Solana slots)')+
-      _powVar('T','Patience rate — chosen freely by the user (0–1)')+
-      _powVar('A','Protocol age (Solana block height)')+
-      _powVar('C','Stabilisation constant')+
-      _powVar('α','Temporal growth exponent')+
-      _powVar('β','Patience / age interaction')+
-      _powVar('γ','Concentration compression')+
+      _powVar('S','Amount of the last burn (lamports)')+
+      _powVar('t','Solana slots elapsed since last action')+
+      _powVar('T','Patience rate — chosen by user · capped at 40%')+
+      _powVar('A','Protocol age — slots since block 111 111 111')+
+      _powVar('C = 33³ = 35 937','Stabilisation constant')+
+      _powVar('α = 1.1','Temporal growth exponent')+
+      _powVar('β = 2.2','Patience / age interaction')+
+      _powVar('γ = 3','Concentration compression — denominator exponent')+
     '</div>'+
 
     '<div style="background:rgba(255,69,96,.04);border:1px solid rgba(255,69,96,.15);border-radius:10px;padding:14px 16px;margin-bottom:24px;font-size:12px;color:rgba(240,240,248,.6);line-height:1.7">'+
