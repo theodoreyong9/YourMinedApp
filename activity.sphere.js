@@ -18,7 +18,6 @@ function loadActSettings(){try{return JSON.parse(localStorage.getItem(SETTINGS_K
 function saveActSettings(d){localStorage.setItem(SETTINGS_KEY,JSON.stringify(d));}
 function getMyProfile(){return _ctx&&_ctx.loadProfile&&_ctx.loadProfile();}
 
-// ── PANEL ──────────────────────────────────────────────────────────────────
 function renderPanel(container){
   container.style.cssText='display:flex;flex-direction:column;height:100%';
   container.innerHTML='';
@@ -51,7 +50,6 @@ function renderPanel(container){
   renderZonesTab(track);
 }
 
-// ── ONGLET ZONES ────────────────────────────────────────────────────────────
 function renderZonesTab(container){
   container.innerHTML='';
 
@@ -60,7 +58,6 @@ function renderZonesTab(container){
   mapEl.style.cssText='flex:1;min-height:0;background:var(--surface2)';
   container.appendChild(mapEl);
 
-  // Barre de recherche adresse + locate
   const searchBar=document.createElement('div');
   searchBar.style.cssText='flex-shrink:0;display:flex;gap:6px;padding:6px 10px;border-top:1px solid var(--border);background:var(--surface)';
   searchBar.innerHTML=
@@ -69,12 +66,10 @@ function renderZonesTab(container){
     '<button id="act-locate" class="ym-btn ym-btn-ghost" style="padding:4px 8px;font-size:15px">◎</button>';
   container.appendChild(searchBar);
 
-  // Liste zones + peer anchors
   const listEl=document.createElement('div');
   listEl.style.cssText='flex-shrink:0;max-height:150px;overflow-y:auto;border-top:1px solid var(--border)';
   container.appendChild(listEl);
 
-  // Peer anchors = anchors des utilisateurs nearby dont la position est dans une zone
   function getPeerAnchors(){
     var circles=loadCircles();
     var near=window.YM_Social&&window.YM_Social._nearUsers;
@@ -101,7 +96,6 @@ function renderZonesTab(container){
       return;
     }
 
-    // Zones
     circles.forEach(function(c,i){
       var row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer';
@@ -117,7 +111,6 @@ function renderZonesTab(container){
       listEl.appendChild(row);
     });
 
-    // Mon anchor
     if(myAnchor){
       var myRow=document.createElement('div');
       myRow.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer;background:rgba(232,160,32,.04)';
@@ -129,7 +122,6 @@ function renderZonesTab(container){
       listEl.appendChild(myRow);
     }
 
-    // Peer anchors in zones
     if(peerAnchors.length){
       var hdr=document.createElement('div');
       hdr.style.cssText='font-size:9px;color:var(--text3);padding:4px 12px;text-transform:uppercase;letter-spacing:1px';
@@ -155,13 +147,11 @@ function renderZonesTab(container){
     }
   }
 
-  // ── Carte ────────────────────────────────────────────────────────────────
   function redrawMap(){
     if(!_map)return;
     var L=window.L;
     _map.eachLayer(function(l){if(!(l instanceof L.TileLayer))_map.removeLayer(l);});
 
-    // Zones
     loadCircles().forEach(function(c){
       var circle=L.circle([c.lat,c.lng],{radius:100,color:'#e8a020',fillColor:'#e8a020',fillOpacity:0.18,weight:2}).addTo(_map);
       circle.bindPopup(
@@ -177,7 +167,6 @@ function renderZonesTab(container){
       });
     });
 
-    // Mon anchor
     var prof=getMyProfile()||{};
     loadAnchors().forEach(function(a){
       var ava=prof.avatar?
@@ -192,7 +181,6 @@ function renderZonesTab(container){
         .bindPopup('<div style="max-width:200px"><b>'+(prof.name||'Me')+'</b><br><small>'+a.text+'</small></div>');
     });
 
-    // Peer anchors
     getPeerAnchors().forEach(function(a){
       var ava=a.avatar?
         '<img src="'+a.avatar+'" style="width:26px;height:26px;border-radius:50%;object-fit:cover;border:2px solid rgba(48,232,128,.7)">':
@@ -215,7 +203,6 @@ function renderZonesTab(container){
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(_map);
     window._actMapCenter=_map.getCenter();
     _map.on('moveend',function(){window._actMapCenter=_map.getCenter();});
-    // Force recalcul taille après rendu DOM
     setTimeout(function(){if(_map)_map.invalidateSize();},100);
 
     _map.on('click',function(e){
@@ -227,17 +214,14 @@ function renderZonesTab(container){
       saveCircles(circles);renderList();redrawMap();
     });
 
-    // Vue initiale — position utilisateur en priorité
     if(_myLat!==null){
       _map.setView([_myLat,_myLng],15);redrawMap();
     }else{
-      // Affiche Paris d'abord pendant qu'on attend la géoloc
       _map.setView([48.8566,2.3522],12);
       navigator.geolocation&&navigator.geolocation.getCurrentPosition(function(pos){
         _myLat=pos.coords.latitude;_myLng=pos.coords.longitude;
         _map.setView([_myLat,_myLng],15);redrawMap();
       },function(){
-        // Pas de géoloc : reste sur Paris ou zones existantes
         var circles=loadCircles();
         if(circles.length)_map.setView([circles[0].lat,circles[0].lng],15);
         redrawMap();
@@ -259,7 +243,6 @@ function renderZonesTab(container){
     }else{var t=setInterval(function(){if(window.L){clearInterval(t);cb();}},100);}
   }
 
-  // Recherche adresse avec suggestions à la volée
   var _searchT=null;
   var suggestEl=document.createElement('div');
   suggestEl.style.cssText='position:absolute;top:100%;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:0 0 8px 8px;z-index:100;max-height:180px;overflow-y:auto;display:none';
@@ -320,11 +303,10 @@ function renderZonesTab(container){
   });
 
   renderList();
-  loadLeaflet(function(){setTimeout(setupMap,50);});
+  // FIX: setupMap() was never called — was: setTimeout(function(){setupMap,50})
+  loadLeaflet(function(){setTimeout(function(){setupMap();},50);});
 }
 
-// ── ONGLET ANCHORS ──────────────────────────────────────────────────────────
-// ── ONGLET EXTRACT ──────────────────────────────────────────────────────────
 function renderExtractTab(container){
   container.innerHTML='';
   container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
@@ -461,10 +443,8 @@ function _ago(ts){
 async function _fetchAllSources(zone,period,filters){
   var items=[],lat=zone.lat,lng=zone.lng,rad=1000;
   var periodMs={'1h':3600000,'24h':86400000,'7d':604800000}[period]||86400000;
-  var pLabel={'1h':'in the last hour','24h':'in the last 24 hours','7d':'in the last week'}[period];
   var promises=[];
 
-  // ── Wikipedia geosearch — vraiment géolocalisé ────────────────────────────
   if(filters.wikipedia){
     promises.push(
       fetch('https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord='+lat+'%7C'+lng+'&gsradius='+rad+'&gslimit=10&format=json&origin=*')
@@ -478,7 +458,6 @@ async function _fetchAllSources(zone,period,filters){
     );
   }
 
-  // ── Flickr geo feed — photos géolocalisées publiques ─────────────────────
   if(filters.flickr){
     promises.push(
       fetch('https://api.flickr.com/services/feeds/geo/?lat='+lat+'&lon='+lng+'&radius=1&format=json&nojsoncallback=1')
@@ -498,7 +477,6 @@ async function _fetchAllSources(zone,period,filters){
     );
   }
 
-  // ── Yelp Fusion — businesses/reviews locaux ──────────────────────────────
   if(filters.yelp){
     var yelpKey=loadActSettings().yelpKey||'';
     if(yelpKey){
@@ -531,11 +509,9 @@ async function _fetchAllSources(zone,period,filters){
     }
   }
 
-  // ── Nitter — Twitter via instance publique + RSS ──────────────────────────
   if(filters.nitter){
     var nitterBase=loadActSettings().nitterInstance||'';
     if(nitterBase){
-      // Recherche par hashtag lieu via Nitter RSS
       promises.push(
         fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&zoom=14',{headers:{'User-Agent':'YourMine/1.0'}})
         .then(function(r){return r.json();}).then(async function(geo){
@@ -560,7 +536,6 @@ async function _fetchAllSources(zone,period,filters){
     }
   }
 
-  // ── Piped/Invidious — YouTube vidéos géolocalisées ────────────────────────
   if(filters.youtube){
     var pipedBase=loadActSettings().pipedInstance||'https://pipedapi.kavin.rocks';
     promises.push(
@@ -582,7 +557,6 @@ async function _fetchAllSources(zone,period,filters){
     );
   }
 
-  // ── Teddit/Libreddit — Reddit via instance alternative ────────────────────
   if(filters.reddit){
     var tedditBase=loadActSettings().tedditInstance||'';
     promises.push(
@@ -611,7 +585,6 @@ async function _fetchAllSources(zone,period,filters){
     );
   }
 
-  // ── Mastodon — recherche par ville géocodée ───────────────────────────────
   if(filters.mastodon){
     var mastodonBase=loadActSettings().mastodonInstance||'https://mastodon.social';
     promises.push(
@@ -631,7 +604,6 @@ async function _fetchAllSources(zone,period,filters){
     );
   }
 
-  // ── Pixelfed — réseau social photo décentralisé ───────────────────────────
   if(filters.pixelfed){
     var pixelfedBase=loadActSettings().pixelfedInstance||'https://pixelfed.social';
     promises.push(
@@ -649,7 +621,6 @@ async function _fetchAllSources(zone,period,filters){
     );
   }
 
-  // ── OSM Notes — notes géolocalisées publiques ─────────────────────────────
   if(filters.osmnotes){
     var bbox=(lat-0.01)+','+(lng-0.01)+','+(lat+0.01)+','+(lng+0.01);
     promises.push(
@@ -669,7 +640,6 @@ async function _fetchAllSources(zone,period,filters){
 
   await Promise.allSettled(promises);
 
-  // Déduplication par URL
   var seen=new Set();
   return items.filter(function(item){
     var key=item.url||item.title;
@@ -678,57 +648,6 @@ async function _fetchAllSources(zone,period,filters){
   });
 }
 
-// ── SETTINGS ─────────────────────────────────────────────────────────────────
-// Render config Extract directement dans un container (pour profileSection)
-function _showActivityConfigInline(container){
-  container.innerHTML='';
-  var s=loadActSettings();
-
-  function mkField(title,key,placeholder,helpUrl,helpLabel,isKey){
-    var val=s[key]||'';
-    var wrap=document.createElement('div');wrap.style.cssText='margin-bottom:8px';
-    wrap.innerHTML=
-      '<div style="font-size:10px;color:var(--text3);margin-bottom:3px">'+title+
-        (helpUrl?' — <a href="'+helpUrl+'" target="_blank" style="color:var(--accent)">'+helpLabel+'</a>':'')+
-      '</div>'+
-      '<div style="display:flex;gap:4px">'+
-        '<input class="sf-inp ym-input" type="'+(isKey?'password':'text')+'" placeholder="'+placeholder+'" style="flex:1;font-size:11px;font-family:var(--font-m)" value="'+(val&&isKey?'•'.repeat(12):_esc(val))+'">'+
-        '<button class="sf-save ym-btn ym-btn-accent" style="font-size:10px;padding:3px 8px">Save</button>'+
-        (val?'<button class="sf-clear ym-btn ym-btn-ghost" style="font-size:10px;color:#e84040;padding:3px 6px">×</button>':'')+
-      '</div>';
-    var inp=wrap.querySelector('.sf-inp');
-    if(isKey)inp.addEventListener('focus',function(){if(s[key])inp.value='';});
-    wrap.querySelector('.sf-save').addEventListener('click',function(){
-      var v=inp.value.trim();if(!v)return;
-      var u=loadActSettings();u[key]=v;saveActSettings(u);s=u;
-      if(isKey)inp.value='•'.repeat(12);
-      window.YM_toast&&window.YM_toast('Saved','success');
-    });
-    if(wrap.querySelector('.sf-clear'))wrap.querySelector('.sf-clear').addEventListener('click',function(){
-      var u=loadActSettings();delete u[key];saveActSettings(u);s=u;inp.value='';
-    });
-    return wrap;
-  }
-
-  var note=document.createElement('div');note.className='ym-notice info';note.style.cssText='font-size:10px;margin-bottom:8px';
-  note.innerHTML='Alternative frontends are public mirrors of social networks. They can be down — leave blank to skip that source.';
-  container.appendChild(note);
-
-  var g1=document.createElement('div');g1.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:4px 0 6px">🔄 Frontends</div>';
-  container.appendChild(g1);
-  container.appendChild(mkField('🐦 Nitter (Twitter)','nitterInstance','https://nitter.net','https://github.com/zedeus/nitter/wiki/Instances','list',false));
-  container.appendChild(mkField('📹 Piped (YouTube)','pipedInstance','https://pipedapi.kavin.rocks','https://github.com/TeamPiped/Piped/wiki/Instances','list',false));
-  container.appendChild(mkField('💬 Teddit (Reddit)','tedditInstance','https://teddit.net','https://codeberg.org/teddit/teddit','codeberg',false));
-  container.appendChild(mkField('🐘 Mastodon','mastodonInstance','https://mastodon.social','https://instances.social','instances',false));
-  container.appendChild(mkField('🖼 Pixelfed','pixelfedInstance','https://pixelfed.social','https://pixelfed.social','pixelfed',false));
-
-  var g2=document.createElement('div');g2.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:8px 0 6px">🔑 API Keys</div>';
-  container.appendChild(g2);
-  container.appendChild(mkField('⭐ Yelp','yelpKey','Bearer token…','https://www.yelp.com/developers','yelp.com',true));
-  container.appendChild(mkField('📍 Foursquare','foursquareKey','fsq3…','https://developer.foursquare.com','foursquare',true));
-}
-
-// Config Extract en overlay (pour usage direct)
 function _showActivityConfig(onDone){
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center';
@@ -793,7 +712,54 @@ function _showActivityConfig(onDone){
   inner.appendChild(mkField('📍 Foursquare Key','foursquareKey','fsq3…','https://developer.foursquare.com','developer.foursquare.com',true));
 }
 
-// ── SPHERE ─────────────────────────────────────────────────────────────────
+function _showActivityConfigInline(container){
+  container.innerHTML='';
+  var s=loadActSettings();
+
+  function mkField(title,key,placeholder,helpUrl,helpLabel,isKey){
+    var val=s[key]||'';
+    var wrap=document.createElement('div');wrap.style.cssText='margin-bottom:8px';
+    wrap.innerHTML=
+      '<div style="font-size:10px;color:var(--text3);margin-bottom:3px">'+title+
+        (helpUrl?' — <a href="'+helpUrl+'" target="_blank" style="color:var(--accent)">'+helpLabel+'</a>':'')+
+      '</div>'+
+      '<div style="display:flex;gap:4px">'+
+        '<input class="sf-inp ym-input" type="'+(isKey?'password':'text')+'" placeholder="'+placeholder+'" style="flex:1;font-size:11px;font-family:var(--font-m)" value="'+(val&&isKey?'•'.repeat(12):_esc(val))+'">'+
+        '<button class="sf-save ym-btn ym-btn-accent" style="font-size:10px;padding:3px 8px">Save</button>'+
+        (val?'<button class="sf-clear ym-btn ym-btn-ghost" style="font-size:10px;color:#e84040;padding:3px 6px">×</button>':'')+
+      '</div>';
+    var inp=wrap.querySelector('.sf-inp');
+    if(isKey)inp.addEventListener('focus',function(){if(s[key])inp.value='';});
+    wrap.querySelector('.sf-save').addEventListener('click',function(){
+      var v=inp.value.trim();if(!v)return;
+      var u=loadActSettings();u[key]=v;saveActSettings(u);s=u;
+      if(isKey)inp.value='•'.repeat(12);
+      window.YM_toast&&window.YM_toast('Saved','success');
+    });
+    if(wrap.querySelector('.sf-clear'))wrap.querySelector('.sf-clear').addEventListener('click',function(){
+      var u=loadActSettings();delete u[key];saveActSettings(u);s=u;inp.value='';
+    });
+    return wrap;
+  }
+
+  var note=document.createElement('div');note.className='ym-notice info';note.style.cssText='font-size:10px;margin-bottom:8px';
+  note.innerHTML='Alternative frontends are public mirrors of social networks. They can be down — leave blank to skip that source.';
+  container.appendChild(note);
+
+  var g1=document.createElement('div');g1.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:4px 0 6px">🔄 Frontends</div>';
+  container.appendChild(g1);
+  container.appendChild(mkField('🐦 Nitter (Twitter)','nitterInstance','https://nitter.net','https://github.com/zedeus/nitter/wiki/Instances','list',false));
+  container.appendChild(mkField('📹 Piped (YouTube)','pipedInstance','https://pipedapi.kavin.rocks','https://github.com/TeamPiped/Piped/wiki/Instances','list',false));
+  container.appendChild(mkField('💬 Teddit (Reddit)','tedditInstance','https://teddit.net','https://codeberg.org/teddit/teddit','codeberg',false));
+  container.appendChild(mkField('🐘 Mastodon','mastodonInstance','https://mastodon.social','https://instances.social','instances',false));
+  container.appendChild(mkField('🖼 Pixelfed','pixelfedInstance','https://pixelfed.social','https://pixelfed.social','pixelfed',false));
+
+  var g2=document.createElement('div');g2.innerHTML='<div style="font-size:9px;color:var(--accent);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:8px 0 6px">🔑 API Keys</div>';
+  container.appendChild(g2);
+  container.appendChild(mkField('⭐ Yelp','yelpKey','Bearer token…','https://www.yelp.com/developers','yelp.com',true));
+  container.appendChild(mkField('📍 Foursquare','foursquareKey','fsq3…','https://developer.foursquare.com','foursquare',true));
+}
+
 window.YM_S['activity.sphere.js']={
   name:'Activity',icon:'📍',category:'Social',
   description:'Geographic zones, local content extraction, anchored presence',
@@ -810,7 +776,6 @@ window.YM_S['activity.sphere.js']={
       }
     }
     function onGeoError(){}
-    // Géoloc non bloquante — ne bloque pas l'activation des autres sphères
     try{
       if(navigator.geolocation){
         navigator.geolocation.getCurrentPosition(updatePos,onGeoError,{enableHighAccuracy:true,timeout:8000});
@@ -828,7 +793,6 @@ window.YM_S['activity.sphere.js']={
 
   renderPanel,
 
-  // ── Config anchor dans le profil ──────────────────────────────────────────
   profileSection(container){
     var anchor=loadAnchors()[0]||null;
     var wrap=document.createElement('div');
@@ -857,7 +821,6 @@ window.YM_S['activity.sphere.js']={
       clearBtn.addEventListener('click',function(){
         saveAnchors([]);
         wrap.remove();
-        // Rerender
         window.YM_Profile&&window.YM_Profile.render();
       });
       wrap.appendChild(clearBtn);
@@ -871,7 +834,7 @@ window.YM_S['activity.sphere.js']={
       box.innerHTML=
         '<div style="font-size:13px;font-weight:600;margin-bottom:12px">My Anchor</div>'+
         '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">This message is attached to your current GPS position and visible to nearby users in Activity zones.</div>'+
-        '<textarea id="act-anchor-text" class="ym-input" style="width:100%;height:80px;resize:none;font-size:13px;margin-bottom:10px" placeholder="What\'s happening here? Share a message anchored to your location…">'+((anchor&&anchor.text)||'')+'</textarea>'+
+        '<textarea id="act-anchor-text" class="ym-input" style="width:100%;height:80px;resize:none;font-size:13px;margin-bottom:10px" placeholder="What\'s happening here?">'+((anchor&&anchor.text)||'')+'</textarea>'+
         '<div style="display:flex;gap:8px">'+
           '<button id="act-anch-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
           '<button id="act-anch-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
@@ -886,14 +849,12 @@ window.YM_S['activity.sphere.js']={
         saveAnchors([{lat,lng,text,ts:Date.now(),updated:Date.now()}]);
         overlay.remove();
         window.YM_toast&&window.YM_toast('Anchor saved','success');
-        // Rerender profile section
         window.YM_Profile&&window.YM_Profile.render();
       });
     });
 
     container.appendChild(wrap);
 
-    // Config Extract inline — instances + clés API
     var cfgSection=document.createElement('div');
     cfgSection.style.cssText='margin-top:6px';
     var cfgToggle=document.createElement('div');
@@ -911,7 +872,6 @@ window.YM_S['activity.sphere.js']={
     container.appendChild(cfgSection);
   },
 
-  // Données broadcastées avec le profil social
   broadcastData(){
     var anchors=loadAnchors();
     if(!anchors.length)return{};
