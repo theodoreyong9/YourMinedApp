@@ -365,8 +365,10 @@ n spheres → 2ⁿ configurations (expansion)</div>
 
 <script>
 (function(){
+  try{
   var cv  = document.getElementById('ym-canvas');
-  var ctx = cv.getContext('2d');
+  var ctx = cv ? cv.getContext('2d') : null;
+  if(!cv||!ctx){return;}
   var W, H, DPR;
   var scroller = document.getElementById('ym-landing');
   var scrollY=0, scrollVel=0, lastScroll=0, raf;
@@ -426,6 +428,7 @@ n spheres → 2ⁿ configurations (expansion)</div>
   resize();makeOff();makeImg();raf=requestAnimationFrame(draw);
   window.addEventListener('resize',function(){resize();makeOff();makeImg();},{passive:true});
   document.addEventListener('visibilitychange',function(){if(document.hidden)cancelAnimationFrame(raf);else{lastT=0;raf=requestAnimationFrame(draw);}});
+  }catch(e){console.warn('[hello] canvas:',e.message);}
 })();
 </script>
 
