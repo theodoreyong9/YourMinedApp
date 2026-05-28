@@ -583,7 +583,7 @@
     if (fp && fp.classList.contains('open') && window.YM_closeFolderPanel) { window.YM_closeFolderPanel(); return; }
     if (_panel) { reducePanel(); return; }
     // No panel open — if not on page 0, go back to page 0
-    if (!_panel && _openPanels.size === 0 && window._deskCurPage > 0 && window.YM_Desk) {
+    if (window._deskCurPage > 0 && window.YM_Desk) {
       window.YM_Desk.goPage(0, true);
     }
   });
