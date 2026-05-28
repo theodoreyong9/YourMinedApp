@@ -266,7 +266,8 @@ function renderLocked(body){
       '<div id="mine-err" class="ym-notice error" '+S('display:none;margin-top:10px')+'"></div>'+
       '<div '+S('margin-top:16px;padding-top:12px;border-top:1px solid var(--border,rgba(255,255,255,.08))')+'>'+
         FAUCETS.map(f=>'<a href="'+f.url+'" target="_blank" rel="noopener" '+S('display:flex;align-items:center;gap:6px;padding:5px 0;font-size:11px;color:var(--cyan);text-decoration:none')+'">↗ '+f.label+'</a>').join('')+
-      '</div>';
+      '</div>'+
+      '<button id="mine-pow-btn-locked" class="ym-btn ym-btn-ghost" '+S('width:100%;margin-top:8px;font-size:11px;color:rgba(255,69,96,.7);border-color:rgba(255,69,96,.2)')+'>◈ Proof of Will</button>';
   }else{
     inner.innerHTML=
       (hint?'<div '+S('display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:var(--r-sm,8px);padding:8px 12px;margin-bottom:12px;font-size:11px;color:var(--text3)')+'">🔐 '+hint+'</div>':'')+
@@ -284,13 +285,15 @@ function renderLocked(body){
       '<div id="mine-err" class="ym-notice error" '+S('display:none;margin-top:10px')+'"></div>'+
       '<div '+S('margin-top:16px;padding-top:12px;border-top:1px solid var(--border,rgba(255,255,255,.08))')+'>'+
         FAUCETS.map(f=>'<a href="'+f.url+'" target="_blank" rel="noopener" '+S('display:flex;align-items:center;gap:6px;padding:5px 0;font-size:11px;color:var(--cyan);text-decoration:none')+'">↗ '+f.label+'</a>').join('')+
-      '</div>';
+      '</div>'+
+      '<button id="mine-pow-btn-locked" class="ym-btn ym-btn-ghost" '+S('width:100%;margin-top:8px;font-size:11px;color:rgba(255,69,96,.7);border-color:rgba(255,69,96,.2)')+'>◈ Proof of Will</button>';
   }
 
   wrap.appendChild(inner);
   body.appendChild(wrap);
 
   const $=id=>body.querySelector('#'+id);
+  if($('mine-pow-btn-locked'))$('mine-pow-btn-locked').addEventListener('click',showProofOfWill);
   if($('mine-eye'))$('mine-eye').addEventListener('click',()=>{const i=$('mine-phrase');if(i)i.type=i.type==='password'?'text':'password';});
   if($('mine-create-btn'))$('mine-create-btn').addEventListener('click',async()=>{
     const pw=$('mine-pw')?$('mine-pw').value:'',pw2=$('mine-pw2')?$('mine-pw2').value:'';
