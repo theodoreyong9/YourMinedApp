@@ -331,7 +331,7 @@ async function render(containerArg){
     // Category pill (spheres only)
     if(_listType==='spheres'){
       // Near/Contacts pills added first when socialFilters
-      if(window.YM_ZONE_CONFIG?.socialFilters){
+      if(_listCfg.socialFilters){
         [{id:'near',label:'⊙ Near'},{id:'contacts',label:'◈ Contacts'}].forEach(function(opt){
           const isActive=_filterSocial===opt.id;
           const p=document.createElement('span');
@@ -399,11 +399,12 @@ async function render(containerArg){
     else if(_listType==='video')renderVideoContent(content);
   }
 
-  const zoneCfg=window.YM_ZONE_CONFIG;
-  if(zoneCfg?.spheresOnly){
+  // YM_NAV_CONFIG.liste takes precedence over legacy YM_ZONE_CONFIG
+  const _listCfg = window.YM_NAV_CONFIG?.liste || window.YM_ZONE_CONFIG || {};
+  if(_listCfg.defaultType) _listType = _listCfg.defaultType;
+  if(_listCfg.spheresOnly){
     _listType='spheres';
-    // Hide category row only if no social filters
-    if(!zoneCfg?.socialFilters) filterRow.style.display='none';
+    if(!_listCfg.socialFilters) filterRow.style.display='none';
     dropdownPanel.style.display='none';
     wipRow.style.display='none';
   }
@@ -851,7 +852,7 @@ function renderSpheresContent(container,catRow){
     const FIXED_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent','Autres'];
     function renderCatPills(){
       catRow.innerHTML='';
-      if(window.YM_ZONE_CONFIG?.socialFilters){
+      if(_listCfg.socialFilters){
         [{id:'near',label:'Near'},{id:'contacts',label:'Contacts'}].forEach(opt=>{
           const isActive=_filterSocial===opt.id;
           const p=document.createElement('span');
