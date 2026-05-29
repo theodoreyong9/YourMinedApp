@@ -6,173 +6,49 @@ window.YM_NO_WIDGETS = true;
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Cinzel:wght@400;600&family=Inter:wght@300;400&display=block" rel="stylesheet">
-
 <style>
-:root{
-  --bg:#0c0a08;--surface:#141210;--surface2:#1a1714;--surface3:#221e1a;
-  --text:#f0ebe4;--text2:rgba(240,235,228,.55);--text3:rgba(240,235,228,.28);
-  --accent:#c8a96e;--accent2:#8b6914;--red:#c0392b;
-  --border:rgba(200,169,110,.1);--border2:rgba(200,169,110,.05);
-  --font-serif:'Cormorant Garamond',Georgia,serif;
-  --font-display:'Cinzel',serif;
-  --font-sans:'Inter',sans-serif;
-}
+:root{--bg:#0c0a08;--surface:#141210;--surface2:#1a1714;--surface3:#221e1a;--text:#f0ebe4;--text2:rgba(240,235,228,.55);--text3:rgba(240,235,228,.28);--accent:#c8a96e;--accent2:#8b6914;--border:rgba(200,169,110,.1);--border2:rgba(200,169,110,.05);--font-serif:'Cormorant Garamond',Georgia,serif;--font-display:'Cinzel',serif;--font-sans:'Inter',sans-serif;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-serif)}
-
-#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
-#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
-.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
-#ym-radio-widget,#desktop-slider .icon-wrap,
-.icon-wrap,.icon-body,.icon-label{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,#ym-radio-widget,#desktop-slider .icon-wrap,.icon-wrap,.icon-body,.icon-label{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 .ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.pill{display:none!important}
-
-body::before{
-  content:'';position:fixed;inset:0;pointer-events:none;
-  background:radial-gradient(ellipse at 50% 0%,rgba(200,169,110,.04) 0%,transparent 60%);
-}
-
+body::before{content:'';position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 0%,rgba(200,169,110,.04) 0%,transparent 60%)}
 #met-root{position:fixed;inset:0;display:flex;flex-direction:column;z-index:10}
-
-/* Header */
-#met-header{
-  flex-shrink:0;
-  background:var(--surface);
-  border-bottom:1px solid var(--border);
-}
-#met-header-top{
-  display:flex;align-items:center;gap:12px;
-  padding:12px 16px 10px;
-}
-#met-logo{
-  font-family:var(--font-display);
-  font-size:13px;font-weight:600;
-  color:var(--accent);letter-spacing:.15em;
-  flex-shrink:0;cursor:pointer;
-}
+#met-header{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border)}
+#met-header-top{display:flex;align-items:center;gap:12px;padding:12px 16px 10px}
+#met-logo{font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--accent);letter-spacing:.15em;flex-shrink:0;cursor:pointer}
 #met-logo span{display:block;font-size:9px;color:var(--text3);letter-spacing:.1em;font-weight:400;margin-top:1px}
-
-#met-search-wrap{
-  flex:1;display:flex;align-items:center;gap:8px;
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:6px;padding:0 12px;transition:border-color .15s;
-  position:relative;
-}
+#met-search-wrap{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:0 12px;position:relative}
 #met-search-wrap:focus-within{border-color:rgba(200,169,110,.3)}
-#met-search{
-  flex:1;background:none;border:none;color:var(--text);
-  font-family:var(--font-serif);font-size:14px;
-  padding:9px 0;outline:none;
-}
+#met-search{flex:1;background:none;border:none;color:var(--text);font-family:var(--font-serif);font-size:14px;padding:9px 0;outline:none}
 #met-search::placeholder{color:var(--text3)}
-#met-search-btn{
-  background:none;border:none;color:var(--text3);
-  font-size:16px;cursor:pointer;padding:4px;
-  transition:color .15s;
-}
-#met-search-btn:hover{color:var(--accent)}
-#met-suggest{
-  position:absolute;top:calc(100%+6px);left:0;right:0;
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:8px;z-index:100;overflow:hidden;
-  display:none;box-shadow:0 8px 32px rgba(0,0,0,.6);
-}
-.met-suggest-item{
-  padding:10px 14px;cursor:pointer;
-  border-bottom:1px solid var(--border2);
-  font-size:13px;color:var(--text2);
-  transition:background .1s;
-}
+#met-search-btn{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px}
+#met-suggest{position:absolute;top:calc(100%+6px);left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:100;overflow:hidden;display:none;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.met-suggest-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border2);font-size:13px;color:var(--text2);transition:background .1s}
 .met-suggest-item:hover{background:rgba(200,169,110,.06);color:var(--accent)}
-
-/* Dept filter */
-#met-depts{
-  display:flex;gap:6px;padding:8px 16px;
-  overflow-x:auto;scrollbar-width:none;
-}
+#met-depts{display:flex;gap:6px;padding:8px 16px;overflow-x:auto;scrollbar-width:none}
 #met-depts::-webkit-scrollbar{display:none}
-.met-dept{
-  font-family:var(--font-sans);font-size:10px;
-  padding:4px 12px;border:1px solid var(--border);
-  border-radius:20px;cursor:pointer;color:var(--text3);
-  white-space:nowrap;transition:all .15s;flex-shrink:0;
-}
-.met-dept:hover{color:var(--text2)}
+.met-dept{font-family:var(--font-sans);font-size:10px;padding:4px 12px;border:1px solid var(--border);border-radius:20px;cursor:pointer;color:var(--text3);white-space:nowrap;transition:all .15s;flex-shrink:0}
 .met-dept.active{color:var(--accent);border-color:rgba(200,169,110,.3);background:rgba(200,169,110,.06)}
-
-/* Content */
 #met-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #met-content::-webkit-scrollbar{width:2px}
 #met-content::-webkit-scrollbar-thumb{background:var(--border)}
-
-/* Grid */
-.met-grid{
-  display:grid;gap:1px;padding:1px;
-  grid-template-columns:repeat(2,1fr);
-}
-.met-grid.single{grid-template-columns:1fr}
-
-.met-card{
-  background:var(--surface);cursor:pointer;
-  position:relative;overflow:hidden;
-  transition:opacity .15s;
-}
+.met-grid{display:grid;gap:1px;padding:1px;grid-template-columns:repeat(2,1fr)}
+.met-card{background:var(--surface);cursor:pointer;position:relative;overflow:hidden;transition:opacity .15s}
 .met-card:hover{opacity:.85}
-.met-card-img{
-  width:100%;aspect-ratio:1;object-fit:cover;
-  display:block;background:var(--surface2);
-}
-.met-card-img.landscape{aspect-ratio:4/3}
-.met-card-img.portrait{aspect-ratio:3/4}
-.met-card-body{
-  padding:10px 12px 12px;
-  background:linear-gradient(to top,var(--surface) 70%,transparent);
-}
-.met-card-title{
-  font-family:var(--font-serif);font-size:13px;font-weight:600;
-  color:var(--text);line-height:1.3;margin-bottom:3px;
-}
+.met-card-img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--surface2)}
+.met-card-body{padding:10px 12px 12px}
+.met-card-title{font-family:var(--font-serif);font-size:13px;font-weight:600;color:var(--text);line-height:1.3;margin-bottom:3px}
 .met-card-meta{font-size:10px;color:var(--text3);font-family:var(--font-sans)}
-
-/* Hero card */
-.met-hero{
-  position:relative;cursor:pointer;overflow:hidden;
-  border-bottom:1px solid var(--border);
-}
-.met-hero-img{
-  width:100%;height:55vw;max-height:320px;
-  object-fit:cover;display:block;background:var(--surface2);
-}
-.met-hero-overlay{
-  position:absolute;inset:0;
-  background:linear-gradient(to top,rgba(12,10,8,.95) 0%,rgba(12,10,8,.3) 60%,transparent 100%);
-  display:flex;flex-direction:column;justify-content:flex-end;
-  padding:20px;
-}
-.met-hero-dept{
-  font-family:var(--font-sans);font-size:9px;
-  color:var(--accent);letter-spacing:.15em;text-transform:uppercase;
-  margin-bottom:6px;
-}
-.met-hero-title{
-  font-family:var(--font-serif);font-size:22px;font-weight:600;
-  color:var(--text);line-height:1.2;margin-bottom:4px;
-}
+.met-hero{position:relative;cursor:pointer;overflow:hidden;border-bottom:1px solid var(--border)}
+.met-hero-img{width:100%;height:55vw;max-height:320px;object-fit:cover;display:block;background:var(--surface2)}
+.met-hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(12,10,8,.95) 0%,rgba(12,10,8,.3) 60%,transparent 100%);display:flex;flex-direction:column;justify-content:flex-end;padding:20px}
+.met-hero-dept{font-family:var(--font-sans);font-size:9px;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px}
+.met-hero-title{font-family:var(--font-serif);font-size:22px;font-weight:600;color:var(--text);line-height:1.2;margin-bottom:4px}
 .met-hero-artist{font-size:13px;color:var(--text2);font-style:italic}
 .met-hero-year{font-size:11px;color:var(--text3);margin-top:4px;font-family:var(--font-sans)}
-
-/* Detail */
-#met-detail{
-  position:fixed;inset:0;z-index:600;
-  background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;
-  display:none;
-}
-#met-detail-close{
-  position:sticky;top:16px;float:right;margin:16px 16px 0 0;
-  background:rgba(200,169,110,.08);border:1px solid rgba(200,169,110,.2);
-  color:var(--text2);font-size:18px;width:36px;height:36px;
-  border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;
-}
+#met-detail{position:fixed;inset:0;z-index:600;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:none}
+#met-detail-close{position:sticky;top:16px;float:right;margin:16px 16px 0 0;background:rgba(200,169,110,.08);border:1px solid rgba(200,169,110,.2);color:var(--text2);font-size:18px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2}
 #met-detail-inner{padding:0 0 80px;clear:both}
 .met-detail-img{width:100%;display:block;background:var(--surface2);max-height:80vw;object-fit:contain}
 .met-detail-body{padding:20px}
@@ -184,122 +60,42 @@ body::before{
 .met-detail-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
 .met-detail-stat-label{font-family:var(--font-sans);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px}
 .met-detail-stat-val{font-size:13px;color:var(--text2);font-family:var(--font-serif)}
-.met-detail-desc{font-size:14px;color:var(--text2);line-height:1.8;font-weight:300}
-
-/* Loading */
-.met-loading{
-  padding:60px 20px;text-align:center;
-  font-family:var(--font-display);font-size:11px;
-  color:var(--text3);letter-spacing:.2em;
-}
-
-/* Section header */
-.met-section-hd{
-  padding:14px 16px;border-bottom:1px solid var(--border2);
-  font-family:var(--font-display);font-size:10px;letter-spacing:.2em;
-  color:var(--accent);text-transform:uppercase;
-}
-
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.met-reveal{animation:fadeUp .35s ease forwards}
-
-/* ── THEME NAV BAR ── */
-#theme-nav{
-  flex-shrink:0;display:flex;align-items:center;
-  height:52px;padding-bottom:env(safe-area-inset-bottom,0px);
-  background:rgba(0,0,0,.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  border-top:1px solid rgba(255,255,255,.06);
-  position:relative;z-index:50;
-}
-.tnav-btn{
-  width:64px;height:100%;background:none;border:none;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  color:rgba(255,255,255,.35);font-size:20px;
-  transition:color .15s;flex-shrink:0;
-}
+.met-loading{padding:60px 20px;text-align:center;font-family:var(--font-display);font-size:11px;color:var(--text3);letter-spacing:.2em}
+/* Theme Nav */
+#theme-nav{flex-shrink:0;display:flex;align-items:center;height:52px;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(0,0,0,.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.06);position:relative;z-index:50}
+.tnav-btn{width:64px;height:100%;background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.35);font-size:20px;transition:color .15s;flex-shrink:0}
 .tnav-btn:hover,.tnav-btn:active{color:rgba(255,255,255,.85)}
 .tnav-btn.tnav-disabled{opacity:.2;pointer-events:none}
-#tnav-center{
-  flex:1;height:100%;display:flex;align-items:center;justify-content:center;
-  cursor:pointer;gap:6px;color:rgba(255,255,255,.3);transition:color .15s;
-}
+#tnav-center{flex:1;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;gap:6px;color:rgba(255,255,255,.3);transition:color .15s}
 #tnav-center:hover{color:rgba(255,255,255,.7)}
-#tnav-center-lbl{
-  font-size:10px;letter-spacing:.08em;
-  max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-/* Picker */
-#tnav-picker{
-  position:fixed;inset:0;z-index:900;
-  background:rgba(0,0,0,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  display:none;flex-direction:column;
-}
-#tnav-picker-hd{
-  padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);
-  display:flex;align-items:center;gap:10px;flex-shrink:0;
-}
-#tnav-picker-title{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.15em;flex:1}
-#tnav-picker-close{
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
-  color:rgba(255,255,255,.5);font-size:16px;width:32px;height:32px;
-  border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;
-}
-#tnav-picker-search-wrap{
-  padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;
-}
-#tnav-picker-q{
-  width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);
-  color:#fff;font-size:13px;padding:9px 14px;border-radius:8px;outline:none;
-}
-#tnav-picker-q::placeholder{color:rgba(255,255,255,.22)}
-#tnav-picker-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px}
-.tnav-item{
-  display:flex;align-items:center;gap:12px;
-  padding:12px 14px;border-radius:10px;cursor:pointer;
-  transition:background .1s;margin-bottom:4px;
-}
+#tnav-center-lbl{font-size:10px;letter-spacing:.08em;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tnav-picker{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);display:none;flex-direction:column}
+#tnav-picker-hd{flex-shrink:0;padding:14px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
+#tnav-picker-title{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.15em;flex:1}
+#tnav-picker-close{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:16px;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#tnav-picker-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 8px 0}
+#tnav-picker-search-wrap{flex-shrink:0;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.4)}
+#tnav-picker-q{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:14px;padding:12px 16px;border-radius:12px;outline:none}
+#tnav-picker-q::placeholder{color:rgba(255,255,255,.2)}
+.tnav-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;cursor:pointer;transition:background .1s;margin-bottom:4px;border:1px solid transparent}
 .tnav-item:hover{background:rgba(255,255,255,.06)}
-.tnav-item.tnav-current{background:rgba(255,255,255,.04)}
-.tnav-icon{font-size:24px;flex-shrink:0}
+.tnav-item.tnav-current{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08)}
+.tnav-icon{font-size:26px;flex-shrink:0;width:40px;text-align:center}
 .tnav-info{flex:1;min-width:0}
 .tnav-name{font-size:14px;font-weight:600;color:#fff;margin-bottom:2px}
-.tnav-desc{font-size:11px;color:rgba(255,255,255,.38);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tnav-badge{font-size:9px;color:rgba(255,255,255,.28);flex-shrink:0;letter-spacing:.05em}
-
+.tnav-desc{font-size:11px;color:rgba(255,255,255,.35);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tnav-badge{font-size:9px;color:rgba(255,255,255,.25);flex-shrink:0;background:rgba(255,255,255,.06);padding:2px 8px;border-radius:20px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.met-reveal{animation:fadeUp .35s ease forwards}
 </style>
-
 <!-- YourMine DOM -->
-<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
-<div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
-<div id="drag-ghost"></div><div id="page-dots"></div>
-<div id="nav-bar" style="display:none!important"><div id="dock"><button class="dbtn" id="btn-back"></button><button class="dbtn" id="btn-profile"></button><button class="dbtn" id="btn-figure"></button></div></div>
-<div id="panel-overlay" class="ym-overlay"></div>
-<div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
-<div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
-<div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
-<div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;flex-direction:column"></div><div id="panel-mine-formula" style="display:none;padding:16px"></div><div id="panel-mine-liste" style="display:none;flex-direction:column"></div></div><div class="ym-tabs" id="mine-tabs-bar"><div class="ym-tab active" data-mine-tab="wallet">Wallet</div><div class="ym-tab" data-mine-tab="liste">Apps</div></div></div>
-<div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
-<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
-<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
-<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
-<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
-<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column"><div class="dlg-title" id="bg-dlg-title">Background</div><div id="theme-list"></div><input id="theme-custom-input" class="ym-input"><button id="theme-custom-btn" class="ym-btn">Use</button><button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button><div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button><button class="ym-btn" id="bg-del" style="display:none"></button></div></div>
-<button id="pwa-install-btn" style="display:none"></button>
-
-<div id="met-detail">
-  <button id="met-detail-close">✕</button>
-  <div id="met-detail-inner"></div>
-</div>
-
+<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div><div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div><div id="drag-ghost"></div><div id="page-dots"></div><div id="nav-bar" style="display:none!important"><div id="dock"><button class="dbtn" id="btn-back"></button><button class="dbtn" id="btn-profile"></button><button class="dbtn" id="btn-figure"></button></div></div><div id="panel-overlay" class="ym-overlay"></div><div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div><div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div><div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div><div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;flex-direction:column"></div><div id="panel-mine-formula" style="display:none;padding:16px"></div><div id="panel-mine-liste" style="display:none;flex-direction:column"></div></div><div class="ym-tabs" id="mine-tabs-bar"><div class="ym-tab active" data-mine-tab="wallet">Wallet</div><div class="ym-tab" data-mine-tab="liste">Apps</div></div></div><div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div><div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div><div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div><div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div><div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div><div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column"><div class="dlg-title" id="bg-dlg-title">Background</div><div id="theme-list"></div><input id="theme-custom-input" class="ym-input"><button id="theme-custom-btn" class="ym-btn">Use</button><button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button><div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button><button class="ym-btn" id="bg-del" style="display:none"></button></div></div><button id="pwa-install-btn" style="display:none"></button>
+<div id="met-detail"><button id="met-detail-close">✕</button><div id="met-detail-inner"></div></div>
 <div id="met-root">
   <div id="met-header">
     <div id="met-header-top">
       <div id="met-logo">THE MET<span>Metropolitan Museum of Art</span></div>
-      <div id="met-search-wrap">
-        <input id="met-search" placeholder="Search the collection…" autocomplete="off">
-        <button id="met-search-btn">⌕</button>
-        <div id="met-suggest"></div>
-      </div>
+      <div id="met-search-wrap"><input id="met-search" placeholder="Search the collection…" autocomplete="off"><button id="met-search-btn">⌕</button><div id="met-suggest"></div></div>
     </div>
     <div id="met-depts">
       <div class="met-dept active" data-dept="0" data-name="Highlights">Highlights</div>
@@ -312,336 +108,137 @@ body::before{
       <div class="met-dept" data-dept="3" data-name="Ancient Near East">Ancient Near East</div>
     </div>
   </div>
-  <div id="met-content">
-    <div class="met-loading">LOADING COLLECTION…</div>
+  <div id="met-content"><div class="met-loading">LOADING COLLECTION…</div></div>
+  <div id="theme-nav">
+    <button class="tnav-btn" id="tnav-back">←</button>
+    <div id="tnav-center"><span style="font-size:16px;opacity:.5">⬡</span><span id="tnav-center-lbl">themes</span></div>
+    <button class="tnav-btn tnav-disabled" id="tnav-prev">‹</button>
   </div>
-<!-- Theme Nav Bar -->
-<div id="theme-nav">
-  <button class="tnav-btn" id="tnav-back" title="Previous theme">←</button>
-  <div id="tnav-center" title="Switch theme">
-    <span style="font-size:16px">⬡</span>
-    <span id="tnav-center-lbl">themes</span>
-  </div>
-  <button class="tnav-btn tnav-disabled" id="tnav-prev" title="Go back in theme">‹</button>
 </div>
-<!-- Theme Picker -->
 <div id="tnav-picker">
-  <div id="tnav-picker-hd">
-    <div id="tnav-picker-title">SWITCH THEME</div>
-    <button id="tnav-picker-close">✕</button>
-  </div>
-  <div id="tnav-picker-search-wrap">
-    <input id="tnav-picker-q" placeholder="Search themes…" autocomplete="off">
-  </div>
-  <div id="tnav-picker-list">
-    <div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.25)">Loading…</div>
-  </div>
+  <div id="tnav-picker-hd"><div id="tnav-picker-title">SWITCH THEME</div><button id="tnav-picker-close">✕</button></div>
+  <div id="tnav-picker-list"><div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.25)">Loading…</div></div>
+  <div id="tnav-picker-search-wrap"><input id="tnav-picker-q" placeholder="Search themes…" autocomplete="off"></div>
 </div>
-</div>
-
 <script>
 (function(){
-  var API = 'https://collectionapi.metmuseum.org/public/collection/v1';
-  var content = document.getElementById('met-content');
-  var _dept = 0;
-  var _deptName = 'Highlights';
-  var _searchTimer = null;
+  var API='https://collectionapi.metmuseum.org/public/collection/v1';
+  var content=document.getElementById('met-content');
+  var _dept=0,_deptName='Highlights';
+  var DEPT_QUERIES={0:['portrait','landscape painting','sculpture marble','ancient vessel','illuminated manuscript'],11:['portrait oil painting','baroque landscape','renaissance madonna'],9:['etching print','watercolor drawing','pen ink sketch'],6:['chinese jade','japanese scroll','buddhist sculpture'],10:['Egyptian mummy','pharaoh statue','ancient egypt'],13:['greek vase','roman bust','ancient amphora'],21:['modern abstract','impressionism','cubism'],3:['mesopotamia','cuneiform tablet','ancient near east']};
 
-  // Dept filter
   document.querySelectorAll('.met-dept').forEach(function(d){
-    d.addEventListener('click', function(){
-      document.querySelectorAll('.met-dept').forEach(function(x){x.classList.remove('active');});
-      d.classList.add('active');
-      _dept = parseInt(d.dataset.dept);
-      _deptName = d.dataset.name;
-      loadCollection();
-    });
+    d.addEventListener('click',function(){document.querySelectorAll('.met-dept').forEach(function(x){x.classList.remove('active');});d.classList.add('active');_dept=parseInt(d.dataset.dept);_deptName=d.dataset.name;loadCollection();});
   });
 
-  // Search
-  var searchInput = document.getElementById('met-search');
-  var suggest = document.getElementById('met-suggest');
-  var searchTimer = null;
-
-  searchInput.addEventListener('input', function(){
-    var q = searchInput.value.trim();
-    if(!q){suggest.style.display='none';return;}
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(function(){ searchArtworks(q); }, 350);
-  });
-
-  searchInput.addEventListener('keydown', function(e){
-    if(e.key === 'Enter'){
-      suggest.style.display='none';
-      var q = searchInput.value.trim();
-      if(q) loadSearch(q);
-    }
-  });
-
-  document.getElementById('met-search-btn').addEventListener('click', function(){
-    var q = searchInput.value.trim();
-    if(q){ suggest.style.display='none'; loadSearch(q); }
-  });
-
-  document.addEventListener('click', function(e){
-    if(!e.target.closest('#met-search-wrap')) suggest.style.display='none';
-  });
+  var searchInput=document.getElementById('met-search');
+  var suggest=document.getElementById('met-suggest');
+  var searchTimer=null;
+  searchInput.addEventListener('input',function(){var q=searchInput.value.trim();if(!q){suggest.style.display='none';return;}clearTimeout(searchTimer);searchTimer=setTimeout(function(){searchArtworks(q);},350);});
+  searchInput.addEventListener('keydown',function(e){if(e.key==='Enter'){suggest.style.display='none';var q=searchInput.value.trim();if(q)loadSearch(q);}});
+  document.getElementById('met-search-btn').addEventListener('click',function(){var q=searchInput.value.trim();if(q){suggest.style.display='none';loadSearch(q);}});
+  document.addEventListener('click',function(e){if(!e.target.closest('#met-search-wrap'))suggest.style.display='none';});
 
   async function searchArtworks(q){
     try{
-      var r = await fetch(API+'/search?q='+encodeURIComponent(q)+'&hasImages=true&isPublicDomain=true&fields=objectID,title,artistDisplayName&limit=6');
-      var d = await r.json();
-      var ids = (d.objectIDs||[]).slice(0,6);
-      if(!ids.length){suggest.style.display='none';return;}
-      // Get first object for quick suggest
-      var objs = await Promise.all(ids.slice(0,4).map(function(id){
-        return fetch(API+'/objects/'+id).then(function(r){return r.json();}).catch(function(){return null;});
-      }));
-      suggest.innerHTML = '';
-      objs.filter(Boolean).forEach(function(obj){
-        if(!obj.title) return;
-        var el = document.createElement('div');
-        el.className = 'met-suggest-item';
-        el.textContent = obj.title + (obj.artistDisplayName ? ' — ' + obj.artistDisplayName : '');
-        el.addEventListener('click', function(){
-          suggest.style.display='none';
-          searchInput.value = obj.title;
-          showDetail(obj);
-        });
-        suggest.appendChild(el);
-      });
-      suggest.style.display = 'block';
+      var r=await fetch(API+'/search?q='+encodeURIComponent(q)+'&hasImages=true&isPublicDomain=true&fields=objectID,title,artistDisplayName&limit=6');
+      var d=await r.json();var ids=(d.objectIDs||[]).slice(0,4);
+      var objs=await Promise.all(ids.map(function(id){return fetch(API+'/objects/'+id).then(function(r){return r.json();}).catch(function(){return null;});}));
+      suggest.innerHTML='';
+      objs.filter(Boolean).forEach(function(obj){if(!obj.title)return;var el=document.createElement('div');el.className='met-suggest-item';el.textContent=obj.title+(obj.artistDisplayName?' — '+obj.artistDisplayName:'');el.addEventListener('click',function(){suggest.style.display='none';searchInput.value=obj.title;showDetail(obj);});suggest.appendChild(el);});
+      suggest.style.display='block';
     }catch(e){suggest.style.display='none';}
   }
 
   async function loadSearch(q){
-    content.innerHTML = '<div class="met-loading">SEARCHING…</div>';
-    try{
-      var r = await fetch(API+'/search?q='+encodeURIComponent(q)+'&hasImages=true&isPublicDomain=true');
-      var d = await r.json();
-      var ids = (d.objectIDs||[]).slice(0,20);
-      loadObjectsGrid(ids, '"'+q+'"');
-    }catch(e){content.innerHTML='<div class="met-loading">ERROR</div>';}
+    content.innerHTML='<div class="met-loading">SEARCHING…</div>';
+    try{var r=await fetch(API+'/search?q='+encodeURIComponent(q)+'&hasImages=true&isPublicDomain=true');var d=await r.json();loadObjectsGrid((d.objectIDs||[]).slice(0,20),'"'+q+'"');}
+    catch(e){content.innerHTML='<div class="met-loading">ERROR</div>';}
   }
-
-  // Curated queries per department for reliable results
-  var DEPT_QUERIES = {
-    0: ['portrait','landscape painting','sculpture marble','ancient vessel','illuminated manuscript'],
-    11: ['portrait oil painting','baroque landscape','renaissance madonna','dutch golden age'],
-    9: ['etching print','watercolor drawing','pen ink sketch','lithograph'],
-    6: ['chinese jade','japanese scroll','buddhist sculpture','silk textile'],
-    10: ['Egyptian mummy','hieroglyphs','pharaoh statue','ancient egypt'],
-    13: ['greek vase','roman bust','ancient amphora','marble relief'],
-    21: ['modern abstract','impressionism','cubism','surrealism'],
-    3: ['mesopotamia','cuneiform tablet','ancient near east relief']
-  };
 
   async function loadCollection(){
-    content.innerHTML = '<div class="met-loading">LOADING…</div>';
+    content.innerHTML='<div class="met-loading">LOADING…</div>';
     try{
-      var queries = DEPT_QUERIES[_dept] || DEPT_QUERIES[0];
-      var q = queries[Math.floor(Math.random()*queries.length)];
-      var url = _dept === 0
-        ? API+'/search?hasImages=true&isPublicDomain=true&isHighlight=true&q='+encodeURIComponent(q)
-        : API+'/search?hasImages=true&isPublicDomain=true&departmentId='+_dept+'&q='+encodeURIComponent(q);
-      var r = await fetch(url);
-      var d = await r.json();
-      if(!d.objectIDs||!d.objectIDs.length) throw new Error('No results');
-      var ids = shuffle(d.objectIDs).slice(0,24);
-      loadObjectsGrid(ids, _deptName);
-    }catch(e){content.innerHTML='<div class="met-loading">ERROR — '+e.message+'</div>';}
+      var queries=DEPT_QUERIES[_dept]||DEPT_QUERIES[0];
+      var q=queries[Math.floor(Math.random()*queries.length)];
+      var url=_dept===0?API+'/search?hasImages=true&isPublicDomain=true&isHighlight=true&q='+encodeURIComponent(q):API+'/search?hasImages=true&isPublicDomain=true&departmentId='+_dept+'&q='+encodeURIComponent(q);
+      var r=await fetch(url);var d=await r.json();
+      if(!d.objectIDs||!d.objectIDs.length)throw new Error('No results');
+      loadObjectsGrid(shuffle(d.objectIDs).slice(0,24),_deptName);
+    }catch(e){content.innerHTML='<div class="met-loading">ERROR — '+esc(e.message)+'</div>';}
   }
 
-  async function loadObjectsGrid(ids, title){
-    var objs = await Promise.all(ids.map(function(id){
-      return fetch(API+'/objects/'+id).then(function(r){return r.json();}).catch(function(){return null;});
-    }));
-    objs = objs.filter(function(o){return o && o.primaryImageSmall;});
+  async function loadObjectsGrid(ids,title){
+    var objs=await Promise.all(ids.map(function(id){return fetch(API+'/objects/'+id).then(function(r){return r.json();}).catch(function(){return null;});}));
+    objs=objs.filter(function(o){return o&&o.primaryImageSmall;});
     if(!objs.length){content.innerHTML='<div class="met-loading">NO RESULTS WITH IMAGES</div>';return;}
-
-    var wrap = document.createElement('div');
-    wrap.className = 'met-reveal';
-
-    // Hero
-    var hero = objs[0];
-    var heroEl = document.createElement('div');
-    heroEl.className = 'met-hero';
-    heroEl.innerHTML =
-      '<img class="met-hero-img" src="'+hero.primaryImageSmall+'" alt="" loading="lazy">'+
-      '<div class="met-hero-overlay">'+
-        '<div class="met-hero-dept">'+title+'</div>'+
-        '<div class="met-hero-title">'+esc(hero.title||'Untitled')+'</div>'+
-        '<div class="met-hero-artist">'+esc(hero.artistDisplayName||'Unknown artist')+'</div>'+
-        '<div class="met-hero-year">'+esc(hero.objectDate||'')+(hero.medium?'  ·  '+hero.medium.slice(0,40):'')+'</div>'+
-      '</div>';
-    heroEl.addEventListener('click', function(){ showDetail(hero); });
+    var wrap=document.createElement('div');wrap.className='met-reveal';
+    var hero=objs[0];
+    var heroEl=document.createElement('div');heroEl.className='met-hero';
+    heroEl.innerHTML='<img class="met-hero-img" src="'+hero.primaryImageSmall+'" alt="" loading="lazy"><div class="met-hero-overlay"><div class="met-hero-dept">'+esc(title)+'</div><div class="met-hero-title">'+esc(hero.title||'Untitled')+'</div><div class="met-hero-artist">'+esc(hero.artistDisplayName||'Unknown artist')+'</div><div class="met-hero-year">'+esc(hero.objectDate||'')+'</div></div>';
+    heroEl.addEventListener('click',function(){showDetail(hero);});
     wrap.appendChild(heroEl);
-
-    // Grid
-    var grid = document.createElement('div');
-    grid.className = 'met-grid';
-    objs.slice(1).forEach(function(obj){
-      var card = document.createElement('div');
-      card.className = 'met-card';
-      card.innerHTML =
-        '<img class="met-card-img" src="'+obj.primaryImageSmall+'" loading="lazy" alt="">'+
-        '<div class="met-card-body">'+
-          '<div class="met-card-title">'+esc(obj.title||'Untitled')+'</div>'+
-          '<div class="met-card-meta">'+esc(obj.artistDisplayName||'Unknown')+(obj.objectDate?' · '+obj.objectDate:'')+'</div>'+
-        '</div>';
-      card.addEventListener('click', function(){ showDetail(obj); });
-      grid.appendChild(card);
-    });
-    wrap.appendChild(grid);
-    content.innerHTML='';
-    content.appendChild(wrap);
+    var grid=document.createElement('div');grid.className='met-grid';
+    objs.slice(1).forEach(function(obj){var card=document.createElement('div');card.className='met-card';card.innerHTML='<img class="met-card-img" src="'+obj.primaryImageSmall+'" loading="lazy" alt=""><div class="met-card-body"><div class="met-card-title">'+esc(obj.title||'Untitled')+'</div><div class="met-card-meta">'+esc(obj.artistDisplayName||'Unknown')+(obj.objectDate?' · '+obj.objectDate:'')+'</div></div>';card.addEventListener('click',function(){showDetail(obj);});grid.appendChild(card);});
+    wrap.appendChild(grid);content.innerHTML='';content.appendChild(wrap);
   }
 
   function showDetail(obj){
-    var inner = document.getElementById('met-detail-inner');
-    inner.innerHTML =
-      '<img class="met-detail-img" src="'+(obj.primaryImage||obj.primaryImageSmall||'')+'" alt="" loading="lazy">'+
-      '<div class="met-detail-body">'+
-        '<div class="met-detail-dept">'+(obj.department||'')+'</div>'+
-        '<div class="met-detail-title">'+esc(obj.title||'Untitled')+'</div>'+
-        '<div class="met-detail-artist">'+esc(obj.artistDisplayName||'Unknown artist')+
-          (obj.artistNationality?' ('+esc(obj.artistNationality)+')':'')+
-        '</div>'+
-        '<div class="met-detail-sep"></div>'+
-        '<div class="met-detail-grid">'+
-          _stat('Date',obj.objectDate||'—')+
-          _stat('Medium',(obj.medium||'—').slice(0,40))+
-          _stat('Dimensions',(obj.dimensions||'—').slice(0,30))+
-          _stat('Accession',obj.accessionNumber||'—')+
-        '</div>'+
-        (obj.creditLine?'<div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:16px">'+esc(obj.creditLine)+'</div>':'')+
-        '<a href="'+obj.objectURL+'" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--font-sans)">↗ View on metmuseum.org</a>'+
-      '</div>';
-    document.getElementById('met-detail').style.display='block';
-    document.getElementById('met-detail').scrollTop=0;
+    var inner=document.getElementById('met-detail-inner');
+    inner.innerHTML='<img class="met-detail-img" src="'+(obj.primaryImage||obj.primaryImageSmall||'')+'" alt="" loading="lazy">'+
+      '<div class="met-detail-body"><div class="met-detail-dept">'+esc(obj.department||'')+'</div>'+
+      '<div class="met-detail-title">'+esc(obj.title||'Untitled')+'</div>'+
+      '<div class="met-detail-artist">'+esc(obj.artistDisplayName||'Unknown artist')+(obj.artistNationality?' ('+esc(obj.artistNationality)+')':'')+'</div>'+
+      '<div class="met-detail-sep"></div>'+
+      '<div class="met-detail-grid">'+stat('Date',obj.objectDate||'—')+stat('Medium',(obj.medium||'—').slice(0,40))+stat('Dimensions',(obj.dimensions||'—').slice(0,30))+stat('Accession',obj.accessionNumber||'—')+'</div>'+
+      (obj.creditLine?'<div style="font-size:11px;color:var(--text3);font-style:italic;margin-bottom:16px">'+esc(obj.creditLine)+'</div>':'')+
+      '<a href="'+esc(obj.objectURL||'')+'" target="_blank" rel="noopener" style="font-size:11px;color:var(--accent);text-decoration:none;font-family:var(--font-sans)">↗ View on metmuseum.org</a></div>';
+    document.getElementById('met-detail').style.display='block';document.getElementById('met-detail').scrollTop=0;
   }
 
-  function _stat(label, val){
-    return '<div class="met-detail-stat">'+
-      '<div class="met-detail-stat-label">'+label+'</div>'+
-      '<div class="met-detail-stat-val">'+esc(val)+'</div>'+
-    '</div>';
-  }
-
+  function stat(label,val){return '<div class="met-detail-stat"><div class="met-detail-stat-label">'+label+'</div><div class="met-detail-stat-val">'+esc(val)+'</div></div>';}
   function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function shuffle(a){var b=a.slice();for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=b[i];b[i]=b[j];b[j]=t;}return b;}
 
   document.getElementById('met-detail-close').addEventListener('click',function(){document.getElementById('met-detail').style.display='none';});
   document.getElementById('met-detail').addEventListener('click',function(e){if(e.target===this)this.style.display='none';});
 
+
+  // Theme Nav
   setTimeout(function(){
-    document.getElementById('theme-custom-btn')&&document.getElementById('theme-custom-btn').addEventListener('click',function(){
-      var inp=document.getElementById('theme-custom-input');
-      var url=(inp?inp.value:'').trim();if(!url)return;
-      var u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-      localStorage.setItem('ym_theme_url',u);localStorage.removeItem('ym_theme_cache');location.reload();
-    });
+    var RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
+    var _cur=localStorage.getItem('ym_theme_url')||'';var _cache=null;
+    function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    document.getElementById('tnav-back').addEventListener('click',function(){localStorage.setItem('ym_theme_url',localStorage.getItem('ym_prev_theme')||'');localStorage.removeItem('ym_theme_cache');location.reload();});
+    var prevBtn=document.getElementById('tnav-prev');var _tnb=null;
+    Object.defineProperty(window,'_themeNavBack',{set:function(fn){_tnb=fn;prevBtn.classList.toggle('tnav-disabled',!fn);},get:function(){return _tnb;},configurable:true});
+    prevBtn.addEventListener('click',function(){if(window._themeNavBack)window._themeNavBack();});
+    var picker=document.getElementById('tnav-picker');
+    document.getElementById('tnav-center').addEventListener('click',function(){picker.style.display='flex';document.getElementById('tnav-picker-q').focus();loadThemeList();});
+    document.getElementById('tnav-picker-close').addEventListener('click',function(){picker.style.display='none';});
+    picker.addEventListener('click',function(e){if(e.target===picker)picker.style.display='none';});
+    document.getElementById('tnav-picker-q').addEventListener('input',function(){var q=this.value.toLowerCase();document.querySelectorAll('.tnav-item').forEach(function(el){var t=(el.querySelector('.tnav-name')||{textContent:''}).textContent.toLowerCase();var d=(el.querySelector('.tnav-desc')||{textContent:''}).textContent.toLowerCase();el.style.display=(t.includes(q)||d.includes(q))?'flex':'none';});});
+    async function loadThemeList(){
+      if(_cache){renderThemeList(_cache);return;}
+      try{var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});if(r.ok){_cache=await r.json();}else throw new Error();}
+      catch(e){_cache=[{filename:'wikipedia.theme.html',name:'Wikipedia',icon:'📖',description:'Free encyclopedia'},{filename:'nasa.theme.html',name:'NASA',icon:'🚀',description:'Space images and data'},{filename:'met.theme.html',name:'The Met',icon:'🏛',description:'400k artworks'},{filename:'hackernews.theme.html',name:'Hacker News',icon:'🔶',description:'Tech news'},{filename:'github-trends.theme.html',name:'GitHub Trends',icon:'⭐',description:'Trending repos'}];}
+      renderThemeList(_cache);
+    }
+    function renderThemeList(themes){
+      var list=document.getElementById('tnav-picker-list');list.innerHTML='';
+      themes.forEach(function(t){
+        var url=t.codeUrl||(RAW+t.filename);var isCur=_cur&&_cur.includes(t.filename);
+        var el=document.createElement('div');el.className='tnav-item'+(isCur?' tnav-current':'');
+        el.innerHTML='<div class="tnav-icon">'+esc(t.icon||'⬡')+'</div><div class="tnav-info"><div class="tnav-name">'+esc(t.name||t.filename)+'</div><div class="tnav-desc">'+esc(t.description||'')+'</div></div>'+(isCur?'<div class="tnav-badge">current</div>':'');
+        el.addEventListener('click',function(){localStorage.setItem('ym_prev_theme',_cur);localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');picker.style.display='none';location.reload();});
+        list.appendChild(el);
+      });
+    }
+    document.getElementById('theme-custom-btn')&&document.getElementById('theme-custom-btn').addEventListener('click',function(){var inp=document.getElementById('theme-custom-input');var url=(inp?inp.value:'').trim();if(!url)return;var u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem('ym_prev_theme',_cur);localStorage.setItem('ym_theme_url',u);localStorage.removeItem('ym_theme_cache');location.reload();});
   },0);
 
   loadCollection();
-
   var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
   obs.observe(document.body,{childList:true,subtree:false});
-// ── Theme Nav Bar ─────────────────────────────────────────────
-setTimeout(function(){
-  var RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
-  var _cur = localStorage.getItem('ym_theme_url')||'';
-  var _cache = null;
-  var _history = [];
-
-  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-  // Back to previous theme
-  document.getElementById('tnav-back').addEventListener('click', function(){
-    var prev = localStorage.getItem('ym_prev_theme')||'';
-    localStorage.setItem('ym_theme_url', prev);
-    localStorage.removeItem('ym_theme_cache');
-    location.reload();
-  });
-
-  // In-theme back
-  var prevBtn = document.getElementById('tnav-prev');
-  window._themeNavBack = null;
-  function updatePrevBtn(){
-    if(typeof window._themeNavBack === 'function'){
-      prevBtn.classList.remove('tnav-disabled');
-    } else {
-      prevBtn.classList.add('tnav-disabled');
-    }
-  }
-  Object.defineProperty(window, '_themeNavBack', {
-    set: function(fn){ this.__tnb = fn; updatePrevBtn(); },
-    get: function(){ return this.__tnb || null; },
-    configurable: true
-  });
-  prevBtn.addEventListener('click', function(){
-    if(window._themeNavBack) window._themeNavBack();
-  });
-
-  // Picker
-  var picker = document.getElementById('tnav-picker');
-  document.getElementById('tnav-center').addEventListener('click', function(){
-    picker.style.display='flex';
-    loadThemeList();
-  });
-  document.getElementById('tnav-picker-close').addEventListener('click', function(){picker.style.display='none';});
-  picker.addEventListener('click', function(e){if(e.target===picker)picker.style.display='none';});
-  document.getElementById('tnav-picker-q').addEventListener('input', function(){
-    var q=this.value.toLowerCase();
-    document.querySelectorAll('.tnav-item').forEach(function(el){
-      var t=(el.querySelector('.tnav-name').textContent||'').toLowerCase();
-      var d=(el.querySelector('.tnav-desc').textContent||'').toLowerCase();
-      el.style.display=(t.includes(q)||d.includes(q))?'flex':'none';
-    });
-  });
-
-  async function loadThemeList(){
-    if(_cache){renderThemeList(_cache);return;}
-    try{
-      var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});
-      if(r.ok){_cache=await r.json();}else throw new Error();
-    }catch(e){
-      _cache=[
-        {filename:'wikipedia.theme.html',name:'Wikipedia',icon:'📖',description:'Free encyclopedia, redesigned'},
-        {filename:'nasa.theme.html',name:'NASA',icon:'🚀',description:'Space images and open data'},
-        {filename:'met.theme.html',name:'The Met',icon:'🏛',description:'400k artworks, free access'},
-        {filename:'hackernews.theme.html',name:'Hacker News',icon:'🔶',description:'Tech news and discussions'},
-        {filename:'github-trends.theme.html',name:'GitHub Trends',icon:'⭐',description:'Trending repos with README'},
-      ];
-    }
-    renderThemeList(_cache);
-  }
-
-  function renderThemeList(themes){
-    var list=document.getElementById('tnav-picker-list');
-    list.innerHTML='';
-    themes.forEach(function(t){
-      var url=t.codeUrl||(RAW+t.filename);
-      var isCur=_cur&&_cur.includes(t.filename);
-      var el=document.createElement('div');
-      el.className='tnav-item'+(isCur?' tnav-current':'');
-      el.innerHTML=
-        '<div class="tnav-icon">'+esc(t.icon||'⬡')+'</div>'+
-        '<div class="tnav-info">'+
-          '<div class="tnav-name">'+esc(t.name||t.filename)+'</div>'+
-          '<div class="tnav-desc">'+esc(t.description||'')+'</div>'+
-        '</div>'+
-        (isCur?'<div class="tnav-badge">current</div>':'');
-      el.addEventListener('click',function(){
-        localStorage.setItem('ym_prev_theme',_cur);
-        localStorage.setItem('ym_theme_url',url);
-        localStorage.removeItem('ym_theme_cache');
-        picker.style.display='none';
-        location.reload();
-      });
-      list.appendChild(el);
-    });
-  }
-},0);
 })();
 </script>
