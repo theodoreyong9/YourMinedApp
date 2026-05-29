@@ -294,7 +294,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   // Load single book.json — all chapters in one fetch
   async function loadIndex(){
     try{
-      var r = await fetch(window.YM_BOOK_CONFIG.src);
+      var r = await fetch(window.YM_BOOK_CONFIG.src, {cache:'no-store', mode:'cors'});
       if(!r.ok) throw new Error('HTTP '+r.status);
       var book = await r.json();
       // book.chapters is the full array with text included
@@ -559,8 +559,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     document.getElementById('theme-custom-btn')&&document.getElementById('theme-custom-btn').addEventListener('click',function(){var inp=document.getElementById('theme-custom-input');var url=(inp?inp.value:'').trim();if(!url)return;var u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');if(window.YM&&window.YM.setTheme){window.YM.setTheme(u,_cur);}else{localStorage.setItem('ym_theme_url',u);location.reload();}});
   },0);
 
-  // Init
-  loadIndex();
+  // Init — small delay to ensure DOM elements are ready after theme injection
+  setTimeout(function(){ loadIndex(); }, 50);
   var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
   obs.observe(document.body,{childList:true,subtree:false});
 })();
