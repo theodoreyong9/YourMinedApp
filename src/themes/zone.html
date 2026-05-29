@@ -14,6 +14,20 @@ window.YM_WALLPAPER_PRESETS = [
 ];
 window.YM_ZONE_CONFIG = {spheresOnly:true, socialFilters:true};
 </script>
+<script>
+// Nav button config — read by app.js at wire time, no race condition needed
+window.YM_NAV_CONFIG = {
+  'btn-figure': {
+    panel: 'panel-spheres',
+    tab: null,
+    onOpen: function(){ if(window.YM_Liste) window.YM_Liste.render(); else { var iv=setInterval(function(){ if(window.YM_Liste){clearInterval(iv);window.YM_Liste.render();}},80); setTimeout(function(){clearInterval(iv);},3000); } }
+  },
+  'btn-wallet': {
+    panel: 'panel-mine',
+    tab: 'wallet'
+  }
+};
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=block" rel="stylesheet">
@@ -406,60 +420,4 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 <div id="ym-edge-back"></div>
 <button id="ym-edge-back-btn" aria-label="Back">&#8249;</button>
 
-<script>
-(function(){
-  // Zone nav overrides — must run AFTER app.js wires btn-figure
-  // btn-figure (Zone ★) → intercept app.js and open panel-spheres instead
-  // btn-wallet (Wallet) → open panel-mine on wallet tab
-  (function(){
-    function waitFor(fn, interval, timeout){
-      var iv = setInterval(function(){ if(fn()){ clearInterval(iv); } }, interval);
-      setTimeout(function(){ clearInterval(iv); }, timeout);
-    }
 
-    // Override btn-figure: app.js will wire it to open liste, we intercept
-    waitFor(function(){
-      if(!window.YM) return false;
-      var figBtn = document.getElementById('btn-figure');
-      if(!figBtn) return false;
-      // Clone to remove app.js listener, then re-add our own
-      var clone = figBtn.cloneNode(true);
-      figBtn.parentNode.replaceChild(clone, figBtn);
-      clone.addEventListener('click', function(){
-        var spheres = document.getElementById('panel-spheres');
-        var isOpen = spheres && spheres.classList.contains('open');
-        if(isOpen){
-          window.YM.closePanel();
-        } else {
-          window.YM.openPanel('panel-spheres');
-          if(window.YM_Liste) window.YM_Liste.render();
-          else waitFor(function(){ if(window.YM_Liste){window.YM_Liste.render();return true;}},80,3000);
-        }
-      });
-      return true;
-    }, 100, 5000);
-
-    // btn-wallet → panel-mine on wallet tab
-    // Use YM.openPanel so _panel is tracked and reducePanel works normally
-    waitFor(function(){
-      if(!window.YM) return false;
-      var walletBtn = document.getElementById('btn-wallet');
-      if(!walletBtn) return false;
-      walletBtn.addEventListener('click', function(){
-        var mine = document.getElementById('panel-mine');
-        var isOpen = mine && mine.classList.contains('open');
-        if(isOpen){
-          window.YM.closePanel();
-        } else {
-          window.YM.openPanel('panel-mine');
-          // Force wallet tab after openPanel (which defaults to liste)
-          setTimeout(function(){
-            if(window.app_switchMineTab) window.app_switchMineTab('wallet');
-          }, 60);
-        }
-      });
-      return true;
-    }, 100, 5000);
-  })();
-})();
-</script>
