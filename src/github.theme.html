@@ -228,6 +228,21 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     return el;
   }
 
+  // README cache — key: 'gh_readme_owner/repo', TTL 1h
+  var README_TTL = 60*60*1000;
+  function readmeCacheGet(fullName){
+    try{
+      var raw=localStorage.getItem('gh_readme_'+fullName);
+      if(!raw)return null;
+      var e=JSON.parse(raw);
+      if(Date.now()-e.ts>README_TTL){localStorage.removeItem('gh_readme_'+fullName);return null;}
+      return e.md;
+    }catch(e){return null;}
+  }
+  function readmeCacheSet(fullName,md){
+    try{localStorage.setItem('gh_readme_'+fullName,JSON.stringify({ts:Date.now(),md:md}));}catch(e){}
+  }
+
   async function loadRepoDetail(repo){
     var detail=document.getElementById('gh-detail');
     var inner=document.getElementById('gh-detail-inner');
@@ -249,11 +264,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         '</div>'+
         (topics.length?'<div class="gh-topics">'+topics.map(function(t){return'<span class="gh-topic">'+esc(t)+'</span>';}).join('')+'</div>':'')+
       '</div>';
+      // Check README cache first — avoids 2 API calls
+      var cachedMd = readmeCacheGet(repo.full_name);
+      if(cachedMd){
+        inner.innerHTML=statsHTML+metaHTML+'<div class="gh-readme"><div class="gh-readme-label">README.md</div><div class="gh-readme-content">'+mdToHTML(cachedMd,repo.full_name)+'</div></div>';
+        return;
+      }
       inner.innerHTML=statsHTML+metaHTML+'<div class="gh-loading">loading README…</div>';
       var readmeR=await fetch('https://api.github.com/repos/'+repo.full_name+'/readme',{headers:{'Accept':'application/vnd.github.v3+json'}});
       if(!readmeR.ok)throw new Error('No README');
       var readmeD=await readmeR.json();
       var raw=await fetch(readmeD.download_url);var md=await raw.text();
+      readmeCacheSet(repo.full_name, md);
       inner.innerHTML=statsHTML+metaHTML+'<div class="gh-readme"><div class="gh-readme-label">README.md</div><div class="gh-readme-content">'+mdToHTML(md,repo.full_name)+'</div></div>';
     }catch(e){
       var existing=inner.innerHTML.includes('gh-stats-bar')?inner.innerHTML.split('gh-loading')[0]:'';
