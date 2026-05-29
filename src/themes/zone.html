@@ -426,14 +426,11 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       var clone = figBtn.cloneNode(true);
       figBtn.parentNode.replaceChild(clone, figBtn);
       clone.addEventListener('click', function(){
-        if(window.YM.openPanel){
-          // Close panel-mine if open, open panel-spheres
-          var mine = document.getElementById('panel-mine');
-          if(mine && mine.classList.contains('open')){
-            mine.classList.remove('open');
-            document.getElementById('panel-overlay')&&document.getElementById('panel-overlay').classList.remove('open');
-            return;
-          }
+        var spheres = document.getElementById('panel-spheres');
+        var isOpen = spheres && spheres.classList.contains('open');
+        if(isOpen){
+          window.YM.closePanel();
+        } else {
           window.YM.openPanel('panel-spheres');
           if(window.YM_Liste) window.YM_Liste.render();
           else waitFor(function(){ if(window.YM_Liste){window.YM_Liste.render();return true;}},80,3000);
@@ -443,25 +440,22 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
     }, 100, 5000);
 
     // btn-wallet → panel-mine on wallet tab
+    // Use YM.openPanel so _panel is tracked and reducePanel works normally
     waitFor(function(){
       if(!window.YM) return false;
       var walletBtn = document.getElementById('btn-wallet');
       if(!walletBtn) return false;
       walletBtn.addEventListener('click', function(){
         var mine = document.getElementById('panel-mine');
-        var overlay = document.getElementById('panel-overlay');
         var isOpen = mine && mine.classList.contains('open');
-        // Close any open panel first
-        document.querySelectorAll('.ym-panel').forEach(function(p){
-          p.classList.remove('open'); p.style.zIndex='';
-        });
-        overlay && overlay.classList.remove('open');
-        if(!isOpen){
-          mine && mine.classList.add('open');
-          overlay && overlay.classList.add('open');
-          // Force wallet tab
-          if(window.app_switchMineTab) window.app_switchMineTab('wallet');
-          else if(window.YM_Mine && mine) window.YM_Mine.render(document.getElementById('panel-mine-wallet'));
+        if(isOpen){
+          window.YM.closePanel();
+        } else {
+          window.YM.openPanel('panel-mine');
+          // Force wallet tab after openPanel (which defaults to liste)
+          setTimeout(function(){
+            if(window.app_switchMineTab) window.app_switchMineTab('wallet');
+          }, 60);
         }
       });
       return true;
