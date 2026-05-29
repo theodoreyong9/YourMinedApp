@@ -1174,6 +1174,15 @@
     getProfile: LP, saveProfile: SP, createCtx: mkCtx, loadSphereFromURL: loadSphereURL,
     p2p:            () => window.YM_P2P,
     setIconNotif:   (id, n) => { if (window.YM_Desk) window.YM_Desk.setNotif(id, n); },
+    setTheme(url, prevUrl) {
+      if (!url) return;
+      if (prevUrl !== undefined) localStorage.setItem('ym_prev_theme', prevUrl);
+      localStorage.setItem('ym_theme_url', url);
+      fetch(url).then(r => r.ok ? r.text() : null).then(html => {
+        if (html) try { localStorage.setItem('ym_theme_cache', html); } catch(e) {}
+        location.reload();
+      }).catch(() => location.reload());
+    },
   };
 
   /* ═══════════════════════════════════════════════════════════
