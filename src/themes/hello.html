@@ -469,7 +469,7 @@ n spheres → 2ⁿ configurations (expansion)</div>
     var inp=document.getElementById('theme-custom-input');
     var url=(inp?inp.value:'').trim();if(!url)return;
     url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-    localStorage.setItem(THEME_KEY,url);localStorage.removeItem(THEME_CACHE);location.reload();
+    localStorage.setItem(THEME_KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();
   });
 })();
 </script>
