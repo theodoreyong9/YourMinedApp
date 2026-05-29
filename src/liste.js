@@ -230,16 +230,17 @@ async function render(containerArg){
   body.innerHTML=
     '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
     '<div id="list-controls" style="padding:8px 12px 8px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
+      '<div id="list-type-row" style="display:flex;gap:6px"></div>'+
       '<div id="list-filter-row" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
       '<div id="list-dropdown-panel" style="display:none;flex-wrap:wrap;gap:4px;padding:6px 0 2px;animation:ymBarIn .15s ease"></div>'+
       '<div id="list-wip-row" style="display:none"></div>'+
       '<div id="list-search-row" style="display:flex;gap:6px;align-items:center">'+
         '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:12px;padding:7px 10px">'+
-
       '</div>'+
     '</div>';
 
   const content=body.querySelector('#list-content');
+  const typeRow=body.querySelector('#list-type-row');
   const filterRow=body.querySelector('#list-filter-row');
   const dropdownPanel=body.querySelector('#list-dropdown-panel');
   const wipRow=body.querySelector('#list-wip-row');
@@ -259,7 +260,9 @@ async function render(containerArg){
 
 
 
-  const TYPE_OPTS=[{id:'spheres',label:'⬡ Sphere'},{id:'themes',label:'🎨 Theme'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}];
+  const TYPE_MAIN=[{id:'spheres',label:'⬡ Spheres'},{id:'themes',label:'🎨 Themes'}];
+  const TYPE_THEME_EXTRA=[{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}];
+  const TYPE_OPTS=[{id:'spheres',label:'⬡ Spheres'},{id:'themes',label:'🎨 Themes'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}];
   const CAT_OPTS=['All','Tools','AI','Games','Finance','Commerce','Social','Media','Search','Agent','Communication','Other'];
   const STATUS_OPTS=[{id:'all',label:'All'},{id:'active',label:'Active'},{id:'inactive',label:'Inactive'},{id:'wip',label:'🚧 Under construction'}];
 
@@ -288,26 +291,42 @@ async function render(containerArg){
   }
 
   function renderFilterRow(){
-    filterRow.innerHTML='';
-    const curType=TYPE_OPTS.find(t=>t.id===_listType)||TYPE_OPTS[0];
-    const curCat=_filterCat||'All';
-    const curStatus=_listShowWip?'wip':(_filterActive?'active':'all');
-
-    // Type pill
-    const tPill=document.createElement('span');
-    tPill.className='pill active';
-    tPill.dataset.drop='type';
-    tPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
-    tPill.textContent=curType.label+' ▾';
-    tPill.addEventListener('click',()=>{
-      _openDrop('type',TYPE_OPTS.map(o=>({...o,active:o.id===_listType})),opt=>{
+    // ── Ligne 1 : grandes pills Spheres / Themes ─────────────────
+    typeRow.innerHTML='';
+    const isThemeLike=_listType==='themes'||_listType==='photo'||_listType==='video';
+    TYPE_MAIN.forEach(opt=>{
+      const active=(opt.id==='spheres'&&!isThemeLike)||(opt.id==='themes'&&isThemeLike);
+      const p=document.createElement('span');
+      p.style.cssText='flex:1;text-align:center;padding:8px 0;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;transition:all .15s;letter-spacing:.02em;'+(active?'background:rgba(232,160,32,.15);border:1px solid rgba(232,160,32,.35);color:var(--accent,#f0a830)':'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.35)');
+      p.textContent=opt.label;
+      p.addEventListener('click',()=>{
         if(_listType===opt.id)return;
         _listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';
         _filterCat='';_filterActive=false;_listShowWip=false;
         renderFilterRow();switchType();
       });
+      typeRow.appendChild(p);
     });
-    filterRow.appendChild(tPill);
+
+    // ── Ligne 2 : pills secondaires ───────────────────────────────
+    filterRow.innerHTML='';
+    const curCat=_filterCat||'All';
+    const curStatus=_listShowWip?'wip':(_filterActive?'active':'all');
+
+    // Si themes : Photo + Video pills
+    if(isThemeLike){
+      TYPE_THEME_EXTRA.forEach(opt=>{
+        const p=document.createElement('span');
+        p.className='pill'+(_listType===opt.id?' active':'');
+        p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+        p.textContent=opt.label;
+        p.addEventListener('click',()=>{
+          _listType=(_listType===opt.id?'themes':opt.id);
+          renderFilterRow();switchType();
+        });
+        filterRow.appendChild(p);
+      });
+    }
 
     // Category pill (spheres only)
     if(_listType==='spheres'){
