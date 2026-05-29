@@ -238,7 +238,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
 <script>
 (function(){
-  var RAW = window.YM_BOOK_CONFIG.raw;
+  var RAW = window.YM_BOOK_CONFIG.raw || '';
   var _chapters = [];
   var _curChapter = 0;
   var _chapterCache = {};
@@ -327,10 +327,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       if(_chapterCache[idx]){
         data = _chapterCache[idx];
       } else {
-        var r = await fetch(RAW + window.YM_BOOK_CONFIG.chapter(idx));
-        if(!r.ok) throw new Error('HTTP '+r.status);
-        data = await r.json();
-        _chapterCache[idx] = data;
+        throw new Error('Chapter not loaded — book.json may not have loaded correctly');
       }
       loading.style.display = 'none';
       renderChapter(data);
@@ -339,7 +336,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       }
       // Preload adjacent chapters silently
       if(idx+1 < _chapters.length && !_chapterCache[idx+1]){
-        fetch(RAW + window.YM_BOOK_CONFIG.chapter(idx+1)).then(function(r){return r.json();}).then(function(d){_chapterCache[idx+1]=d;}).catch(function(){});
+        // single file — all chapters already in cache
       }
     }catch(e){
       loading.style.display = 'none';
@@ -432,7 +429,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       try{
         var data;
         if(_chapterCache[i]){ data = _chapterCache[i]; }
-        else { var r = await fetch(RAW + window.YM_BOOK_CONFIG.chapter(i)); data = await r.json(); _chapterCache[i] = data; }
+        else { continue; } // single file — skip if not cached
         all.push({idx:i, title:data.title, text:data.text});
       }catch(e){}
     }
