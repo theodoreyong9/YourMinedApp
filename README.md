@@ -1316,6 +1316,26 @@ deactivate() {
 | `window.YM_Build` | `build.js` | Build/publish API |
 | `window.YM_toast(msg, type)` | `app.js` | Toast |
 | `window.YM.setTheme(url, prevUrl?)` | `app.js` | Switch theme — prefetches HTML, caches, reloads. `prevUrl` optional, stored as `ym_prev_theme` |
+
+## Nav Button Config
+
+Themes can remap `btn-figure` and `btn-wallet` by declaring `window.YM_NAV_CONFIG` **before** `app.js` loads:
+
+```js
+window.YM_NAV_CONFIG = {
+  'btn-figure': {
+    panel: 'panel-spheres', // which panel to toggle (default: 'panel-mine')
+    tab:   null,            // mine tab to activate — null = skip (default: 'liste')
+    onOpen: function() { if(window.YM_Liste) window.YM_Liste.render(); }
+  },
+  'btn-wallet': {
+    panel: 'panel-mine',
+    tab:   'wallet'         // default: 'wallet'
+  }
+};
+```
+
+All keys are optional — omit any to keep the default behaviour. Only `btn-figure` and `btn-wallet` are configurable (other dock buttons are handled internally).
 | `window.YM_escHtml(str)` | `app.js` | HTML-escape |
 | `window.YM_canSeeSphere(name, uuid)` | `profile.js` | Visibility check |
 | `window.YM_getSphereVisibility(name)` | `profile.js` | `'all'` \| `'contacts'` \| `uuid[]` |
