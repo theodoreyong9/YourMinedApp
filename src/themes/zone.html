@@ -251,11 +251,14 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="6.5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2.5 15.5c0-3.038 2.91-5.5 6.5-5.5s6.5 2.462 6.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       <span>Profile</span>
     </button>
-    <button class="dbtn" id="btn-wallet">
+    <!-- btn-wallet: opens panel-mine via app.js standard toggle -->
+    <!-- btn-figure = Wallet (app.js maps btn-figure → panel-mine) -->
+    <button class="dbtn" id="btn-figure">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1.5" y="4.5" width="15" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M1.5 7.5h15" stroke="currentColor" stroke-width="1.5"/><circle cx="13" cy="11.5" r="1.2" fill="currentColor"/></svg>
       <span>Wallet</span>
     </button>
-    <button class="dbtn" id="btn-figure">
+    <!-- btn-wallet = Zone list (wired below to panel-spheres) -->
+    <button class="dbtn" id="btn-wallet">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 1.5l2.1 5.7h6l-4.85 3.52 1.85 5.68L9 13l-5.1 3.4 1.85-5.68L1 7.2h6z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
       <span>Zone</span>
     </button>
@@ -284,6 +287,7 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   <button class="ym-btn ym-btn-danger" id="bg-del" style="width:100%;display:none;margin-top:6px">Delete this page</button>
 </div></div>
 
+<!-- Theme switcher script — uses window.YM.setTheme if available -->
 <script>
 (function(){
   var TK='ym_theme_url',TC='ym_theme_cache';
@@ -293,10 +297,14 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
   function lbl(n){return n.replace(/\.html$/i,'').replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
   function apply(url,label){
     if(!url||url===active())return;
-    localStorage.setItem(TK,url);localStorage.removeItem(TC);
-    if(location.pathname!=='/')history.replaceState(null,'','/');
-    window.YM_toast&&window.YM_toast(''+label+' — reloading…','success',1500);
-    setTimeout(function(){location.reload();},1500);
+    window.YM_toast&&window.YM_toast('\u2746 '+label+'\u2026','success',600);
+    if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}
+    // Fallback if app.js not yet loaded
+    localStorage.setItem(TK,url);
+    fetch(url).then(function(r){return r.ok?r.text():null;}).then(function(html){
+      if(html)try{localStorage.setItem(TC,html);}catch(e){}
+      setTimeout(function(){location.reload();},100);
+    }).catch(function(){setTimeout(function(){location.reload();},100);});
   }
   function buildList(files){
     var c=document.getElementById('theme-list');if(!c)return;
@@ -398,18 +406,22 @@ body.has-wallpaper #ym-wp{animation:wpPan 120s linear infinite alternate}
 
 <script>
 (function(){
-  document.getElementById('btn-wallet')?.addEventListener('click',function(){
-    var mine=document.getElementById('panel-mine');
-    var overlay=document.getElementById('panel-overlay');
-    var isOpen=mine?.classList.contains('open');
-    document.querySelectorAll('.ym-panel').forEach(function(p){p.classList.remove('open');});
-    if(!isOpen){
-      mine?.classList.add('open');
-      overlay?.classList.add('open');
-      mine?.querySelector('[data-mine-tab="wallet"]')?.click();
-    }else{
-      overlay?.classList.remove('open');
-    }
-  });
+  // btn-wallet = Zone icon → opens panel-spheres (Zone list)
+  (function(){
+    var btn = document.getElementById('btn-wallet');
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+      if(window.YM && window.YM.openPanel){
+        window.YM.openPanel('panel-spheres');
+        return;
+      }
+      var el = document.getElementById('panel-spheres');
+      var overlay = document.getElementById('panel-overlay');
+      var isOpen = el && el.classList.contains('open');
+      document.querySelectorAll('.ym-panel').forEach(function(p){p.classList.remove('open');});
+      overlay && overlay.classList.remove('open');
+      if(!isOpen && el){ el.classList.add('open'); overlay && overlay.classList.add('open'); }
+    });
+  })();
 })();
 </script>
