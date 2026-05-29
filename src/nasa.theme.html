@@ -159,6 +159,65 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
   var apodDateInput = document.getElementById('nasa-apod-date');
   var searchInput = document.getElementById('nasa-search');
 
+  // ── APOD Cache ────────────────────────────────────────────────
+  // localStorage key: 'nasa_apod_YYYY-MM-DD', TTL 24h
+  var CACHE_TTL = 24 * 60 * 60 * 1000;
+  function apodCacheGet(date){
+    try{
+      var raw = localStorage.getItem('nasa_apod_'+date);
+      if(!raw) return null;
+      var entry = JSON.parse(raw);
+      if(Date.now() - entry.ts > CACHE_TTL){ localStorage.removeItem('nasa_apod_'+date); return null; }
+      return entry.data;
+    }catch(e){ return null; }
+  }
+  function apodCacheSet(date, data){
+    try{ localStorage.setItem('nasa_apod_'+date, JSON.stringify({ts:Date.now(),data:data})); }catch(e){}
+  }
+
+  // Batch fetch a date range — 1 request instead of N
+  async function fetchAPODBatch(startDate, endDate){
+    var r = await fetch('https://api.nasa.gov/planetary/apod?api_key='+API_KEY+'&start_date='+startDate+'&end_date='+endDate+'&thumbs=true');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var items = await r.json();
+    if(!Array.isArray(items)) items=[items];
+    // Cache each item individually
+    items.forEach(function(item){ if(item.date) apodCacheSet(item.date, item); });
+    return items;
+  }
+
+  // Get a single APOD — from cache or API
+  async function fetchAPOD(date){
+    var cached = apodCacheGet(date);
+    if(cached) return cached;
+    var r = await fetch('https://api.nasa.gov/planetary/apod?api_key='+API_KEY+'&date='+date);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var item = await r.json();
+    if(item.error) throw new Error(item.error.message||'Error');
+    apodCacheSet(date, item);
+    return item;
+  }
+
+  // Preload surrounding dates silently (prev/next) — no UI impact
+  function preloadAPOD(date){
+    var d = new Date(date+'T12:00:00');
+    var min = new Date('1995-06-16');
+    var max = new Date();
+    // Build a range of ±3 days, filter valid dates
+    var dates = [];
+    for(var i=-3;i<=3;i++){
+      var nd = new Date(d); nd.setDate(nd.getDate()+i);
+      if(nd >= min && nd <= max){
+        var ds = nd.toISOString().slice(0,10);
+        if(!apodCacheGet(ds)) dates.push(ds);
+      }
+    }
+    if(!dates.length) return;
+    // Batch fetch all uncached surrounding dates in 1 request
+    var start = dates[0], end = dates[dates.length-1];
+    fetchAPODBatch(start, end).catch(function(){});
+  }
+
   var GALLERY_TOPICS = ['nebula','galaxy','earth from space','supernova','aurora','mars','saturn rings','astronaut','moon landing','exoplanet'];
 
   // Init APOD date
@@ -224,12 +283,10 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
     else loadAsteroids();
   }
 
-  // APOD
+  // APOD — uses cache, then preloads surrounding dates silently
   async function loadAPOD(date){
     try{
-      var r = await fetch('https://api.nasa.gov/planetary/apod?api_key='+API_KEY+'&date='+date);
-      var item = await r.json();
-      if(item.error) throw new Error(item.error.message||'Error');
+      var item = await fetchAPOD(date);
       var wrap = document.createElement('div');
       wrap.className = 'nasa-reveal';
       if(item.media_type === 'image'){
@@ -254,6 +311,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;background:ra
       wrap.appendChild(body);
       content.innerHTML = '';
       content.appendChild(wrap);
+      // Silently preload ±3 days — 1 batch request, cached for instant prev/next
+      preloadAPOD(date);
     }catch(e){
       content.innerHTML = '<div class="nasa-loading">'+esc(e.message||'ERROR')+'</div>';
     }
