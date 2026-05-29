@@ -732,18 +732,38 @@
   const psbtn = document.getElementById('profile-share-btn');
   if (psbtn) psbtn.addEventListener('click', () => { if (window.YM_Profile) window.YM_Profile.showShare(); });
 
-  document.getElementById('btn-figure').addEventListener('click', () => {
-    togglePanel('panel-mine', () => {
-      setTimeout(() => {
-        setupMineTabs();
-        const bar = document.getElementById('mine-tabs-bar');
-        if (bar) {
-          bar.querySelectorAll('.ym-tab').forEach(t => t.classList.toggle('active', t.dataset.mineTab === 'liste'));
+  /* ── YM_NAV_CONFIG ────────────────────────────────────────────────────
+   * Themes can override btn-figure / btn-wallet by declaring before load:
+   * window.YM_NAV_CONFIG = {
+   *   'btn-figure': { panel:'panel-spheres', tab:null, onOpen: fn },
+   *   'btn-wallet': { panel:'panel-mine',    tab:'wallet' }
+   * }
+   * All keys optional — defaults apply if not declared.
+   * ──────────────────────────────────────────────────────────────────── */
+  function _wireNavBtn(btnId, defaultPanel, defaultTab, defaultOnOpen) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    const cfg    = window.YM_NAV_CONFIG?.[btnId];
+    const panel  = cfg?.panel  ?? defaultPanel;
+    const tab    = cfg?.tab    !== undefined ? cfg.tab : defaultTab;
+    const onOpen = cfg?.onOpen ?? defaultOnOpen ?? null;
+    btn.addEventListener('click', () => {
+      togglePanel(panel, () => {
+        if (tab) {
+          setTimeout(() => {
+            setupMineTabs();
+            const bar = document.getElementById('mine-tabs-bar');
+            if (bar) bar.querySelectorAll('.ym-tab').forEach(t => t.classList.toggle('active', t.dataset.mineTab === tab));
+            switchMineTab(tab);
+          }, 50);
         }
-        switchMineTab('liste');
-      }, 50);
+        if (onOpen) onOpen();
+      });
     });
-  });
+  }
+
+  _wireNavBtn('btn-figure', 'panel-mine', 'liste', null);
+  _wireNavBtn('btn-wallet', 'panel-mine', 'wallet', null);
 
   const buildBtn = document.getElementById('spheres-build-btn');
   if (buildBtn) buildBtn.addEventListener('click', () => {
