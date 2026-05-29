@@ -1315,6 +1315,7 @@ deactivate() {
 | `window.YM_Liste` | `liste.js` | Sphere list API |
 | `window.YM_Build` | `build.js` | Build/publish API |
 | `window.YM_toast(msg, type)` | `app.js` | Toast |
+| `window.YM.setTheme(url, prevUrl?)` | `app.js` | Switch theme — prefetches HTML, caches, reloads. `prevUrl` optional, stored as `ym_prev_theme` |
 | `window.YM_escHtml(str)` | `app.js` | HTML-escape |
 | `window.YM_canSeeSphere(name, uuid)` | `profile.js` | Visibility check |
 | `window.YM_getSphereVisibility(name)` | `profile.js` | `'all'` \| `'contacts'` \| `uuid[]` |
