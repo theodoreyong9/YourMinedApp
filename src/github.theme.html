@@ -1,330 +1,113 @@
 <!-- YourMine — GitHub Trends Theme -->
 <script>
-window.YM_THEME_META = {"name":"GitHub Trends","icon":"⭐","description":"GitHub trending repositories — README viewer, stars, languages, in style"};
+window.YM_THEME_META = {"name":"GitHub Trends","icon":"⭐","description":"GitHub trending repositories — README viewer, stars, languages"};
 window.YM_WALLPAPER_PRESETS = [];
 window.YM_NO_WIDGETS = true;
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&family=Syne:wght@400;600;700;800&display=block" rel="stylesheet">
-
 <style>
-:root{
-  --bg:#0a0c0f;--surface:#0f1117;--surface2:#161b22;--surface3:#1c2128;
-  --text:#e6edf3;--text2:rgba(230,237,243,.6);--text3:rgba(230,237,243,.3);
-  --accent:#58a6ff;--green:#3fb950;--purple:#bc8cff;--gold:#e3b341;
-  --red:#f85149;--orange:#f0883e;
-  --border:rgba(48,54,61,1);--border2:rgba(48,54,61,.5);
-  --font-m:'Fragment Mono',monospace;--font-d:'Syne',sans-serif;
-}
+:root{--bg:#0a0c0f;--surface:#0f1117;--surface2:#161b22;--surface3:#1c2128;--text:#e6edf3;--text2:rgba(230,237,243,.6);--text3:rgba(230,237,243,.3);--accent:#58a6ff;--green:#3fb950;--gold:#e3b341;--border:rgba(48,54,61,1);--border2:rgba(48,54,61,.5);--font-m:'Fragment Mono',monospace;--font-d:'Syne',sans-serif;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-d)}
-
-#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
-#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
-.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
-#ym-radio-widget,#desktop-slider .icon-wrap,
-.icon-wrap,.icon-body,.icon-label{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,#ym-radio-widget,#desktop-slider .icon-wrap,.icon-wrap,.icon-body,.icon-label{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 .ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.pill{display:none!important}
-
 #gh-root{position:fixed;inset:0;display:flex;flex-direction:column;z-index:10}
-
-/* Header */
-#gh-header{
-  flex-shrink:0;
-  display:flex;align-items:center;gap:10px;
-  padding:10px 14px;
-  background:var(--surface);
-  border-bottom:1px solid var(--border);
-}
-#gh-logo{
-  font-family:var(--font-m);font-size:16px;color:var(--text);
-  flex-shrink:0;cursor:pointer;opacity:.8;
-}
-#gh-title{
-  font-family:var(--font-d);font-size:14px;font-weight:700;
-  color:var(--text);flex:1;
-}
+#gh-header{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border)}
+#gh-logo{font-family:var(--font-m);font-size:16px;color:var(--text);flex-shrink:0;opacity:.8}
+#gh-title{font-family:var(--font-d);font-size:14px;font-weight:700;color:var(--text);flex:1}
 #gh-title span{color:var(--text3);font-weight:400;font-size:12px;margin-left:6px}
-
-/* Filters */
-#gh-filters{
-  flex-shrink:0;
-  display:flex;gap:6px;padding:8px 14px;
-  border-bottom:1px solid var(--border);
-  background:var(--surface);
-  overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap;
-}
+#gh-filters{flex-shrink:0;display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--surface);overflow-x:auto;scrollbar-width:none}
 #gh-filters::-webkit-scrollbar{display:none}
-.gh-filter{
-  font-family:var(--font-m);font-size:10px;letter-spacing:.02em;
-  padding:5px 12px;border:1px solid var(--border);border-radius:6px;
-  cursor:pointer;color:var(--text3);white-space:nowrap;
-  transition:all .15s;flex-shrink:0;background:none;
-}
+.gh-filter{font-family:var(--font-m);font-size:10px;padding:5px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text3);white-space:nowrap;transition:all .15s;flex-shrink:0;background:none}
 .gh-filter:hover{color:var(--text2);border-color:rgba(88,166,255,.3)}
 .gh-filter.active{color:var(--accent);border-color:rgba(88,166,255,.4);background:rgba(88,166,255,.06)}
-
-/* Period selector */
-#gh-period-wrap{
-  flex-shrink:0;display:flex;gap:4px;padding:6px 14px;
-  border-bottom:1px solid var(--border);background:var(--surface2);
-}
-.gh-period{
-  font-family:var(--font-m);font-size:10px;
-  padding:4px 12px;border-radius:4px;cursor:pointer;
-  color:var(--text3);transition:all .1s;
-}
+#gh-period-wrap{flex-shrink:0;display:flex;gap:4px;padding:6px 14px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.gh-period{font-family:var(--font-m);font-size:10px;padding:4px 12px;border-radius:4px;cursor:pointer;color:var(--text3);transition:all .1s}
 .gh-period.active{background:rgba(88,166,255,.1);color:var(--accent)}
-.gh-period:hover{color:var(--text2)}
-
-/* Content */
 #gh-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #gh-content::-webkit-scrollbar{width:3px}
 #gh-content::-webkit-scrollbar-thumb{background:var(--border)}
-
-/* Repo card */
-.gh-repo{
-  padding:16px 14px;border-bottom:1px solid var(--border2);
-  cursor:pointer;transition:background .1s;
-  display:flex;flex-direction:column;gap:8px;
-}
+.gh-repo{padding:16px 14px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background .1s;display:flex;flex-direction:column;gap:8px}
 .gh-repo:hover{background:rgba(88,166,255,.03)}
 .gh-repo-head{display:flex;align-items:flex-start;gap:8px}
-.gh-repo-avatar{
-  width:32px;height:32px;border-radius:6px;object-fit:cover;
-  flex-shrink:0;background:var(--surface2);
-}
-.gh-repo-name{
-  font-family:var(--font-m);font-size:13px;font-weight:500;
-  color:var(--accent);flex:1;min-width:0;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
+.gh-repo-avatar{width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--surface2)}
+.gh-repo-name{font-family:var(--font-m);font-size:13px;font-weight:500;color:var(--accent);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gh-repo-name span{color:var(--text3)}
-.gh-repo-stars-today{
-  font-family:var(--font-m);font-size:10px;
-  color:var(--gold);flex-shrink:0;
-  display:flex;align-items:center;gap:3px;
-}
-.gh-repo-desc{
-  font-size:13px;color:var(--text2);line-height:1.5;
-  font-weight:400;
-}
-.gh-repo-meta{
-  display:flex;gap:12px;align-items:center;flex-wrap:wrap;
-}
-.gh-repo-lang{
-  display:flex;align-items:center;gap:4px;
-  font-family:var(--font-m);font-size:10px;color:var(--text3);
-}
-.gh-lang-dot{
-  width:10px;height:10px;border-radius:50%;flex-shrink:0;
-}
-.gh-repo-stat{
-  font-family:var(--font-m);font-size:10px;color:var(--text3);
-  display:flex;align-items:center;gap:3px;
-}
+.gh-repo-stars-today{font-family:var(--font-m);font-size:10px;color:var(--gold);flex-shrink:0;display:flex;align-items:center;gap:3px}
+.gh-repo-desc{font-size:13px;color:var(--text2);line-height:1.5;font-weight:400}
+.gh-repo-meta{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.gh-repo-lang{display:flex;align-items:center;gap:4px;font-family:var(--font-m);font-size:10px;color:var(--text3)}
+.gh-lang-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.gh-repo-stat{font-family:var(--font-m);font-size:10px;color:var(--text3);display:flex;align-items:center;gap:3px}
 .gh-topics{display:flex;gap:4px;flex-wrap:wrap}
-.gh-topic{
-  font-family:var(--font-m);font-size:9px;
-  padding:2px 8px;border-radius:20px;
-  background:rgba(88,166,255,.1);color:var(--accent);
-  border:1px solid rgba(88,166,255,.2);
-}
-
-/* Detail panel */
-#gh-detail{
-  position:fixed;inset:0;z-index:600;
-  background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;
-  display:none;
-}
-#gh-detail-header{
-  position:sticky;top:0;background:var(--surface);
-  border-bottom:1px solid var(--border);
-  padding:10px 14px;display:flex;align-items:center;gap:10px;z-index:2;
-}
-#gh-detail-back{
-  background:none;border:1px solid var(--border);color:var(--text2);
-  font-family:var(--font-m);font-size:11px;padding:5px 10px;
-  cursor:pointer;border-radius:4px;transition:all .1s;flex-shrink:0;
-}
+.gh-topic{font-family:var(--font-m);font-size:9px;padding:2px 8px;border-radius:20px;background:rgba(88,166,255,.1);color:var(--accent);border:1px solid rgba(88,166,255,.2)}
+#gh-detail{position:fixed;inset:0;z-index:600;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:none}
+#gh-detail-header{position:sticky;top:0;background:var(--surface);border-bottom:1px solid var(--border);padding:10px 14px;display:flex;align-items:center;gap:10px;z-index:2}
+#gh-detail-back{background:none;border:1px solid var(--border);color:var(--text2);font-family:var(--font-m);font-size:11px;padding:5px 10px;cursor:pointer;border-radius:4px;flex-shrink:0}
 #gh-detail-back:hover{border-color:var(--accent);color:var(--accent)}
-#gh-detail-repo-name{
-  font-family:var(--font-m);font-size:13px;color:var(--accent);
-  flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-#gh-detail-open{
-  background:var(--green);border:none;color:#0a0c0f;
-  font-family:var(--font-d);font-size:11px;font-weight:700;
-  padding:6px 14px;border-radius:6px;cursor:pointer;flex-shrink:0;
-}
+#gh-detail-repo-name{font-family:var(--font-m);font-size:13px;color:var(--accent);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#gh-detail-open{background:var(--green);border:none;color:#0a0c0f;font-family:var(--font-d);font-size:11px;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer;flex-shrink:0}
 #gh-detail-inner{padding:16px 14px 80px}
-
-/* README */
-.gh-readme{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:8px;padding:16px;margin-top:14px;
-}
-.gh-readme-title{
-  font-family:var(--font-m);font-size:9px;color:var(--text3);
-  letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px;
-}
-.gh-readme-content{
-  font-size:13px;color:var(--text2);line-height:1.8;font-weight:400;
-}
-.gh-readme-content h1,.gh-readme-content h2{
-  font-family:var(--font-d);color:var(--text);font-size:16px;
-  margin:1.2em 0 .4em;font-weight:700;
-}
+.gh-readme{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+.gh-readme-title{font-family:var(--font-m);font-size:9px;color:var(--text3);letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px}
+.gh-readme-content{font-size:13px;color:var(--text2);line-height:1.8}
+.gh-readme-content h1,.gh-readme-content h2{font-family:var(--font-d);color:var(--text);font-size:16px;margin:1.2em 0 .4em;font-weight:700}
 .gh-readme-content h3{font-family:var(--font-d);color:var(--text2);font-size:14px;margin:1em 0 .3em;font-weight:600}
-.gh-readme-content code{
-  font-family:var(--font-m);font-size:11px;
-  background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--purple);
-}
-.gh-readme-content pre{
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:6px;padding:12px;overflow-x:auto;margin:8px 0;
-}
+.gh-readme-content code{font-family:var(--font-m);font-size:11px;background:var(--surface2);padding:2px 6px;border-radius:4px;color:#bc8cff}
+.gh-readme-content pre{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;margin:8px 0}
 .gh-readme-content pre code{background:none;padding:0;color:var(--text2);font-size:11px}
 .gh-readme-content a{color:var(--accent);text-decoration:none}
 .gh-readme-content img{max-width:100%;border-radius:6px;margin:4px 0;display:block}
 .gh-readme-content ul,.gh-readme-content ol{padding-left:1.4em;margin:6px 0}
 .gh-readme-content li{margin-bottom:3px}
 .gh-readme-content blockquote{border-left:3px solid var(--border);padding:6px 12px;color:var(--text3);font-style:italic;margin:8px 0}
-.gh-readme-content table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;overflow:hidden;border-radius:6px}
+.gh-readme-content table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
 .gh-readme-content th{background:var(--surface2);padding:8px 10px;text-align:left;font-family:var(--font-m);font-size:10px;color:var(--text3)}
 .gh-readme-content td{padding:7px 10px;border-bottom:1px solid var(--border2);color:var(--text2)}
 .gh-readme-content hr{border:none;border-top:1px solid var(--border);margin:12px 0}
-
-/* Stats bar */
-.gh-stats-bar{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;
-}
-.gh-stat{
-  background:var(--surface);border:1px solid var(--border);border-radius:8px;
-  padding:10px 12px;text-align:center;
-}
+.gh-stats-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.gh-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px;text-align:center}
 .gh-stat-val{font-family:var(--font-m);font-size:16px;font-weight:500;color:var(--text)}
 .gh-stat-lbl{font-family:var(--font-m);font-size:9px;color:var(--text3);margin-top:2px;letter-spacing:.1em}
-
-/* Loading */
-.gh-loading{
-  padding:40px;text-align:center;
-  font-family:var(--font-m);font-size:11px;color:var(--text3);
-  letter-spacing:.08em;
-}
-
-/* Lang colors */
-:root{
-  --lang-javascript:#f1e05a;--lang-typescript:#2b7489;--lang-python:#3572A5;
-  --lang-rust:#dea584;--lang-go:#00ADD8;--lang-java:#b07219;--lang-cpp:#f34b7d;
-  --lang-c:#555555;--lang-ruby:#701516;--lang-swift:#ffac45;--lang-kotlin:#A97BFF;
-  --lang-shell:#89e051;--lang-vue:#41b883;--lang-html:#e34c26;--lang-css:#563d7c;
-}
-
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.gh-reveal{animation:fadeUp .25s ease forwards}
-
-/* ── THEME NAV BAR ── */
-#theme-nav{
-  flex-shrink:0;display:flex;align-items:center;
-  height:52px;padding-bottom:env(safe-area-inset-bottom,0px);
-  background:rgba(0,0,0,.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  border-top:1px solid rgba(255,255,255,.06);
-  position:relative;z-index:50;
-}
-.tnav-btn{
-  width:64px;height:100%;background:none;border:none;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  color:rgba(255,255,255,.35);font-size:20px;
-  transition:color .15s;flex-shrink:0;
-}
+.gh-loading{padding:40px;text-align:center;font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.08em}
+/* Theme Nav */
+#theme-nav{flex-shrink:0;display:flex;align-items:center;height:52px;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(0,0,0,.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.06);position:relative;z-index:50}
+.tnav-btn{width:64px;height:100%;background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.35);font-size:20px;transition:color .15s;flex-shrink:0}
 .tnav-btn:hover,.tnav-btn:active{color:rgba(255,255,255,.85)}
 .tnav-btn.tnav-disabled{opacity:.2;pointer-events:none}
-#tnav-center{
-  flex:1;height:100%;display:flex;align-items:center;justify-content:center;
-  cursor:pointer;gap:6px;color:rgba(255,255,255,.3);transition:color .15s;
-}
+#tnav-center{flex:1;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;gap:6px;color:rgba(255,255,255,.3);transition:color .15s}
 #tnav-center:hover{color:rgba(255,255,255,.7)}
-#tnav-center-lbl{
-  font-size:10px;letter-spacing:.08em;
-  max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-}
-/* Picker */
-#tnav-picker{
-  position:fixed;inset:0;z-index:900;
-  background:rgba(0,0,0,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
-  display:none;flex-direction:column;
-}
-#tnav-picker-hd{
-  padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);
-  display:flex;align-items:center;gap:10px;flex-shrink:0;
-}
-#tnav-picker-title{font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.15em;flex:1}
-#tnav-picker-close{
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
-  color:rgba(255,255,255,.5);font-size:16px;width:32px;height:32px;
-  border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;
-}
-#tnav-picker-search-wrap{
-  padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;
-}
-#tnav-picker-q{
-  width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);
-  color:#fff;font-size:13px;padding:9px 14px;border-radius:8px;outline:none;
-}
-#tnav-picker-q::placeholder{color:rgba(255,255,255,.22)}
-#tnav-picker-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px}
-.tnav-item{
-  display:flex;align-items:center;gap:12px;
-  padding:12px 14px;border-radius:10px;cursor:pointer;
-  transition:background .1s;margin-bottom:4px;
-}
+#tnav-center-lbl{font-size:10px;letter-spacing:.08em;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tnav-picker{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);display:none;flex-direction:column}
+#tnav-picker-hd{flex-shrink:0;padding:14px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
+#tnav-picker-title{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.15em;flex:1}
+#tnav-picker-close{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:16px;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#tnav-picker-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 8px 0}
+#tnav-picker-search-wrap{flex-shrink:0;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.4)}
+#tnav-picker-q{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:14px;padding:12px 16px;border-radius:12px;outline:none}
+#tnav-picker-q::placeholder{color:rgba(255,255,255,.2)}
+.tnav-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;cursor:pointer;transition:background .1s;margin-bottom:4px;border:1px solid transparent}
 .tnav-item:hover{background:rgba(255,255,255,.06)}
-.tnav-item.tnav-current{background:rgba(255,255,255,.04)}
-.tnav-icon{font-size:24px;flex-shrink:0}
+.tnav-item.tnav-current{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08)}
+.tnav-icon{font-size:26px;flex-shrink:0;width:40px;text-align:center}
 .tnav-info{flex:1;min-width:0}
 .tnav-name{font-size:14px;font-weight:600;color:#fff;margin-bottom:2px}
-.tnav-desc{font-size:11px;color:rgba(255,255,255,.38);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tnav-badge{font-size:9px;color:rgba(255,255,255,.28);flex-shrink:0;letter-spacing:.05em}
-
+.tnav-desc{font-size:11px;color:rgba(255,255,255,.35);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tnav-badge{font-size:9px;color:rgba(255,255,255,.25);flex-shrink:0;background:rgba(255,255,255,.06);padding:2px 8px;border-radius:20px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.gh-reveal{animation:fadeUp .25s ease forwards}
 </style>
-
 <!-- YourMine DOM -->
-<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
-<div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
-<div id="drag-ghost"></div><div id="page-dots"></div>
-<div id="nav-bar" style="display:none!important"><div id="dock"><button class="dbtn" id="btn-back"></button><button class="dbtn" id="btn-profile"></button><button class="dbtn" id="btn-figure"></button></div></div>
-<div id="panel-overlay" class="ym-overlay"></div>
-<div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
-<div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
-<div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
-<div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;flex-direction:column"></div><div id="panel-mine-formula" style="display:none;padding:16px"></div><div id="panel-mine-liste" style="display:none;flex-direction:column"></div></div><div class="ym-tabs" id="mine-tabs-bar"><div class="ym-tab active" data-mine-tab="wallet">Wallet</div><div class="ym-tab" data-mine-tab="liste">Apps</div></div></div>
-<div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
-<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
-<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
-<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
-<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
-<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column"><div class="dlg-title" id="bg-dlg-title">Background</div><div id="theme-list"></div><input id="theme-custom-input" class="ym-input"><button id="theme-custom-btn" class="ym-btn">Use</button><button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button><div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button><button class="ym-btn" id="bg-del" style="display:none"></button></div></div>
-<button id="pwa-install-btn" style="display:none"></button>
-
-<!-- Detail -->
+<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div><div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div><div id="drag-ghost"></div><div id="page-dots"></div><div id="nav-bar" style="display:none!important"><div id="dock"><button class="dbtn" id="btn-back"></button><button class="dbtn" id="btn-profile"></button><button class="dbtn" id="btn-figure"></button></div></div><div id="panel-overlay" class="ym-overlay"></div><div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div><div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div><div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div><div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;flex-direction:column"></div><div id="panel-mine-formula" style="display:none;padding:16px"></div><div id="panel-mine-liste" style="display:none;flex-direction:column"></div></div><div class="ym-tabs" id="mine-tabs-bar"><div class="ym-tab active" data-mine-tab="wallet">Wallet</div><div class="ym-tab" data-mine-tab="liste">Apps</div></div></div><div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div><div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div><div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div><div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div><div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div><div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column"><div class="dlg-title" id="bg-dlg-title">Background</div><div id="theme-list"></div><input id="theme-custom-input" class="ym-input"><button id="theme-custom-btn" class="ym-btn">Use</button><button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button><div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button><button class="ym-btn" id="bg-del" style="display:none"></button></div></div><button id="pwa-install-btn" style="display:none"></button>
 <div id="gh-detail">
-  <div id="gh-detail-header">
-    <button id="gh-detail-back">← Back</button>
-    <div id="gh-detail-repo-name"></div>
-    <button id="gh-detail-open">↗ GitHub</button>
-  </div>
+  <div id="gh-detail-header"><button id="gh-detail-back">← Back</button><div id="gh-detail-repo-name"></div><button id="gh-detail-open">↗ GitHub</button></div>
   <div id="gh-detail-inner"></div>
 </div>
-
-<!-- GitHub Trends Theme -->
 <div id="gh-root">
-  <div id="gh-header">
-    <div id="gh-logo">⭑</div>
-    <div id="gh-title">Trending<span>on GitHub</span></div>
-  </div>
+  <div id="gh-header"><div id="gh-logo">⭑</div><div id="gh-title">Trending<span>on GitHub</span></div></div>
   <div id="gh-filters">
-    <div class="gh-filter active" data-lang="">All languages</div>
+    <div class="gh-filter active" data-lang="">All</div>
     <div class="gh-filter" data-lang="javascript">JavaScript</div>
     <div class="gh-filter" data-lang="typescript">TypeScript</div>
     <div class="gh-filter" data-lang="python">Python</div>
@@ -333,7 +116,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="gh-filter" data-lang="java">Java</div>
     <div class="gh-filter" data-lang="cpp">C++</div>
     <div class="gh-filter" data-lang="swift">Swift</div>
-    <div class="gh-filter" data-lang="kotlin">Kotlin</div>
     <div class="gh-filter" data-lang="shell">Shell</div>
   </div>
   <div id="gh-period-wrap">
@@ -341,133 +123,57 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="gh-period" data-period="weekly">this week</div>
     <div class="gh-period" data-period="monthly">this month</div>
   </div>
-  <div id="gh-content">
-    <div class="gh-loading">loading trending repos…</div>
+  <div id="gh-content"><div class="gh-loading">loading trending repos…</div></div>
+  <div id="theme-nav">
+    <button class="tnav-btn" id="tnav-back">←</button>
+    <div id="tnav-center"><span style="font-size:16px;opacity:.5">⬡</span><span id="tnav-center-lbl">themes</span></div>
+    <button class="tnav-btn tnav-disabled" id="tnav-prev">‹</button>
   </div>
-<!-- Theme Nav Bar -->
-<div id="theme-nav">
-  <button class="tnav-btn" id="tnav-back" title="Previous theme">←</button>
-  <div id="tnav-center" title="Switch theme">
-    <span style="font-size:16px">⬡</span>
-    <span id="tnav-center-lbl">themes</span>
-  </div>
-  <button class="tnav-btn tnav-disabled" id="tnav-prev" title="Go back in theme">‹</button>
 </div>
-<!-- Theme Picker -->
 <div id="tnav-picker">
-  <div id="tnav-picker-hd">
-    <div id="tnav-picker-title">SWITCH THEME</div>
-    <button id="tnav-picker-close">✕</button>
-  </div>
-  <div id="tnav-picker-search-wrap">
-    <input id="tnav-picker-q" placeholder="Search themes…" autocomplete="off">
-  </div>
-  <div id="tnav-picker-list">
-    <div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.25)">Loading…</div>
-  </div>
+  <div id="tnav-picker-hd"><div id="tnav-picker-title">SWITCH THEME</div><button id="tnav-picker-close">✕</button></div>
+  <div id="tnav-picker-list"><div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.25)">Loading…</div></div>
+  <div id="tnav-picker-search-wrap"><input id="tnav-picker-q" placeholder="Search themes…" autocomplete="off"></div>
 </div>
-</div>
-
 <script>
 (function(){
-  var content = document.getElementById('gh-content');
-  var _lang = '';
-  var _period = 'daily';
-  var _currentRepo = null;
+  var content=document.getElementById('gh-content');
+  var _lang='',_period='daily';
+  var LANG_COLORS={javascript:'#f1e05a',typescript:'#2b7489',python:'#3572A5',rust:'#dea584',go:'#00ADD8',java:'#b07219','c++':'#f34b7d',c:'#555555',ruby:'#701516',swift:'#ffac45',kotlin:'#A97BFF',shell:'#89e051',vue:'#41b883',html:'#e34c26',css:'#563d7c',php:'#4F5D95'};
+  var PROXIES=['https://api.allorigins.win/raw?url=','https://corsproxy.io/?'];
 
-  var LANG_COLORS = {
-    javascript:'#f1e05a',typescript:'#2b7489',python:'#3572A5',
-    rust:'#dea584',go:'#00ADD8',java:'#b07219','c++':'#f34b7d',
-    c:'#555555',ruby:'#701516',swift:'#ffac45',kotlin:'#A97BFF',
-    shell:'#89e051',vue:'#41b883',html:'#e34c26',css:'#563d7c',
-    php:'#4F5D95','c#':'#178600',scala:'#c22d40',dart:'#00B4AB',
-    lua:'#000080',haskell:'#5e5086',r:'#198CE7',julia:'#a270ba'
-  };
-
-  function langColor(lang){
-    return LANG_COLORS[(lang||'').toLowerCase()]||'rgba(230,237,243,.3)';
-  }
   function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function fmtNum(n){if(!n)return'0';if(n>=1000)return(n/1000).toFixed(1)+'k';return String(n);}
+  function langColor(lang){return LANG_COLORS[(lang||'').toLowerCase()]||'rgba(230,237,243,.3)';}
 
-  // Filters
-  document.querySelectorAll('.gh-filter').forEach(function(f){
-    f.addEventListener('click', function(){
-      document.querySelectorAll('.gh-filter').forEach(function(x){x.classList.remove('active');});
-      f.classList.add('active');
-      _lang = f.dataset.lang;
-      loadTrending();
-    });
-  });
+  document.querySelectorAll('.gh-filter').forEach(function(f){f.addEventListener('click',function(){document.querySelectorAll('.gh-filter').forEach(function(x){x.classList.remove('active');});f.classList.add('active');_lang=f.dataset.lang;loadTrending();});});
+  document.querySelectorAll('.gh-period').forEach(function(p){p.addEventListener('click',function(){document.querySelectorAll('.gh-period').forEach(function(x){x.classList.remove('active');});p.classList.add('active');_period=p.dataset.period;loadTrending();});});
 
-  document.querySelectorAll('.gh-period').forEach(function(p){
-    p.addEventListener('click', function(){
-      document.querySelectorAll('.gh-period').forEach(function(x){x.classList.remove('active');});
-      p.classList.add('active');
-      _period = p.dataset.period;
-      loadTrending();
-    });
-  });
-
-  // Scrape github.com/trending via CORS proxy — no API key, no rate limit
-  var CORS_PROXIES = [
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
-  ];
-
-  async function fetchTrendingHTML(lang, period){
-    var url = 'https://github.com/trending'+(lang?'/'+encodeURIComponent(lang):'')+'?since='+period;
-    for(var i=0;i<CORS_PROXIES.length;i++){
-      try{
-        var r = await fetch(CORS_PROXIES[i]+encodeURIComponent(url),{signal:AbortSignal.timeout(8000)});
-        if(r.ok){var t=await r.text();if(t.length>1000)return t;}
-      }catch(e){}
+  async function fetchTrendingHTML(){
+    var url='https://github.com/trending'+(_lang?'/'+encodeURIComponent(_lang):'')+'?since='+_period;
+    for(var i=0;i<PROXIES.length;i++){
+      try{var r=await fetch(PROXIES[i]+encodeURIComponent(url),{signal:AbortSignal.timeout(8000)});if(r.ok){var t=await r.text();if(t.length>1000)return t;}}catch(e){}
     }
     throw new Error('All proxies failed');
   }
 
   function parseTrendingHTML(html){
-    var parser = new DOMParser();
-    var doc = parser.parseFromString(html,'text/html');
-    var repos = [];
+    var parser=new DOMParser();var doc=parser.parseFromString(html,'text/html');var repos=[];
     doc.querySelectorAll('article.Box-row').forEach(function(article){
       try{
-        var nameEl = article.querySelector('h2 a');
-        if(!nameEl)return;
-        var fullName = nameEl.getAttribute('href').replace(/^\//,'');
-        var parts = fullName.split('/');
-        var owner = parts[0], name = parts[1];
-
-        var desc = article.querySelector('p');
-        var langEl = article.querySelector('[itemprop="programmingLanguage"]');
-        var starsEl = article.querySelector('a[href*="/stargazers"]');
-        var forksEl = article.querySelector('a[href*="/forks"]');
-        var starsToday = article.querySelector('.float-sm-right');
-
-        var stars = starsEl ? starsEl.textContent.trim().replace(/,/g,'') : '0';
-        var forks = forksEl ? forksEl.textContent.trim().replace(/,/g,'') : '0';
-        var today = starsToday ? starsToday.textContent.trim() : '';
-
-        // Topics
-        var topics = [];
-        article.querySelectorAll('.topic-tag').forEach(function(t){topics.push(t.textContent.trim());});
-
-        repos.push({
-          full_name: fullName,
-          owner: {login:owner, avatar_url:'https://github.com/'+owner+'.png?size=64'},
-          name: name,
-          description: desc ? desc.textContent.trim() : '',
-          language: langEl ? langEl.textContent.trim() : '',
-          stargazers_count: parseInt(stars.replace(/[^0-9]/g,''))||0,
-          forks_count: parseInt(forks.replace(/[^0-9]/g,''))||0,
-          open_issues_count: 0,
-          html_url: 'https://github.com/'+fullName,
-          topics: topics,
-          stars_today: today,
-          watchers_count: 0,
-          license: null,
-          pushed_at: '',
-        });
+        var nameEl=article.querySelector('h2 a');if(!nameEl)return;
+        var fullName=nameEl.getAttribute('href').replace(/^\//,'');var parts=fullName.split('/');
+        var desc=article.querySelector('p');var langEl=article.querySelector('[itemprop="programmingLanguage"]');
+        var starsEl=article.querySelector('a[href*="/stargazers"]');var forksEl=article.querySelector('a[href*="/forks"]');
+        var starsToday=article.querySelector('.float-sm-right');
+        var topics=[];article.querySelectorAll('.topic-tag').forEach(function(t){topics.push(t.textContent.trim());});
+        repos.push({full_name:fullName,owner:{login:parts[0],avatar_url:'https://github.com/'+parts[0]+'.png?size=64'},name:parts[1],
+          description:desc?desc.textContent.trim():'',language:langEl?langEl.textContent.trim():'',
+          stargazers_count:parseInt((starsEl?starsEl.textContent.trim().replace(/,/g,''):'0').replace(/[^0-9]/g,''))||0,
+          forks_count:parseInt((forksEl?forksEl.textContent.trim().replace(/,/g,''):'0').replace(/[^0-9]/g,''))||0,
+          html_url:'https://github.com/'+fullName,topics:topics,
+          stars_today:starsToday?starsToday.textContent.trim():'',
+          open_issues_count:0,license:null,pushed_at:'',watchers_count:0});
       }catch(e){}
     });
     return repos;
@@ -475,307 +181,124 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
   async function loadTrending(){
     content.innerHTML='<div class="gh-loading">loading trending repos…</div>';
-    try{
-      var html = await fetchTrendingHTML(_lang, _period);
-      var repos = parseTrendingHTML(html);
-      if(!repos.length) throw new Error('No repos parsed');
-      renderRepos(repos);
-    }catch(e){
-      content.innerHTML='<div class="gh-loading">'+esc(e.message)+'<br><span style="font-size:9px;opacity:.5">try again in a moment</span></div>';
-    }
+    try{var html=await fetchTrendingHTML();var repos=parseTrendingHTML(html);if(!repos.length)throw new Error('No repos parsed');renderRepos(repos);}
+    catch(e){content.innerHTML='<div class="gh-loading">'+esc(e.message)+'<br><span style="font-size:9px;opacity:.5">try again in a moment</span></div>';}
   }
 
   function renderRepos(repos){
-    if(!repos.length){content.innerHTML='<div class="gh-loading">no results</div>';return;}
-    var wrap=document.createElement('div');
-    wrap.className='gh-reveal';
-    repos.forEach(function(repo,i){
-      var el=renderRepoCard(repo,i+1);
-      wrap.appendChild(el);
-    });
-    content.innerHTML='';
-    content.appendChild(wrap);
+    var wrap=document.createElement('div');wrap.className='gh-reveal';
+    repos.forEach(function(repo,i){wrap.appendChild(renderRepoCard(repo,i+1));});
+    content.innerHTML='';content.appendChild(wrap);
   }
 
-  function renderRepoCard(repo, rank){
-    var el=document.createElement('div');
-    el.className='gh-repo';
-    var lang=repo.language||'';
-    var topics=(repo.topics||[]).slice(0,4);
-    el.innerHTML=
-      '<div class="gh-repo-head">'+
-        '<img class="gh-repo-avatar" src="'+esc(repo.owner.avatar_url)+'?s=64" loading="lazy" alt="">'+
-        '<div class="gh-repo-name">'+
-          '<span style="color:var(--text3)">'+esc(repo.owner.login)+' / </span>'+
-          esc(repo.name)+
-        '</div>'+
-        '<div class="gh-repo-stars-today">⭐ '+(repo.stars_today||fmtNum(repo.stargazers_count))+'</div>'+
-      '</div>'+
+  function renderRepoCard(repo,rank){
+    var el=document.createElement('div');el.className='gh-repo';
+    var lang=repo.language||'';var topics=(repo.topics||[]).slice(0,4);
+    el.innerHTML='<div class="gh-repo-head">'+
+      '<img class="gh-repo-avatar" src="'+esc(repo.owner.avatar_url)+'" loading="lazy" alt="">'+
+      '<div class="gh-repo-name"><span style="color:var(--text3)">'+esc(repo.owner.login)+' / </span>'+esc(repo.name)+'</div>'+
+      '<div class="gh-repo-stars-today">⭐ '+(repo.stars_today||fmtNum(repo.stargazers_count))+'</div></div>'+
       (repo.description?'<div class="gh-repo-desc">'+esc(repo.description)+'</div>':'')+
       '<div class="gh-repo-meta">'+
         (lang?'<div class="gh-repo-lang"><div class="gh-lang-dot" style="background:'+langColor(lang)+'"></div>'+esc(lang)+'</div>':'')+
         '<div class="gh-repo-stat">🍴 '+fmtNum(repo.forks_count)+'</div>'+
-        '<div class="gh-repo-stat">👁 '+fmtNum(repo.watchers_count)+'</div>'+
       '</div>'+
       (topics.length?'<div class="gh-topics">'+topics.map(function(t){return'<span class="gh-topic">'+esc(t)+'</span>';}).join('')+'</div>':'');
     el.addEventListener('click',function(){loadRepoDetail(repo);});
     return el;
   }
 
-  // ── Repo detail ───────────────────────────────────────────────
   async function loadRepoDetail(repo){
-    _currentRepo=repo;
     var detail=document.getElementById('gh-detail');
     var inner=document.getElementById('gh-detail-inner');
     document.getElementById('gh-detail-repo-name').textContent=repo.full_name;
     document.getElementById('gh-detail-open').onclick=function(){window.open(repo.html_url,'_blank','noopener');};
     inner.innerHTML='<div class="gh-loading">loading…</div>';
-    detail.style.display='block';
-    detail.scrollTop=0;
-
+    detail.style.display='block';detail.scrollTop=0;
+    window._themeNavBack=function(){detail.style.display='none';window._themeNavBack=null;};
     try{
-      // Stats
-      var statsHTML=
-        '<div class="gh-stats-bar">'+
-          '<div class="gh-stat"><div class="gh-stat-val">'+fmtNum(repo.stargazers_count)+'</div><div class="gh-stat-lbl">STARS</div></div>'+
-          '<div class="gh-stat"><div class="gh-stat-val">'+fmtNum(repo.forks_count)+'</div><div class="gh-stat-lbl">FORKS</div></div>'+
-          '<div class="gh-stat"><div class="gh-stat-val">'+fmtNum(repo.open_issues_count)+'</div><div class="gh-stat-lbl">ISSUES</div></div>'+
-        '</div>';
-
-      // Meta
-      var lang=repo.language||'';
-      var topics=(repo.topics||[]);
-      var metaHTML=
-        '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">'+
-          (repo.description?'<div style="font-size:14px;color:var(--text2);line-height:1.6">'+esc(repo.description)+'</div>':'')+
-          '<div style="display:flex;gap:10px;flex-wrap:wrap;font-family:var(--font-m);font-size:10px;color:var(--text3)">'+
-            (lang?'<span style="color:'+langColor(lang)+'">⬤ '+esc(lang)+'</span>':'')+
-            '<span>📄 '+esc(repo.license&&repo.license.spdx_id||'No license')+'</span>'+
-            '<span>📅 '+esc((repo.pushed_at||'').slice(0,10))+'</span>'+
-          '</div>'+
-          (topics.length?'<div class="gh-topics">'+topics.map(function(t){return'<span class="gh-topic">'+esc(t)+'</span>';}).join('')+'</div>':'')+
-        '</div>';
-
+      var statsHTML='<div class="gh-stats-bar">'+
+        '<div class="gh-stat"><div class="gh-stat-val">'+fmtNum(repo.stargazers_count)+'</div><div class="gh-stat-lbl">STARS</div></div>'+
+        '<div class="gh-stat"><div class="gh-stat-val">'+fmtNum(repo.forks_count)+'</div><div class="gh-stat-lbl">FORKS</div></div>'+
+        '<div class="gh-stat"><div class="gh-stat-val">'+fmtNum(repo.open_issues_count)+'</div><div class="gh-stat-lbl">ISSUES</div></div></div>';
+      var lang=repo.language||'';var topics=(repo.topics||[]);
+      var metaHTML='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">'+
+        (repo.description?'<div style="font-size:14px;color:var(--text2);line-height:1.6">'+esc(repo.description)+'</div>':'')+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;font-family:var(--font-m);font-size:10px;color:var(--text3)">'+
+          (lang?'<span style="color:'+langColor(lang)+'">⬤ '+esc(lang)+'</span>':'')+
+        '</div>'+
+        (topics.length?'<div class="gh-topics">'+topics.map(function(t){return'<span class="gh-topic">'+esc(t)+'</span>';}).join('')+'</div>':'')+
+      '</div>';
       inner.innerHTML=statsHTML+metaHTML+'<div class="gh-loading">loading README…</div>';
-
-      // Fetch README
       var readmeR=await fetch('https://api.github.com/repos/'+repo.full_name+'/readme',{headers:{'Accept':'application/vnd.github.v3+json'}});
-      if(!readmeR.ok) throw new Error('No README');
+      if(!readmeR.ok)throw new Error('No README');
       var readmeD=await readmeR.json();
-      var raw=await fetch(readmeD.download_url);
-      var md=await raw.text();
-
-      // Simple markdown → HTML converter
-      var html=markdownToHTML(md,repo.full_name);
-
-      inner.innerHTML=statsHTML+metaHTML+
-        '<div class="gh-readme">'+
-          '<div class="gh-readme-title">README.md</div>'+
-          '<div class="gh-readme-content">'+html+'</div>'+
-        '</div>';
-    }catch(e){
-      inner.innerHTML+='<div style="padding:20px;font-family:var(--font-m);font-size:11px;color:var(--text3)">No README available</div>';
-    }
+      var raw=await fetch(readmeD.download_url);var md=await raw.text();
+      inner.innerHTML=statsHTML+metaHTML+'<div class="gh-readme"><div class="gh-readme-title">README.md</div><div class="gh-readme-content">'+markdownToHTML(md,repo.full_name)+'</div></div>';
+    }catch(e){inner.innerHTML+='<div style="padding:20px;font-family:var(--font-m);font-size:11px;color:var(--text3)">No README available</div>';}
   }
 
-  // ── Markdown → HTML (basic) ───────────────────────────────────
-  function markdownToHTML(md, repoFullName){
+  function markdownToHTML(md,repoFullName){
     var base='https://raw.githubusercontent.com/'+repoFullName+'/HEAD/';
-    var lines=md.split('\n');
-    var html='';
-    var inCode=false;
-    var codeLang='';
-    var codeBlock='';
-    var inTable=false;
-
+    var lines=md.split('\n');var html='';var inCode=false;var codeLang='';var codeBlock='';
     for(var i=0;i<lines.length;i++){
       var line=lines[i];
-
-      // Code blocks
-      if(line.startsWith('```')){
-        if(!inCode){inCode=true;codeLang=line.slice(3).trim();codeBlock='';}
-        else{
-          html+='<pre><code'+(codeLang?' class="language-'+esc(codeLang)+'"':'')+'>'+esc(codeBlock.trim())+'</code></pre>';
-          inCode=false;codeLang='';codeBlock='';
-        }
-        continue;
-      }
+      if(line.startsWith('```')){if(!inCode){inCode=true;codeLang=line.slice(3).trim();codeBlock='';}else{html+='<pre><code>'+esc(codeBlock.trim())+'</code></pre>';inCode=false;codeLang='';codeBlock='';}continue;}
       if(inCode){codeBlock+=line+'\n';continue;}
-
-      // Headings
       if(line.startsWith('### '))  {html+='<h3>'+inline(line.slice(4))+'</h3>';continue;}
       if(line.startsWith('## '))   {html+='<h2>'+inline(line.slice(3))+'</h2>';continue;}
       if(line.startsWith('# '))    {html+='<h1>'+inline(line.slice(2))+'</h1>';continue;}
-
-      // HR
       if(/^[-*]{3,}$/.test(line.trim())){html+='<hr>';continue;}
-
-      // Blockquote
       if(line.startsWith('> ')){html+='<blockquote>'+inline(line.slice(2))+'</blockquote>';continue;}
-
-      // Lists
       if(/^[-*+] /.test(line)){html+='<ul><li>'+inline(line.slice(2))+'</li></ul>';continue;}
       if(/^\d+\. /.test(line)){html+='<ol><li>'+inline(line.replace(/^\d+\. /,''))+'</li></ol>';continue;}
-
-      // Table (basic)
-      if(line.includes('|') && line.trim().startsWith('|')){
-        if(!inTable){html+='<table>';inTable=true;}
-        var cells=line.split('|').filter(function(c){return c.trim();});
-        var isSep=cells.every(function(c){return /^[-: ]+$/.test(c);});
-        if(!isSep){
-          html+='<tr>'+cells.map(function(c){return'<td>'+inline(c.trim())+'</td>';}).join('')+'</tr>';
-        }
-        continue;
-      }else if(inTable){html+='</table>';inTable=false;}
-
-      // Empty line
       if(!line.trim()){html+='<br>';continue;}
-
-      // Paragraph
       html+='<p>'+inline(line)+'</p>';
     }
-    if(inTable)html+='</table>';
-
-    // Fix consecutive ul/ol
     html=html.replace(/<\/ul><ul>/g,'').replace(/<\/ol><ol>/g,'');
-
     return html;
-
     function inline(s){
       var r=esc(s);
-      // Images - rewrite relative URLs
-      r=r.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,function(m,alt,src){
-        if(!src.startsWith('http'))src=base+src;
-        return'<img src="'+src+'" alt="'+alt+'" loading="lazy">';
-      });
-      // Links
+      r=r.replace(/!\[([^\]]*)\]\(([^)]+)\)/g,function(m,alt,src){if(!src.startsWith('http'))src=base+src;return'<img src="'+src+'" alt="'+alt+'" loading="lazy">';});
       r=r.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-      // Bold
       r=r.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
-      r=r.replace(/__([^_]+)__/g,'<strong>$1</strong>');
-      // Italic
       r=r.replace(/\*([^*]+)\*/g,'<em>$1</em>');
-      r=r.replace(/_([^_]+)_/g,'<em>$1</em>');
-      // Inline code
       r=r.replace(/`([^`]+)`/g,'<code>$1</code>');
-      // Strikethrough
-      r=r.replace(/~~([^~]+)~~/g,'<del>$1</del>');
       return r;
     }
   }
 
-  document.getElementById('gh-detail-back').addEventListener('click',function(){
-    document.getElementById('gh-detail').style.display='none';
-  });
+  document.getElementById('gh-detail-back').addEventListener('click',function(){document.getElementById('gh-detail').style.display='none';window._themeNavBack=null;});
 
+  // Theme Nav
   setTimeout(function(){
-    document.getElementById('theme-custom-btn')&&document.getElementById('theme-custom-btn').addEventListener('click',function(){
-      var inp=document.getElementById('theme-custom-input');
-      var url=(inp?inp.value:'').trim();if(!url)return;
-      var u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-      localStorage.setItem('ym_theme_url',u);localStorage.removeItem('ym_theme_cache');location.reload();
-    });
+    var RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
+    var _cur=localStorage.getItem('ym_theme_url')||'';var _cache=null;
+    function esc2(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    document.getElementById('tnav-back').addEventListener('click',function(){localStorage.setItem('ym_theme_url',localStorage.getItem('ym_prev_theme')||'');localStorage.removeItem('ym_theme_cache');location.reload();});
+    var prevBtn=document.getElementById('tnav-prev');var _tnb=null;
+    Object.defineProperty(window,'_themeNavBack',{set:function(fn){_tnb=fn;prevBtn.classList.toggle('tnav-disabled',!fn);},get:function(){return _tnb;},configurable:true});
+    prevBtn.addEventListener('click',function(){if(window._themeNavBack)window._themeNavBack();});
+    var picker=document.getElementById('tnav-picker');
+    document.getElementById('tnav-center').addEventListener('click',function(){picker.style.display='flex';document.getElementById('tnav-picker-q').focus();loadThemeList();});
+    document.getElementById('tnav-picker-close').addEventListener('click',function(){picker.style.display='none';});
+    picker.addEventListener('click',function(e){if(e.target===picker)picker.style.display='none';});
+    document.getElementById('tnav-picker-q').addEventListener('input',function(){var q=this.value.toLowerCase();document.querySelectorAll('.tnav-item').forEach(function(el){var t=(el.querySelector('.tnav-name')||{textContent:''}).textContent.toLowerCase();var d=(el.querySelector('.tnav-desc')||{textContent:''}).textContent.toLowerCase();el.style.display=(t.includes(q)||d.includes(q))?'flex':'none';});});
+    async function loadThemeList(){
+      if(_cache){renderThemeList(_cache);return;}
+      try{var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});if(r.ok){_cache=await r.json();}else throw new Error();}
+      catch(e){_cache=[{filename:'wikipedia.theme.html',name:'Wikipedia',icon:'📖',description:'Free encyclopedia'},{filename:'nasa.theme.html',name:'NASA',icon:'🚀',description:'Space images'},{filename:'met.theme.html',name:'The Met',icon:'🏛',description:'400k artworks'},{filename:'hackernews.theme.html',name:'Hacker News',icon:'🔶',description:'Tech news'},{filename:'github-trends.theme.html',name:'GitHub Trends',icon:'⭐',description:'Trending repos'}];}
+      renderThemeList(_cache);
+    }
+    function renderThemeList(themes){
+      var list=document.getElementById('tnav-picker-list');list.innerHTML='';
+      themes.forEach(function(t){var url=t.codeUrl||(RAW+t.filename);var isCur=_cur&&_cur.includes(t.filename);var el=document.createElement('div');el.className='tnav-item'+(isCur?' tnav-current':'');el.innerHTML='<div class="tnav-icon">'+esc2(t.icon||'⬡')+'</div><div class="tnav-info"><div class="tnav-name">'+esc2(t.name||t.filename)+'</div><div class="tnav-desc">'+esc2(t.description||'')+'</div></div>'+(isCur?'<div class="tnav-badge">current</div>':'');el.addEventListener('click',function(){localStorage.setItem('ym_prev_theme',_cur);localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');picker.style.display='none';location.reload();});list.appendChild(el);});
+    }
+    document.getElementById('theme-custom-btn')&&document.getElementById('theme-custom-btn').addEventListener('click',function(){var inp=document.getElementById('theme-custom-input');var url=(inp?inp.value:'').trim();if(!url)return;var u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem('ym_prev_theme',_cur);localStorage.setItem('ym_theme_url',u);localStorage.removeItem('ym_theme_cache');location.reload();});
   },0);
 
   loadTrending();
-
   var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
   obs.observe(document.body,{childList:true,subtree:false});
-// ── Theme Nav Bar ─────────────────────────────────────────────
-setTimeout(function(){
-  var RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
-  var _cur = localStorage.getItem('ym_theme_url')||'';
-  var _cache = null;
-  var _history = [];
-
-  function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-  // Back to previous theme
-  document.getElementById('tnav-back').addEventListener('click', function(){
-    var prev = localStorage.getItem('ym_prev_theme')||'';
-    localStorage.setItem('ym_theme_url', prev);
-    localStorage.removeItem('ym_theme_cache');
-    location.reload();
-  });
-
-  // In-theme back
-  var prevBtn = document.getElementById('tnav-prev');
-  window._themeNavBack = null;
-  function updatePrevBtn(){
-    if(typeof window._themeNavBack === 'function'){
-      prevBtn.classList.remove('tnav-disabled');
-    } else {
-      prevBtn.classList.add('tnav-disabled');
-    }
-  }
-  Object.defineProperty(window, '_themeNavBack', {
-    set: function(fn){ this.__tnb = fn; updatePrevBtn(); },
-    get: function(){ return this.__tnb || null; },
-    configurable: true
-  });
-  prevBtn.addEventListener('click', function(){
-    if(window._themeNavBack) window._themeNavBack();
-  });
-
-  // Picker
-  var picker = document.getElementById('tnav-picker');
-  document.getElementById('tnav-center').addEventListener('click', function(){
-    picker.style.display='flex';
-    loadThemeList();
-  });
-  document.getElementById('tnav-picker-close').addEventListener('click', function(){picker.style.display='none';});
-  picker.addEventListener('click', function(e){if(e.target===picker)picker.style.display='none';});
-  document.getElementById('tnav-picker-q').addEventListener('input', function(){
-    var q=this.value.toLowerCase();
-    document.querySelectorAll('.tnav-item').forEach(function(el){
-      var t=(el.querySelector('.tnav-name').textContent||'').toLowerCase();
-      var d=(el.querySelector('.tnav-desc').textContent||'').toLowerCase();
-      el.style.display=(t.includes(q)||d.includes(q))?'flex':'none';
-    });
-  });
-
-  async function loadThemeList(){
-    if(_cache){renderThemeList(_cache);return;}
-    try{
-      var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});
-      if(r.ok){_cache=await r.json();}else throw new Error();
-    }catch(e){
-      _cache=[
-        {filename:'wikipedia.theme.html',name:'Wikipedia',icon:'📖',description:'Free encyclopedia, redesigned'},
-        {filename:'nasa.theme.html',name:'NASA',icon:'🚀',description:'Space images and open data'},
-        {filename:'met.theme.html',name:'The Met',icon:'🏛',description:'400k artworks, free access'},
-        {filename:'hackernews.theme.html',name:'Hacker News',icon:'🔶',description:'Tech news and discussions'},
-        {filename:'github-trends.theme.html',name:'GitHub Trends',icon:'⭐',description:'Trending repos with README'},
-      ];
-    }
-    renderThemeList(_cache);
-  }
-
-  function renderThemeList(themes){
-    var list=document.getElementById('tnav-picker-list');
-    list.innerHTML='';
-    themes.forEach(function(t){
-      var url=t.codeUrl||(RAW+t.filename);
-      var isCur=_cur&&_cur.includes(t.filename);
-      var el=document.createElement('div');
-      el.className='tnav-item'+(isCur?' tnav-current':'');
-      el.innerHTML=
-        '<div class="tnav-icon">'+esc(t.icon||'⬡')+'</div>'+
-        '<div class="tnav-info">'+
-          '<div class="tnav-name">'+esc(t.name||t.filename)+'</div>'+
-          '<div class="tnav-desc">'+esc(t.description||'')+'</div>'+
-        '</div>'+
-        (isCur?'<div class="tnav-badge">current</div>':'');
-      el.addEventListener('click',function(){
-        localStorage.setItem('ym_prev_theme',_cur);
-        localStorage.setItem('ym_theme_url',url);
-        localStorage.removeItem('ym_theme_cache');
-        picker.style.display='none';
-        location.reload();
-      });
-      list.appendChild(el);
-    });
-  }
-},0);
 })();
 </script>
