@@ -1,412 +1,1090 @@
-<!-- YourMine — Wikipedia Theme -->
-<script>
-window.YM_THEME_META = {"name":"Wikipedia","icon":"📖","description":"Wikipedia redesigned — clean, dark, distraction-free reading experience"};
-window.YM_WALLPAPER_PRESETS = [];
-window.YM_NO_WIDGETS = true;
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;1,8..60,300&family=JetBrains+Mono:wght@400;500&display=block" rel="stylesheet">
-<style>
-:root{
-  --bg:#0a0a0c;--surface:#111114;--surface2:#18181c;--surface3:#1e1e24;
-  --text:#e8e6e0;--text2:rgba(232,230,224,.6);--text3:rgba(232,230,224,.3);
-  --accent:#c9a84c;--accent2:#8b7355;
-  --border:rgba(200,169,110,.1);--border2:rgba(200,169,110,.05);
-  --font-serif:'Source Serif 4',Georgia,serif;
-  --font-display:'Playfair Display',Georgia,serif;
-  --font-mono:'JetBrains Mono',monospace;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-serif)}
-#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
-#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
-.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
-#ym-radio-widget,#desktop-slider .icon-wrap,
-.icon-wrap,.icon-body,.icon-label{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.pill{display:none!important}
-#wiki-root{position:fixed;inset:0;display:flex;flex-direction:column;z-index:10;background:var(--bg)}
-#wiki-header{flex-shrink:0;display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface)}
-#wiki-logo{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--accent);letter-spacing:-.02em;flex-shrink:0;cursor:pointer}
-#wiki-logo span{color:var(--text3);font-weight:400;font-style:italic;font-size:12px;margin-left:4px}
-#wiki-search-wrap{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:0 12px;transition:border-color .15s;position:relative}
-#wiki-search-wrap:focus-within{border-color:rgba(201,168,76,.3)}
-#wiki-search-icon{color:var(--text3);font-size:14px;flex-shrink:0}
-#wiki-search{flex:1;background:none;border:none;color:var(--text);font-family:var(--font-serif);font-size:13px;padding:10px 0;outline:none}
-#wiki-search::placeholder{color:var(--text3)}
-#wiki-search-clear{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px;display:none}
-#wiki-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;z-index:100;overflow:hidden;display:none;box-shadow:0 8px 32px rgba(0,0,0,.5)}
-.wiki-suggest-item{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border2);transition:background .1s}
-.wiki-suggest-item:hover{background:rgba(201,168,76,.06)}
-.wiki-suggest-title{font-size:13px;color:var(--text)}
-.wiki-suggest-desc{font-size:11px;color:var(--text3);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#wiki-back{background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:4px 6px;display:none;flex-shrink:0;transition:color .15s}
-#wiki-back:hover{color:var(--accent)}
-#wiki-content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;position:relative}
-#wiki-content::-webkit-scrollbar{width:3px}
-#wiki-content::-webkit-scrollbar-thumb{background:var(--border)}
-#wiki-home{max-width:640px;margin:0 auto;padding:40px 24px 80px;display:flex;flex-direction:column;gap:32px}
-.wiki-home-title{font-family:var(--font-display);font-size:clamp(28px,6vw,48px);font-weight:700;color:var(--text);line-height:1.15;letter-spacing:-.02em}
-.wiki-home-title em{font-style:italic;color:var(--accent)}
-.wiki-home-sub{font-size:14px;color:var(--text3);line-height:1.6;margin-top:8px}
-.wiki-section-title{font-family:var(--font-mono);font-size:9px;color:var(--accent2);text-transform:uppercase;letter-spacing:.2em;margin-bottom:12px}
-.wiki-random-btn{display:inline-flex;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.2);color:var(--accent);font-family:var(--font-mono);font-size:11px;padding:10px 18px;border-radius:8px;cursor:pointer;transition:all .15s;letter-spacing:.05em;text-decoration:none}
-.wiki-random-btn:hover{background:rgba(201,168,76,.14)}
-.wiki-featured{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .15s}
-.wiki-featured:hover{border-color:rgba(201,168,76,.25)}
-.wiki-featured-img{width:100%;height:180px;object-fit:cover;display:block;background:var(--surface2)}
-.wiki-featured-body{padding:16px}
-.wiki-featured-label{font-family:var(--font-mono);font-size:9px;color:var(--accent);letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px}
-.wiki-featured-title{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:8px}
-.wiki-featured-excerpt{font-size:13px;color:var(--text2);line-height:1.7}
-.wiki-quick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-.wiki-quick-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:border-color .15s;display:flex;flex-direction:column;gap:4px}
-.wiki-quick-item:hover{border-color:rgba(201,168,76,.2)}
-.wiki-quick-icon{font-size:20px}
-.wiki-quick-title{font-size:12px;font-weight:600;color:var(--text)}
-.wiki-quick-desc{font-size:10px;color:var(--text3);line-height:1.4}
-#wiki-article{max-width:680px;margin:0 auto;padding:32px 24px 80px;display:none}
-.wiki-article-title{font-family:var(--font-display);font-size:clamp(24px,5vw,40px);font-weight:700;color:var(--text);line-height:1.15;letter-spacing:-.02em;margin-bottom:6px}
-.wiki-article-desc{font-size:14px;color:var(--text3);font-style:italic;margin-bottom:20px;font-family:var(--font-display)}
-.wiki-article-sep{height:1px;background:linear-gradient(90deg,var(--accent),transparent);margin-bottom:24px;opacity:.4}
-.wiki-article-thumb{float:right;margin:0 0 16px 20px;border-radius:8px;max-width:180px;width:40%;object-fit:cover;border:1px solid var(--border)}
-@media(max-width:480px){.wiki-article-thumb{float:none;width:100%;max-width:100%;margin:0 0 16px 0}}
-.wiki-article-body{font-size:15px;line-height:1.85;color:var(--text2);font-family:var(--font-serif);font-weight:300}
-.wiki-article-body p{margin-bottom:1.2em}
-.wiki-article-body h2{font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--text);margin:2em 0 .6em;padding-bottom:.4em;border-bottom:1px solid var(--border);clear:both}
-.wiki-article-body h3{font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--text);margin:1.5em 0 .4em}
-.wiki-article-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(201,168,76,.2);transition:border-color .15s;cursor:pointer}
-.wiki-article-body a:hover{border-color:var(--accent)}
-.wiki-article-body sup{font-size:10px;color:var(--text3)}
-.wiki-article-body table,.wiki-article-body .infobox,.wiki-article-body .mw-editsection,.wiki-article-body .noprint,.wiki-article-body .navbox,.wiki-article-body .reflist,.wiki-article-body .references,.wiki-article-body .hatnote{display:none!important}
-.wiki-article-body img{max-width:100%;border-radius:6px;margin:8px 0;border:1px solid var(--border)}
-.wiki-article-body ul,.wiki-article-body ol{padding-left:1.4em;margin-bottom:1em}
-.wiki-article-body li{margin-bottom:.4em}
-.wiki-article-body blockquote{border-left:2px solid var(--accent2);padding:8px 16px;margin:1em 0;color:var(--text3);font-style:italic;background:rgba(201,168,76,.03);border-radius:0 6px 6px 0}
-#wiki-progress{position:fixed;top:0;left:0;height:2px;background:linear-gradient(90deg,var(--accent),rgba(201,168,76,.3));z-index:999;width:0%;transition:width .1s linear}
-#wiki-toc{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:24px;display:none}
-.wiki-toc-title{font-family:var(--font-mono);font-size:9px;color:var(--accent2);text-transform:uppercase;letter-spacing:.15em;margin-bottom:8px}
-.wiki-toc-list{list-style:none;display:flex;flex-direction:column;gap:4px}
-.wiki-toc-item{font-size:12px;color:var(--text3);cursor:pointer;transition:color .1s;padding:2px 0}
-.wiki-toc-item:hover{color:var(--accent)}
-#wiki-loading{display:none;position:absolute;inset:0;align-items:center;justify-content:center;background:var(--bg);z-index:5;flex-direction:column;gap:12px}
-.wiki-loading-text{font-family:var(--font-mono);font-size:11px;color:var(--text3);letter-spacing:.1em;animation:pulse 1.5s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
-#wiki-bottom{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:8px 16px calc(8px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border);background:var(--surface)}
-.wiki-nav-btn{background:none;border:none;color:var(--text3);font-size:11px;font-family:var(--font-mono);padding:6px 10px;cursor:pointer;letter-spacing:.05em;transition:color .15s;border-radius:6px;display:flex;align-items:center;gap:6px}
-.wiki-nav-btn:hover{color:var(--accent);background:rgba(201,168,76,.06)}
-/* Theme Nav */
-#theme-nav{flex-shrink:0;display:flex;align-items:center;height:52px;padding-bottom:env(safe-area-inset-bottom,0px);background:rgba(0,0,0,.75);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(255,255,255,.06);position:relative;z-index:50}
-.tnav-btn{width:64px;height:100%;background:none;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.35);font-size:20px;transition:color .15s;flex-shrink:0}
-.tnav-btn:hover,.tnav-btn:active{color:rgba(255,255,255,.85)}
-.tnav-btn.tnav-disabled{opacity:.2;pointer-events:none}
-#tnav-center{flex:1;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;gap:6px;color:rgba(255,255,255,.3);transition:color .15s}
-#tnav-center:hover{color:rgba(255,255,255,.7)}
-#tnav-center-lbl{font-size:10px;letter-spacing:.08em;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#tnav-picker{position:fixed;inset:0;z-index:900;background:rgba(0,0,0,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);display:none;flex-direction:column}
-#tnav-picker-hd{flex-shrink:0;padding:14px 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)}
-#tnav-picker-title{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.15em;flex:1}
-#tnav-picker-close{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:16px;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center}
-#tnav-picker-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 8px 0}
-#tnav-picker-search-wrap{flex-shrink:0;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.4)}
-#tnav-picker-q{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:14px;padding:12px 16px;border-radius:12px;outline:none;transition:border-color .15s}
-#tnav-picker-q:focus{border-color:rgba(255,255,255,.3)}
-#tnav-picker-q::placeholder{color:rgba(255,255,255,.2)}
-.tnav-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;cursor:pointer;transition:background .1s;margin-bottom:4px;border:1px solid transparent}
-.tnav-item:hover{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.06)}
-.tnav-item.tnav-current{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.08)}
-.tnav-icon{font-size:26px;flex-shrink:0;width:40px;text-align:center}
-.tnav-info{flex:1;min-width:0}
-.tnav-name{font-size:14px;font-weight:600;color:#fff;margin-bottom:2px}
-.tnav-desc{font-size:11px;color:rgba(255,255,255,.35);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tnav-badge{font-size:9px;color:rgba(255,255,255,.25);flex-shrink:0;letter-spacing:.08em;background:rgba(255,255,255,.06);padding:2px 8px;border-radius:20px}
-@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
-.wiki-reveal{animation:fadeUp .3s ease forwards}
-</style>
-<!-- YourMine DOM -->
-<div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
-<div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
-<div id="drag-ghost"></div><div id="page-dots"></div>
-<div id="nav-bar" style="display:none!important"><div id="dock"><button class="dbtn" id="btn-back"></button><button class="dbtn" id="btn-profile"></button><button class="dbtn" id="btn-figure"></button></div></div>
-<div id="panel-overlay" class="ym-overlay"></div>
-<div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
-<div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
-<div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
-<div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;flex-direction:column"></div><div id="panel-mine-formula" style="display:none;padding:16px"></div><div id="panel-mine-liste" style="display:none;flex-direction:column"></div></div><div class="ym-tabs" id="mine-tabs-bar"><div class="ym-tab active" data-mine-tab="wallet">Wallet</div><div class="ym-tab" data-mine-tab="liste">Apps</div></div></div>
-<div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
-<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
-<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
-<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
-<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
-<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column"><div class="dlg-title" id="bg-dlg-title">Background</div><div id="theme-list"></div><input id="theme-custom-input" class="ym-input"><button id="theme-custom-btn" class="ym-btn">Use</button><button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button><div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button><button class="ym-btn" id="bg-del" style="display:none"></button></div></div>
-<button id="pwa-install-btn" style="display:none"></button>
-<div id="wiki-progress"></div>
-<div id="wiki-root">
-  <div id="wiki-header">
-    <button id="wiki-back">←</button>
-    <div id="wiki-logo">W<span>ikipedia</span></div>
-    <div id="wiki-search-wrap">
-      <span id="wiki-search-icon">⌕</span>
-      <input id="wiki-search" placeholder="Search Wikipedia…" autocomplete="off" spellcheck="false">
-      <button id="wiki-search-clear">×</button>
-      <div id="wiki-suggest"></div>
-    </div>
-  </div>
-  <div id="wiki-content">
-    <div id="wiki-loading"><div style="font-size:24px;opacity:.3">📖</div><div class="wiki-loading-text">Loading…</div></div>
-    <div id="wiki-home">
-      <div><div class="wiki-home-title">The free<br><em>encyclopedia</em></div><div class="wiki-home-sub">Redesigned for reading. All of human knowledge, distraction-free.</div></div>
-      <div><div class="wiki-section-title">Discover</div><a class="wiki-random-btn" id="wiki-random">⟳ Random article</a></div>
-      <div id="wiki-featured-wrap"><div class="wiki-section-title">Featured today</div><div class="wiki-featured" id="wiki-featured-card"><div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading featured article…</div></div></div>
-      <div><div class="wiki-section-title">Quick access</div>
-        <div class="wiki-quick-grid">
-          <div class="wiki-quick-item" data-search="Science"><div class="wiki-quick-icon">🔬</div><div class="wiki-quick-title">Science</div><div class="wiki-quick-desc">Physics, biology, chemistry</div></div>
-          <div class="wiki-quick-item" data-search="History"><div class="wiki-quick-icon">🏛</div><div class="wiki-quick-title">History</div><div class="wiki-quick-desc">Ancient to modern</div></div>
-          <div class="wiki-quick-item" data-search="Philosophy"><div class="wiki-quick-icon">💭</div><div class="wiki-quick-title">Philosophy</div><div class="wiki-quick-desc">Ideas and thinkers</div></div>
-          <div class="wiki-quick-item" data-search="Mathematics"><div class="wiki-quick-icon">∑</div><div class="wiki-quick-title">Mathematics</div><div class="wiki-quick-desc">Numbers and logic</div></div>
-          <div class="wiki-quick-item" data-search="Art"><div class="wiki-quick-icon">🎨</div><div class="wiki-quick-title">Art</div><div class="wiki-quick-desc">Visual arts and culture</div></div>
-          <div class="wiki-quick-item" data-search="Technology"><div class="wiki-quick-icon">⚡</div><div class="wiki-quick-title">Technology</div><div class="wiki-quick-desc">Computing and engineering</div></div>
-        </div>
-      </div>
-    </div>
-    <div id="wiki-article">
-      <div id="wiki-toc"><div class="wiki-toc-title">Contents</div><ul class="wiki-toc-list" id="wiki-toc-list"></ul></div>
-      <div id="wiki-article-inner"></div>
-    </div>
-  </div>
-  <div id="wiki-bottom">
-    <button class="wiki-nav-btn" id="wiki-btn-home">⌂ Home</button>
-    <button class="wiki-nav-btn" id="wiki-btn-random2">⟳ Random</button>
-  </div>
-  <!-- Theme Nav Bar -->
-  <div id="theme-nav">
-    <button class="tnav-btn" id="tnav-back" title="Previous theme">←</button>
-    <div id="tnav-center" title="Switch theme"><span style="font-size:16px;opacity:.5">⬡</span><span id="tnav-center-lbl">themes</span></div>
-    <button class="tnav-btn tnav-disabled" id="tnav-prev" title="Go back in theme">‹</button>
-  </div>
-</div>
-<!-- Theme Picker -->
-<div id="tnav-picker">
-  <div id="tnav-picker-hd"><div id="tnav-picker-title">SWITCH THEME</div><button id="tnav-picker-close">✕</button></div>
-  <div id="tnav-picker-list"><div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.25)">Loading…</div></div>
-  <div id="tnav-picker-search-wrap"><input id="tnav-picker-q" placeholder="Search themes…" autocomplete="off" spellcheck="false"></div>
-</div>
-<script>
+/* jshint esversion:11, -W033 */
+// liste.js — YourMine Sphere List Manager
 (function(){
-  var WIKI = 'https://en.wikipedia.org/api/rest_v1';
-  var WIKI_W = 'https://en.wikipedia.org/w/api.php';
-  var _history = [];
-  var _current = null;
-  var _suggestTimer = null;
+'use strict';
 
-  var home = document.getElementById('wiki-home');
-  var article = document.getElementById('wiki-article');
-  var articleInner = document.getElementById('wiki-article-inner');
-  var loading = document.getElementById('wiki-loading');
-  var searchInput = document.getElementById('wiki-search');
-  var searchClear = document.getElementById('wiki-search-clear');
-  var suggest = document.getElementById('wiki-suggest');
-  var backBtn = document.getElementById('wiki-back');
-  var progress = document.getElementById('wiki-progress');
-  var content = document.getElementById('wiki-content');
-  var toc = document.getElementById('wiki-toc');
-  var tocList = document.getElementById('wiki-toc-list');
+const REPO_OWNER  = 'theodoreyong9';
+const REPO_NAME   = 'YourMinedApp';
+const REPO_BRANCH = 'main';
+const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/';
+const FILES_JSON_URL = RAW_BASE+'files.json';
 
-  function showLoading(v){loading.style.display=v?'flex':'none';}
+const CACHE_KEY = 'ym_liste_cache_v4';
+const CACHE_TTL = 30 * 60 * 1000;
 
-  function showHome(){
-    home.style.display='flex';article.style.display='none';
-    backBtn.style.display='none';toc.style.display='none';
-    progress.style.width='0%';content.scrollTop=0;
-    window._themeNavBack=null;
+let _sphereList = [];
+const PAGE_SIZE = 20;
+let _listPage = 0;
+let _loaded     = false;
+let _filterText   = '';
+let _filterCat    = '';
+let _filterActive = false;
+let _filterSocial = null;
+
+function _readCache(allowStale=false){
+  try{const raw=localStorage.getItem(CACHE_KEY);if(!raw)return null;const c=JSON.parse(raw);if(!allowStale&&Date.now()-c.ts>CACHE_TTL)return null;return c;}catch{return null;}
+}
+function _writeCache(list){
+  try{localStorage.setItem(CACHE_KEY,JSON.stringify({list,ts:Date.now()}));}catch{}
+}
+
+let _fetchPromise=null;
+async function fetchSphereList(){
+  if(_fetchPromise)return _fetchPromise;
+  _fetchPromise=_doFetch().catch(e=>{_fetchPromise=null;throw e;}).finally(()=>{_fetchPromise=null;});
+  return _fetchPromise;
+}
+
+async function _doFetch(){
+  const cached=_readCache();
+  let entries=[];
+  try{
+    const res=await fetch(FILES_JSON_URL+'?t='+Date.now(),{cache:'no-store'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    entries=Array.isArray(data)?data:[];
+  }catch(e){
+    console.warn('[Liste] files.json fetch failed:',e.message);
+    if(cached){_sphereList=cached.list;_loaded=true;return _sphereList;}
+    _sphereList=[];_loaded=true;return _sphereList;
   }
-
-  function showArticle(){
-    home.style.display='none';article.style.display='block';
-    backBtn.style.display=(_history.length>0)?'block':'none';
-    content.scrollTop=0;
-    window._themeNavBack=function(){
-      if(_history.length>0){var prev=_history.pop();_current=null;loadArticle(prev);}
-      else{showHome();}
+  if(!entries.length){_sphereList=[];_loaded=true;_writeCache(_sphereList);return _sphereList;}
+  const cachedMap={};
+  if(cached)cached.list.forEach(s=>{cachedMap[s.fileName]=s;});
+  const _fetchedList=await Promise.all(entries.map(async entry=>{
+    const fileName=entry.filename;
+    const url=RAW_BASE+fileName;
+    const ghAuthor=entry.ghAuthor||entry.last_committer||'';
+    const codeUrl=entry.codeUrl||(ghAuthor?'https://raw.githubusercontent.com/'+ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/'+fileName:null);
+    // Use metadata from files.json directly if available — no need to fetch sphere code
+    const entryMeta={
+      name:entry.name||null,
+      icon:entry.icon||null,
+      category:entry.category||null,
+      description:entry.description||null,
     };
-  }
-
-  content.addEventListener('scroll',function(){
-    var max=content.scrollHeight-content.clientHeight;
-    if(max<=0){progress.style.width='0%';return;}
-    progress.style.width=(content.scrollTop/max*100)+'%';
-  },{passive:true});
-
-  searchInput.addEventListener('input',function(){
-    var q=searchInput.value.trim();
-    searchClear.style.display=q?'block':'none';
-    if(!q){suggest.style.display='none';return;}
-    clearTimeout(_suggestTimer);
-    _suggestTimer=setTimeout(function(){fetchSuggestions(q);},250);
-  });
-  searchInput.addEventListener('keydown',function(e){
-    if(e.key==='Enter'){suggest.style.display='none';var q=searchInput.value.trim();if(q)loadArticle(q);}
-    if(e.key==='Escape')suggest.style.display='none';
-  });
-  searchClear.addEventListener('click',function(){searchInput.value='';searchClear.style.display='none';suggest.style.display='none';searchInput.focus();});
-  document.addEventListener('click',function(e){if(!e.target.closest('#wiki-search-wrap'))suggest.style.display='none';});
-
-  async function fetchSuggestions(q){
-    try{
-      var r=await fetch(WIKI_W+'?action=query&list=search&srsearch='+encodeURIComponent(q)+'&srlimit=6&format=json&origin=*&srprop=snippet');
-      var d=await r.json();
-      var results=(d.query&&d.query.search)||[];
-      if(!results.length){suggest.style.display='none';return;}
-      suggest.innerHTML='';
-      results.forEach(function(item){
-        var el=document.createElement('div');el.className='wiki-suggest-item';
-        var snippet=item.snippet?item.snippet.replace(/<[^>]+>/g,'').slice(0,60):'';
-        el.innerHTML='<div style="width:28px;text-align:center;font-size:16px;flex-shrink:0">📖</div><div style="flex:1;min-width:0"><div class="wiki-suggest-title">'+item.title+'</div><div class="wiki-suggest-desc">'+snippet+'</div></div>';
-        el.addEventListener('click',function(){suggest.style.display='none';searchInput.value=item.title;loadArticle(item.title);});
-        suggest.appendChild(el);
-      });
-      suggest.style.display='block';
-    }catch(e){suggest.style.display='none';}
-  }
-
-  async function loadArticle(title){
-    showLoading(true);suggest.style.display='none';
-    try{
-      var slug=title.trim().replace(/ /g,'_');
-      var r=await fetch(WIKI+'/page/summary/'+encodeURIComponent(slug));
-      if(!r.ok){
-        var sr=await fetch(WIKI_W+'?action=query&list=search&srsearch='+encodeURIComponent(title)+'&srlimit=1&format=json&origin=*');
-        var sd=await sr.json();
-        var first=sd.query&&sd.query.search&&sd.query.search[0];
-        if(!first)throw new Error('Not found');
-        slug=first.title.replace(/ /g,'_');
-        r=await fetch(WIKI+'/page/summary/'+encodeURIComponent(slug));
-        if(!r.ok)throw new Error('Not found');
-      }
-      var summary=await r.json();
-      var r2=await fetch(WIKI+'/page/mobile-sections/'+encodeURIComponent(slug));
-      var sections=r2.ok?await r2.json():null;
-      showLoading(false);
-      renderArticle(summary,sections);
-      if(_current)_history.push(_current);
-      _current=title;
-      searchInput.value=summary.title||title;
-      searchClear.style.display='block';
-    }catch(e){
-      showLoading(false);
-      articleInner.innerHTML='<div style="padding:24px;color:var(--text3);font-size:14px;text-align:center">Article not found.<br><br><span style="font-size:12px">Try another search term.</span></div>';
-      showArticle();
+    const hasEntryMeta=entryMeta.name&&entryMeta.icon;
+    if(cachedMap[fileName]){
+      const cached={...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};
+      // Override with files.json metadata if available
+      if(hasEntryMeta)Object.assign(cached,entryMeta);
+      return cached;
     }
+    // If files.json has metadata, use it directly without fetching sphere code
+    if(hasEntryMeta){
+      return{...entryMeta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
+    }
+    const meta=await fetchSphereMeta(url,fileName,codeUrl);
+    return{...meta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
+  }));
+  _fetchedList.sort(function(a,b){return (b.score||0)-(a.score||0);});
+  _sphereList=_fetchedList;
+  _writeCache(_sphereList);
+  _loaded=true;
+  return _sphereList;
+}
+
+async function fetchSphereMeta(url,fileName,codeUrl){
+  // Check stale cache first for this specific sphere
+  const stale=_readCache(true);
+  const staleEntry=stale&&stale.list&&stale.list.find(s=>s.fileName===fileName);
+  try{
+    const fetchUrl=codeUrl||url;
+    const res=await fetch(fetchUrl+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const code=await res.text();
+    return{
+      name:extractField(code,'name')||fileName.replace('.sphere.js',''),
+      icon:extractField(code,'icon')||'⬡',
+      category:extractField(code,'category')||'Other',
+      description:extractField(code,'description')||'',
+      fileName
+    };
+  }catch{
+    // Fallback to stale cache entry if available
+    if(staleEntry)return staleEntry;
+    return{name:fileName.replace('.sphere.js',''),icon:'⬡',category:'Other',description:'',fileName};
+  }
+}
+
+function extractField(code,field){
+  const defMatch=code.match(/window\.YM_S\s*\[.*?\]\s*=\s*\{([\s\S]{0,1200})/);
+  const searchIn=defMatch?defMatch[1]:code.slice(0,3000);
+  const r1=new RegExp("['\"]?"+field+"['\"]?\\s*:\\s*'([^'\\n\\$\\{\\}]{1,120})'");
+  const r2=new RegExp('[\'"]?'+field+'[\'"]?\\s*:\\s*"([^"\\n\\x24\\x7B\\x7D]{1,120})"');
+  const m1=searchIn.match(r1);if(m1)return m1[1].trim();
+  const m2=searchIn.match(r2);if(m2)return m2[1].trim();
+  return null;
+}
+
+const MANDATORY_SPHERES=['social.sphere.js','safety.sphere.js'];
+function getActiveSpheres(){return JSON.parse(localStorage.getItem('ym_active_spheres')||'[]');}
+function setActiveSpheres(arr){localStorage.setItem('ym_active_spheres',JSON.stringify(arr));}
+function isSphereActive(fileName){return getActiveSpheres().includes(fileName);}
+
+async function activateSphere(sphere){
+  if(window.YM_sphereRegistry?.has(sphere.fileName))return;
+  const active=getActiveSpheres();
+  if(!active.includes(sphere.fileName)){active.push(sphere.fileName);setActiveSpheres(active);}
+  try{
+    const sphereObj=await loadSphereCode(sphere);
+    if(sphereObj)await window.YM?.activateSphere?.(sphere.fileName,sphereObj);
+  }catch(e){
+    console.warn('[Liste] activation error for',sphere.fileName,':',e.message);
+    window.YM_toast?.('Error loading '+sphere.name+': '+e.message,'error');
+    setActiveSpheres(getActiveSpheres().filter(s=>s!==sphere.fileName));
+  }
+}
+
+async function deactivateSphere(sphere){
+  if(!isSphereActive(sphere.fileName))return;
+  setActiveSpheres(getActiveSpheres().filter(s=>s!==sphere.fileName));
+  await window.YM?.deactivateSphere?.(sphere.fileName);
+  window.YM_toast?.(sphere.name+' deactivated','info');
+}
+
+async function loadSphereCode(sphere){
+  const loadUrl=sphere.codeUrl||sphere.url;
+  if(!loadUrl||!loadUrl.startsWith('http')){return await loadLocalSphere(loadUrl,sphere.fileName);}
+  try{
+    const res=await fetch(loadUrl+'?t='+Date.now(),{cache:'no-store'});
+    if(!res.ok)throw new Error('HTTP '+res.status+' fetching '+loadUrl);
+    const code=await res.text();
+    return await execSphereCode(code,sphere.fileName);
+  }catch(e){
+    console.warn('[Liste] loadSphereCode failed for',sphere.fileName,':',e.message);
+    return await loadLocalSphere(loadUrl,sphere.fileName);
+  }
+}
+
+async function execSphereCode(code,fileName){
+  return new Promise(function(resolve){
+    const blob=new Blob([code],{type:'text/javascript'});
+    const url=URL.createObjectURL(blob);
+    const s=document.createElement('script');s.src=url;
+    s.onload=function(){URL.revokeObjectURL(url);resolve(window.YM_S&&window.YM_S[fileName]||null);};
+    s.onerror=function(){URL.revokeObjectURL(url);resolve(null);};
+    document.head.appendChild(s);
+  });
+}
+
+async function loadLocalSphere(src,fileName){
+  return new Promise(resolve=>{
+    const s=document.createElement('script');s.src=src;
+    s.onload=()=>resolve(window.YM_S?.[fileName]||null);
+    s.onerror=()=>resolve(null);
+    document.head.appendChild(s);
+  });
+}
+
+async function activateSphereByName(fileName){
+  if(window.YM_sphereRegistry?.has(fileName))return;
+  if(!_loaded)await fetchSphereList();
+  const sphere=_sphereList.find(s=>s.fileName===fileName);
+  if(sphere)await activateSphere(sphere);
+  else console.warn('[Liste] sphere not found:',fileName);
+}
+
+// ── INLINE ACTION BAR ────────────────────────────────────────────────────────
+// Shared style for all action buttons in the bar
+const BTN_BASE = 'display:inline-flex;align-items:center;gap:4px;padding:6px 11px;border-radius:7px;font-size:11px;font-weight:500;cursor:pointer;border:none;transition:background .15s,color .15s;line-height:1;';
+const BTN_GHOST = BTN_BASE+'background:rgba(255,255,255,.05);color:rgba(240,240,248,.55);';
+const BTN_ACCENT = BTN_BASE+'background:rgba(240,168,48,.15);color:#f0a830;';
+const BTN_DANGER = BTN_BASE+'background:rgba(255,69,96,.1);color:rgba(255,69,96,.8);';
+const BTN_CYAN   = BTN_BASE+'background:rgba(34,211,238,.1);color:#22d3ee;';
+
+function _makeActionBar(btns){
+  // btns: [{icon, label, style, onClick, id}]
+  const bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;padding:10px 0 2px 0;animation:ymBarIn .15s ease';
+  // inject keyframe once
+  if(!document.getElementById('ym-bar-style')){
+    const st=document.createElement('style');st.id='ym-bar-style';
+    st.textContent='@keyframes ymBarIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}';
+    document.head.appendChild(st);
+  }
+  btns.forEach(b=>{
+    const btn=document.createElement('button');
+    btn.style.cssText=b.style||BTN_GHOST;
+    btn.innerHTML=(b.icon?'<span>'+b.icon+'</span> ':'')+b.label;
+    if(b.id)btn.dataset.actionId=b.id;
+    btn.addEventListener('click',e=>{e.stopPropagation();b.onClick(btn);});
+    bar.appendChild(btn);
+  });
+  return bar;
+}
+
+// ── RENDER ───────────────────────────────────────────────────────────────────
+let _currentBody=null;
+let _listType='spheres';
+let _listShowWip=false;
+
+async function render(containerArg){
+  const body=containerArg||document.getElementById('panel-spheres-body')||document.getElementById('panel-mine-liste');
+  if(!body)return;
+  _currentBody=body;
+  // Always clear stale content so "Loading" never persists
+  body.innerHTML='';
+  body.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;padding:0;overflow:hidden';
+
+  body.innerHTML=
+    '<div id="list-content" style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0"></div>'+
+    '<div id="list-controls" style="padding:8px 12px 8px;border-top:1px solid rgba(232,160,32,.12);display:flex;flex-direction:column;gap:6px;flex-shrink:0;background:inherit">'+
+      '<div id="list-type-row" style="display:flex;gap:6px"></div>'+
+      '<div id="list-filter-row" style="display:flex;gap:5px;flex-wrap:wrap"></div>'+
+      '<div id="list-dropdown-panel" style="display:none;flex-wrap:wrap;gap:4px;padding:6px 0 2px;animation:ymBarIn .15s ease"></div>'+
+      '<div id="list-wip-row" style="display:none"></div>'+
+      '<div id="list-search-row" style="display:flex;gap:6px;align-items:center">'+
+        '<input id="list-search" class="ym-input" placeholder="Search…" style="flex:1;font-size:12px;padding:7px 10px">'+
+      '</div>'+
+    '</div>';
+
+  const content=body.querySelector('#list-content');
+  const typeRow=body.querySelector('#list-type-row');
+  const filterRow=body.querySelector('#list-filter-row');
+  const dropdownPanel=body.querySelector('#list-dropdown-panel');
+  const wipRow=body.querySelector('#list-wip-row');
+  const searchInput=body.querySelector('#list-search');
+  let _openDropdown=null; // 'type'|'cat'|'status'|null
+
+  searchInput.addEventListener('input',e=>{
+    _listPage=0;
+    const v=e.target.value.toLowerCase();
+    _filterText=v;_themeSearch=v;
+    if(_listType==='spheres')renderList(content);
+    else if(_listType==='themes'||_listType==='photo'||_listType==='video'){
+      const cu=localStorage.getItem('ym_theme_url')||'';
+      _renderThemeCards(content,cu,'https://github.com/',_themesList);
+    }
+  });
+
+
+
+  const TYPE_MAIN=[{id:'spheres',label:'⬡ Spheres'},{id:'themes',label:'🎨 Themes'}];
+  const TYPE_THEME_EXTRA=[{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}];
+  const TYPE_OPTS=[{id:'spheres',label:'⬡ Spheres'},{id:'themes',label:'🎨 Themes'},{id:'photo',label:'📷 Photo'},{id:'video',label:'🎥 Video'}];
+  const CAT_OPTS=['All','Tools','AI','Games','Finance','Commerce','Social','Media','Search','Agent','Communication','Other'];
+  const STATUS_OPTS=[{id:'all',label:'All'},{id:'active',label:'Active'},{id:'inactive',label:'Inactive'},{id:'wip',label:'🚧 Under construction'}];
+
+  function _closeDropdown(){
+    _openDropdown=null;
+    dropdownPanel.style.display='none';
+    dropdownPanel.innerHTML='';
+    filterRow.querySelectorAll('.pill').forEach(p=>p.classList.remove('dropdown-open'));
   }
 
-  function renderArticle(summary,sections){
-    var headings=[];var bodyHTML='';
-    if(sections&&sections.remaining&&sections.remaining.sections){
-      sections.remaining.sections.slice(0,12).forEach(function(s){
-        if(s.line)headings.push(s.line.replace(/<[^>]+>/g,''));
-        bodyHTML+='<h2>'+(s.line||'')+'</h2>'+(s.text||'');
-      });
-    }else if(sections&&sections.lead){
-      bodyHTML=sections.lead.sections&&sections.lead.sections[0]?sections.lead.sections[0].text||'':'';
-    }
-    if(headings.length>2){
-      tocList.innerHTML='';
-      headings.forEach(function(h,i){
-        var li=document.createElement('li');li.className='wiki-toc-item';li.textContent=(i+1)+'. '+h;
-        li.addEventListener('click',function(){var target=articleInner.querySelectorAll('h2')[i];if(target)target.scrollIntoView({behavior:'smooth',block:'start'});});
-        tocList.appendChild(li);
-      });
-      toc.style.display='block';
-    }else{toc.style.display='none';}
-    var thumb=summary.thumbnail?'<img class="wiki-article-thumb" src="'+summary.thumbnail.source+'" alt="">':'';
-    articleInner.innerHTML=
-      '<div class="wiki-reveal">'+
-        '<h1 class="wiki-article-title">'+summary.title+'</h1>'+
-        (summary.description?'<div class="wiki-article-desc">'+summary.description+'</div>':'')+
-        '<div class="wiki-article-sep"></div>'+
-        '<div class="wiki-article-body">'+thumb+'<p>'+(summary.extract||'')+'</p>'+bodyHTML+'</div>'+
-        '<div style="margin-top:32px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">'+
-          '<a href="https://en.wikipedia.org/wiki/'+encodeURIComponent(summary.title)+'" target="_blank" rel="noopener" style="font-size:11px;color:var(--text3);text-decoration:none;font-family:var(--font-mono)">↗ Full article on Wikipedia</a>'+
-          '<span style="font-size:10px;color:var(--text3);font-family:var(--font-mono)">CC BY-SA</span>'+
-        '</div>'+
-      '</div>';
-    articleInner.querySelectorAll('.wiki-article-body a').forEach(function(a){
-      var href=a.getAttribute('href')||'';
-      if(href.startsWith('/wiki/')&&!href.includes(':')){
-        var t=decodeURIComponent(href.replace('/wiki/','').replace(/_/g,' '));
-        a.removeAttribute('href');
-        a.addEventListener('click',function(e){e.preventDefault();loadArticle(t);});
-      }else if(!href.startsWith('http')){a.removeAttribute('href');}
+  function _openDrop(key,pills,onSelect){
+    if(_openDropdown===key){_closeDropdown();return;}
+    _closeDropdown();
+    _openDropdown=key;
+    dropdownPanel.style.display='flex';
+    dropdownPanel.innerHTML='';
+    pills.forEach(opt=>{
+      const p=document.createElement('span');
+      p.className='pill'+(opt.active?' active':'');
+      p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+      p.textContent=opt.label;
+      p.addEventListener('click',()=>{onSelect(opt);_closeDropdown();});
+      dropdownPanel.appendChild(p);
     });
-    showArticle();
+    filterRow.querySelectorAll('[data-drop="'+key+'"]').forEach(p=>p.classList.add('dropdown-open'));
   }
 
-  async function loadFeatured(){
-    try{
-      var today=new Date();
-      var y=today.getUTCFullYear(),m=String(today.getUTCMonth()+1).padStart(2,'0'),d=String(today.getUTCDate()).padStart(2,'0');
-      var r=await fetch('https://en.wikipedia.org/api/rest_v1/feed/featured/'+y+'/'+m+'/'+d);
-      if(!r.ok)throw new Error();
-      var data=await r.json();var tfa=data.tfa;if(!tfa)throw new Error();
-      var card=document.getElementById('wiki-featured-card');
-      card.innerHTML=(tfa.thumbnail?'<img class="wiki-featured-img" src="'+tfa.thumbnail.source+'" alt="">':'')+
-        '<div class="wiki-featured-body"><div class="wiki-featured-label">Featured article</div>'+
-        '<div class="wiki-featured-title">'+tfa.title+'</div>'+
-        '<div class="wiki-featured-excerpt">'+(tfa.extract||'').slice(0,200)+(tfa.extract&&tfa.extract.length>200?'…':'')+'</div></div>';
-      card.addEventListener('click',function(){loadArticle(tfa.title);});
-    }catch(e){document.getElementById('wiki-featured-card').style.display='none';}
-  }
+  function renderFilterRow(){
+    // ── Ligne 1 : grandes pills Spheres / Themes ─────────────────
+    typeRow.innerHTML='';
+    const isThemeLike=_listType==='themes'||_listType==='photo'||_listType==='video';
+    TYPE_MAIN.forEach(opt=>{
+      const active=(opt.id==='spheres'&&!isThemeLike)||(opt.id==='themes'&&isThemeLike);
+      const p=document.createElement('span');
+      p.style.cssText='flex:1;text-align:center;padding:8px 0;font-size:12px;font-weight:600;border-radius:8px;cursor:pointer;transition:all .15s;letter-spacing:.02em;'+(active?'background:rgba(232,160,32,.15);border:1px solid rgba(232,160,32,.35);color:var(--accent,#f0a830)':'background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(255,255,255,.35)');
+      p.textContent=opt.label;
+      p.addEventListener('click',()=>{
+        if(_listType===opt.id)return;
+        _listType=opt.id;searchInput.value='';_filterText='';_themeSearch='';
+        _filterCat='';_filterActive=false;_listShowWip=false;
+        renderFilterRow();switchType();
+      });
+      typeRow.appendChild(p);
+    });
 
-  async function loadRandom(){
-    showLoading(true);
-    try{
-      var r=await fetch(WIKI_W+'?action=query&list=random&rnnamespace=0&rnlimit=1&format=json&origin=*');
-      var d=await r.json();loadArticle(d.query.random[0].title);
-    }catch(e){showLoading(false);}
-  }
+    // ── Ligne 2 : pills secondaires ───────────────────────────────
+    filterRow.innerHTML='';
+    const curCat=_filterCat||'All';
+    const curStatus=_listShowWip?'wip':(_filterActive?'active':'all');
 
-  document.getElementById('wiki-random').addEventListener('click',loadRandom);
-  document.getElementById('wiki-btn-random2').addEventListener('click',loadRandom);
-  document.querySelectorAll('.wiki-quick-item').forEach(function(item){item.addEventListener('click',function(){loadArticle(item.dataset.search);});});
-  backBtn.addEventListener('click',function(){if(_history.length>0){var prev=_history.pop();_current=null;loadArticle(prev);}else{showHome();searchInput.value='';searchClear.style.display='none';}});
-  document.getElementById('wiki-btn-home').addEventListener('click',function(){showHome();_current=null;_history=[];searchInput.value='';searchClear.style.display='none';});
-
-  // Theme Nav
-  setTimeout(function(){
-    var RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
-    var _cur=localStorage.getItem('ym_theme_url')||'';var _cache=null;
-    function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-    document.getElementById('tnav-back').addEventListener('click',function(){localStorage.setItem('ym_theme_url',localStorage.getItem('ym_prev_theme')||'');localStorage.removeItem('ym_theme_cache');location.reload();});
-    var prevBtn=document.getElementById('tnav-prev');
-    var _tnb=null;
-    Object.defineProperty(window,'_themeNavBack',{set:function(fn){_tnb=fn;prevBtn.classList.toggle('tnav-disabled',!fn);},get:function(){return _tnb;},configurable:true});
-    prevBtn.addEventListener('click',function(){if(window._themeNavBack)window._themeNavBack();});
-    var picker=document.getElementById('tnav-picker');
-    document.getElementById('tnav-center').addEventListener('click',function(){picker.style.display='flex';document.getElementById('tnav-picker-q').focus();loadThemeList();});
-    document.getElementById('tnav-picker-close').addEventListener('click',function(){picker.style.display='none';});
-    picker.addEventListener('click',function(e){if(e.target===picker)picker.style.display='none';});
-    document.getElementById('tnav-picker-q').addEventListener('input',function(){var q=this.value.toLowerCase();document.querySelectorAll('.tnav-item').forEach(function(el){var t=(el.querySelector('.tnav-name')||{textContent:''}).textContent.toLowerCase();var d=(el.querySelector('.tnav-desc')||{textContent:''}).textContent.toLowerCase();el.style.display=(t.includes(q)||d.includes(q))?'flex':'none';});});
-    async function loadThemeList(){
-      if(_cache){renderThemeList(_cache);return;}
-      try{var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});if(r.ok){_cache=await r.json();}else throw new Error();}
-      catch(e){_cache=[{filename:'wikipedia.theme.html',name:'Wikipedia',icon:'📖',description:'Free encyclopedia, redesigned'},{filename:'nasa.theme.html',name:'NASA',icon:'🚀',description:'Space images and open data'},{filename:'met.theme.html',name:'The Met',icon:'🏛',description:'400k artworks, free access'},{filename:'hackernews.theme.html',name:'Hacker News',icon:'🔶',description:'Tech news and discussions'},{filename:'github-trends.theme.html',name:'GitHub Trends',icon:'⭐',description:'Trending repos with README'}];}
-      renderThemeList(_cache);
-    }
-    function renderThemeList(themes){
-      var list=document.getElementById('tnav-picker-list');list.innerHTML='';
-      themes.forEach(function(t){
-        var url=t.codeUrl||(RAW+t.filename);var isCur=_cur&&_cur.includes(t.filename);
-        var el=document.createElement('div');el.className='tnav-item'+(isCur?' tnav-current':'');
-        el.innerHTML='<div class="tnav-icon">'+esc(t.icon||'⬡')+'</div><div class="tnav-info"><div class="tnav-name">'+esc(t.name||t.filename)+'</div><div class="tnav-desc">'+esc(t.description||'')+'</div></div>'+(isCur?'<div class="tnav-badge">current</div>':'');
-        el.addEventListener('click',function(){localStorage.setItem('ym_prev_theme',_cur);localStorage.setItem('ym_theme_url',url);localStorage.removeItem('ym_theme_cache');picker.style.display='none';location.reload();});
-        list.appendChild(el);
+    // Si themes : Photo + Video pills
+    if(isThemeLike){
+      TYPE_THEME_EXTRA.forEach(opt=>{
+        const p=document.createElement('span');
+        p.className='pill'+(_listType===opt.id?' active':'');
+        p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+        p.textContent=opt.label;
+        p.addEventListener('click',()=>{
+          _listType=(_listType===opt.id?'themes':opt.id);
+          renderFilterRow();switchType();
+        });
+        filterRow.appendChild(p);
       });
     }
-    document.getElementById('theme-custom-btn')&&document.getElementById('theme-custom-btn').addEventListener('click',function(){var inp=document.getElementById('theme-custom-input');var url=(inp?inp.value:'').trim();if(!url)return;var u=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem('ym_prev_theme',_cur);localStorage.setItem('ym_theme_url',u);localStorage.removeItem('ym_theme_cache');location.reload();});
-  },0);
 
-  showHome();
-  loadFeatured();
-  var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
-  obs.observe(document.body,{childList:true,subtree:false});
+    // Category pill (spheres only)
+    if(_listType==='spheres'){
+      const cPill=document.createElement('span');
+      cPill.className='pill'+(curCat!=='All'?' active':'');
+      cPill.dataset.drop='cat';
+      cPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+      cPill.textContent=(curCat==='All'?'Category':'⬡ '+curCat)+' ▾';
+      cPill.addEventListener('click',()=>{
+        _openDrop('cat',CAT_OPTS.map(c=>({id:c,label:c,active:c===curCat})),opt=>{
+          _filterCat=opt.id==='All'?'':opt.id;
+          _listPage=0;renderFilterRow();renderList(content);
+        });
+      });
+      filterRow.appendChild(cPill);
+    }
+
+    // Status pill
+    const sPill=document.createElement('span');
+    sPill.className='pill'+(curStatus!=='all'?' active':'');
+    sPill.dataset.drop='status';
+    sPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+    sPill.textContent=(curStatus==='all'?'Status':STATUS_OPTS.find(s=>s.id===curStatus)?.label||'Status')+' ▾';
+    sPill.addEventListener('click',()=>{
+      _openDrop('status',STATUS_OPTS.map(s=>({...s,active:s.id===curStatus})),opt=>{
+        _filterActive=opt.id==='active';
+        _listShowWip=opt.id==='wip';
+        if(opt.id==='active')_listShowWip=false;
+        if(opt.id==='wip')_filterActive=false;
+        if(opt.id==='all'){_filterActive=false;_listShowWip=false;}
+        _listPage=0;renderFilterRow();
+        if(_listType==='spheres')renderList(content);
+        else{const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
+      });
+    });
+    filterRow.appendChild(sPill);
+  }
+
+  function buildWipToggle(){
+    // WIP now handled by Status dropdown pill — keep empty for compatibility
+    wipRow.style.display='none';
+  }
+
+  function switchType(){
+    content.innerHTML='';
+    _filterCat='';_filterActive=false;_listShowWip=false;
+    buildWipToggle();
+    renderFilterRow();
+    if(_listType==='spheres')renderSpheresContent(content,null);
+    else if(_listType==='themes')renderThemesContent(content,null);
+    else if(_listType==='photo')renderPhotoContent(content);
+    else if(_listType==='video')renderVideoContent(content);
+  }
+
+  const zoneCfg=window.YM_ZONE_CONFIG;
+  if(zoneCfg?.spheresOnly){
+    _listType='spheres';
+    filterRow.style.display='none';
+    dropdownPanel.style.display='none';
+    wipRow.style.display='none';
+  }
+
+  if(!_loaded)await fetchSphereList();
+  switchType();
+}
+
+const THEMES_FILES_URL = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
+let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='Theme';
+
+const PLATFORMS=[
+  {id:'bolt',       label:'Bolt',         icon:'⚡', hint:'ID ex: sb1-abc123',
+   resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
+  {id:'replit',     label:'Replit',        icon:'🔁', hint:'@user/repl-name',
+   resolve:id=>{const m=id.match(/^@?([\w-]+)\/([\w-]+)$/);return m?'https://'+m[2]+'.'+m[1]+'.repl.co':'https://replit.com/'+id;}},
+  {id:'codesandbox',label:'CodeSandbox',   icon:'📦', hint:'ID ex: r3f-game-abc123',
+   resolve:id=>'https://codesandbox.io/embed/'+id+'?fontsize=14&hidenavigation=1&theme=dark'},
+  {id:'stackblitz', label:'StackBlitz',    icon:'⚡', hint:'ID ex: vitejs-vite-abc123',
+   resolve:id=>'https://stackblitz.com/edit/'+id+'?embed=1&view=preview'},
+  {id:'ghpages',    label:'GitHub Pages',  icon:'🐙', hint:'user/repo',
+   resolve:id=>{const p=id.split('/');return'https://'+p[0]+'.github.io/'+(p.slice(1).join('/')||'')}},
+  {id:'url',        label:'URL directe',   icon:'🌐', hint:'https://monapp.com',
+   resolve:id=>(/^https?:\/\//i.test(id)?id:'https://'+id)},
+];
+
+let _selPlatform=null;
+
+function _resolveExtURL(input){
+  input=(input||'').trim();if(!input)return null;
+  if(/^https?:\/\//i.test(input)&&!_selPlatform)return input;
+  if(_selPlatform){const p=PLATFORMS.find(x=>x.id===_selPlatform);if(p)return p.resolve(input);}
+  if(input.includes('stackblitz.com')||input.includes('bolt.new'))return input+'?embed=1&view=preview';
+  if(input.includes('replit.com')||input.includes('.repl.co'))return input;
+  if(input.includes('codesandbox.io'))return input.replace('/s/','/embed/');
+  if(input.includes('github.io'))return input;
+  if(/^@?[\w-]+\/[\w-]+$/.test(input)){const p2=input.split('/');return'https://'+p2[0].replace('@','')+'.github.io/'+p2[1];}
+  if(/^[\w-]+$/.test(input))return'https://stackblitz.com/edit/'+input+'?embed=1&view=preview';
+  return'https://'+input;
+}
+
+async function fetchThemesList(force){
+  if(_themesList&&!force)return _themesList;
+  try{
+    const r=await fetch(THEMES_FILES_URL+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status+' — '+THEMES_FILES_URL);
+    const data=await r.json();
+    if(!Array.isArray(data))throw new Error('themes-files.json n\'est pas un tableau');
+    _themesList=data;
+    _themesLoaded=true;
+    return _themesList;
+  }catch(e){
+    console.error('[YM] fetchThemesList failed:',e.message);
+    window.YM_toast?.('Themes: '+e.message,'error');
+    _themesList=[];_themesLoaded=true;return _themesList;
+  }
+}
+
+async function renderThemesContent(container,catRow){
+  const GH_BLOB_BASE='https://github.com/';
+  const curThemeUrl=localStorage.getItem('ym_theme_url')||'';
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML=
+    '<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
+      '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
+    '</div>';
+  _themeFilterCat='Theme';
+  const themes=await fetchThemesList();
+  _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes);
+}
+
+async function renderPhotoContent(container){
+  const curThemeUrl=localStorage.getItem('ym_theme_url')||'';
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML='<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0"><div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div></div>';
+  _themeFilterCat='Photo';
+  const themes=await fetchThemesList();
+  _renderThemeCards(container,curThemeUrl,'https://github.com/',themes);
+}
+
+async function renderVideoContent(container){
+  const curThemeUrl=localStorage.getItem('ym_theme_url')||'';
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML='<div id="theme-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0"><div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div></div>';
+  _themeFilterCat='Video';
+  const themes=await fetchThemesList();
+  _renderThemeCards(container,curThemeUrl,'https://github.com/',themes);
+}
+
+function _addThemeIcon(theme, rawUrl){
+  if(!window.YM_Desk || !window.YM_Desk.addIcon) return;
+  const id='theme_'+(theme.filename||theme.name||'theme').replace(/[^a-z0-9]/gi,'_');
+  const label=theme.name||(theme.filename||'').replace(/\.theme\.html$/,'').replace(/[-_]/g,' ');
+  const icon=theme.icon||'🎨';
+  const page=window._deskCurPage||0;
+  window.YM_Desk.addIcon(id, icon, label, page, {type:'theme', themeUrl:rawUrl});
+}
+
+let _themeActivating=false;
+
+function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
+  const listEl=container.querySelector('#theme-list-inner');if(!listEl)return;
+  const list=themes||_themesList||[];
+
+  let filtered=list;
+  if(_themeSearch)filtered=filtered.filter(t=>
+    (t.name||'').toLowerCase().includes(_themeSearch)||
+    (t.description||'').toLowerCase().includes(_themeSearch)||
+    (t.ghAuthor||'').toLowerCase().includes(_themeSearch)
+  );
+
+  if(!filtered.length){
+    listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0;line-height:1.8">'+(list.length?'Aucun résultat.':'Aucun thème dans <a href="'+THEMES_FILES_URL+'" target="_blank" rel="noopener" style="color:var(--cyan);font-size:10px">themes-files.json ↗</a>')+'</div>';
+    return;
+  }
+
+  listEl.innerHTML='';
+
+  if(_themeFilterCat==='Photo'){
+    const grid=document.createElement('div');
+    grid.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);gap:6px';
+    let hasPhotos=false;
+    filtered.forEach(t=>{
+      const photos=(t.media&&t.media.photos)||[];
+      photos.forEach(url=>{
+        hasPhotos=true;
+        const wrap=document.createElement('div');
+        wrap.style.cssText='position:relative;cursor:pointer;border-radius:8px;overflow:hidden;aspect-ratio:16/9;background:#111';
+        wrap.innerHTML='<img src="'+esc(url)+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'+
+          '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.7));font-size:9px;color:#fff">'+esc(t.name||'')+'</div>';
+        wrap.addEventListener('click',()=>{
+          localStorage.setItem('ym_theme_url',t.codeUrl||'');
+          localStorage.setItem('ym_wallpaper',url);
+          localStorage.removeItem('ym_theme_cache');
+          window.YM_toast?.('Thème + photo — rechargement…','success');
+          setTimeout(()=>location.reload(),1000);
+        });
+        grid.appendChild(wrap);
+      });
+    });
+    if(hasPhotos) listEl.appendChild(grid);
+    else listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0">Aucune photo dans ces thèmes.</div>';
+    return;
+  }
+
+  if(_themeFilterCat==='Video'){
+    let hasVideos=false;
+    filtered.forEach(t=>{
+      const videos=(t.media&&t.media.videos)||[];
+      if(!videos.length)return;
+      hasVideos=true;
+      const section=document.createElement('div');
+      section.style.cssText='margin-bottom:10px';
+      section.innerHTML='<div style="font-size:10px;font-weight:700;color:var(--accent);margin-bottom:6px">'+esc(t.name||'')+'</div>';
+      videos.forEach(url=>{
+        const a=document.createElement('a');
+        a.href=url;a.target='_blank';a.rel='noopener';
+        a.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid rgba(8,224,248,.2);border-radius:8px;text-decoration:none;margin-bottom:4px;color:var(--cyan);font-size:11px';
+        a.innerHTML='▶ '+esc(url.replace(/^https?:\/\//,'').split('/')[0]);
+        section.appendChild(a);
+      });
+      listEl.appendChild(section);
+    });
+    if(!hasVideos) listEl.innerHTML='<div style="color:var(--text3);font-size:11px;padding:8px 0">Aucune vidéo dans ces thèmes.</div>';
+    return;
+  }
+
+  // ── THEME CARDS with inline action bar ──────────────────────────────────
+  let _openThemeCard = null; // track which card is expanded
+
+  filtered.forEach(t=>{
+    const rawUrl=t.codeUrl||('https://raw.githubusercontent.com/'+t.ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/src/themes/'+(t.filename||t.name+'.html'));
+    const isCur=curThemeUrl===rawUrl;
+    const ghCodeUrl=t.codeUrl?t.codeUrl.replace('https://raw.githubusercontent.com/','https://github.com/').replace('/'+REPO_BRANCH+'/','/blob/'+REPO_BRANCH+'/'):null;
+    const siteUrl=t.siteUrl||ghCodeUrl||null;
+    const iconIsUrl=t.icon&&(t.icon.startsWith('http')||t.icon.startsWith('/'));
+    const iconHtml=iconIsUrl
+      ?'<img src="'+esc(t.icon)+'" style="width:40px;height:40px;object-fit:cover;border-radius:8px;flex-shrink:0">'
+      :'<div style="width:40px;height:40px;border-radius:8px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">'+(t.icon||'🎨')+'</div>';
+
+    const card=document.createElement('div');
+    card.className='ym-card';
+    card.style.cssText='cursor:pointer;transition:border-color .2s'+(isCur?';border-color:var(--accent-dim)':'');
+
+    const infoHtml=
+      '<div style="display:flex;align-items:center;gap:12px">'+
+        iconHtml+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">'+
+            '<div style="font-weight:600;font-size:14px;color:var(--text)">'+esc(t.name||t.filename||'?')+'</div>'+
+            (t.wip?'<span style="font-size:9px;color:#f0a830;padding:1px 5px;border:1px solid rgba(240,168,48,.3);border-radius:4px">🚧 WIP</span>':'')+
+            (isCur?'<span style="font-size:9px;color:#22d3ee;padding:1px 5px;border:1px solid rgba(34,211,238,.3);border-radius:4px">✓ actif</span>':'')+
+          '</div>'+
+          '<div style="font-size:9px;color:var(--text3);margin-bottom:4px">by <b style="color:var(--accent)">@'+esc(t.ghAuthor||'unknown')+'</b></div>'+
+          '<div style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(t.description||'—')+'</div>'+
+        '</div>'+
+        '<div style="font-size:18px;color:var(--text3);flex-shrink:0;transition:transform .2s" data-chevron>›</div>'+
+      '</div>';
+
+    card.innerHTML=infoHtml;
+
+    // action bar (hidden initially)
+    const bar=_makeActionBar([
+      {icon:'↗', label:'Share', style:BTN_GHOST, id:'share', onClick:()=>{
+        const shareUrl=rawUrl;
+        if(navigator.share){navigator.share({title:t.name,url:shareUrl}).catch(()=>{});}
+        else{navigator.clipboard?.writeText(shareUrl);window.YM_toast?.('URL copiée','success');}
+      }},
+      {icon:'⎋', label:'Site', style:BTN_GHOST, id:'site', onClick:()=>{
+        const u=siteUrl||rawUrl;
+        window.open(u,'_blank','noopener');
+      }},
+      {icon:'</>',label:'Code', style:BTN_CYAN, id:'code', onClick:()=>{
+        if(ghCodeUrl)window.open(ghCodeUrl,'_blank','noopener');
+        else window.YM_toast?.('Pas de lien code disponible','info');
+      }},
+      {icon:'▶', label:isCur?'Actif':'Activer', style:isCur?BTN_GHOST:BTN_ACCENT, id:'activate', onClick:async(btn)=>{
+        if(isCur){window.YM_toast?.('Déjà actif','info');return;}
+        if(_themeActivating)return;
+        _themeActivating=true;
+        btn.textContent='…';
+        localStorage.setItem('ym_theme_url',rawUrl);
+        localStorage.removeItem('ym_theme_cache');
+        window.YM_toast?.('Thème — rechargement…','success');
+        setTimeout(()=>{if(window._YM_softReload)window._YM_softReload();else location.reload();},400);
+      }},
+      {icon:'⊞', label:'Bureau', style:BTN_GHOST, id:'desk', onClick:()=>{
+        _addThemeIcon(t,rawUrl);
+        window.YM_toast?.('Icône ajoutée au bureau','success');
+      }},
+    ]);
+    bar.style.display='none';
+    card.appendChild(bar);
+
+    card.addEventListener('click',e=>{
+      if(e.target.closest('a')||e.target.closest('button'))return;
+      const isOpen=bar.style.display!=='none';
+      // close previously open card
+      if(_openThemeCard&&_openThemeCard!==card){
+        const prevBar=_openThemeCard.querySelector('[data-action-bar]');
+        if(prevBar)prevBar.style.display='none';
+        const prevChev=_openThemeCard.querySelector('[data-chevron]');
+        if(prevChev){prevChev.style.transform='';prevChev.textContent='›';}
+      }
+      bar.style.display=isOpen?'none':'flex';
+      bar.dataset.actionBar='1';
+      const chev=card.querySelector('[data-chevron]');
+      if(chev){chev.style.transform=isOpen?'':'rotate(90deg)';chev.textContent=isOpen?'›':'⌃';}
+      _openThemeCard=isOpen?null:card;
+    });
+
+    listEl.appendChild(card);
+  });
+}
+
+const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent'];
+function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
+
+function renderLinkContent(container){
+  container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden;padding:16px;gap:10px';
+
+  let _mode='url';
+  const tabs=document.createElement('div');
+  tabs.style.cssText='display:flex;gap:4px';
+  ['url','code'].forEach(m=>{
+    const t=document.createElement('button');
+    t.className='ym-btn '+(_mode===m?'ym-btn-accent':'ym-btn-ghost');
+    t.style.cssText='font-size:10px;flex:1';
+    t.textContent=m==='url'?'🔗 URL':'</> Code';
+    t.onclick=()=>{_mode=m;renderMode();};
+    tabs.appendChild(t);
+  });
+  container.appendChild(tabs);
+
+  const body=document.createElement('div');
+  body.style.cssText='display:flex;flex-direction:column;gap:10px;flex:1;min-height:0';
+  container.appendChild(body);
+
+  function setTabStyles(){
+    tabs.querySelectorAll('button').forEach((t,i)=>{
+      t.className='ym-btn '+((i===0&&_mode==='url')||(i===1&&_mode==='code')?'ym-btn-accent':'ym-btn-ghost');
+    });
+  }
+
+  function detectType(url){
+    if(url.endsWith('.js'))return 'sphere';
+    if(url.endsWith('.html'))return 'theme';
+    return null;
+  }
+
+  async function execAndActivate(code){
+    const blob=new Blob([code],{type:'text/javascript'});
+    const blobUrl=URL.createObjectURL(blob);
+    const before=new Set(Object.keys(window.YM_S||{}));
+    await new Promise((res,rej)=>{
+      const s=document.createElement('script');s.src=blobUrl;
+      s.onload=()=>{URL.revokeObjectURL(blobUrl);res();};
+      s.onerror=()=>{URL.revokeObjectURL(blobUrl);rej(new Error('Erreur de syntaxe JS — vérifie la console'));};
+      document.head.appendChild(s);
+    });
+    const newKey=Object.keys(window.YM_S||{}).find(k=>!before.has(k));
+    if(!newKey)throw new Error('Aucune sphère enregistrée — le code doit faire window.YM_S[\'nom\']={}');
+    const obj=window.YM_S[newKey];
+    const missing=['name','icon','category','activate'].filter(f=>!obj[f]);
+    if(missing.length)throw new Error('Champs manquants: '+missing.join(', '));
+    if(!window.YM)throw new Error('Runtime YM non disponible');
+    await window.YM.activateSphere(newKey,obj);
+    window.YM_toast?.('⬡ '+obj.name+' activée','success');
+  }
+
+  function makeTypeToggle(initial,onChange){
+    let cur=initial;
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;gap:4px';
+    ['sphere','theme'].forEach(t=>{
+      const b=document.createElement('button');
+      b.className='ym-btn '+(cur===t?'ym-btn-accent':'ym-btn-ghost');
+      b.style.cssText='font-size:10px;flex:1';
+      b.textContent=t==='sphere'?'⬡ Sphere':'🎨 Thème';
+      b.onclick=()=>{
+        cur=t;
+        row.querySelectorAll('button').forEach((x,i)=>{
+          x.className='ym-btn '+((i===0&&cur==='sphere')||(i===1&&cur==='theme')?'ym-btn-accent':'ym-btn-ghost');
+        });
+        onChange(cur,row);
+      };
+      row.appendChild(b);
+    });
+    row._getCur=()=>cur;
+    row._setCur=(t)=>{
+      cur=t;
+      row.querySelectorAll('button').forEach((x,i)=>{
+        x.className='ym-btn '+((i===0&&cur==='sphere')||(i===1&&cur==='theme')?'ym-btn-accent':'ym-btn-ghost');
+      });
+    };
+    return row;
+  }
+
+  function renderMode(){
+    setTabStyles();
+    body.innerHTML='';
+    if(_mode==='url'){
+      const inp=document.createElement('input');
+      inp.className='ym-input';
+      inp.placeholder='https://… (.js → sphere, .html → thème)';
+      inp.style.cssText='font-size:11px;width:100%;box-sizing:border-box';
+      const hint=document.createElement('div');
+      hint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-accent';
+      btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
+      btn.textContent='▶ Plug';
+      body.appendChild(inp);body.appendChild(hint);body.appendChild(btn);
+
+      inp.addEventListener('input',()=>{
+        const v=inp.value.trim();
+        const t=detectType(v);
+        if(t==='sphere')hint.textContent='⬡ Sphere';
+        else if(t==='theme')hint.textContent='🎨 Thème';
+        else if(v)hint.textContent='Extension non reconnue — utilise .js ou .html';
+        else hint.textContent='';
+      });
+
+      const doPlug=async()=>{
+        const url=inp.value.trim();if(!url)return;
+        if(!/^https?:\/\//i.test(url)){window.YM_toast?.('URL invalide','error');return;}
+        const type=detectType(url);
+        if(!type){window.YM_toast?.('Extension non reconnue — utilise .js ou .html','error');return;}
+        btn.textContent='…';btn.disabled=true;
+        try{
+          if(type==='theme'){
+            localStorage.setItem('ym_theme_url',url);
+            localStorage.removeItem('ym_theme_cache');
+            window.YM_toast?.('Thème — rechargement…','success');
+            setTimeout(()=>location.reload(),400);
+          }else{
+            const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
+            if(!r.ok)throw new Error('Fetch échoué: HTTP '+r.status);
+            await execAndActivate(await r.text());
+            inp.value='';hint.textContent='';
+          }
+        }catch(e){window.YM_toast?.(e.message,'error');}
+        btn.textContent='▶ Plug';btn.disabled=false;
+      };
+      btn.addEventListener('click',doPlug);
+      inp.addEventListener('keydown',e=>{if(e.key==='Enter')doPlug();});
+
+    }else{
+      const typeRow=makeTypeToggle('sphere',()=>{});
+      const ta=document.createElement('textarea');
+      ta.className='ym-input';
+      ta.placeholder='Colle ton code ici…';
+      ta.style.cssText='font-size:10px;font-family:monospace;flex:1;min-height:120px;resize:none;width:100%;box-sizing:border-box';
+      const codeHint=document.createElement('div');
+      codeHint.style.cssText='font-size:10px;color:var(--text3);min-height:14px';
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-accent';
+      btn.style.cssText='font-size:12px;padding:8px;font-weight:700';
+      btn.textContent='▶ Plug';
+      body.appendChild(typeRow);body.appendChild(ta);body.appendChild(codeHint);body.appendChild(btn);
+
+      function detectCodeType(code){
+        const s=code.trimStart();
+        if(s.includes('window.YM_S['))return 'sphere';
+        if(s.includes('window.YM_THEME_META')||s.startsWith('<'))return 'theme';
+        return null;
+      }
+      ta.addEventListener('input',()=>{
+        const t=detectCodeType(ta.value);
+        if(t){typeRow._setCur(t);codeHint.textContent=t==='sphere'?'⬡ Sphere détectée':'🎨 Thème détecté';}
+        else{codeHint.textContent='';}
+      });
+
+      btn.addEventListener('click',async()=>{
+        const code=ta.value.trim();if(!code)return;
+        btn.textContent='…';btn.disabled=true;
+        try{
+          if(typeRow._getCur()==='theme'){
+            const blob=new Blob([code],{type:'text/html'});
+            const blobUrl=URL.createObjectURL(blob);
+            localStorage.setItem('ym_theme_url',blobUrl);
+            localStorage.removeItem('ym_theme_cache');
+            window.YM_toast?.('Thème — rechargement…','success');
+            setTimeout(()=>location.reload(),400);
+          }else{
+            await execAndActivate(code);
+            ta.value='';
+          }
+        }catch(e){window.YM_toast?.(e.message,'error');}
+        btn.textContent='▶ Plug';btn.disabled=false;
+      });
+    }
+  }
+  renderMode();
+}
+
+function renderSpheresContent(container,catRow){
+  container.style.cssText='display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden';
+  container.innerHTML=
+    '<div id="sphere-list-inner" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 16px;min-height:0">'+
+      '<div style="color:var(--text3);font-size:12px;padding:8px 0">Chargement…</div>'+
+    '</div>';
+
+  if(catRow){
+    const FIXED_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent','Autres'];
+    function renderCatPills(){
+      catRow.innerHTML='';
+      if(window.YM_ZONE_CONFIG?.socialFilters){
+        [{id:'near',label:'Near'},{id:'contacts',label:'Contacts'}].forEach(opt=>{
+          const isActive=_filterSocial===opt.id;
+          const p=document.createElement('span');
+          p.className='pill'+(isActive?' active':'');
+          p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+          p.textContent=opt.label;
+          p.addEventListener('click',()=>{
+            _filterSocial=isActive?null:opt.id;
+            renderCatPills();renderList(container);
+          });
+          catRow.appendChild(p);
+        });
+      }else{
+        ['Tous','Actifs',...FIXED_CATS].forEach(c=>{
+          const isActive=c==='Tous'?(!_filterCat&&!_filterActive):c==='Actifs'?_filterActive:(!_filterActive&&_filterCat===c);
+          const p=document.createElement('span');
+          p.className='pill'+(isActive?' active':'');
+          p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+          p.textContent=c;
+          p.addEventListener('click',()=>{
+            if(c==='Tous'){_filterCat='';_filterActive=false;}
+            else if(c==='Actifs'){_filterActive=!_filterActive;_filterCat='';}
+            else{_filterCat=c;_filterActive=false;}
+            renderCatPills();renderList(container);
+          });
+          catRow.appendChild(p);
+        });
+      }
+    }
+    renderCatPills();
+  }
+
+  renderList(container);
+  // Guard against parallel fetches — only one at a time
+  if(!window._ymListeFetching){
+    window._ymListeFetching=true;
+    fetchSphereList().then(()=>{
+      window._ymListeFetching=false;
+      // Re-render only if container still in DOM
+      if(document.body.contains(container))renderList(container);
+    }).catch(()=>{window._ymListeFetching=false;});
+  }
+}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function _updateCardInPlace(card,sphere,active){
+  const nameLine=card.querySelector('[data-name-line]');
+  if(nameLine){
+    const badge=nameLine.querySelector('.pill');
+    if(active&&!badge){
+      const b=document.createElement('span');b.className='pill active';b.textContent='active';nameLine.appendChild(b);
+    }else if(!active&&badge)badge.remove();
+  }
+  // close bar so it rebuilds fresh on next open
+  const openBar=card.querySelector('[data-bar-el]');
+  if(openBar){openBar.style.display='none';}
+  const chev=card.querySelector('[data-chevron]');
+  if(chev){chev.style.transform='';chev.textContent='›';}
+}
+
+function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
+  const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
+  const siteUrl=sphere.siteUrl||null;
+  const bar=_makeActionBar([
+    {icon:'↗',label:'Share',style:BTN_GHOST,id:'share',onClick:()=>{
+      const u=sphere.codeUrl||sphere.url||ghAuthorUrl;
+      if(navigator.share){navigator.share({title:sphere.name,url:u}).catch(()=>{});}
+      else{navigator.clipboard?.writeText(u);window.YM_toast?.('URL copiée','success');}
+    }},
+    {icon:'⎋',label:'Site',style:BTN_GHOST,id:'site',onClick:()=>{window.open(siteUrl||ghAuthorUrl,'_blank','noopener');}},
+    {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
+    ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
+      btn.innerHTML='…';btn.style.pointerEvents='none';
+      await deactivateSphere(sphere);
+      // Full re-render of list content only
+      const _lbOff=document.getElementById('list-content');
+      if(_lbOff){_listPage=0;renderList(_lbOff);}
+    }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
+      btn.innerHTML='…';btn.style.pointerEvents='none';
+      card.style.opacity='.6';
+      await activateSphere(sphere);
+      card.style.opacity='1';
+      // Full re-render of list content only
+      const _lbOn=document.getElementById('list-content');
+      if(_lbOn){_listPage=0;renderList(_lbOn);}
+    }}] : []),
+  ]);
+  bar.dataset.barEl='1';
+  bar.style.display='none';
+  return bar;
+}
+
+function renderList(body){
+  const listEl=body.querySelector('#sphere-list-inner');if(!listEl)return;
+  if(!_sphereList.length){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No spheres published yet.</div>';return;}
+
+  let filtered=_sphereList;
+  if(_filterText)filtered=filtered.filter(s=>(s.name||'').toLowerCase().includes(_filterText)||(s.description||'').toLowerCase().includes(_filterText)||(s.ghAuthor||'').toLowerCase().includes(_filterText)||(s.category||'').toLowerCase().includes(_filterText));
+  if(_filterCat)filtered=filtered.filter(s=>normCat(s.category||'')===_filterCat||(_filterCat==='Autres'&&!STD_CATS.includes(s.category||'')));
+  if(_filterActive)filtered=filtered.filter(s=>isSphereActive(s.fileName));
+  if(_listShowWip)filtered=filtered.filter(s=>s.wip);
+  if(_filterSocial==='near'){
+    const near=window._ymNearSpheres;
+    if(!near||!near.size){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px 0;text-align:center">No nearby peers detected.</div>';return;}
+    filtered=filtered.filter(s=>near.has(s.fileName));
+  }
+  if(_filterSocial==='contacts'){
+    const contactSpheres=new Set();
+    try{const p=JSON.parse(localStorage.getItem('ym_profile_v1')||'{}');(p.contacts||[]).forEach(c=>(c.spheres||[]).forEach(s=>contactSpheres.add(s)));}catch{}
+    if(!contactSpheres.size){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:16px 0;text-align:center">No contacts with shared spheres.</div>';return;}
+    filtered=filtered.filter(s=>contactSpheres.has(s.fileName));
+  }
+  if(!filtered.length){listEl.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No spheres found.</div>';return;}
+
+  // Reset page on fresh render (search/filter change resets page)
+  if(listEl.dataset.filtered!==JSON.stringify(filtered.map(s=>s.fileName))){
+    _listPage=0;
+    listEl.dataset.filtered=JSON.stringify(filtered.map(s=>s.fileName));
+  }
+
+  listEl.innerHTML='';
+
+  let _openSphereCard = null; // track expanded card
+
+  function rebuildBar(card, sphere, isActive){
+    const oldBar=card.querySelector('[data-bar-el]');
+    const wasOpen=oldBar&&oldBar.style.display!=='none';
+    const newBar=_buildSphereActionBar(sphere,isActive,card,()=>_openSphereCard,(v)=>{_openSphereCard=v;});
+    if(wasOpen){newBar.style.display='flex';_openSphereCard=card;}
+    if(oldBar)oldBar.replaceWith(newBar);
+    else card.appendChild(newBar);
+  }
+
+  function renderPage(page){
+    const start=page*PAGE_SIZE;
+    const slice=filtered.slice(start,start+PAGE_SIZE);
+    slice.forEach(sphere=>{
+    const active=isSphereActive(sphere.fileName);
+    const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
+    const siteUrl=sphere.siteUrl||null;
+    const iconIsUrl=sphere.icon&&(sphere.icon.startsWith('http')||sphere.icon.startsWith('/'));
+    const iconHtml=iconIsUrl?'<img src="'+sphere.icon+'" style="width:34px;height:34px;border-radius:6px;object-fit:contain">':'<span style="font-size:34px;line-height:1">'+sphere.icon+'</span>';
+    const wipBadge=sphere.wip?'<span style="font-size:9px;color:#f0a830;padding:1px 5px;border:1px solid rgba(240,168,48,.3);border-radius:4px;line-height:1.6;flex-shrink:0">🚧 WIP</span>':'';
+
+    const card=document.createElement('div');
+    card.className='ym-card';
+    card.dataset.sphere=sphere.fileName;
+    card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s'+(active?';border-color:var(--accent-dim)':'');
+
+    card.innerHTML=
+      '<div style="display:flex;align-items:center;gap:12px">'+
+        '<div class="sphere-icon-el" style="flex-shrink:0;line-height:1">'+iconHtml+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div data-name-line style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px">'+
+            '<div class="sphere-name-el" style="font-weight:600;font-size:14px;color:var(--text)">'+esc(sphere.name)+'</div>'+
+            (active?'<span class="pill active">active</span>':'')+
+            wipBadge+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap">'+
+            '<span style="font-size:10px;color:var(--text3)">'+esc(sphere.category)+'</span>'+
+            '<span style="color:var(--text3);font-size:9px">·</span>'+
+            '<span style="font-size:9px;color:var(--text3)">by <b style="color:var(--accent)">@'+esc(sphere.ghAuthor||'unknown')+'</b></span>'+
+          '</div>'+
+          '<div class="sphere-desc-el" style="font-size:12px;color:var(--text2);line-height:1.4">'+esc(sphere.description||'—')+'</div>'+
+        '</div>'+
+        '<div style="font-size:18px;color:var(--text3);flex-shrink:0;transition:transform .2s" data-chevron>›</div>'+
+      '</div>';
+
+    // ── inline action bar ──
+    const bar=_buildSphereActionBar(sphere,active,card,()=>_openSphereCard,(v)=>{_openSphereCard=v;});
+    card.appendChild(bar);
+
+    // click on card header toggles bar
+    card.addEventListener('click',e=>{
+      if(e.target.closest('button')||e.target.closest('a'))return;
+      const isOpen=bar.style.display!=='none';
+      // close other open card
+      if(_openSphereCard&&_openSphereCard!==card){
+        const prevBar=_openSphereCard.querySelector('div[style*="flex-wrap"]');
+        // find the action bar div (last child)
+        const prevBars=_openSphereCard.querySelectorAll(':scope > div');
+        prevBars.forEach(d=>{ if(d.dataset.barEl) d.style.display='none'; });
+        const prevChev=_openSphereCard.querySelector('[data-chevron]');
+        if(prevChev){prevChev.style.transform='';prevChev.textContent='›';}
+      }
+      bar.dataset.barEl='1';
+      bar.style.display=isOpen?'none':'flex';
+      const chev=card.querySelector('[data-chevron]');
+      if(chev){chev.style.transform=isOpen?'':'rotate(90deg)';chev.textContent=isOpen?'›':'⌃';}
+      _openSphereCard=isOpen?null:card;
+    });
+
+    listEl.appendChild(card);
+    }); // end slice.forEach
+  } // end renderPage
+
+  // Render first page
+  renderPage(_listPage);
+
+  // Load more indicator
+  if(filtered.length > PAGE_SIZE){
+    const total=document.createElement('div');
+    total.style.cssText='font-size:9px;color:var(--text3);text-align:center;padding:8px 0;font-family:var(--font-m)';
+    total.id='crm-page-total';
+    total.textContent='Showing '+(Math.min((_listPage+1)*PAGE_SIZE,filtered.length))+' of '+filtered.length;
+    listEl.appendChild(total);
+
+    // Sentinel for infinite scroll
+    const sentinel=document.createElement('div');
+    sentinel.id='list-scroll-sentinel';
+    sentinel.style.cssText='height:1px;margin-top:4px';
+    listEl.appendChild(sentinel);
+
+    const obs=new IntersectionObserver(function(entries){
+      if(!entries[0].isIntersecting)return;
+      const nextStart=(_listPage+1)*PAGE_SIZE;
+      if(nextStart>=filtered.length){obs.disconnect();return;}
+      _listPage++;
+      renderPage(_listPage);
+      // Update total
+      const tot=listEl.querySelector('#crm-page-total');
+      if(tot)tot.textContent='Showing '+Math.min((_listPage+1)*PAGE_SIZE,filtered.length)+' of '+filtered.length;
+      // Move sentinel to end
+      listEl.appendChild(sentinel);
+      listEl.appendChild(tot);
+    },{root:listEl.closest('[style*="overflow"]')||null,threshold:0.1});
+    obs.observe(sentinel);
+  }
+}
+
+function _setInactive(fileName){setActiveSpheres(getActiveSpheres().filter(s=>s!==fileName));}
+
+window.YM_Liste={render,fetchSphereList,activateSphereByName,isSphereActive,_setInactive,renderPlugContent:renderLinkContent,
+  get _sphereList(){return _sphereList;},
+  get _themesList(){return _themesList;},
+  _forceRefresh(){_loaded=false;_sphereList=[];_fetchPromise=null;_themesList=null;_themesLoaded=false;},
+  _searchAndOpen(term){_filterText=(term||'').toLowerCase();render();}
+};
+
+(async()=>{
+  await fetchSphereList();
+  const p=window.YM?.getProfile?.();
+  const active=p?.spheres||[];
+  if(active.length){
+    for(const fileName of active){
+      if(!isSphereActive(fileName)){
+        const sphere=_sphereList.find(s=>s.fileName===fileName);
+        if(sphere)setActiveSpheres([...getActiveSpheres(),fileName]);
+      }
+    }
+  }
 })();
-</script>
+
+})();
