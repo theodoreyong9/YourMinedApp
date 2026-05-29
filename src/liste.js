@@ -375,8 +375,8 @@ async function render(containerArg){
     _filterCat='';_filterActive=false;_listShowWip=false;
     buildWipToggle();
     renderFilterRow();
-    if(_listType==='spheres')renderSpheresContent(content,null);
-    else if(_listType==='themes')renderThemesContent(content,null);
+    if(_listType==='spheres')renderSpheresContent(content,filterRow);
+    else if(_listType==='themes')renderThemesContent(content,filterRow);
     else if(_listType==='photo')renderPhotoContent(content);
     else if(_listType==='video')renderVideoContent(content);
   }
