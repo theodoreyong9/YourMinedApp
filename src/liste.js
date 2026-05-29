@@ -328,23 +328,39 @@ async function render(containerArg){
       });
     }
 
-    // Category pill (spheres only)
+    // Category pill (spheres only) — replaced by Near/Contacts if socialFilters
     if(_listType==='spheres'){
-      const cPill=document.createElement('span');
-      cPill.className='pill'+(curCat!=='All'?' active':'');
-      cPill.dataset.drop='cat';
-      cPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
-      cPill.textContent=(curCat==='All'?'Category':'⬡ '+curCat)+' ▾';
-      cPill.addEventListener('click',()=>{
-        _openDrop('cat',CAT_OPTS.map(c=>({id:c,label:c,active:c===curCat})),opt=>{
-          _filterCat=opt.id==='All'?'':opt.id;
-          _listPage=0;renderFilterRow();renderList(content);
+      if(window.YM_ZONE_CONFIG?.socialFilters){
+        [{id:'near',label:'⊙ Near'},{id:'contacts',label:'◈ Contacts'}].forEach(function(opt){
+          const isActive=_filterSocial===opt.id;
+          const p=document.createElement('span');
+          p.className='pill'+(isActive?' active':'');
+          p.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+          p.textContent=opt.label;
+          p.addEventListener('click',function(){
+            _filterSocial=isActive?null:opt.id;
+            renderFilterRow();renderList(content);
+          });
+          filterRow.appendChild(p);
         });
-      });
-      filterRow.appendChild(cPill);
+      } else {
+        const cPill=document.createElement('span');
+        cPill.className='pill'+(curCat!=='All'?' active':'');
+        cPill.dataset.drop='cat';
+        cPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+        cPill.textContent=(curCat==='All'?'Category':'⬡ '+curCat)+' ▾';
+        cPill.addEventListener('click',()=>{
+          _openDrop('cat',CAT_OPTS.map(c=>({id:c,label:c,active:c===curCat})),opt=>{
+            _filterCat=opt.id==='All'?'':opt.id;
+            _listPage=0;renderFilterRow();renderList(content);
+          });
+        });
+        filterRow.appendChild(cPill);
+      }
     }
 
-    // Status pill
+    // Status pill — hidden when socialFilters active
+    if(window.YM_ZONE_CONFIG?.socialFilters) return;
     const sPill=document.createElement('span');
     sPill.className='pill'+(curStatus!=='all'?' active':'');
     sPill.dataset.drop='status';
@@ -375,8 +391,8 @@ async function render(containerArg){
     _filterCat='';_filterActive=false;_listShowWip=false;
     buildWipToggle();
     renderFilterRow();
-    if(_listType==='spheres')renderSpheresContent(content,filterRow);
-    else if(_listType==='themes')renderThemesContent(content,filterRow);
+    if(_listType==='spheres')renderSpheresContent(content,null);
+    else if(_listType==='themes')renderThemesContent(content,null);
     else if(_listType==='photo')renderPhotoContent(content);
     else if(_listType==='video')renderVideoContent(content);
   }
@@ -384,7 +400,8 @@ async function render(containerArg){
   const zoneCfg=window.YM_ZONE_CONFIG;
   if(zoneCfg?.spheresOnly){
     _listType='spheres';
-    filterRow.style.display='none';
+    // Hide category row only if no social filters
+    if(!zoneCfg?.socialFilters) filterRow.style.display='none';
     dropdownPanel.style.display='none';
     wipRow.style.display='none';
   }
