@@ -308,8 +308,12 @@ body.has-wallpaper #ym-wp{animation:wpPan 60s linear infinite alternate}
     localStorage.setItem(THEME_KEY,url);
     localStorage.removeItem(THEME_CACHE);
     if(location.pathname!=='/')history.replaceState(null,'','/');
-    window.YM_toast&&window.YM_toast('\u2746 '+label+' \u2014 reloading\u2026','success',1500);
-    setTimeout(function(){location.reload();},1500);
+    window.YM_toast&&window.YM_toast('\u2746 '+label+'\u2026','success',600);
+    if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}
+    fetch(url).then(function(r){return r.ok?r.text():null;}).then(function(html){
+      if(html)try{localStorage.setItem(THEME_CACHE,html);}catch(e){}
+      setTimeout(function(){location.reload();},100);
+    }).catch(function(){setTimeout(function(){location.reload();},100);});
   }
 
   function buildList(files){
