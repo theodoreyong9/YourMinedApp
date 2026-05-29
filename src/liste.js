@@ -328,8 +328,9 @@ async function render(containerArg){
       });
     }
 
-    // Category pill (spheres only) — replaced by Near/Contacts if socialFilters
+    // Category pill (spheres only)
     if(_listType==='spheres'){
+      // Near/Contacts pills added first when socialFilters
       if(window.YM_ZONE_CONFIG?.socialFilters){
         [{id:'near',label:'⊙ Near'},{id:'contacts',label:'◈ Contacts'}].forEach(function(opt){
           const isActive=_filterSocial===opt.id;
@@ -343,31 +344,32 @@ async function render(containerArg){
           });
           filterRow.appendChild(p);
         });
-      } else {
-        const cPill=document.createElement('span');
-        cPill.className='pill'+(curCat!=='All'?' active':'');
-        cPill.dataset.drop='cat';
-        cPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
-        cPill.textContent=(curCat==='All'?'Category':'⬡ '+curCat)+' ▾';
-        cPill.addEventListener('click',()=>{
-          _openDrop('cat',CAT_OPTS.map(c=>({id:c,label:c,active:c===curCat})),opt=>{
-            _filterCat=opt.id==='All'?'':opt.id;
-            _listPage=0;renderFilterRow();renderList(content);
-          });
-        });
-        filterRow.appendChild(cPill);
       }
+      // Category pill always shown for spheres
+      const cPill=document.createElement('span');
+      cPill.className='pill'+(curCat!=='All'?' active':'');
+      cPill.dataset.drop='cat';
+      cPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+      cPill.textContent=(curCat==='All'?'Category':'⬡ '+curCat)+' ▾';
+      cPill.addEventListener('click',()=>{
+        _openDrop('cat',CAT_OPTS.map(c=>({id:c,label:c,active:c===curCat})),opt=>{
+          _filterCat=opt.id==='All'?'':opt.id;
+          _listPage=0;renderFilterRow();renderList(content);
+        });
+      });
+      filterRow.appendChild(cPill);
     }
 
-    // Status pill — hidden when socialFilters active
-    if(window.YM_ZONE_CONFIG?.socialFilters) return;
+    // Status pill — for themes: only Under Construction / Published
+    const THEME_STATUS_OPTS=[{id:'all',label:'All'},{id:'published',label:'Published'},{id:'wip',label:'Under construction'}];
+    const statusOpts=isThemeLike?THEME_STATUS_OPTS:STATUS_OPTS;
     const sPill=document.createElement('span');
     sPill.className='pill'+(curStatus!=='all'?' active':'');
     sPill.dataset.drop='status';
     sPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
-    sPill.textContent=(curStatus==='all'?'Status':STATUS_OPTS.find(s=>s.id===curStatus)?.label||'Status')+' ▾';
+    sPill.textContent=(curStatus==='all'?'Status':statusOpts.find(s=>s.id===curStatus)?.label||'Status')+' ▾';
     sPill.addEventListener('click',()=>{
-      _openDrop('status',STATUS_OPTS.map(s=>({...s,active:s.id===curStatus})),opt=>{
+      _openDrop('status',statusOpts.map(s=>({...s,active:s.id===curStatus})),opt=>{
         _filterActive=opt.id==='active';
         _listShowWip=opt.id==='wip';
         if(opt.id==='active')_listShowWip=false;
