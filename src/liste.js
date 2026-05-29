@@ -360,9 +360,9 @@ async function render(containerArg){
       filterRow.appendChild(cPill);
     }
 
-    // Status pill — for themes: only Under Construction / Published
-    const THEME_STATUS_OPTS=[{id:'all',label:'All'},{id:'published',label:'Published'},{id:'wip',label:'Under construction'}];
-    const statusOpts=isThemeLike?THEME_STATUS_OPTS:STATUS_OPTS;
+    // Status pill — spheres only, themes have their own Published/WIP filter
+    if(isThemeLike) return; // themes: no status pill
+    const statusOpts=STATUS_OPTS;
     const sPill=document.createElement('span');
     sPill.className='pill'+(curStatus!=='all'?' active':'');
     sPill.dataset.drop='status';
