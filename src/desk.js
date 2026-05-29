@@ -393,7 +393,7 @@ function mkIcon(ic,isFolder){
     if(ic.notif){const n=document.createElement('div');n.className='icon-notif';n.textContent=ic.notif;body.appendChild(n);}
     w.addEventListener('click',()=>{
       if(editMode||isDragging)return;
-      if(ic.type==='theme'&&ic.themeUrl){localStorage.setItem('ym_theme_url',ic.themeUrl);localStorage.removeItem('ym_theme_cache');if(window.YM_toast)window.YM_toast('Thème — rechargement…','success');setTimeout(()=>location.reload(),800);return;}
+      if(ic.type==='theme'&&ic.themeUrl){if(window.YM_toast)window.YM_toast('Thème…','success');if(window.YM?.setTheme){window.YM.setTheme(ic.themeUrl);}else{localStorage.setItem('ym_theme_url',ic.themeUrl);location.reload();}return;}
       if(window.YM)window.YM.openSpherePanel(ic.id);
     });
   }
