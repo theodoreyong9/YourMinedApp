@@ -1335,7 +1335,40 @@ window.YM_NAV_CONFIG = {
 };
 ```
 
-All keys are optional — omit any to keep the default behaviour. Only `btn-figure` and `btn-wallet` are configurable (other dock buttons are handled internally).
+All keys are optional — omit any to keep the default behaviour.
+
+### Full reference
+
+```js
+window.YM_NAV_CONFIG = {
+  'btn-back': {
+    onSwitcher: fn, // switcher open — default: close it
+    onPanel:    fn, // panel open + history — default: reduce + open switcher
+    onEmpty:    fn, // nothing open — default: panel-spheres + liste
+  },
+  'btn-profile': {
+    panel:  'panel-profile', // default
+    onOpen: fn,
+  },
+  'btn-figure': {
+    panel:  'panel-mine',  // default
+    tab:    'liste',       // mine tab — null to skip
+    onOpen: fn,
+  },
+  'btn-wallet': {
+    panel:  'panel-mine',  // default
+    tab:    'wallet',
+    onOpen: fn,
+  },
+  liste: {
+    defaultType:   'spheres', // 'spheres' | 'themes' | 'photo' | 'video'
+    spheresOnly:   false,     // hide type toggle, lock to spheres
+    socialFilters: false,     // add Near / Contacts pills
+  }
+};
+```
+
+`YM_NAV_CONFIG.liste` supersedes the legacy `window.YM_ZONE_CONFIG` — use the new form.
 | `window.YM_escHtml(str)` | `app.js` | HTML-escape |
 | `window.YM_canSeeSphere(name, uuid)` | `profile.js` | Visibility check |
 | `window.YM_getSphereVisibility(name)` | `profile.js` | `'all'` \| `'contacts'` \| `uuid[]` |
