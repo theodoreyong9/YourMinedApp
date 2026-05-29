@@ -714,20 +714,35 @@
    * BOUTONS DOCK
    * ═══════════════════════════════════════════════════════════ */
   document.getElementById('btn-back').addEventListener('click', () => {
-    if (sw.classList.contains('open')) { closeSwitcher(); return; }
+    const _cfg = window.YM_NAV_CONFIG?.['btn-back'];
+    // Switcher open
+    if (sw.classList.contains('open')) {
+      if (_cfg?.onSwitcher) { _cfg.onSwitcher(); return; }
+      closeSwitcher(); return;
+    }
+    // Panel open + history
     if (_panel && (_openPanels.size + _openSpheres.size > 0)) {
+      if (_cfg?.onPanel) { _cfg.onPanel(); return; }
       reducePanel();
       requestAnimationFrame(() => { renderSwitcherCards(); sw.classList.add('open'); });
       return;
     }
+    // Panel open, no history
     if (_panel) { reducePanel(); return; }
+    // History but no panel
     if (_openPanels.size + _openSpheres.size > 0) { renderSwitcherCards(); sw.classList.add('open'); return; }
+    // Nothing open — fully configurable
+    if (_cfg?.onEmpty) { _cfg.onEmpty(); return; }
     openPanel('panel-spheres');
     if (window.YM_Liste) window.YM_Liste.render();
   });
 
-  document.getElementById('btn-profile').addEventListener('click', () =>
-    togglePanel('panel-profile', () => { if (window.YM_Profile) window.YM_Profile.render(); }));
+  document.getElementById('btn-profile').addEventListener('click', () => {
+    const _cfg = window.YM_NAV_CONFIG?.['btn-profile'];
+    const panel  = _cfg?.panel  ?? 'panel-profile';
+    const onOpen = _cfg?.onOpen ?? (() => { if (window.YM_Profile) window.YM_Profile.render(); });
+    togglePanel(panel, onOpen);
+  });
 
   const psbtn = document.getElementById('profile-share-btn');
   if (psbtn) psbtn.addEventListener('click', () => { if (window.YM_Profile) window.YM_Profile.showShare(); });
