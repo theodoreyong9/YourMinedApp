@@ -402,7 +402,7 @@
       b.classList.remove('active');
     });
     if (!panelId) return;
-    const map = { 'panel-profile': 'btn-profile', 'panel-mine': 'btn-figure' };
+    const map = { 'panel-profile': 'btn-profile', 'panel-mine': 'btn-wallet' };
     const btnId = map[panelId];
     if (btnId) { const btn = document.getElementById(btnId); if (btn) btn.classList.add('active'); }
   }
