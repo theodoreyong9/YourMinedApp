@@ -354,6 +354,71 @@ Key rules:
 - Peers apply received moves immediately on their local state
 - Dead events are broadcast so all peers remove the player
 
+### Canvas game spheres — render pattern
+
+For spheres with a game canvas, never rebuild the full HTML on every tick. Split into two methods:
+
+```js
+_render() {
+  // Called only on STATE changes (menu, lobby, game over, countdown)
+  // Rebuilds full HTML including canvas element
+  this.view.innerHTML = buildHTML();
+  // Store canvas dimensions for _drawCanvas
+  this._cell = cell; this._cw = cw; this._ch = ch;
+},
+
+_drawCanvas() {
+  // Called every tick — only redraws on existing canvas, never touches HTML
+  const cw = this._cw, ch = this._ch, cell = this._cell;
+  if (!cw) return;
+  requestAnimationFrame(() => {
+    const cv = document.getElementById('my-canvas');
+    if (!cv) return;
+    // draw...
+  });
+},
+```
+
+### Touch/tap input on canvas
+
+**Never wire touch events on the canvas element** — it gets recreated by `_render()`. Wire on the panel body instead, once, in `renderPanel`:
+
+```js
+_wireTap() {
+  if (this._tapWired) return;
+  this._tapWired = true;
+  const panel = this.view;
+  panel.addEventListener('touchstart', e => {
+    if (this.phase !== 'playing') return;
+    e.preventDefault();
+    this._handleTap(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+  panel.addEventListener('pointerdown', e => {
+    if (this.phase !== 'playing') return;
+    if (e.target.closest('button')) return;
+    this._handleTap(e.clientX, e.clientY);
+  });
+},
+
+renderPanel(body) {
+  this.view = body;
+  this._wireTap(); // once — survives canvas recreation
+  this._render();
+},
+```
+
+Set `touch-action: none` on the canvas element in your CSS/HTML. **Do not override panel overflow** — `app.js` handles it automatically for any sphere that declares `renderPanel`.
+
+```js
+// Clean renderPanel — no overflow hacks needed
+renderPanel(body) {
+  this.view = body;
+  this._wireTap(); // once — survives canvas recreation
+  this._setupKeys(); // optional keyboard support
+  this._render();
+},
+```
+
 ### `YM_PendingChallenges` — wake-up from Social sphere
 
 When a peer sends a challenge/invite while a sphere is inactive, the Social sphere queues the message:
