@@ -124,11 +124,13 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));
 }
 #manifesto-close{
-  position:sticky;top:16px;float:right;margin:16px 16px 0 0;z-index:2;
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
-  color:var(--text2);font-size:18px;width:40px;height:40px;
-  border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;
-  transition:all .15s;font-family:var(--font-b);
+  position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(5,5,7,.85);border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  color:var(--text2);font-size:18px;width:48px;height:48px;
+  border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);
+  z-index:1001;
 }
 #manifesto-close:hover{background:rgba(255,255,255,.1);color:var(--text);}
 .mf-eyebrow{font-family:var(--font-m);font-size:9px;color:var(--purple);letter-spacing:.28em;text-transform:uppercase;margin-bottom:16px;opacity:.7;}
@@ -244,7 +246,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 
 <!-- Manifesto overlay -->
 <div id="manifesto-overlay">
-  <button id="manifesto-close">✕</button>
   <div id="manifesto-inner">
 
     <div class="mf-eyebrow">Manifesto</div>
@@ -342,6 +343,7 @@ n spheres → 2ⁿ configurations (expansion)</div>
       <a href="https://github.com/theodoreyong9/YourMinedApp" target="_blank" rel="noopener" style="color:rgba(167,139,250,.5);text-decoration:none;font-size:10px;letter-spacing:.1em">github.com/theodoreyong9/YourMinedApp</a>
     </div>
 
+    <button id="manifesto-close">✕</button>
   </div>
 </div>
 
