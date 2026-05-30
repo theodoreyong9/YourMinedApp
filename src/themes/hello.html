@@ -133,6 +133,9 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   z-index:1001;
 }
 #manifesto-close:hover{background:rgba(255,255,255,.1);color:var(--text);}
+.lp-illo{width:100%;height:70px;margin:20px 0;display:block;}
+.lp-illo-wrap{opacity:0;transform:translateY(8px);transition:opacity .7s ease,transform .7s ease;}
+.lp-illo-wrap.visible{opacity:1;transform:none;}
 .mf-illo{width:100%;height:80px;margin:16px 0;display:block;overflow:visible;}
 .mf-illo-wrap{opacity:0;transform:translateY(8px);transition:opacity .6s ease,transform .6s ease;}
 .mf-illo-wrap.visible{opacity:1;transform:none;}
@@ -174,7 +177,28 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="lp-vline"></div>
     <div class="reveal">
       <div class="lp-label">The open web playground</div>
-      <div class="lp-h">Build weird things.<br>Shape the web.</div>
+      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
+  <path d="M40,35 C100,35 120,15 180,15" stroke="rgba(240,168,48,0.5)" stroke-width="1.5" fill="none"/>
+  <path d="M40,35 C100,35 120,35 180,35" stroke="rgba(240,168,48,0.35)" stroke-width="1.5" fill="none"/>
+  <path d="M40,35 C100,35 120,55 180,55" stroke="rgba(240,168,48,0.2)" stroke-width="1.5" fill="none"/>
+  <path d="M180,15 C240,15 260,8 320,8" stroke="rgba(76,201,240,0.4)" stroke-width="1" fill="none"/>
+  <path d="M180,15 C240,15 260,22 320,22" stroke="rgba(76,201,240,0.3)" stroke-width="1" fill="none"/>
+  <path d="M180,35 C240,35 260,28 320,28" stroke="rgba(167,139,250,0.3)" stroke-width="1" fill="none"/>
+  <path d="M180,35 C240,35 260,42 320,42" stroke="rgba(167,139,250,0.3)" stroke-width="1" fill="none"/>
+  <path d="M180,55 C240,55 260,48 320,48" stroke="rgba(240,168,48,0.2)" stroke-width="1" fill="none"/>
+  <path d="M180,55 C240,55 260,62 320,62" stroke="rgba(240,168,48,0.15)" stroke-width="1" fill="none"/>
+  <!-- End dots -->
+  <circle cx="320" cy="8" r="2" fill="rgba(76,201,240,0.6)"/>
+  <circle cx="320" cy="22" r="2" fill="rgba(76,201,240,0.5)"/>
+  <circle cx="320" cy="28" r="2" fill="rgba(167,139,250,0.6)"/>
+  <circle cx="320" cy="42" r="2" fill="rgba(167,139,250,0.5)"/>
+  <circle cx="320" cy="48" r="2" fill="rgba(240,168,48,0.5)"/>
+  <circle cx="320" cy="62" r="2" fill="rgba(240,168,48,0.4)"/>
+  <!-- Origin -->
+  <circle cx="40" cy="35" r="5" fill="rgba(240,168,48,0.15)" stroke="rgba(240,168,48,0.6)" stroke-width="1.5"/>
+  <circle cx="40" cy="35" r="2" fill="rgba(240,168,48,0.8)"/>
+</svg></div>
+    <div class="lp-h">Build weird things.<br>Shape the web.</div>
       <div class="lp-tags">
         <span class="lp-tag">Connect anything</span>
         <span class="lp-tag">Remix interactions</span>
@@ -184,7 +208,33 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     </div>
     <div class="lp-sep"></div>
     <div class="reveal">
-      <div class="lp-quote">Give a prompt anywhere —<br>even from your phone.</div>
+      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
+  <!-- Terminal prompt -->
+  <rect x="20" y="22" width="160" height="26" rx="4" fill="rgba(255,255,255,0.03)" stroke="rgba(240,168,48,0.2)" stroke-width="1"/>
+  <text x="32" y="39" font-family="monospace" font-size="10" fill="rgba(240,168,48,0.6)">_&gt; prompt</text>
+  <rect x="112" y="29" width="8" height="12" rx="1" fill="rgba(240,168,48,0.5)">
+    <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+  <!-- Arrow -->
+  <path d="M185,35 L240,35" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+  <circle cx="240" cy="35" r="2" fill="rgba(255,255,255,0.2)"/>
+  <!-- Expanding web -->
+  <circle cx="340" cy="35" r="4" fill="rgba(76,201,240,0.7)"/>
+  <circle cx="380" cy="20" r="3" fill="rgba(167,139,250,0.5)"/>
+  <circle cx="380" cy="50" r="3" fill="rgba(167,139,250,0.5)"/>
+  <circle cx="420" cy="12" r="2.5" fill="rgba(76,201,240,0.4)"/>
+  <circle cx="420" cy="35" r="2.5" fill="rgba(76,201,240,0.4)"/>
+  <circle cx="420" cy="58" r="2.5" fill="rgba(76,201,240,0.4)"/>
+  <circle cx="460" cy="25" r="2" fill="rgba(240,168,48,0.4)"/>
+  <circle cx="460" cy="45" r="2" fill="rgba(240,168,48,0.4)"/>
+  <line x1="340" y1="35" x2="380" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
+  <line x1="340" y1="35" x2="380" y2="50" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
+  <line x1="380" y1="20" x2="420" y2="12" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
+  <line x1="380" y1="20" x2="420" y2="35" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
+  <line x1="380" y1="50" x2="420" y2="35" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
+  <line x1="380" y1="50" x2="420" y2="58" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
+</svg></div>
+    <div class="lp-quote">Give a prompt anywhere —<br>even from your phone.</div>
 
       <div class="lp-stanza">
         <div class="lp-line">You enter a shared context of creation.</div>
@@ -195,7 +245,25 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     </div>
     <div class="lp-sep"></div>
     <div class="reveal">
-      <div class="lp-h">One action is enough.</div>
+      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="120" cy="35" r="8" fill="rgba(240,168,48,0.15)" stroke="rgba(240,168,48,0.5)" stroke-width="1.5"/>
+  <circle cx="120" cy="35" r="3" fill="rgba(240,168,48,0.8)">
+    <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <line x1="128" y1="35" x2="200" y2="35" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <!-- Four primitives -->
+  <rect x="200" y="10" width="90" height="20" rx="3" fill="rgba(76,201,240,0.08)" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
+  <text x="245" y="24" font-family="monospace" font-size="8" fill="rgba(76,201,240,0.7)" text-anchor="middle">interaction</text>
+  <rect x="200" y="35" width="90" height="20" rx="3" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
+  <text x="245" y="49" font-family="monospace" font-size="8" fill="rgba(167,139,250,0.7)" text-anchor="middle">participation</text>
+  <rect x="310" y="10" width="90" height="20" rx="3" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.25)" stroke-width="1"/>
+  <text x="355" y="24" font-family="monospace" font-size="8" fill="rgba(167,139,250,0.6)" text-anchor="middle">propagation</text>
+  <rect x="310" y="35" width="110" height="20" rx="3" fill="rgba(76,201,240,0.06)" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
+  <text x="365" y="49" font-family="monospace" font-size="8" fill="rgba(76,201,240,0.5)" text-anchor="middle">interoperability</text>
+  <line x1="128" y1="30" x2="200" y2="20" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
+  <line x1="128" y1="40" x2="200" y2="45" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
+</svg></div>
+    <div class="lp-h">One action is enough.</div>
       <p class="lp-p">A single prompt — or a single line — can connect your code to a living layer of:</p>
       <div class="lp-grid">
         <div class="lp-gitem">interaction</div>
@@ -212,7 +280,21 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     </div>
     <div class="lp-sep"></div>
     <div class="reveal">
-      <div class="lp-label">Core principle</div>
+      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
+  <!-- Identity — fading -->
+  <text x="80" y="25" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.12)" text-anchor="middle">identity</text>
+  <line x1="35" y1="25" x2="125" y2="25" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <!-- Ownership — fading -->
+  <text x="80" y="48" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.08)" text-anchor="middle">ownership</text>
+  <line x1="30" y1="48" x2="130" y2="48" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <!-- Separator -->
+  <line x1="200" y1="10" x2="200" y2="60" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <!-- Participation — glowing -->
+  <text x="380" y="40" font-family="monospace" font-size="16" fill="rgba(240,168,48,0.9)" text-anchor="middle" font-weight="bold">participation</text>
+  <circle cx="380" cy="36" r="40" fill="none" stroke="rgba(240,168,48,0.08)" stroke-width="20"/>
+  <circle cx="380" cy="36" r="28" fill="none" stroke="rgba(240,168,48,0.06)" stroke-width="12"/>
+</svg></div>
+    <div class="lp-label">Core principle</div>
       <div class="lp-card">
         <div class="lp-card-lines">
           <div class="lp-card-line">Identity does not matter.</div>
@@ -224,7 +306,28 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     </div>
     <div class="lp-sep"></div>
     <div class="reveal">
-      <div class="lp-negs">
+      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
+  <!-- Crossed out center -->
+  <circle cx="300" cy="35" r="15" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="3,3"/>
+  <line x1="289" y1="24" x2="311" y2="46" stroke="rgba(255,69,96,0.2)" stroke-width="1.5"/>
+  <line x1="311" y1="24" x2="289" y2="46" stroke="rgba(255,69,96,0.2)" stroke-width="1.5"/>
+  <!-- Distributed nodes — all equal -->
+  <circle cx="80" cy="20" r="5" fill="rgba(76,201,240,0.2)" stroke="rgba(76,201,240,0.5)" stroke-width="1"/>
+  <circle cx="160" cy="55" r="5" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
+  <circle cx="200" cy="15" r="5" fill="rgba(240,168,48,0.2)" stroke="rgba(240,168,48,0.5)" stroke-width="1"/>
+  <circle cx="400" cy="20" r="5" fill="rgba(240,168,48,0.2)" stroke="rgba(240,168,48,0.5)" stroke-width="1"/>
+  <circle cx="440" cy="55" r="5" fill="rgba(76,201,240,0.2)" stroke="rgba(76,201,240,0.5)" stroke-width="1"/>
+  <circle cx="520" cy="15" r="5" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
+  <!-- Connections between peers, skipping center -->
+  <line x1="80" y1="20" x2="160" y2="55" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <line x1="80" y1="20" x2="200" y2="15" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <line x1="160" y1="55" x2="200" y2="15" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <line x1="400" y1="20" x2="440" y2="55" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <line x1="400" y1="20" x2="520" y2="15" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <line x1="440" y1="55" x2="520" y2="15" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <line x1="200" y1="15" x2="400" y2="20" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+</svg></div>
+    <div class="lp-negs">
         <div class="lp-neg">No central authority.</div>
         <div class="lp-neg">No platform dependency.</div>
         <div class="lp-neg">No fixed reality.</div>
@@ -590,6 +693,7 @@ n spheres → 2ⁿ configurations (expansion)</div>
 
 // Animate illustrations on scroll
 (function(){
+  // Observe mf-illo-wrap directly (manifesto has no reveal wrapper)
   var obs = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
       if(e.isIntersecting) e.target.classList.add('visible');
@@ -620,10 +724,18 @@ n spheres → 2ⁿ configurations (expansion)</div>
   if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeManifesto();});
 
-  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}});},{threshold:.12});
+  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){
+    e.target.classList.add('visible');
+    // Also show any lp-illo-wrap inside this reveal
+    e.target.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});
+    io.unobserve(e.target);
+  }});},{threshold:.12});
   document.querySelectorAll('.reveal').forEach(function(el){
     var r=el.getBoundingClientRect();
-    if(r.top<window.innerHeight&&r.bottom>0){el.classList.add('visible');}
+    if(r.top<window.innerHeight&&r.bottom>0){
+      el.classList.add('visible');
+      el.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});
+    }
     else{io.observe(el);}
   });
   function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
