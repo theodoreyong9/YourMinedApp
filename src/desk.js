@@ -480,7 +480,7 @@ function setupDrag(wrap,ic,isFolder){
     const dx=e.clientX-sx,dy=e.clientY-sy,dist=Math.hypot(dx,dy);
     if(dist<5)return;
     if(!hasMoved){hasMoved=true;clearTimeout(longT);longT=null;}
-    if(!isPC()&&!dragStarted&&Math.abs(dx)>Math.abs(dy)*1.4&&dist>12){pDown=false;return;}
+    if(!isPC()&&!dragStarted&&Math.abs(dx)>Math.abs(dy)*2.5&&dist>18){pDown=false;return;}
     if(!dragStarted&&dist>8){
       dragStarted=true;isDragging=true;document.addEventListener('touchmove',_blockTouchScroll,{passive:false});
       _baseLayout=isFolder?(folderStack[folderStack.length-1]&&folderStack[folderStack.length-1].ic&&folderStack[folderStack.length-1].ic.folderItems||[]).map(x=>Object.assign({},x)):LD();
