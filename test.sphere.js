@@ -21,10 +21,10 @@
 
   window.YM_S = window.YM_S || {};
   window.YM_S[NAME] = {
-    name: 'Snake Battle',
-    icon: '🐍',
+    name: 'Neon Duel',
+    icon: '⚔️',
     category: 'Games',
-    description: 'Solo Snake or multiplayer P2P battle — eat to grow, avoid everyone.',
+    description: 'Neon Snake Battle — solo or up to 4 players P2P.',
 
     broadcastData() { return {}; },
 
