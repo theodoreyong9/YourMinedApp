@@ -92,12 +92,12 @@ async function _doFetch(){
 }
 
 async function fetchSphereMeta(url,fileName,codeUrl){
-  // Check stale cache first for this specific sphere
   const stale=_readCache(true);
   const staleEntry=stale&&stale.list&&stale.list.find(s=>s.fileName===fileName);
+  // Try GitHub Contents API first — bypasses SW cache
+  const apiUrl='https://api.github.com/repos/'+REPO_OWNER+'/'+REPO_NAME+'/contents/'+fileName+'?ref='+REPO_BRANCH;
   try{
-    const fetchUrl=codeUrl||url;
-    const res=await fetch(fetchUrl+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(8000)});
+    const res=await fetch(apiUrl,{headers:{'Accept':'application/vnd.github.v3.raw'},signal:AbortSignal.timeout(8000)});
     if(!res.ok)throw new Error('HTTP '+res.status);
     const code=await res.text();
     return{
@@ -108,9 +108,23 @@ async function fetchSphereMeta(url,fileName,codeUrl){
       fileName
     };
   }catch{
-    // Fallback to stale cache entry if available
-    if(staleEntry)return staleEntry;
-    return{name:fileName.replace('.sphere.js',''),icon:'⬡',category:'Other',description:'',fileName};
+    // Fallback to direct fetch
+    try{
+      const fetchUrl=codeUrl||url;
+      const res2=await fetch(fetchUrl+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(8000)});
+      if(!res2.ok)throw new Error();
+      const code=await res2.text();
+      return{
+        name:extractField(code,'name')||fileName.replace('.sphere.js',''),
+        icon:extractField(code,'icon')||'⬡',
+        category:extractField(code,'category')||'Other',
+        description:extractField(code,'description')||'',
+        fileName
+      };
+    }catch{
+      if(staleEntry)return staleEntry;
+      return{name:fileName.replace('.sphere.js',''),icon:'⬡',category:'Other',description:'',fileName};
+    }
   }
 }
 
