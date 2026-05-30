@@ -972,6 +972,9 @@
 
     const body = document.getElementById('panel-sphere-body');
     body.innerHTML = '';
+    // Allow touch events for game spheres with canvas
+    body.style.overflowY = 'auto';
+    body.style.touchAction = 'pan-y';
     if (typeof s.renderPanel === 'function') {
       try { s.renderPanel(body); }
       catch (e) {
