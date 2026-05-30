@@ -295,6 +295,91 @@ const peerId = window.YM_Social?._nearUsers.get(uuid)?.peerId ?? null;
 
 `window.YM_Social._nearUsers` is a `Map<uuid, {profile, ts, peerId, broadcastData}>` maintained by the social sphere. It is non-null only when `social.sphere.js` is active (it always is — it is mandatory).
 
+### `peerSection(container, peerCtx)` — widget in peer profiles
+
+When a peer's profile card is open, every active sphere can inject a widget into it via `peerSection`. Use it to trigger actions targeting that specific peer (challenge, invite, tip, etc).
+
+```js
+peerSection(container, peerCtx) {
+  // peerCtx shape:
+  // {
+  //   uuid:        string,   // peer's YourMine UUID
+  //   peerId:      string,   // P2P transport ID — use this for ctx.send targeted messages
+  //   name:        string,   // display name
+  //   displayName: string,   // alias
+  // }
+  container.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      padding:12px;background:rgba(255,255,255,.03);border-radius:12px;
+      border:1px solid rgba(255,255,255,.05)">
+      <div>My Sphere</div>
+      <button id="peer-action-btn">ACTION</button>
+    </div>`;
+  container.querySelector('#peer-action-btn').onclick = () => {
+    const peerId = peerCtx.peerId || peerCtx.uuid;
+    if (!peerId) { this.ctx.toast('Peer offline', 'error'); return; }
+    // Send a targeted P2P message
+    this.ctx.send('mysphere:invite', { slot: 1 }, peerId);
+  };
+},
+```
+
+**Note:** `peerCtx.peerId` is the direct P2P transport ID — always prefer it over UUID for sending messages. Fall back to `peerCtx.uuid` only if `peerId` is null.
+
+### Multiplayer lobby pattern
+
+For real-time multiplayer spheres (games, collaborative tools), use this lobby/ready pattern. It ensures all players start simultaneously with a synchronized countdown.
+
+```
+Host                          Guest(s)
+────                          ────────
+_createLobby()
+  └─ invite(peerId)  ──────►  _onInvited()
+                                └─ send('joined')  ──►  _onJoined()
+                                                           └─ broadcastLobby()
+  _setReady()
+    └─ broadcastLobby()  ───►  (lobby update shown)
+
+                      ◄──────  send('ready', {slot})
+  _onReady()
+    └─ _checkAllReady()
+         └─ _launch()  ──────►  _onStart()
+              └─ _countdown(3)    └─ _countdown(3)
+                   └─ _startTicker()   └─ _startTicker()
+```
+
+Key rules:
+- Only the **host** spawns shared state (food positions, random seeds) and broadcasts it in `sn:start`
+- Each player runs their own game loop and sends only their own moves
+- Peers apply received moves immediately on their local state
+- Dead events are broadcast so all peers remove the player
+
+### `YM_PendingChallenges` — wake-up from Social sphere
+
+When a peer sends a challenge/invite while a sphere is inactive, the Social sphere queues the message:
+
+```js
+window.YM_PendingChallenges = {
+  'mysphere.sphere.js': { data: {...}, peerId: '...' }
+};
+```
+
+Pick it up in `activate()` with a small delay (sphere needs to finish initializing):
+
+```js
+activate(ctx) {
+  this.ctx = ctx;
+  // ...
+  setTimeout(() => {
+    const p = window.YM_PendingChallenges?.[NAME];
+    if (p) {
+      this._onInvited(p.data, p.peerId);
+      delete window.YM_PendingChallenges[NAME];
+    }
+  }, 500);
+},
+```
+
 ### `broadcastData()` — inject data into social presence
 
 If your sphere wants to attach extra data to the user's social presence packet (broadcast to nearby peers every 5s by `social.sphere.js`), implement `broadcastData()`:
