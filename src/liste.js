@@ -934,7 +934,23 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
     {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
+      // Save scroll BEFORE deactivate — app.js will call YM_Liste.render() which resets scroll
+      const _scrollElD = document.getElementById('sphere-list-inner');
+      const _scrollSaved = _scrollElD?.scrollTop || 0;
+      // Temporarily patch render to restore scroll after app.js re-renders
+      const _origRender = window.YM_Liste?.render;
+      if(window.YM_Liste && _origRender){
+        window.YM_Liste.render = function(...args){
+          _origRender.apply(this, args);
+          window.YM_Liste.render = _origRender; // restore immediately
+          requestAnimationFrame(()=>requestAnimationFrame(()=>{
+            const el = document.getElementById('sphere-list-inner');
+            if(el) el.scrollTop = _scrollSaved;
+          }));
+        };
+      }
       await deactivateSphere(sphere);
+      if(window.YM_Liste) window.YM_Liste.render = _origRender; // safety restore
       // Update only the action bar in-place — no full re-render, no scroll jump, no flash
       const newBar=_makeActionBar([
         {icon:'↗',label:'Share',style:BTN_GHOST,id:'share',onClick:()=>{
