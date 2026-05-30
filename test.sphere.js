@@ -382,6 +382,8 @@
     // ── Render ──────────────────────────────────────────────────
 
     _drawCanvas() {
+      const cw = this._cw, ch = this._ch, cell = this._cell;
+      if (!cw) return;
       // Draw canvas
       requestAnimationFrame(() => {
         const cv = document.getElementById('sn-cv');
@@ -447,9 +449,42 @@
       })
     },
 
+    _wireTap() {
+      // Wire tap on the panel body level — not on canvas which gets recreated
+      if(this._tapWired) return;
+      this._tapWired = true;
+      const panel = this.view;
+      if(!panel) return;
+      const handleTap = (ex, ey) => {
+        const cv = document.getElementById('sn-cv');
+        if(!cv) return;
+        const rect = cv.getBoundingClientRect();
+        if(!rect.width) return;
+        const tapGX = (ex - rect.left) / rect.width * GRID_W;
+        const tapGY = (ey - rect.top) / rect.height * GRID_H;
+        const S = window.YM_S[NAME];
+        const me = S.isSolo
+          ? (S.snakes[0]?.cells[0])
+          : (S.snakes[S.mySlot]?.cells[0]);
+        if(!me) return;
+        const dx = tapGX - me.x;
+        const dy = tapGY - me.y;
+        S._setDir(Math.abs(dx) > Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up'));
+      };
+      panel.addEventListener('touchstart', e => {
+        if(window.YM_S[NAME].phase !== 'playing') return;
+        e.preventDefault();
+        handleTap(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: false });
+      panel.addEventListener('pointerdown', e => {
+        if(window.YM_S[NAME].phase !== 'playing') return;
+        if(e.target.closest('button')) return;
+        handleTap(e.clientX, e.clientY);
+      });
+    },
+
     renderPanel(body) {
       this.view = body;
-      // Allow touch events to reach canvas — panel-body has overflow:hidden by default
       body.style.overflowY = 'auto';
       body.style.touchAction = 'pan-y';
       if(body.parentElement) {
@@ -457,6 +492,7 @@
         body.parentElement.style.touchAction = 'pan-y';
       }
       this._setupKeys();
+      this._wireTap();
       this._render();
     },
 
@@ -474,6 +510,8 @@
       const size = Math.min(this.view.clientWidth||320, 360);
       const cell = Math.floor(size/GRID_W);
       const cw = cell*GRID_W, ch = cell*GRID_H;
+      // Store for _drawCanvas
+      this._cell = cell; this._cw = cw; this._ch = ch;
 
       const css = `<style>
         .sn{display:flex;flex-direction:column;align-items:center;padding:12px;gap:10px;height:100%;font-family:'JetBrains Mono',monospace;color:#e4e6f4;overflow-y:auto}
@@ -595,36 +633,7 @@
       this.view.innerHTML = b;
 
       // Tap to steer — wired here so getBoundingClientRect works correctly
-      const cvEl = document.getElementById('sn-cv');
-      if(cvEl){
-        const handleTap = (ex, ey) => {
-          const rect = cvEl.getBoundingClientRect();
-          if(!rect.width) return;
-          const tapGX = (ex - rect.left) / rect.width * GRID_W;
-          const tapGY = (ey - rect.top) / rect.height * GRID_H;
-          const S = window.YM_S[NAME];
-          const me = S.isSolo
-            ? (S._soloTrail && S._soloTrail[0])
-            : (S.snakes[S.mySlot]?.cells[0]);
-          if(!me) return;
-          const dx = tapGX - me.x;
-          const dy = tapGY - me.y;
-          if(Math.abs(dx) > Math.abs(dy)){
-            S._setDir(dx > 0 ? 'right' : 'left');
-          } else {
-            S._setDir(dy > 0 ? 'down' : 'up');
-          }
-        };
-        cvEl.addEventListener('touchstart', e => {
-          e.preventDefault();
-          e.stopPropagation();
-          handleTap(e.touches[0].clientX, e.touches[0].clientY);
-        }, { passive: false });
-        cvEl.addEventListener('pointerdown', e => {
-          e.preventDefault();
-          handleTap(e.clientX, e.clientY);
-        });
-      }
+
 
       // Draw canvas
       requestAnimationFrame(() => {
