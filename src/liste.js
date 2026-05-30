@@ -940,7 +940,11 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
       const _lbOff=document.getElementById('list-content');
       if(_lbOff){
         renderList(_lbOff);
-        requestAnimationFrame(()=>{ if(_scrollEl) _scrollEl.scrollTop=_scrollOff; });
+        // Double rAF — wait for DOM paint before restoring scroll
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          const el=document.getElementById('sphere-list-inner');
+          if(el) el.scrollTop=_scrollOff;
+        }));
       }
     }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
