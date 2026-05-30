@@ -923,8 +923,18 @@
 
     const listeEl = document.getElementById('panel-mine-liste');
     if (listeEl && listeEl.style.display !== 'none' && window.YM_Liste) {
+      // Save scroll position before re-render
+      const _sli = listeEl.querySelector('#sphere-list-inner');
+      const _savedScroll = _sli ? _sli.scrollTop : 0;
       listeEl.innerHTML = '';
       window.YM_Liste.render(listeEl);
+      // Restore scroll after render
+      if (_savedScroll > 0) {
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const _sli2 = listeEl.querySelector('#sphere-list-inner');
+          if (_sli2) _sli2.scrollTop = _savedScroll;
+        }));
+      }
     }
     const buildStandalone = document.getElementById('panel-build-body');
     if (buildStandalone && document.getElementById('panel-build')?.classList.contains('open') && window.YM_Build) {
