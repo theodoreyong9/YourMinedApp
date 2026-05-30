@@ -414,9 +414,7 @@
         .sn-row{display:flex;gap:8px;width:100%}
         .sn-row .sn-btn{flex:1}
         .sn-cv{border:1px solid rgba(8,224,248,.18);border-radius:4px;background:#02020a;display:block;box-shadow:0 0 20px rgba(8,224,248,.06)}
-        .sn-dpad{display:grid;grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px);gap:4px;margin-top:2px}
-        .sn-d{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:rgba(255,255,255,.6);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:none}
-        .sn-d:active{background:rgba(8,224,248,.2);color:#08e0f8;border-color:rgba(8,224,248,.4)}
+
         .sn-scores{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
         .sn-score{font-size:10px;display:flex;align-items:center;gap:5px}
         .sn-dot{width:8px;height:8px;border-radius:50%}
@@ -505,23 +503,10 @@
         }
 
         // Canvas
-        b += `<canvas id="sn-cv" class="sn-cv" width="${cw}" height="${ch}" style="width:${cw}px;height:${ch}px"></canvas>`;
+        b += `<canvas id="sn-cv" class="sn-cv" width="${cw}" height="${ch}" style="width:${cw}px;height:${ch}px;touch-action:none;cursor:pointer"></canvas>`;
 
         // D-pad
-        if (this.phase === 'playing') {
-          const N = NAME;
-          b += `<div class="sn-dpad">
-            <div></div>
-            <div class="sn-d" ontouchstart="event.preventDefault();window.YM_S['${N}']._setDir('up')" onmousedown="window.YM_S['${N}']._setDir('up')">↑</div>
-            <div></div>
-            <div class="sn-d" ontouchstart="event.preventDefault();window.YM_S['${N}']._setDir('left')" onmousedown="window.YM_S['${N}']._setDir('left')">←</div>
-            <div></div>
-            <div class="sn-d" ontouchstart="event.preventDefault();window.YM_S['${N}']._setDir('right')" onmousedown="window.YM_S['${N}']._setDir('right')">→</div>
-            <div></div>
-            <div class="sn-d" ontouchstart="event.preventDefault();window.YM_S['${N}']._setDir('down')" onmousedown="window.YM_S['${N}']._setDir('down')">↓</div>
-            <div></div>
-          </div>`;
-        }
+        // No dpad — tap canvas to steer (see canvas touch handler below)
 
         // Over buttons
         if (this.phase === 'over') {
@@ -581,6 +566,38 @@
           c.fill();
           c.shadowBlur = 0;
         });
+
+        // Tap to steer — compute direction from tap relative to snake head
+        const cvEl = document.getElementById('sn-cv');
+        if(cvEl && !cvEl._tapWired){
+          cvEl._tapWired = true;
+          const handleTap = (ex, ey) => {
+            const rect = cvEl.getBoundingClientRect();
+            const scaleX = GRID_W / rect.width;
+            const scaleY = GRID_H / rect.height;
+            const tapGX = (ex - rect.left) * scaleX;
+            const tapGY = (ey - rect.top) * scaleY;
+            // Find my snake head
+            const me = window.YM_S[NAME].isSolo
+              ? (window.YM_S[NAME]._soloTrail && window.YM_S[NAME]._soloTrail[0])
+              : (window.YM_S[NAME].snakes[window.YM_S[NAME].mySlot]?.cells[0]);
+            if(!me) return;
+            const dx = tapGX - me.x;
+            const dy = tapGY - me.y;
+            // Choose dominant axis
+            if(Math.abs(dx) > Math.abs(dy)){
+              window.YM_S[NAME]._setDir(dx > 0 ? 'right' : 'left');
+            } else {
+              window.YM_S[NAME]._setDir(dy > 0 ? 'down' : 'up');
+            }
+          };
+          cvEl.addEventListener('touchend', e => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            handleTap(t.clientX, t.clientY);
+          }, { passive: false });
+          cvEl.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+        }
 
         // Countdown overlay
         if (countdown !== undefined && countdown > 0) {
