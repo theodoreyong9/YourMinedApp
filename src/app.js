@@ -923,17 +923,20 @@
 
     const listeEl = document.getElementById('panel-mine-liste');
     if (listeEl && listeEl.style.display !== 'none' && window.YM_Liste) {
-      // Save scroll position before re-render
+      // Let liste.js update in-place via _setInactive — already called above
+      // Just refresh the list content without clearing the container
       const _sli = listeEl.querySelector('#sphere-list-inner');
       const _savedScroll = _sli ? _sli.scrollTop : 0;
-      listeEl.innerHTML = '';
-      window.YM_Liste.render(listeEl);
-      // Restore scroll after render
-      if (_savedScroll > 0) {
+      if (_sli) {
+        // Only re-render the list items, not the whole container
+        window.YM_Liste.renderList && window.YM_Liste.renderList(_sli.parentElement?.parentElement || listeEl);
         requestAnimationFrame(() => requestAnimationFrame(() => {
           const _sli2 = listeEl.querySelector('#sphere-list-inner');
           if (_sli2) _sli2.scrollTop = _savedScroll;
         }));
+      } else {
+        listeEl.innerHTML = '';
+        window.YM_Liste.render(listeEl);
       }
     }
     const buildStandalone = document.getElementById('panel-build-body');
