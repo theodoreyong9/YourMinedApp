@@ -382,6 +382,13 @@
     // ── Render ──────────────────────────────────────────────────
     renderPanel(body) {
       this.view = body;
+      // Allow touch events to reach canvas — panel-body has overflow:hidden by default
+      body.style.overflowY = 'auto';
+      body.style.touchAction = 'pan-y';
+      if(body.parentElement) {
+        body.parentElement.style.overflow = 'visible';
+        body.parentElement.style.touchAction = 'pan-y';
+      }
       this._setupKeys();
       this._render();
     },
