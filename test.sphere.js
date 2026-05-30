@@ -26,7 +26,11 @@
     category: 'Games',
     description: 'Neon Snake Battle — solo or up to 4 players P2P.',
 
-    broadcastData() { return {}; },
+    broadcastData() {
+      const mySnake = this.snakes[this.mySlot];
+      if(!mySnake) return {};
+      return { snake_score: mySnake.score, snake_best: this._bestScore || 0 };
+    },
 
     activate(ctx) {
       this.ctx = ctx;
@@ -276,6 +280,9 @@
       const fi = this.foods.findIndex(f => f.x===next.x && f.y===next.y);
       if (fi !== -1) {
         snake.score++;
+        // Update score in DOM without re-render
+        const scoreEl = document.getElementById('sn-score-'+slot);
+        if(scoreEl) scoreEl.textContent = snake.score;
         // Replace food — only host spawns new food to stay in sync
         if (this.isHost || this.isSolo) {
           const newFood = this._spawnFood();
@@ -322,6 +329,9 @@
       const alive = Object.entries(this.snakes).filter(([,s])=>s.alive);
       if (this.isSolo) {
         if (alive.length === 0) {
+          const score = this.snakes[0]?.score || 0;
+          this._bestScore = Math.max(score, this._bestScore || 0);
+          this._saveHistory(score);
           this.phase = 'over';
           clearInterval(this._ticker);
           this._render();
@@ -329,11 +339,32 @@
       } else {
         if (alive.length <= 1) {
           this.winner = alive.length===1 ? parseInt(alive[0][0]) : null;
+          const myScore = this.snakes[this.mySlot]?.score || 0;
+          this._bestScore = Math.max(myScore, this._bestScore || 0);
+          this._saveHistory(myScore);
           this.phase = 'over';
           clearInterval(this._ticker);
           this._render();
         }
       }
+    },
+
+    _saveHistory(score) {
+      try {
+        const key = 'snake_history';
+        const hist = JSON.parse(this.ctx.storage.get(key) || '[]');
+        hist.unshift({ score, date: Date.now(), solo: this.isSolo });
+        if(hist.length > 20) hist.length = 20;
+        this.ctx.storage.set(key, JSON.stringify(hist));
+        if(score > (parseInt(this.ctx.storage.get('snake_best') || '0'))) {
+          this.ctx.storage.set('snake_best', String(score));
+        }
+      } catch(e) {}
+    },
+
+    _getHistory() {
+      try { return JSON.parse(this.ctx.storage.get('snake_history') || '[]'); }
+      catch(e) { return []; }
     },
 
     // ── Food spawning ───────────────────────────────────────────
@@ -398,23 +429,34 @@
         for (let x=0;x<=GRID_W;x++){c.beginPath();c.moveTo(x*cell,0);c.lineTo(x*cell,ch);c.stroke();}
         for (let y=0;y<=GRID_H;y++){c.beginPath();c.moveTo(0,y*cell);c.lineTo(cw,y*cell);c.stroke();}
 
-        // Snakes
+        // Snakes — continuous neon line
         Object.entries(this.snakes).forEach(([slot,s]) => {
+          if(!s.cells.length) return;
           const col = COLORS[slot]||COLORS[0];
           c.globalAlpha = s.alive ? 1 : 0.2;
-          // Body
-          c.fillStyle = col.stroke;
+          c.strokeStyle = col.stroke;
+          c.lineWidth = cell * 0.7;
+          c.lineCap = 'round';
+          c.lineJoin = 'round';
           c.shadowColor = col.glow;
-          c.shadowBlur = 3;
-          s.cells.slice(1).forEach(cell2 => {
-            c.fillRect(cell2.x*cell+1, cell2.y*cell+1, cell-2, cell-2);
+          c.shadowBlur = cell * 1.2;
+          // Draw body as continuous path
+          c.beginPath();
+          s.cells.forEach((pt, i) => {
+            const px = (pt.x + 0.5) * cell;
+            const py = (pt.y + 0.5) * cell;
+            if(i === 0) c.moveTo(px, py); else c.lineTo(px, py);
           });
-          // Head — brighter
-          if (s.cells.length > 0) {
-            c.fillStyle = '#fff';
-            c.shadowBlur = 8;
+          c.stroke();
+          // Head — bright white dot
+          if(s.alive) {
             const h = s.cells[0];
-            c.fillRect(h.x*cell+1, h.y*cell+1, cell-2, cell-2);
+            c.fillStyle = '#ffffff';
+            c.shadowColor = col.glow;
+            c.shadowBlur = cell * 2;
+            c.beginPath();
+            c.arc((h.x+0.5)*cell, (h.y+0.5)*cell, cell*0.45, 0, Math.PI*2);
+            c.fill();
           }
           c.globalAlpha = 1;
           c.shadowBlur = 0;
@@ -607,7 +649,7 @@
             const label = parseInt(slot)===this.mySlot ? 'You' : (this.lobby.find(p=>p.slot===parseInt(slot))?.name||'P'+(parseInt(slot)+1));
             b += `<div class="sn-score">
               <div class="sn-dot" style="background:${col};${!s.alive?'opacity:.3':''}"></div>
-              <span style="${!s.alive?'opacity:.3':''}">${label}: ${s.score}${!s.alive?' 💀':''}</span>
+              <span id="sn-score-${slot}" style="${!s.alive?'opacity:.3':''}">${label}: ${s.score}${!s.alive?' 💀':''}</span>
             </div>`;
           });
           b += `</div>`;
@@ -621,6 +663,21 @@
           } else {
             const isWin = this.winner === this.mySlot;
             b += `<div class="sn-status" style="font-size:16px;color:${isWin?'#08e0f8':'#ff4560'}">${isWin?'🏆 YOU WIN':'💀 YOU LOST'}</div>`;
+          }
+          // History on game over
+          if(this.phase === 'over') {
+            const hist = this._getHistory().slice(0,5);
+            const best = this.ctx.storage?.get('snake_best') || '0';
+            if(hist.length) {
+              b += `<div style="width:100%;background:rgba(255,255,255,.03);border-radius:10px;padding:10px 12px;border:1px solid rgba(255,255,255,.06)">`;
+              b += `<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em">RECENT SCORES</span><span style="font-size:9px;color:#08e0f8;font-family:monospace">BEST: ${best}</span></div>`;
+              hist.forEach((h,i) => {
+                const d = new Date(h.date);
+                const ds = d.toLocaleDateString('fr',{month:'short',day:'numeric'});
+                b += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:rgba(255,255,255,.4)">${ds} · ${h.solo?'solo':'multi'}</span><span style="color:${i===0?'#08e0f8':'rgba(255,255,255,.5)'};font-family:monospace">${h.score}</span></div>`;
+              });
+              b += `</div>`;
+            }
           }
         } else if (countdown !== undefined && countdown > 0) {
           b += `<div class="sn-status" style="font-size:36px;color:#f0a830;text-shadow:0 0 20px rgba(240,168,48,.6)">${countdown}</div>`;
@@ -661,23 +718,34 @@
         for (let x=0;x<=GRID_W;x++){c.beginPath();c.moveTo(x*cell,0);c.lineTo(x*cell,ch);c.stroke();}
         for (let y=0;y<=GRID_H;y++){c.beginPath();c.moveTo(0,y*cell);c.lineTo(cw,y*cell);c.stroke();}
 
-        // Snakes
+        // Snakes — continuous neon line
         Object.entries(this.snakes).forEach(([slot,s]) => {
+          if(!s.cells.length) return;
           const col = COLORS[slot]||COLORS[0];
           c.globalAlpha = s.alive ? 1 : 0.2;
-          // Body
-          c.fillStyle = col.stroke;
+          c.strokeStyle = col.stroke;
+          c.lineWidth = cell * 0.7;
+          c.lineCap = 'round';
+          c.lineJoin = 'round';
           c.shadowColor = col.glow;
-          c.shadowBlur = 3;
-          s.cells.slice(1).forEach(cell2 => {
-            c.fillRect(cell2.x*cell+1, cell2.y*cell+1, cell-2, cell-2);
+          c.shadowBlur = cell * 1.2;
+          // Draw body as continuous path
+          c.beginPath();
+          s.cells.forEach((pt, i) => {
+            const px = (pt.x + 0.5) * cell;
+            const py = (pt.y + 0.5) * cell;
+            if(i === 0) c.moveTo(px, py); else c.lineTo(px, py);
           });
-          // Head — brighter
-          if (s.cells.length > 0) {
-            c.fillStyle = '#fff';
-            c.shadowBlur = 8;
+          c.stroke();
+          // Head — bright white dot
+          if(s.alive) {
             const h = s.cells[0];
-            c.fillRect(h.x*cell+1, h.y*cell+1, cell-2, cell-2);
+            c.fillStyle = '#ffffff';
+            c.shadowColor = col.glow;
+            c.shadowBlur = cell * 2;
+            c.beginPath();
+            c.arc((h.x+0.5)*cell, (h.y+0.5)*cell, cell*0.45, 0, Math.PI*2);
+            c.fill();
           }
           c.globalAlpha = 1;
           c.shadowBlur = 0;
@@ -712,7 +780,59 @@
       });
     },
 
-    // ── Peer section ─────────────────────────────────────────────
+    // ── Profile section ──────────────────────────────────────────
+    profileSection(container) {
+      const best = this.ctx.storage?.get('snake_best') || '0';
+      const hist = this._getHistory().slice(0, 10);
+      // Gather near/contact scores from broadcastData
+      const nears = [];
+      try {
+        const nearMap = window.YM_Social?._nearUsers;
+        if(nearMap) nearMap.forEach((peer, uuid) => {
+          const bd = peer.broadcastData;
+          if(bd?.snake_score !== undefined) {
+            nears.push({ name: peer.profile?.name || uuid.slice(0,8), score: bd.snake_score, best: bd.snake_best || 0 });
+          }
+        });
+        nears.sort((a,b) => b.best - a.best);
+      } catch(e) {}
+
+      let html = `<div style="padding:14px;display:flex;flex-direction:column;gap:12px">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:22px">⚔️</span>
+        <div style="text-align:right"><div style="font-size:20px;font-weight:700;color:#08e0f8;font-family:monospace">${best}</div><div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em">BEST SCORE</div></div>
+      </div>`;
+
+      if(nears.length) {
+        html += `<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.06)">`;
+        html += `<div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em;margin-bottom:8px">NEAR & CONTACTS</div>`;
+        nears.forEach(n => {
+          html += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+            <span style="color:rgba(255,255,255,.5)">${n.name}</span>
+            <span style="font-family:monospace;color:#a855f7">${n.best}</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      if(hist.length) {
+        html += `<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.06)">`;
+        html += `<div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em;margin-bottom:8px">HISTORY</div>`;
+        hist.forEach((h,i) => {
+          const d = new Date(h.date);
+          const ds = d.toLocaleDateString('fr',{month:'short',day:'numeric'});
+          html += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+            <span style="color:rgba(255,255,255,.4)">${ds} · ${h.solo?'solo':'multi'}</span>
+            <span style="font-family:monospace;color:${i===0?'#08e0f8':'rgba(255,255,255,.5)'}">${h.score}</span>
+          </div>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+      container.innerHTML = html;
+    },
+
+    // ── Peer section ──────────────────────────────────────────────
     peerSection(container, peerCtx) {
       const self = this;
       const canInvite = self.isHost && self.phase === 'lobby' && self.lobby.length < 4;
