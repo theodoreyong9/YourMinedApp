@@ -1112,7 +1112,7 @@ function renderList(body){
 
 function _setInactive(fileName){setActiveSpheres(getActiveSpheres().filter(s=>s!==fileName));}
 
-window.YM_Liste={render,fetchSphereList,activateSphereByName,isSphereActive,_setInactive,renderPlugContent:renderLinkContent,
+window.YM_Liste={render,renderList,fetchSphereList,activateSphereByName,isSphereActive,_setInactive,renderPlugContent:renderLinkContent,
   get _sphereList(){return _sphereList;},
   get _themesList(){return _themesList;},
   _forceRefresh(){_loaded=false;_sphereList=[];_fetchPromise=null;_themesList=null;_themesLoaded=false;},
