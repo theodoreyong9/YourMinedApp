@@ -1,5 +1,5 @@
 (function() {
-  const NAME = 'tron.sphere.js';
+  const NAME = 'test.sphere.js';
   const GRID_W = 40;
   const GRID_H = 40;
   const TICK_MS = 120; // ~8fps — good for P2P
