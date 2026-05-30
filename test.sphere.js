@@ -245,7 +245,7 @@
       });
 
       this._applyMove(this.mySlot, next, me.dir);
-      this._render();
+      this._drawCanvas(); // only redraw canvas — HTML unchanged
       this._checkOver();
     },
 
@@ -297,14 +297,14 @@
       const snake = this.snakes[data.slot];
       if (!snake || snake.peerId !== peerId) return;
       this._applyMove(data.slot, data.head, data.dir);
-      this._render();
+      this._drawCanvas();
       this._checkOver();
     },
 
     _onDead(data, peerId) {
       const snake = this.snakes[data.slot];
       if (snake) snake.alive = false;
-      this._render();
+      this._drawCanvas();
     },
 
     _onFood(data, peerId) {
@@ -380,6 +380,73 @@
     _setDir(dir) { this._pendingDir = dir; },
 
     // ── Render ──────────────────────────────────────────────────
+
+    _drawCanvas() {
+      // Draw canvas
+      requestAnimationFrame(() => {
+        const cv = document.getElementById('sn-cv');
+        if (!cv) return;
+        const c = cv.getContext('2d');
+        c.fillStyle = '#02020a';
+        c.fillRect(0,0,cw,ch);
+
+        // Grid
+        c.strokeStyle = 'rgba(8,224,248,0.03)';
+        c.lineWidth = 0.5;
+        for (let x=0;x<=GRID_W;x++){c.beginPath();c.moveTo(x*cell,0);c.lineTo(x*cell,ch);c.stroke();}
+        for (let y=0;y<=GRID_H;y++){c.beginPath();c.moveTo(0,y*cell);c.lineTo(cw,y*cell);c.stroke();}
+
+        // Snakes
+        Object.entries(this.snakes).forEach(([slot,s]) => {
+          const col = COLORS[slot]||COLORS[0];
+          c.globalAlpha = s.alive ? 1 : 0.2;
+          // Body
+          c.fillStyle = col.stroke;
+          c.shadowColor = col.glow;
+          c.shadowBlur = 3;
+          s.cells.slice(1).forEach(cell2 => {
+            c.fillRect(cell2.x*cell+1, cell2.y*cell+1, cell-2, cell-2);
+          });
+          // Head — brighter
+          if (s.cells.length > 0) {
+            c.fillStyle = '#fff';
+            c.shadowBlur = 8;
+            const h = s.cells[0];
+            c.fillRect(h.x*cell+1, h.y*cell+1, cell-2, cell-2);
+          }
+          c.globalAlpha = 1;
+          c.shadowBlur = 0;
+        });
+
+        // Food
+        this.foods.forEach(f => {
+          c.fillStyle = '#f0a830';
+          c.shadowColor = 'rgba(240,168,48,.9)';
+          c.shadowBlur = 10;
+          c.beginPath();
+          c.arc((f.x+.5)*cell, (f.y+.5)*cell, cell*.42, 0, Math.PI*2);
+          c.fill();
+          c.shadowBlur = 0;
+        });
+
+
+
+        // Countdown overlay
+        if (countdown !== undefined && countdown > 0) {
+          c.fillStyle = 'rgba(0,0,0,.65)';
+          c.fillRect(0,0,cw,ch);
+          c.fillStyle = '#f0a830';
+          c.font = `bold ${Math.floor(cw/4)}px monospace`;
+          c.textAlign = 'center';
+          c.textBaseline = 'middle';
+          c.shadowColor = 'rgba(240,168,48,.8)';
+          c.shadowBlur = 24;
+          c.fillText(String(countdown), cw/2, ch/2);
+          c.shadowBlur = 0;
+        }
+      })
+    },
+
     renderPanel(body) {
       this.view = body;
       // Allow touch events to reach canvas — panel-body has overflow:hidden by default
