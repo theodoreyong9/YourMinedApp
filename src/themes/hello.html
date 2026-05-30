@@ -125,13 +125,14 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 }
 #manifesto-close{
   position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;
-  display:flex;align-items:center;justify-content:center;
+  display:none;align-items:center;justify-content:center;
   background:rgba(5,5,7,.85);border:1px solid rgba(255,255,255,.12);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   color:var(--text2);font-size:18px;width:48px;height:48px;
   border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);
   z-index:1001;
 }
+#manifesto-overlay.open ~ #manifesto-close{display:flex;}
 #manifesto-close:hover{background:rgba(255,255,255,.1);color:var(--text);}
 .lp-illo{width:100%;height:70px;margin:20px 0;display:block;}
 .lp-illo-wrap{opacity:1;} /* reveal parent handles animation */
@@ -601,9 +602,10 @@ n spheres → 2ⁿ configurations (expansion)</div>
       <a href="https://github.com/theodoreyong9/YourMinedApp" target="_blank" rel="noopener" style="color:rgba(167,139,250,.5);text-decoration:none;font-size:10px;letter-spacing:.1em">github.com/theodoreyong9/YourMinedApp</a>
     </div>
 
-    <button id="manifesto-close">✕</button>
   </div>
 </div>
+
+<button id="manifesto-close">✕</button>
 
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
@@ -715,8 +717,14 @@ n spheres → 2ⁿ configurations (expansion)</div>
   // Manifesto
   var overlay=document.getElementById('manifesto-overlay');
   var closeBtn=document.getElementById('manifesto-close');
-  function openManifesto(){if(overlay)overlay.classList.add('open');}
-  function closeManifesto(){if(overlay)overlay.classList.remove('open');}
+  function openManifesto(){
+    if(overlay)overlay.classList.add('open');
+    if(closeBtn)closeBtn.style.display='flex';
+  }
+  function closeManifesto(){
+    if(overlay)overlay.classList.remove('open');
+    if(closeBtn)closeBtn.style.display='none';
+  }
   var mb1=document.getElementById('lp-manifesto-btn');if(mb1)mb1.addEventListener('click',openManifesto);
   var mb2=document.getElementById('lp-manifesto-btn-2');if(mb2)mb2.addEventListener('click',openManifesto);
   if(closeBtn)closeBtn.addEventListener('click',closeManifesto);
