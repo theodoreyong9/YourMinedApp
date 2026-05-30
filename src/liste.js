@@ -964,7 +964,7 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
                 await deactivateSphere(sphere);
               }}]:[]),
             ]);
-            if(activeBar&&bar.parentNode){bar.parentNode.replaceChild(activeBar,bar);activeBar.style.display='flex';}
+            if(activeBar&&bar.parentNode){bar.parentNode.replaceChild(activeBar,bar);activeBar.style.display='none';}
           }catch(e){
             card.style.opacity='1';
             btn2.innerHTML='▶';btn2.style.pointerEvents='';
