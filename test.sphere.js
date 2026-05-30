@@ -548,13 +548,14 @@
             S._setDir(dy > 0 ? 'down' : 'up');
           }
         };
-        cvEl.addEventListener('touchstart', e => { e.preventDefault(); }, { passive: false });
-        cvEl.addEventListener('touchend', e => {
+        cvEl.addEventListener('touchstart', e => {
           e.preventDefault();
-          handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+          e.stopPropagation();
+          handleTap(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: false });
         cvEl.addEventListener('pointerdown', e => {
-          if(e.pointerType === 'mouse') handleTap(e.clientX, e.clientY);
+          e.preventDefault();
+          handleTap(e.clientX, e.clientY);
         });
       }
 
