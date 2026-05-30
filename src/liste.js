@@ -934,7 +934,7 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
     {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
-      const _scrollEl=document.getElementById('list-content')?.parentElement;
+      const _scrollEl=document.getElementById('sphere-list-inner');
       const _scrollOff=_scrollEl?.scrollTop||0;
       await deactivateSphere(sphere);
       const _lbOff=document.getElementById('list-content');
@@ -947,7 +947,7 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
       card.style.opacity='.6';
       // Validate before activating — check required fields
       try {
-        const _scrollElOn=document.getElementById('list-content')?.parentElement;
+        const _scrollElOn=document.getElementById('sphere-list-inner');
         const _scrollOn=_scrollElOn?.scrollTop||0;
         await activateSphere(sphere);
         card.style.opacity='1';
