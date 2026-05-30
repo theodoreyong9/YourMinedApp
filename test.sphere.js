@@ -520,6 +520,37 @@
       b += `</div>`;
       this.view.innerHTML = b;
 
+      // Tap to steer — wired here so getBoundingClientRect works correctly
+      const cvEl = document.getElementById('sn-cv');
+      if(cvEl){
+        const handleTap = (ex, ey) => {
+          const rect = cvEl.getBoundingClientRect();
+          if(!rect.width) return;
+          const tapGX = (ex - rect.left) / rect.width * GRID_W;
+          const tapGY = (ey - rect.top) / rect.height * GRID_H;
+          const S = window.YM_S[NAME];
+          const me = S.isSolo
+            ? (S._soloTrail && S._soloTrail[0])
+            : (S.snakes[S.mySlot]?.cells[0]);
+          if(!me) return;
+          const dx = tapGX - me.x;
+          const dy = tapGY - me.y;
+          if(Math.abs(dx) > Math.abs(dy)){
+            S._setDir(dx > 0 ? 'right' : 'left');
+          } else {
+            S._setDir(dy > 0 ? 'down' : 'up');
+          }
+        };
+        cvEl.addEventListener('touchstart', e => { e.preventDefault(); }, { passive: false });
+        cvEl.addEventListener('touchend', e => {
+          e.preventDefault();
+          handleTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        }, { passive: false });
+        cvEl.addEventListener('pointerdown', e => {
+          if(e.pointerType === 'mouse') handleTap(e.clientX, e.clientY);
+        });
+      }
+
       // Draw canvas
       requestAnimationFrame(() => {
         const cv = document.getElementById('sn-cv');
@@ -567,40 +598,7 @@
           c.shadowBlur = 0;
         });
 
-        // Tap to steer — wired every render since canvas is recreated via innerHTML
-        const cvEl = document.getElementById('sn-cv');
-        if(cvEl){
-          const handleTap = (ex, ey) => {
-            const rect = cvEl.getBoundingClientRect();
-            const scaleX = GRID_W / rect.width;
-            const scaleY = GRID_H / rect.height;
-            const tapGX = (ex - rect.left) * scaleX;
-            const tapGY = (ey - rect.top) * scaleY;
-            const S = window.YM_S[NAME];
-            const me = S.isSolo
-              ? (S._soloTrail && S._soloTrail[0])
-              : (S.snakes[S.mySlot]?.cells[0]);
-            if(!me) return;
-            const dx = tapGX - me.x;
-            const dy = tapGY - me.y;
-            if(Math.abs(dx) > Math.abs(dy)){
-              S._setDir(dx > 0 ? 'right' : 'left');
-            } else {
-              S._setDir(dy > 0 ? 'down' : 'up');
-            }
-          };
-          cvEl.addEventListener('touchstart', e => {
-            e.preventDefault(); // prevent scroll and delay
-          }, { passive: false });
-          cvEl.addEventListener('touchend', e => {
-            e.preventDefault();
-            const t = e.changedTouches[0];
-            handleTap(t.clientX, t.clientY);
-          }, { passive: false });
-          cvEl.addEventListener('pointerdown', e => {
-            if(e.pointerType === 'mouse') handleTap(e.clientX, e.clientY);
-          });
-        }
+
 
         // Countdown overlay
         if (countdown !== undefined && countdown > 0) {
