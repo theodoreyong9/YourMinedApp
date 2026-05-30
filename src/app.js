@@ -972,9 +972,16 @@
 
     const body = document.getElementById('panel-sphere-body');
     body.innerHTML = '';
-    // Allow touch events for game spheres with canvas
-    body.style.overflowY = 'auto';
+    // Allow touch events through the full panel chain for game spheres
+    body.style.overflow = 'auto';
     body.style.touchAction = 'pan-y';
+    const _sp = document.getElementById('panel-sphere');
+    if (_sp) {
+      _sp.style.overflow = 'visible';
+      _sp.style.touchAction = 'pan-y';
+      const _pb = _sp.querySelector('.panel-body');
+      if (_pb) { _pb.style.overflow = 'auto'; _pb.style.touchAction = 'pan-y'; }
+    }
     if (typeof s.renderPanel === 'function') {
       try { s.renderPanel(body); }
       catch (e) {
