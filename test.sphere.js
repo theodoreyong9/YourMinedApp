@@ -567,28 +567,26 @@
           c.shadowBlur = 0;
         });
 
-        // Tap to steer — compute direction from tap relative to snake head
+        // Tap to steer — wired every render since canvas is recreated via innerHTML
         const cvEl = document.getElementById('sn-cv');
-        if(cvEl && !cvEl._tapWired){
-          cvEl._tapWired = true;
+        if(cvEl){
           const handleTap = (ex, ey) => {
             const rect = cvEl.getBoundingClientRect();
             const scaleX = GRID_W / rect.width;
             const scaleY = GRID_H / rect.height;
             const tapGX = (ex - rect.left) * scaleX;
             const tapGY = (ey - rect.top) * scaleY;
-            // Find my snake head
-            const me = window.YM_S[NAME].isSolo
-              ? (window.YM_S[NAME]._soloTrail && window.YM_S[NAME]._soloTrail[0])
-              : (window.YM_S[NAME].snakes[window.YM_S[NAME].mySlot]?.cells[0]);
+            const S = window.YM_S[NAME];
+            const me = S.isSolo
+              ? (S._soloTrail && S._soloTrail[0])
+              : (S.snakes[S.mySlot]?.cells[0]);
             if(!me) return;
             const dx = tapGX - me.x;
             const dy = tapGY - me.y;
-            // Choose dominant axis
             if(Math.abs(dx) > Math.abs(dy)){
-              window.YM_S[NAME]._setDir(dx > 0 ? 'right' : 'left');
+              S._setDir(dx > 0 ? 'right' : 'left');
             } else {
-              window.YM_S[NAME]._setDir(dy > 0 ? 'down' : 'up');
+              S._setDir(dy > 0 ? 'down' : 'up');
             }
           };
           cvEl.addEventListener('touchend', e => {
