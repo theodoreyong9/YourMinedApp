@@ -935,46 +935,7 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       await deactivateSphere(sphere);
-      // Update only the action bar in-place — no full re-render, no scroll jump, no flash
-      const newBar=_makeActionBar([
-        {icon:'↗',label:'Share',style:BTN_GHOST,id:'share',onClick:()=>{
-          const u=sphere.codeUrl||sphere.url||ghAuthorUrl;
-          if(navigator.share){navigator.share({title:sphere.name,url:u}).catch(()=>{});}
-          else{navigator.clipboard?.writeText(u);window.YM_toast?.('URL copiée','success');}
-        }},
-        {icon:'⎋',label:'Site',style:BTN_GHOST,id:'site',onClick:()=>{window.open(siteUrl||ghAuthorUrl,'_blank','noopener');}},
-        {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
-        {icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn2)=>{
-          btn2.innerHTML='…';btn2.style.pointerEvents='none';
-          card.style.opacity='.6';
-          try{
-            await activateSphere(sphere);
-            card.style.opacity='1';
-            // Swap bar back to active state
-            const activeBar=bar.parentNode&&_makeActionBar([
-              {icon:'↗',label:'Share',style:BTN_GHOST,id:'share',onClick:()=>{
-                const u=sphere.codeUrl||sphere.url||ghAuthorUrl;
-                if(navigator.share){navigator.share({title:sphere.name,url:u}).catch(()=>{});}
-                else{navigator.clipboard?.writeText(u);window.YM_toast?.('URL copiée','success');}
-              }},
-              {icon:'⎋',label:'Site',style:BTN_GHOST,id:'site',onClick:()=>{window.open(siteUrl||ghAuthorUrl,'_blank','noopener');}},
-              {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
-              ...((!MANDATORY_SPHERES.includes(sphere.fileName))?[{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn3)=>{
-                btn3.innerHTML='…';btn3.style.pointerEvents='none';
-                await deactivateSphere(sphere);
-              }}]:[]),
-            ]);
-            if(activeBar&&bar.parentNode){bar.parentNode.replaceChild(activeBar,bar);activeBar.style.display='none';}
-          }catch(e){
-            card.style.opacity='1';
-            btn2.innerHTML='▶';btn2.style.pointerEvents='';
-            window.YM_toast?.('Activation error: '+e.message,'error');
-          }
-        }},
-      ]);
-      newBar.dataset.barEl='1';
-      newBar.style.display='flex';
-      if(bar.parentNode) bar.parentNode.replaceChild(newBar,bar);
+      // app.js handles re-render with scroll preservation
     }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       card.style.opacity='.6';
