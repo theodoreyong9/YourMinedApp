@@ -589,12 +589,17 @@
               S._setDir(dy > 0 ? 'down' : 'up');
             }
           };
+          cvEl.addEventListener('touchstart', e => {
+            e.preventDefault(); // prevent scroll and delay
+          }, { passive: false });
           cvEl.addEventListener('touchend', e => {
             e.preventDefault();
             const t = e.changedTouches[0];
             handleTap(t.clientX, t.clientY);
           }, { passive: false });
-          cvEl.addEventListener('click', e => handleTap(e.clientX, e.clientY));
+          cvEl.addEventListener('pointerdown', e => {
+            if(e.pointerType === 'mouse') handleTap(e.clientX, e.clientY);
+          });
         }
 
         // Countdown overlay
