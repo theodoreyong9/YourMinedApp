@@ -1090,21 +1090,22 @@ function renderList(body){
     const bar=_buildSphereActionBar(sphere,active,card,()=>_openSphereCard,(v)=>{_openSphereCard=v;});
     card.appendChild(bar);
 
-    // click on card header toggles bar
+    // click on card header toggles bar — use querySelector so it works after replaceChild
     card.addEventListener('click',e=>{
       if(e.target.closest('button')||e.target.closest('a'))return;
-      const isOpen=bar.style.display!=='none';
+      const currentBar=card.querySelector('[data-bar-el]')||card.querySelector('[data-barEl="1"]')||card.querySelector('div[dataset]');
+      // Find bar dynamically — works even after replaceChild
+      const activeBarEl=Array.from(card.children).find(d=>d.dataset&&d.dataset.barEl==='1');
+      if(!activeBarEl)return;
+      const isOpen=activeBarEl.style.display!=='none';
       // close other open card
       if(_openSphereCard&&_openSphereCard!==card){
-        const prevBar=_openSphereCard.querySelector('div[style*="flex-wrap"]');
-        // find the action bar div (last child)
         const prevBars=_openSphereCard.querySelectorAll(':scope > div');
-        prevBars.forEach(d=>{ if(d.dataset.barEl) d.style.display='none'; });
+        prevBars.forEach(d=>{ if(d.dataset&&d.dataset.barEl) d.style.display='none'; });
         const prevChev=_openSphereCard.querySelector('[data-chevron]');
         if(prevChev){prevChev.style.transform='';prevChev.textContent='›';}
       }
-      bar.dataset.barEl='1';
-      bar.style.display=isOpen?'none':'flex';
+      activeBarEl.style.display=isOpen?'none':'flex';
       const chev=card.querySelector('[data-chevron]');
       if(chev){chev.style.transform=isOpen?'':'rotate(90deg)';chev.textContent=isOpen?'›':'⌃';}
       _openSphereCard=isOpen?null:card;
