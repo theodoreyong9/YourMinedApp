@@ -463,13 +463,31 @@
         const tapGX = (ex - rect.left) / rect.width * GRID_W;
         const tapGY = (ey - rect.top) / rect.height * GRID_H;
         const S = window.YM_S[NAME];
-        const me = S.isSolo
-          ? (S.snakes[0]?.cells[0])
-          : (S.snakes[S.mySlot]?.cells[0]);
-        if(!me) return;
-        const dx = tapGX - me.x;
-        const dy = tapGY - me.y;
-        S._setDir(Math.abs(dx) > Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up'));
+        const slot = S.isSolo ? 0 : S.mySlot;
+        const snake = S.snakes[slot];
+        if(!snake || !snake.cells[0]) return;
+        const head = snake.cells[0];
+        const curDir = snake.dir;
+        const dx = tapGX - head.x;
+        const dy = tapGY - head.y;
+        // Pick best direction that isn't opposite to current
+        // Prefer dominant axis but fall back to other axis if dominant would reverse
+        const hDir = dx > 0 ? 'right' : 'left';
+        const vDir = dy > 0 ? 'down' : 'up';
+        const hOk = !S._isOpposite(curDir, hDir);
+        const vOk = !S._isOpposite(curDir, vDir);
+        let dir;
+        if(hOk && vOk) {
+          // Both valid — pick dominant axis
+          dir = Math.abs(dx) > Math.abs(dy) ? hDir : vDir;
+        } else if(hOk) {
+          dir = hDir;
+        } else if(vOk) {
+          dir = vDir;
+        } else {
+          return; // nowhere to go
+        }
+        S._setDir(dir);
       };
       panel.addEventListener('touchstart', e => {
         if(window.YM_S[NAME].phase !== 'playing') return;
@@ -485,12 +503,6 @@
 
     renderPanel(body) {
       this.view = body;
-      body.style.overflowY = 'auto';
-      body.style.touchAction = 'pan-y';
-      if(body.parentElement) {
-        body.parentElement.style.overflow = 'visible';
-        body.parentElement.style.touchAction = 'pan-y';
-      }
       this._setupKeys();
       this._wireTap();
       this._render();
