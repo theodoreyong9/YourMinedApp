@@ -24,8 +24,8 @@ let _filterSocial = null;
 function _readCache(allowStale=false){
   try{const raw=localStorage.getItem(CACHE_KEY);if(!raw)return null;const c=JSON.parse(raw);if(!allowStale&&Date.now()-c.ts>CACHE_TTL)return null;return c;}catch{return null;}
 }
-function _writeCache(list){
-  try{localStorage.setItem(CACHE_KEY,JSON.stringify({list,ts:Date.now()}));}catch{}
+function _writeCache(list,etag){
+  try{localStorage.setItem(CACHE_KEY,JSON.stringify({list,ts:Date.now(),etag:etag||null}));}catch{}
 }
 
 let _fetchPromise=null;
@@ -36,18 +36,25 @@ async function fetchSphereList(){
 }
 
 async function _doFetch(){
-  const cached=_readCache();
   let entries=[];
+  let etag=null;
   try{
+    // Fetch files.json with ETag for cache invalidation
     const res=await fetch(FILES_JSON_URL+'?t='+Date.now(),{cache:'no-store'});
     if(!res.ok)throw new Error('HTTP '+res.status);
+    etag=res.headers.get('etag')||res.headers.get('last-modified')||null;
     const data=await res.json();
     entries=Array.isArray(data)?data:[];
   }catch(e){
     console.warn('[Liste] files.json fetch failed:',e.message);
+    const cached=_readCache();
     if(cached){_sphereList=cached.list;_loaded=true;return _sphereList;}
     _sphereList=[];_loaded=true;return _sphereList;
   }
+  // Invalidate cache if files.json changed (etag mismatch)
+  const cached=_readCache(true);
+  const cacheValid=cached&&etag&&cached.etag===etag&&(Date.now()-cached.ts<CACHE_TTL);
+  if(cacheValid){_sphereList=cached.list;_loaded=true;return _sphereList;}
   if(!entries.length){_sphereList=[];_loaded=true;_writeCache(_sphereList);return _sphereList;}
   const cachedMap={};
   if(cached)cached.list.forEach(s=>{cachedMap[s.fileName]=s;});
@@ -79,7 +86,7 @@ async function _doFetch(){
   }));
   _fetchedList.sort(function(a,b){return (b.score||0)-(a.score||0);});
   _sphereList=_fetchedList;
-  _writeCache(_sphereList);
+  _writeCache(_sphereList,etag);
   _loaded=true;
   return _sphereList;
 }
@@ -927,27 +934,36 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
     {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
-      const _scrollOff=document.getElementById('list-content')?.parentElement?.scrollTop||0;
+      const _scrollEl=document.getElementById('list-content')?.parentElement;
+      const _scrollOff=_scrollEl?.scrollTop||0;
       await deactivateSphere(sphere);
-      // Re-render in place — no page reset, preserve scroll
       const _lbOff=document.getElementById('list-content');
       if(_lbOff){
         renderList(_lbOff);
-        requestAnimationFrame(()=>{ if(_lbOff.parentElement) _lbOff.parentElement.scrollTop=_scrollOff; });
+        requestAnimationFrame(()=>{ if(_scrollEl) _scrollEl.scrollTop=_scrollOff; });
       }
     }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       card.style.opacity='.6';
       // Validate before activating — check required fields
       try {
-        const _scrollOn=document.getElementById('list-content')?.parentElement?.scrollTop||0;
+        const _scrollElOn=document.getElementById('list-content')?.parentElement;
+        const _scrollOn=_scrollElOn?.scrollTop||0;
         await activateSphere(sphere);
         card.style.opacity='1';
-        // Re-render in place — no page reset, preserve scroll
         const _lbOn=document.getElementById('list-content');
         if(_lbOn){
           renderList(_lbOn);
-          requestAnimationFrame(()=>{ if(_lbOn.parentElement) _lbOn.parentElement.scrollTop=_scrollOn; });
+          // Re-fetch metas in background to get fresh icons/descriptions
+          if(!window._ymListeFetching){
+            window._ymListeFetching=true;
+            fetchSphereList().then(()=>{
+              window._ymListeFetching=false;
+              if(document.body.contains(_lbOn)) renderList(_lbOn);
+              requestAnimationFrame(()=>{ if(_scrollElOn) _scrollElOn.scrollTop=_scrollOn; });
+            }).catch(()=>{window._ymListeFetching=false;});
+          }
+          requestAnimationFrame(()=>{ if(_scrollElOn) _scrollElOn.scrollTop=_scrollOn; });
         }
       } catch(e) {
         card.style.opacity='1';
