@@ -927,18 +927,33 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
     {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
+      const _scrollOff=document.getElementById('list-content')?.parentElement?.scrollTop||0;
       await deactivateSphere(sphere);
-      // Full re-render of list content only
+      // Re-render in place — no page reset, preserve scroll
       const _lbOff=document.getElementById('list-content');
-      if(_lbOff){_listPage=0;renderList(_lbOff);}
+      if(_lbOff){
+        renderList(_lbOff);
+        requestAnimationFrame(()=>{ if(_lbOff.parentElement) _lbOff.parentElement.scrollTop=_scrollOff; });
+      }
     }}] : !isActive ? [{icon:'▶',label:'Activer',style:BTN_ACCENT,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
       card.style.opacity='.6';
-      await activateSphere(sphere);
-      card.style.opacity='1';
-      // Full re-render of list content only
-      const _lbOn=document.getElementById('list-content');
-      if(_lbOn){_listPage=0;renderList(_lbOn);}
+      // Validate before activating — check required fields
+      try {
+        const _scrollOn=document.getElementById('list-content')?.parentElement?.scrollTop||0;
+        await activateSphere(sphere);
+        card.style.opacity='1';
+        // Re-render in place — no page reset, preserve scroll
+        const _lbOn=document.getElementById('list-content');
+        if(_lbOn){
+          renderList(_lbOn);
+          requestAnimationFrame(()=>{ if(_lbOn.parentElement) _lbOn.parentElement.scrollTop=_scrollOn; });
+        }
+      } catch(e) {
+        card.style.opacity='1';
+        btn.innerHTML='▶';btn.style.pointerEvents='';
+        window.YM_toast?.('Activation error: '+e.message,'error');
+      }
     }}] : []),
   ]);
   bar.dataset.barEl='1';
