@@ -43,6 +43,21 @@ YourMine is a distributed layer for applications and value, built on Solana. It 
 
 ---
 
+## Design Philosophy
+
+YourMine is intentionally vanilla JS with no bundler, no framework, no build step. This is a philosophical choice — anyone with a text editor can build a sphere or a theme.
+
+This constraint has a consequence: **you share a namespace with the kernel**. There is no Shadow DOM isolation, no CSS modules, no sandboxed scope. In exchange you get zero toolchain friction and full interoperability with every other sphere and theme.
+
+This means a few lightweight conventions replace what a framework would enforce automatically:
+
+- Prefix your CSS classes with your sphere or theme name
+- Never use `window.YM_*` names for your own globals
+- Declare `YM_NAV_CONFIG` before `app.js` loads if you need custom nav
+- Use `ctx.storage` instead of raw `localStorage` to avoid key collisions
+
+These are not bugs in the architecture. They are the visible seam between a kernel that must stay open and a builder space that must stay free.
+
 ## Architecture Overview
 
 ```
@@ -473,11 +488,35 @@ Spheres can inject UI into two places in the profile panel.
 
 ### `profileSection(container)`
 
-Called when the user opens their own profile → Spheres tab. Use it to show sphere-specific settings, stats, or configuration.
+Called when the user opens their own profile → Spheres tab. Use it to show sphere-specific stats, history, leaderboard, or settings. Combine `ctx.storage` for personal data and `window.YM_Social._nearUsers` for peer scores.
 
 ```js
 profileSection(container) {
-  container.innerHTML = '<div>My sphere settings here</div>';
+  // Personal best from storage
+  const best = this.ctx.storage.get('mygame_best') || '0';
+  const hist = JSON.parse(this.ctx.storage.get('mygame_history') || '[]').slice(0, 5);
+
+  // Peer scores from broadcastData
+  const peers = [];
+  window.YM_Social?._nearUsers.forEach((peer, uuid) => {
+    if (peer.broadcastData?.mygame_best !== undefined) {
+      peers.push({
+        name: peer.profile?.name || uuid.slice(0, 8),
+        best: peer.broadcastData.mygame_best
+      });
+    }
+  });
+  peers.sort((a, b) => b.best - a.best);
+
+  container.innerHTML = `
+    <div style="padding:14px">
+      <div style="font-size:24px;font-weight:700;color:var(--accent)">${best}</div>
+      <div style="font-size:9px;color:var(--text3);letter-spacing:.1em">BEST SCORE</div>
+      ${peers.length ? `
+        <div style="margin-top:12px">
+          ${peers.map(p => `<div>${p.name} — ${p.best}</div>`).join('')}
+        </div>` : ''}
+    </div>`;
 }
 ```
 
@@ -503,14 +542,12 @@ peerSection(container, peerCtx) {
   btn.style.cssText = 'width:100%;font-size:12px';
   btn.textContent = '⚡ Challenge';
   btn.addEventListener('click', () => {
-    const peerId = window.YM_Social?._nearUsers.get(peerCtx.uuid)?.peerId;
-    if (peerId) {
-      window.YM_P2P?.sendTo(peerId, {
-        sphere: 'mysphere.sphere.js',
-        type:   'mygame:challenge',
-        data:   {}
-      });
-    }
+    const peerId = peerCtx.peerId || peerCtx.uuid;
+    if (!peerId) return;
+    // Use ctx.send — NOT window.YM_P2P.sendTo (peerSection has no ctx)
+    // Access your sphere's ctx via the registry
+    const mySphere = window.YM_sphereRegistry?.get('mysphere.sphere.js');
+    mySphere?.ctx?.send('mygame:challenge', {}, peerId);
     window.YM?.openSpherePanel?.('mysphere.sphere.js');
   });
   container.appendChild(btn);
@@ -1466,6 +1503,57 @@ deactivate() {
 | `window.YM_Build` | `build.js` | Build/publish API |
 | `window.YM_toast(msg, type)` | `app.js` | Toast |
 | `window.YM.setTheme(url, prevUrl?)` | `app.js` | Switch theme — prefetches HTML, caches, reloads. `prevUrl` optional, stored as `ym_prev_theme` |
+
+## SVG illustrations in themes
+
+Use inline SVG for abstract decorative illustrations — no external assets, no loading. Keep viewBox at `0 0 600 N` for consistent scaling. Animate with CSS `IntersectionObserver` for scroll reveal.
+
+```js
+// Minimal pattern — append after section title
+const wrap = document.createElement('div');
+wrap.className = 'my-illo-wrap'; // NOT ym-* prefix
+wrap.innerHTML = `<svg viewBox="0 0 600 80" style="width:100%;height:80px">
+  <circle cx="300" cy="40" r="20" fill="none" stroke="rgba(91,120,245,0.4)" stroke-width="1.5">
+    <animate attributeName="r" values="20;28;20" dur="3s" repeatCount="indefinite"/>
+  </circle>
+</svg>`;
+container.appendChild(wrap);
+
+// Reveal on scroll
+new IntersectionObserver(([e]) => {
+  if (e.isIntersecting) e.target.style.opacity = '1';
+}, { threshold: 0.2 }).observe(wrap);
+```
+
+**Notes:**
+- Use `rgba` colors from your theme's CSS variables for consistency
+- Keep animations subtle — `dur` ≥ 2s, never on critical content
+- SVG elements don't need class prefixes (they're not CSS-targeted by YourMine)
+- If the SVG is inside a `.reveal` element, tie visibility to the parent observer rather than a separate one
+
+## Theme CSS isolation
+
+Every theme hides the YourMine DOM with:
+
+```css
+.ym-overlay,.ym-tabs,.ym-input,.ym-btn,.ym-card,.ym-notice,.pill{display:none!important}
+```
+
+**The only risk:** your element gets `display:none!important` — invisible but still in the DOM. No crash, no functional bug, just invisible.
+
+**The fix is simple:** prefix all your classes with your theme name.
+
+```css
+/* ✗ will be hidden */
+<button class="ym-btn">click</button>
+
+/* ✓ safe */
+<button class="nasa-btn">click</button>
+<button class="book-close">click</button>
+<button class="lp-cta">click</button>
+```
+
+That's it. One rule, no exceptions.
 
 ## Nav Button Config
 
