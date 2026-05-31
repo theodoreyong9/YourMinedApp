@@ -448,7 +448,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       });
     });
     async function loadThemeList(){
-      _cache=window.YM_Liste._themesList.map(function(t){return{filename:t.filename||'',name:t.name||'',icon:t.icon||'🎨',description:t.description||'',codeUrl:t.codeUrl||null};});
+      // YM_Liste first — already loaded, no fetch needed
+      if(window.YM_Liste&&window.YM_Liste._themesList&&window.YM_Liste._themesList.length){
+        _cache=window.YM_Liste._themesList.map(function(t){return{filename:t.filename||'',name:t.name||'',icon:t.icon||'🎨',description:t.description||'',codeUrl:t.codeUrl||null};});
+        renderThemeList(_cache);return;
+      }
+      // Fallback: fetch themes-files.json
+      if(_cache){renderThemeList(_cache);return;}
+      try{var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});if(r.ok){_cache=await r.json();}else throw new Error();}
+      catch(e){_cache=[{filename:'wikipedia.theme.html',name:'Wikipedia',icon:'📖',description:'Free encyclopedia'},{filename:'nasa.theme.html',name:'NASA',icon:'🚀',description:'Space data'},{filename:'met.theme.html',name:'The Met',icon:'🏛',description:'400k artworks'},{filename:'hackernews.theme.html',name:'Hacker News',icon:'🔶',description:'Tech news'},{filename:'github-trends.theme.html',name:'GitHub Trends',icon:'⭐',description:'Trending repos'}];}
       renderThemeList(_cache);
     }
     function renderThemeList(themes){
