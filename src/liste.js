@@ -550,6 +550,12 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
   const list=themes||_themesList||[];
 
   let filtered=list;
+  // Active theme always first
+  filtered = [...filtered].sort((a,b)=>{
+    const au=(a.codeUrl||('https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/'+a.filename));
+    const bu=(b.codeUrl||('https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/'+b.filename));
+    return (bu===curThemeUrl?1:0)-(au===curThemeUrl?1:0);
+  });
   if(_themeSearch)filtered=filtered.filter(t=>
     (t.name||'').toLowerCase().includes(_themeSearch)||
     (t.description||'').toLowerCase().includes(_themeSearch)||
@@ -649,13 +655,10 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
     // action bar (hidden initially)
     const bar=_makeActionBar([
       {icon:'↗', label:'Share', style:BTN_GHOST, id:'share', onClick:()=>{
-        const shareUrl=rawUrl;
-        if(navigator.share){navigator.share({title:t.name,url:shareUrl}).catch(()=>{});}
-        else{navigator.clipboard?.writeText(shareUrl);window.YM_toast?.('URL copiée','success');}
-      }},
-      {icon:'⎋', label:'Site', style:BTN_GHOST, id:'site', onClick:()=>{
-        const u=siteUrl||rawUrl;
-        window.open(u,'_blank','noopener');
+        const slug=(t.filename||t.name||'').replace('.theme.html','.theme').replace('.html','.theme');
+        const u=location.origin+'/'+slug;
+        if(navigator.share){navigator.share({title:t.name,url:u}).catch(()=>{});}
+        else{navigator.clipboard?.writeText(u);window.YM_toast?.('URL copiée','success');}
       }},
       {icon:'</>',label:'Code', style:BTN_CYAN, id:'code', onClick:()=>{
         if(ghCodeUrl)window.open(ghCodeUrl,'_blank','noopener');
@@ -959,11 +962,11 @@ function _buildSphereActionBar(sphere, isActive, card, getOpen, setOpen){
   const siteUrl=sphere.siteUrl||null;
   const bar=_makeActionBar([
     {icon:'↗',label:'Share',style:BTN_GHOST,id:'share',onClick:()=>{
-      const u=sphere.codeUrl||sphere.url||ghAuthorUrl;
+      const slug=sphere.fileName.replace('.sphere.js','.sphere');
+      const u=location.origin+'/'+slug;
       if(navigator.share){navigator.share({title:sphere.name,url:u}).catch(()=>{});}
       else{navigator.clipboard?.writeText(u);window.YM_toast?.('URL copiée','success');}
     }},
-    {icon:'⎋',label:'Site',style:BTN_GHOST,id:'site',onClick:()=>{window.open(siteUrl||ghAuthorUrl,'_blank','noopener');}},
     {icon:'</>',label:'Code',style:BTN_CYAN,id:'code',onClick:()=>{window.open(ghAuthorUrl,'_blank','noopener');}},
     ...(isActive && !MANDATORY_SPHERES.includes(sphere.fileName) ? [{icon:'◼',label:'Off',style:BTN_DANGER,id:'activate',onClick:async(btn)=>{
       btn.innerHTML='…';btn.style.pointerEvents='none';
