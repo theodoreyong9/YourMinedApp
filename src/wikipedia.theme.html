@@ -448,6 +448,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       });
     });
     async function loadThemeList(){
+      if(window.YM_Liste&&window.YM_Liste._themesList&&window.YM_Liste._themesList.length){
+        _cache=window.YM_Liste._themesList.map(function(t){return{filename:t.filename||'',name:t.name||'',icon:t.icon||'🎨',description:t.description||'',codeUrl:t.codeUrl||null};});
+        renderThemeList(_cache);return;
+      }
       if(_cache){renderThemeList(_cache);return;}
       try{var r=await fetch(RAW+'themes-files.json?t='+Date.now(),{cache:'no-store'});if(r.ok){_cache=await r.json();}else throw new Error();}
       catch(e){_cache=[
@@ -459,6 +463,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       ];}
       renderThemeList(_cache);
     }
+
     function renderThemeList(themes){
       var list=document.getElementById('tnav-picker-list');list.innerHTML='';
       themes.forEach(function(t){
