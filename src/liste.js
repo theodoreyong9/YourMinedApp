@@ -18,7 +18,7 @@ let _listPage = 0;
 let _loaded     = false;
 let _filterText   = '';
 let _filterCat    = '';
-let _filterActive = false;
+let _filterActive = false, _filterInactive = false;
 let _filterSocial = null;
 
 function _readCache(allowStale=false){
@@ -332,7 +332,7 @@ async function render(containerArg){
     // ── Ligne 2 : pills secondaires ───────────────────────────────
     filterRow.innerHTML='';
     const curCat=_filterCat||'All';
-    const curStatus=_listShowWip?'wip':(_filterActive?'active':'all');
+    const curStatus=_listShowWip?'wip':(_filterActive?'active':(_filterInactive?'inactive':'all'));
 
     // Si themes : Photo + Video pills
     if(isThemeLike){
@@ -381,8 +381,26 @@ async function render(containerArg){
       filterRow.appendChild(cPill);
     }
 
-    // Status pill — spheres only, themes have their own Published/WIP filter
-    if(isThemeLike) return; // themes: no status pill
+    // Status pill — themes: only Published/WIP; spheres: full STATUS_OPTS
+    if(isThemeLike){
+      const THEME_STATUS=[{id:'all',label:'All'},{id:'published',label:'Published'},{id:'wip',label:'🚧 Under construction'}];
+      const tStatus=_listShowWip?'wip':'all';
+      const tPill=document.createElement('span');
+      tPill.className='pill'+(tStatus!=='all'?' active':'');
+      tPill.dataset.drop='tstatus';
+      tPill.style.cssText='cursor:pointer;font-size:10px;flex-shrink:0';
+      tPill.textContent=(tStatus==='all'?'Status':THEME_STATUS.find(s=>s.id===tStatus)?.label||'Status')+' ▾';
+      tPill.addEventListener('click',()=>{
+        _openDrop('tstatus',THEME_STATUS.map(s=>({...s,active:s.id===tStatus})),opt=>{
+          _listShowWip=opt.id==='wip';
+          _listPage=0;renderFilterRow();
+          const cu=localStorage.getItem('ym_theme_url')||'';
+          _renderThemeCards(content,cu,'https://github.com/',_themesList);
+        });
+      });
+      filterRow.appendChild(tPill);
+      return;
+    }
     const statusOpts=STATUS_OPTS;
     const sPill=document.createElement('span');
     sPill.className='pill'+(curStatus!=='all'?' active':'');
@@ -392,10 +410,10 @@ async function render(containerArg){
     sPill.addEventListener('click',()=>{
       _openDrop('status',statusOpts.map(s=>({...s,active:s.id===curStatus})),opt=>{
         _filterActive=opt.id==='active';
+        _filterInactive=opt.id==='inactive';
         _listShowWip=opt.id==='wip';
-        if(opt.id==='active')_listShowWip=false;
-        if(opt.id==='wip')_filterActive=false;
-        if(opt.id==='all'){_filterActive=false;_listShowWip=false;}
+        if(opt.id!=='wip'){}
+        if(opt.id==='all'){_filterActive=false;_filterInactive=false;_listShowWip=false;}
         _listPage=0;renderFilterRow();
         if(_listType==='spheres')renderList(content);
         else{const cu=localStorage.getItem('ym_theme_url')||'';_renderThemeCards(content,cu,'https://github.com/',_themesList);}
@@ -411,7 +429,8 @@ async function render(containerArg){
 
   function switchType(){
     content.innerHTML='';
-    _filterCat='';_filterActive=false;_listShowWip=false;
+    _filterCat='';_filterActive=false;_filterInactive=false;_listShowWip=false;
+    _closeDropdown();
     buildWipToggle();
     renderFilterRow();
     if(_listType==='spheres')renderSpheresContent(content,null);
@@ -993,6 +1012,7 @@ function renderList(body){
   if(_filterText)filtered=filtered.filter(s=>(s.name||'').toLowerCase().includes(_filterText)||(s.description||'').toLowerCase().includes(_filterText)||(s.ghAuthor||'').toLowerCase().includes(_filterText)||(s.category||'').toLowerCase().includes(_filterText));
   if(_filterCat)filtered=filtered.filter(s=>normCat(s.category||'')===_filterCat||(_filterCat==='Autres'&&!STD_CATS.includes(s.category||'')));
   if(_filterActive)filtered=filtered.filter(s=>isSphereActive(s.fileName));
+  if(_filterInactive)filtered=filtered.filter(s=>!isSphereActive(s.fileName));
   if(_listShowWip)filtered=filtered.filter(s=>s.wip);
   if(_filterSocial==='near'){
     const near=window._ymNearSpheres;
