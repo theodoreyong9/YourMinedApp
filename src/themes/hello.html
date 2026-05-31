@@ -74,6 +74,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-btn-secondary:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15);color:var(--text2)}
 .lp-btn-manifesto{background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.18);color:rgba(167,139,250,.7);}
 .lp-btn-manifesto:hover{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.35);color:var(--purple)}
+.lp-btn-theory{background:rgba(8,224,248,.06);border:1px solid rgba(8,224,248,.18);color:rgba(8,224,248,.7);}
+.lp-btn-theory:hover{background:rgba(8,224,248,.11);border-color:rgba(8,224,248,.35);color:var(--cyan)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .lp-body{max-width:600px;margin:0 auto;padding:0 28px 120px;}
 .lp-vline{width:1px;height:64px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.07),transparent);margin:0 auto 64px;}
@@ -107,6 +109,49 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-footer-logo{font-family:var(--font-d);font-size:clamp(22px,5vw,40px);font-weight:800;letter-spacing:.05em;background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;}
 .lp-footer-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
 .lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.3);letter-spacing:.15em;}
+
+/* Theory overlay */
+#theory-overlay{
+  position:fixed;inset:0;z-index:1000;
+  background:rgba(5,5,7,.97);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  opacity:0;pointer-events:none;
+  transition:opacity .35s ease;
+}
+#theory-overlay.open{opacity:1;pointer-events:all;}
+#theory-inner{
+  max-width:680px;margin:0 auto;
+  padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));
+}
+#theory-close{
+  position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(5,5,7,.85);border:1px solid rgba(8,224,248,.2);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  color:var(--text2);font-size:18px;width:48px;height:48px;
+  border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);
+  z-index:1001;
+}
+#theory-close:hover{background:rgba(8,224,248,.08);color:var(--cyan);}
+.th-eyebrow{font-family:var(--font-m);font-size:9px;color:var(--cyan);letter-spacing:.28em;text-transform:uppercase;margin-bottom:16px;opacity:.7;}
+.th-h{font-family:var(--font-d);font-size:clamp(22px,4vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--text);margin-bottom:24px;}
+.th-p{font-size:clamp(13px,1.7vw,15px);color:var(--text2);line-height:1.85;margin-bottom:18px;}
+.th-p strong{color:var(--text);font-weight:600;}
+.th-p em{font-style:normal;color:var(--cyan);}
+.th-sep{height:40px;}
+.th-label{font-family:var(--font-m);font-size:9px;color:var(--cyan);letter-spacing:.24em;text-transform:uppercase;margin-bottom:14px;opacity:.65;}
+.th-quote{font-family:var(--font-d);font-size:clamp(16px,2.5vw,22px);font-weight:700;line-height:1.4;color:var(--text);border-left:2px solid rgba(8,224,248,.35);padding-left:18px;margin-bottom:22px;}
+.th-block{background:rgba(8,224,248,.04);border:1px solid rgba(8,224,248,.1);border-radius:12px;padding:22px 20px;margin-bottom:18px;}
+.th-block-label{font-family:var(--font-m);font-size:10px;color:var(--cyan);letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px;opacity:.6;}
+.th-block-text{font-size:clamp(13px,1.7vw,15px);color:var(--text2);line-height:1.75;}
+.th-chain{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:20px 0;}
+.th-chain-item{font-family:var(--font-m);font-size:11px;color:var(--text2);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 13px;}
+.th-chain-arrow{color:var(--cyan);font-size:14px;opacity:.5;flex-shrink:0;}
+.th-negs{display:flex;flex-direction:column;gap:8px;margin:16px 0;}
+.th-neg{font-size:clamp(13px,1.7vw,15px);color:var(--text3);}
+.th-neg::before{content:'— ';color:rgba(8,224,248,.4);}
+.th-final{font-family:var(--font-d);font-size:clamp(18px,3vw,28px);font-weight:800;letter-spacing:-.01em;color:var(--text);margin:28px 0 8px;}
 
 /* Manifesto overlay */
 #manifesto-overlay{
@@ -169,6 +214,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
       <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
       <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
       <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn">✦ Manifesto</button>
+      <button class="lp-btn lp-btn-theory" id="lp-theory-btn">◈ Theory</button>
     </div>
   </div>
   <div class="lp lp-body">
@@ -345,6 +391,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
         <button class="lp-btn lp-btn-primary" id="lp-start-btn-2">&#9654; Start</button>
         <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
         <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn-2">✦ Manifesto</button>
+        <button class="lp-btn lp-btn-theory" id="lp-theory-btn-2">◈ Theory</button>
       </div>
     </div>
   </div>
@@ -612,6 +659,94 @@ n spheres → 2ⁿ configurations (expansion)</div>
 
 <button id="manifesto-close">✕</button>
 
+<!-- Theory overlay -->
+<div id="theory-overlay">
+  <div id="theory-inner">
+
+    <div class="th-eyebrow">YourMine — Theoretical Foundation</div>
+    <div class="th-h">What is a payoff?</div>
+
+    <div class="th-p">Every theory of games assumes that what you win or lose can be expressed as a number. A real number. Something you can rank, compare, add. This assumption is so embedded it is rarely stated. It is just the definition of a payoff.</div>
+
+    <div class="th-p">We argue this assumption fails for a class of systems — <strong>participatory, distributed, compositional</strong> — where what engagement produces is not a quantity but a structure. A relational object. Something that grows when you compose it with others and collapses to nothing when you withdraw.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-quote">The question is not how to generalize Nash equilibrium.<br>The question is what a payoff is.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">The scalar assumption</div>
+    <div class="th-p">Classical game theory requires two things: that every value can be assigned a number (representability), and that any two values can be compared (completeness). For markets and auctions, this works. Value is designed to be numerical there.</div>
+    <div class="th-p">But participation produces something different. When two people share a sphere — a common context, a practice, a way of interacting — they produce a <em>relational object</em>. This object has structure. It can be extended. It can be partially ordered. It cannot be naturally reduced to a number without losing what makes it what it is.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">Sen and incomplete preferences</div>
+    <div class="th-p">Amartya Sen saw a related failure in welfare economics. He argued that forcing a complete ranking on incommensurable values — health, political freedom, social recognition — distorts the value structure rather than representing it. The agent who cannot rank more freedom against less health is not irrational. They are recognizing that the comparison the theory demands does not exist.</div>
+    <div class="th-p">Sen proposed capability sets as a richer representation. But capability sets lack compositional structure — they do not combine when people interact strategically. There is no equilibrium theory for capability-valued games. That is the gap we address.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">Categorically-valued open games</div>
+    <div class="th-p">We extend open game theory (Ghani, Hedges, 2018) by replacing real-valued payoffs with objects in a symmetric monoidal category <em>C</em>. The classical case — a number — is recovered as the thin category induced by the total order on ℝ. The new framework admits payoffs that compose, that have an initial object (the empty relational structure produced by defection), and that are only partially ordered.</div>
+
+    <div class="th-block">
+      <div class="th-block-label">The defection object</div>
+      <div class="th-block-text">In classical theory, defection produces a lower number — you still exist in the payoff space, just worse off. In categorically-valued theory, defection produces ∅<sub>C</sub> — the initial object, the empty structure. You are not worse off. You are outside the structure. This is the correct representation of what social defection actually produces.</div>
+    </div>
+
+    <div class="th-block">
+      <div class="th-block-label">Participatory equilibrium</div>
+      <div class="th-block-text">A participatory equilibrium is a strategy profile where no player has a strictly dominant deviation — no unilateral change produces a payoff strictly above their current one in the partial order. Because the order is partial, incomparable deviations are not improvements. They are just different. Incomparability is native to the definition.</div>
+    </div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">Incomparability is not a bug</div>
+    <div class="th-quote">Incomparability is what value looks like when it is structure rather than quantity.</div>
+    <div class="th-p">Classical theory treats incomparable outcomes as a theoretical embarrassment — a sign that the model is incomplete, that a common scale has not yet been found. The entire project of welfare economics is in part a project of finding ways to compare the incomparable.</div>
+    <div class="th-p">We propose the opposite reading. Two participation patterns that produce qualitatively different relational structures are not better or worse than each other. They are different in kind. A framework that forces comparison loses information. A framework that represents incomparability faithfully preserves it.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">The value sequence</div>
+    <div class="th-p">The viscoelastic theory of value (L'Œil et la Main, ch. 4) provides a physical grounding for this framework. Value is not assigned to objects from outside. It emerges from a generative metabolic process:</div>
+
+    <div class="th-chain">
+      <span class="th-chain-item">Elasticity</span>
+      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-item">Velocity</span>
+      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-item">Liquidity</span>
+      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-item">Utility</span>
+      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-item">Value</span>
+    </div>
+
+    <div class="th-p">The scalar payoff of classical game theory is the terminal state of this sequence — value as already-produced quantity, abstracted from the process that generated it. Categorical payoffs represent states in the generative sequence, not just its output.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">YourMine as instance</div>
+    <div class="th-p">The identity surface of user A as seen by user B — produced by composing the contributions of all spheres they share — is an object in the category of diagrams. It is the empty diagram when they share nothing. It grows under composition. It is partially ordered by inclusion. Two users with different shared sphere configurations produce incomparable identity surfaces: neither participation pattern dominates the other. They are qualitatively different.</div>
+
+    <div class="th-negs">
+      <div class="th-neg">No central authority — because the context is produced by the players, not assigned from outside.</div>
+      <div class="th-neg">No fixed identity — because identity is the colimit of all shared sphere compositions.</div>
+      <div class="th-neg">No universal ranking — because participation patterns are incomparable in the partial order.</div>
+    </div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-final">A composable object is not a generalization of a number.<br>It is a different answer to a different question.</div>
+    <div class="th-p" style="color:var(--text3);font-size:12px;margin-top:24px;">Yong, JdC — <em>What Is a Payoff? Participatory Value and Categorically-Valued Open Games</em> — Working paper 2025.</div>
+
+  </div>
+</div>
+<button id="theory-close">✕</button>
+
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
 <div id="drag-ghost"></div><div id="page-dots"></div>
@@ -736,6 +871,24 @@ n spheres → 2ⁿ configurations (expansion)</div>
   if(closeBtn)closeBtn.addEventListener('click',closeManifesto);
   if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeManifesto();});
+
+  // Theory
+  var theoryOverlay=document.getElementById('theory-overlay');
+  var theoryCloseBtn=document.getElementById('theory-close');
+  if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';
+  function openTheory(){
+    if(theoryOverlay)theoryOverlay.classList.add('open');
+    if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(8,224,248,.2);color:rgba(8,224,248,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';
+  }
+  function closeTheory(){
+    if(theoryOverlay)theoryOverlay.classList.remove('open');
+    if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';
+  }
+  var tb1=document.getElementById('lp-theory-btn');if(tb1)tb1.addEventListener('click',openTheory);
+  var tb2=document.getElementById('lp-theory-btn-2');if(tb2)tb2.addEventListener('click',openTheory);
+  if(theoryCloseBtn)theoryCloseBtn.addEventListener('click',closeTheory);
+  if(theoryOverlay)theoryOverlay.addEventListener('click',function(e){if(e.target===theoryOverlay)closeTheory();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeManifesto();closeTheory();}});
 
   var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){
     e.target.classList.add('visible');
