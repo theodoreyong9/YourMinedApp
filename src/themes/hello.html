@@ -20,7 +20,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 #panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
 .ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
 #desktop-slider .icon-wrap{display:none!important}
-.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill{display:none!important}
+.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill,#ym-edge-back,#ym-edge-back-btn,#pwa-install-btn{display:none!important}
 
 #ym-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
 #ym-landing{position:fixed;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:transparent;z-index:10;}
@@ -132,7 +132,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);
   z-index:1001;
 }
-#manifesto-overlay.open ~ #manifesto-close{display:flex;}
 #manifesto-close:hover{background:rgba(255,255,255,.1);color:var(--text);}
 .lp-illo{width:100%;height:70px;margin:20px 0;display:block;}
 .lp-illo-wrap{opacity:1;} /* reveal parent handles animation */
@@ -719,11 +718,11 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var closeBtn=document.getElementById('manifesto-close');
   function openManifesto(){
     if(overlay)overlay.classList.add('open');
-    if(closeBtn)closeBtn.style.display='flex';
+    if(closeBtn)closeBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';
   }
   function closeManifesto(){
     if(overlay)overlay.classList.remove('open');
-    if(closeBtn)closeBtn.style.display='none';
+    if(closeBtn)closeBtn.style.cssText='display:none!important;';
   }
   var mb1=document.getElementById('lp-manifesto-btn');if(mb1)mb1.addEventListener('click',openManifesto);
   var mb2=document.getElementById('lp-manifesto-btn-2');if(mb2)mb2.addEventListener('click',openManifesto);
