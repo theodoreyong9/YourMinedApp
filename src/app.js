@@ -860,7 +860,7 @@
 
   let _sA = false;
   const _ACT_TIMEOUT    = 8000;
-  const MANDATORY_SPHERES = ['social.sphere.js', 'safety.sphere.js'];
+  const MANDATORY_SPHERES = ['social.sphere.js'];
 
   async function activateSphere(name, obj) {
     if (window.YM_sphereRegistry.has(name)) return;
@@ -1312,11 +1312,17 @@
         catch (e) { console.warn('[YM] social:', e.message); }
       }
 
-      const _safId = 'safety.sphere.js';
-      if (window.YM_Liste && !window.YM_sphereRegistry.has(_safId)) {
-        try { await window.YM_Liste.activateSphereByName(_safId); }
-        catch (e) { console.warn('[YM] safety:', e.message); }
+      // Theme-required spheres — defined in YM_THEME_META.requiredSpheres
+      const _themeMeta = window.YM_THEME_META || {};
+      const _required = Array.isArray(_themeMeta.requiredSpheres) ? _themeMeta.requiredSpheres : [];
+      for (const _rId of _required) {
+        if (_rId === _socId) continue; // already activated
+        if (window.YM_Liste && !window.YM_sphereRegistry.has(_rId)) {
+          try { await window.YM_Liste.activateSphereByName(_rId); }
+          catch (e) { console.warn('[YM] theme required sphere:', _rId, e.message); }
+        }
       }
+
     }, 0);
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
