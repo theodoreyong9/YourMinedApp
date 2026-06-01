@@ -218,10 +218,17 @@ function renderFlow(buildContent){
           });
         }
       ));
-      // 2.2 AI
-      wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Test the YourMine agent</div><div style="font-size:10px;color:var(--text3);margin-top:2px">AI code generation</div></div>',
-        ()=>{
+      // 2.2 AI — disabled (soon)
+      const aiBtn = _flowBtn(
+        '<span style="font-size:20px;opacity:.35">&#10022;</span><div><div style="font-size:13px;color:var(--text3)">Test the YourMine agent</div><div style="font-size:10px;color:var(--text3);margin-top:2px;opacity:.6">AI code generation &nbsp;<span style="font-family:var(--font-m,monospace);font-size:9px;letter-spacing:.1em;opacity:.7">(soon)</span></div></div>',
+        ()=>{}
+      );
+      aiBtn.style.opacity='0.45';
+      aiBtn.style.cursor='not-allowed';
+      aiBtn.style.pointerEvents='none';
+      wrap.appendChild(aiBtn);
+      // original click kept below for when AI is ready
+      const _aiOriginalClick = ()=>{
           buildContent.innerHTML='';
           buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
           const aiArea=document.createElement('div');
@@ -239,8 +246,7 @@ function renderFlow(buildContent){
           backWrap3.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
           backWrap3.appendChild(_flowBack(buildContent, renderFlow));
           buildContent.appendChild(backWrap3);
-        }
-      ));
+        }; // end _aiOriginalClick
       buildContent.appendChild(wrap);
       buildContent.appendChild(_flowBack(buildContent, renderFlow));
     }
