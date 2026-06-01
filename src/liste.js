@@ -138,7 +138,7 @@ function extractField(code,field){
   return null;
 }
 
-const MANDATORY_SPHERES=['social.sphere.js','safety.sphere.js'];
+const MANDATORY_SPHERES=['social.sphere.js'];
 function getActiveSpheres(){return JSON.parse(localStorage.getItem('ym_active_spheres')||'[]');}
 function setActiveSpheres(arr){localStorage.setItem('ym_active_spheres',JSON.stringify(arr));}
 function isSphereActive(fileName){return getActiveSpheres().includes(fileName);}
