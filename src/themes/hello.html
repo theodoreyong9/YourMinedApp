@@ -666,456 +666,88 @@ n spheres → 2ⁿ configurations (expansion)</div>
 <div id="theory-overlay">
   <div id="theory-inner">
 
-    <div class="th-eyebrow">Working Paper — Yong, JdC — 2025</div>
-    <div class="th-h">What Is a Payoff?<br><span style="font-size:.6em;color:var(--cyan);-webkit-text-fill-color:var(--cyan)">Participatory Value and Categorically-Valued Open Games</span></div>
+    <div class="th-eyebrow">YourMine — Theoretical Foundation</div>
+    <div class="th-h">What is a payoff?</div>
 
-    <div class="th-label">Abstract</div>
-    <div class="th-p">Classical game theory rests on a hidden ontological commitment: every value relevant to strategic behavior is representable as a real number. We argue this commitment fails for a class of systems — participatory, distributed, compositional — where the reward for engagement is not a quantity but a structure: a relational object produced by composition, destroyed by defection, and irreducible to any scalar without loss of information. We trace this failure through Sen's critique of scalar welfare and, more precisely, through his challenge to the completeness of preferences. We propose <em>categorically-valued open games</em> — open games where payoff functions map strategy profiles to objects in a symmetric monoidal category <strong>C</strong> — as the minimal formal extension required to represent structural value. The classical case is recovered from the thin symmetric monoidal category induced by the total order on ℝ. The framework admits incomparable equilibria — not as theoretical failure but as the faithful representation of participation patterns that are qualitatively different rather than quantitatively ranked. The central claim: <strong>incomparability is not a bug. It is what value looks like when it is structure rather than quantity.</strong></div>
+    <div class="th-p">Every theory of games assumes that what you win or lose can be expressed as a number. A real number. Something you can rank, compare, add. This assumption is so embedded it is rarely stated. It is just the definition of a payoff.</div>
 
-    <div class="th-sep"></div>
-    <div class="th-label">1. The Hidden Assumption</div>
-    <div class="th-p">Every payoff function in classical game theory has the form U<sub>i</sub> : Σ → ℝ. This is so standard it appears not as an assumption but as a definition. A payoff is a real number. Rationality is maximizing that number. Equilibrium is a strategy profile from which no player can increase their number by unilateral deviation.</div>
-    <div class="th-p">The assumption carries two substantive commitments. <strong>Representability</strong>: every value can be assigned a real number. <strong>Completeness</strong>: any two values can be compared — for any outcomes a and b, either a ≥ b or b ≥ a. These are not mathematical necessities. They are assumptions about what value is. And they fail for systems where what engagement produces is not a quantity but a structure.</div>
-
-    
-<div class="th-svg-wrap">
-<svg viewBox="0 0 520 160" width="520" height="160" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="glow1"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <marker id="arr1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(240,168,48,.7)"/></marker>
-    <marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(8,224,248,.7)"/></marker>
-  </defs>
-  <!-- Left: total order on R -->
-  <text x="30" y="20" font-family="monospace" font-size="10" fill="rgba(240,168,48,.6)" letter-spacing="2">SCALAR</text>
-  <line x1="20" y1="80" x2="200" y2="80" stroke="rgba(240,168,48,.4)" stroke-width="1.5" marker-end="url(#arr1)"/>
-  <circle cx="50" cy="80" r="4" fill="rgba(240,168,48,.8)" filter="url(#glow1)"/>
-  <circle cx="90" cy="80" r="4" fill="rgba(240,168,48,.8)" filter="url(#glow1)"/>
-  <circle cx="130" cy="80" r="4" fill="rgba(240,168,48,.8)" filter="url(#glow1)"/>
-  <circle cx="170" cy="80" r="4" fill="rgba(240,168,48,.8)" filter="url(#glow1)"/>
-  <text x="45" y="100" font-family="monospace" font-size="9" fill="rgba(240,168,48,.4)">-∞</text>
-  <text x="82" y="100" font-family="monospace" font-size="9" fill="rgba(240,168,48,.4)">a</text>
-  <text x="125" y="100" font-family="monospace" font-size="9" fill="rgba(240,168,48,.4)">b</text>
-  <text x="165" y="100" font-family="monospace" font-size="9" fill="rgba(240,168,48,.4)">+∞</text>
-  <text x="45" y="135" font-family="monospace" font-size="9" fill="rgba(240,168,48,.35)">a ≤ b or b ≤ a always</text>
-
-  <!-- Arrow in middle -->
-  <text x="218" y="85" font-family="monospace" font-size="18" fill="rgba(255,255,255,.2)">→</text>
-
-  <!-- Right: partial order / poset -->
-  <text x="280" y="20" font-family="monospace" font-size="10" fill="rgba(8,224,248,.6)" letter-spacing="2">CATEGORICAL</text>
-  <!-- bottom node -->
-  <circle cx="370" cy="130" r="5" fill="rgba(8,224,248,.8)" filter="url(#glow1)"/>
-  <text x="380" y="134" font-family="monospace" font-size="9" fill="rgba(8,224,248,.4)">∅</text>
-  <!-- mid left -->
-  <circle cx="330" cy="85" r="5" fill="rgba(8,224,248,.8)" filter="url(#glow1)"/>
-  <text x="310" y="80" font-family="monospace" font-size="9" fill="rgba(8,224,248,.4)">D₁</text>
-  <!-- mid right -->
-  <circle cx="410" cy="85" r="5" fill="rgba(8,224,248,.8)" filter="url(#glow1)"/>
-  <text x="418" y="80" font-family="monospace" font-size="9" fill="rgba(8,224,248,.4)">D₂</text>
-  <!-- top -->
-  <circle cx="370" cy="40" r="5" fill="rgba(8,224,248,.8)" filter="url(#glow1)"/>
-  <text x="378" y="36" font-family="monospace" font-size="9" fill="rgba(8,224,248,.4)">D₁⊗D₂</text>
-  <!-- edges -->
-  <line x1="370" y1="125" x2="334" y2="90" stroke="rgba(8,224,248,.35)" stroke-width="1.5" marker-end="url(#arr2)"/>
-  <line x1="370" y1="125" x2="406" y2="90" stroke="rgba(8,224,248,.35)" stroke-width="1.5" marker-end="url(#arr2)"/>
-  <line x1="334" y1="80" x2="366" y2="45" stroke="rgba(8,224,248,.35)" stroke-width="1.5" marker-end="url(#arr2)"/>
-  <line x1="410" y1="80" x2="378" y2="45" stroke="rgba(8,224,248,.35)" stroke-width="1.5" marker-end="url(#arr2)"/>
-  <!-- incomparable annotation -->
-  <line x1="335" y1="85" x2="405" y2="85" stroke="rgba(255,80,80,.3)" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="352" y="78" font-family="monospace" font-size="8" fill="rgba(255,80,80,.5)">incomparable</text>
-  <text x="285" y="150" font-family="monospace" font-size="9" fill="rgba(8,224,248,.35)">D₁ ≰ D₂ and D₂ ≰ D₁</text>
-</svg>
-</div>
-    <div class="th-sep"></div>
-    <div class="th-label">2. Where Scalar Utility Fails</div>
-    <div class="th-p"><strong>2.1 Relational value.</strong> When two people discover a common context — a game, a discipline, a way of working — something is created: a relational object, a shared structure that enables certain interactions and recognitions. This object has structure. It can be extended. It is partially ordered. It can be destroyed by withdrawal. There is no canonical way to assign a real number to it that preserves its compositional properties. Any numerical assignment collapses distinctions that matter. This is not a measurement limitation — it is a structural mismatch.</div>
-    <div class="th-p"><strong>2.2 Sen and completeness.</strong> Amartya Sen's critique of welfare economics targets precisely the completeness assumption (1979, 1985, 1999). Forcing complete preference orderings on incommensurable values distorts the value structure. The agent who cannot rank more political freedom against less health is not irrational — they are recognizing that the comparison the theory demands does not exist. Sen's framework admits genuinely incomparable outcomes — different in kind, not different in degree. The partial order on <strong>C</strong> is the formal structure Sen's critique requires.</div>
-    <div class="th-p"><strong>2.3 Formal antecedents.</strong> Aumann (1962) showed utility functions need not exist when preferences are incomplete. Bewley (2002) developed Knightian decision theory for agents who cannot rank all alternatives. Dubra, Maccheroni, Ok (2004) characterized expected utility for incomplete preferences. What this literature lacks is a game-theoretic extension. Our framework provides this in the language of open game theory.</div>
+    <div class="th-p">We argue this assumption fails for a class of systems — <strong>participatory, distributed, compositional</strong> — where what engagement produces is not a quantity but a structure. A relational object. Something that grows when you compose it with others and collapses to nothing when you withdraw.</div>
 
     <div class="th-sep"></div>
-    <div class="th-label">3. Background: Open Games</div>
-    <div class="th-p"><strong>Definition 3.1 (Ghani et al. 2018).</strong> An open game G consists of: players N with strategy sets Σ<sub>i</sub>; a play function P : Σ → X; a coplay function C : Σ × R → ×<sub>i</sub> ℝ; an equilibrium predicate E : R → 𝒫(Σ) defined by σ ∈ E(r) iff for all i, all σ′<sub>i</sub> : C<sub>i</sub>(σ,r) ≥ C<sub>i</sub>(σ′<sub>i</sub>,σ<sub>-i</sub>,r). Open games compose sequentially (G;H) and in parallel (G⊗H), forming a symmetric monoidal category <strong>Game</strong>. Nash is the degenerate case where R is a singleton. Limitation: the coplay function maps to ℝ — it cannot represent games where payoffs are objects with compositional structure and partial order.</div>
+
+    <div class="th-quote">The question is not how to generalize Nash equilibrium.<br>The question is what a payoff is.</div>
 
     <div class="th-sep"></div>
-    <div class="th-label">4. Categorically-Valued Open Games</div>
-    <div class="th-p"><strong>Definition 4.1 (Payoff Category).</strong> A payoff category is a symmetric monoidal category (<strong>C</strong>, ⊗, I) with: a partial order ≤<sub>C</sub> on objects compatible with ⊗; an initial object ∅<sub>C</sub>; directed completeness.</div>
+
+    <div class="th-label">The scalar assumption</div>
+    <div class="th-p">Classical game theory requires two things: that every value can be assigned a number (representability), and that any two values can be compared (completeness). For markets and auctions, this works. Value is designed to be numerical there.</div>
+    <div class="th-p">But participation produces something different. When two people share a sphere — a common context, a practice, a way of interacting — they produce a <em>relational object</em>. This object has structure. It can be extended. It can be partially ordered. It cannot be naturally reduced to a number without losing what makes it what it is.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">Sen and incomplete preferences</div>
+    <div class="th-p">Amartya Sen saw a related failure in welfare economics. He argued that forcing a complete ranking on incommensurable values distorts the value structure. The agent who cannot rank more freedom against less health is not irrational. They are recognizing that the comparison the theory demands does not exist.</div>
+    <div class="th-p">Sen proposed capability sets as a richer representation. But capability sets lack compositional structure. There is no equilibrium theory for capability-valued games. That is the gap we address.</div>
+
+    <div class="th-sep"></div>
+
+    <div class="th-label">Categorically-valued open games</div>
+    <div class="th-p">We extend open game theory (Ghani, Hedges, 2018) by replacing real-valued payoffs with objects in a symmetric monoidal category C. The classical case is recovered as the thin category induced by the total order on the reals. The new framework admits payoffs that compose, that have an initial object (the empty relational structure produced by defection), and that are only partially ordered.</div>
+
     <div class="th-block">
-      <div class="th-block-label">Example 4.2 — Classical case</div>
-      <div class="th-block-text">Recovered from the thin symmetric monoidal category induced by the total order on ℝ ∪ {-∞}. Morphism a → b exists iff a ≤ b. Monoidal product is max. Initial object is -∞. Because the order is total, all objects are comparable — classical game theory is a special instance of categorical structure.</div>
-    </div>
-    <div class="th-block">
-      <div class="th-block-label">Example 4.4 — YourMine payoff category C<sub>YM</sub></div>
-      <div class="th-block-text">Objects: finite diagrams of sphere contributions — formal colimits of peerSection() outputs. Morphisms: natural transformations. Monoidal product: diagram union. Unit I: mandatory sphere social.sphere.js. Initial object ∅: empty diagram. Partial order: diagram inclusion D<sub>1</sub> ≤ D<sub>2</sub> iff D<sub>1</sub> is a subdiagram of D<sub>2</sub>. Not total — two diagrams with different sphere types and no inclusion relation are incomparable.</div>
-    </div>
-    <div class="th-block">
-      <div class="th-block-label">Definition 4.5 — Categorically-Valued Open Game (revised equilibrium predicate)</div>
-      <div class="th-block-text">A categorically-valued open game G over <strong>C</strong> consists of players, strategies, play function as before; a <strong>C</strong>-valued coplay function; and equilibrium predicate:<br><br>σ ∈ E(r) iff ∀i, ∄ σ′<sub>i</sub> : <strong>C</strong><sub>i</sub>(σ′<sub>i</sub>, σ<sub>-i</sub>, r) &gt;<sub>C</sub> <strong>C</strong><sub>i</sub>(σ, r)<br><br>where &gt;<sub>C</sub> is the strict part: a &gt;<sub>C</sub> b if a ≥<sub>C</sub> b and b ≱<sub>C</sub> a.<br><br>When the order is total this reduces exactly to Nash. When payoffs are incomparable, neither strictly dominates — the equilibrium is stable. Incomparability is native to the definition, not an exception.<br><br><strong>Why not Pareto-maximality?</strong> A natural alternative would define equilibrium as Pareto-maximal — no profile σ′ dominates σ for all players simultaneously. But this shifts the game from non-cooperative to cooperative: it assumes players coordinate. We retain absence of strict deviation because it is the minimal generalization of Nash to a partial order, preserving individual rationality without assuming coordination.<br><br><strong>Does an equilibrium always exist?</strong> Not automatically. Incomparability creates more stable configurations than Nash — if all deviations are incomparable with the current payoff, no player has reason to deviate. But if <strong>C</strong> is too sparse, no profile may satisfy the condition for all players simultaneously. This is exactly why directed completeness is required in Definition 4.1: it guarantees best responses exist even in a partial order. Without it, equilibrium existence is not guaranteed.<br><br><em>Note: not enrichment in the sense of Kelly (1982), which replaces hom-sets. We replace payoff values. "Categorically-valued" avoids terminological confusion.</em></div>
-    </div>
-    
-<div class="th-svg-wrap">
-<svg viewBox="0 0 520 180" width="520" height="180" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="glow2"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(8,224,248,.7)"/></marker>
-    <marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(255,80,80,.6)"/></marker>
-  </defs>
-  <text x="10" y="20" font-family="monospace" font-size="10" fill="rgba(255,255,255,.4)" letter-spacing="1">PARTICIPATORY EQUILIBRIUM σ*</text>
-
-  <!-- Current payoff -->
-  <rect x="20" y="40" width="120" height="40" rx="8" fill="rgba(8,224,248,.06)" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="40" y="58" font-family="monospace" font-size="10" fill="rgba(8,224,248,.8)">C(σ*, r)</text>
-  <text x="35" y="72" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">current payoff</text>
-
-  <!-- Deviation strictly above — blocked -->
-  <rect x="220" y="20" width="130" height="40" rx="8" fill="rgba(255,80,80,.05)" stroke="rgba(255,80,80,.25)" stroke-width="1"/>
-  <text x="237" y="38" font-family="monospace" font-size="10" fill="rgba(255,80,80,.7)">C(σ′, r) &gt;꜀ C(σ*,r)</text>
-  <text x="242" y="52" font-family="monospace" font-size="8" fill="rgba(255,80,80,.4)">strictly better — deviation!</text>
-  <line x1="145" y1="55" x2="215" y2="40" stroke="rgba(255,80,80,.4)" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr4)"/>
-  <text x="160" y="35" font-family="monospace" font-size="9" fill="rgba(255,80,80,.5)">∄ such σ′</text>
-  <text x="155" y="46" font-family="monospace" font-size="9" fill="rgba(255,80,80,.4)">→ equilibrium</text>
-
-  <!-- Incomparable deviation — allowed -->
-  <rect x="220" y="90" width="130" height="40" rx="8" fill="rgba(8,224,248,.04)" stroke="rgba(8,224,248,.15)" stroke-width="1"/>
-  <text x="232" y="108" font-family="monospace" font-size="10" fill="rgba(8,224,248,.6)">C(σ′, r) ≁꜀ C(σ*,r)</text>
-  <text x="240" y="122" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">incomparable — not better</text>
-  <line x1="145" y1="65" x2="215" y2="105" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#arr3)"/>
-  <text x="148" y="92" font-family="monospace" font-size="9" fill="rgba(8,224,248,.5)">different,</text>
-  <text x="148" y="103" font-family="monospace" font-size="9" fill="rgba(8,224,248,.4)">not worse</text>
-
-  <!-- Conclusion -->
-  <text x="10" y="160" font-family="monospace" font-size="9" fill="rgba(255,255,255,.3)">σ* is equilibrium iff no strictly dominant deviation exists.</text>
-  <text x="10" y="174" font-family="monospace" font-size="9" fill="rgba(255,255,255,.25)">Incomparable deviations are not improvements — they are structurally different.</text>
-</svg>
-</div>
-    <div class="th-p"><strong>Proposition 4.7.</strong> When <strong>C</strong> is the thin category on ℝ, Definition 4.5 recovers Ghani et al. exactly. <em>Proof:</em> total order → no incomparable objects → ∄σ′<sub>i</sub> with strict dominance ↔ Nash best-response condition. □</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">5. The Defection Object</div>
-    <div class="th-p"><strong>Proposition 5.1.</strong> In a categorically-valued open game where payoffs are colimits of contribution diagrams, a player who contributes nothing receives ∅<sub>C</sub>. <em>Proof:</em> colimit of empty diagram is the initial object. □</div>
-    <div class="th-p">The initial object is the correct defection object: it is the value of the empty colimit. In C<sub>YM</sub> this is the empty identity surface — not a low value but the absence of relational structure. In the classical thin category, ∅ = -∞, recovering the classical representation. In classical theory defection produces a lower number. In categorically-valued theory defection produces ∅<sub>C</sub> — not a reduced quantity but an absence of structure. You do not become slightly less valuable. You withdraw from the structure entirely.</div>
-
-    
-<div class="th-svg-wrap">
-<svg viewBox="0 0 520 150" width="520" height="150" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="glow3"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="glow3b"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-  <!-- Classical defection -->
-  <text x="20" y="20" font-family="monospace" font-size="10" fill="rgba(240,168,48,.5)" letter-spacing="1">CLASSICAL</text>
-  <line x1="20" y1="80" x2="210" y2="80" stroke="rgba(240,168,48,.2)" stroke-width="1"/>
-  <circle cx="40" cy="80" r="3" fill="rgba(240,168,48,.3)"/>
-  <circle cx="80" cy="80" r="3" fill="rgba(240,168,48,.3)"/>
-  <circle cx="120" cy="80" r="3" fill="rgba(240,168,48,.3)"/>
-  <circle cx="160" cy="80" r="6" fill="rgba(240,168,48,.7)" filter="url(#glow3b)"/>
-  <text x="148" y="100" font-family="monospace" font-size="9" fill="rgba(240,168,48,.6)">σ* payoff</text>
-  <!-- defect arrow left -->
-  <circle cx="40" cy="80" r="5" fill="none" stroke="rgba(255,80,80,.5)" stroke-width="1.5" stroke-dasharray="3,2"/>
-  <text x="20" y="55" font-family="monospace" font-size="9" fill="rgba(255,80,80,.5)">defect → lower number</text>
-  <text x="25" y="67" font-family="monospace" font-size="9" fill="rgba(255,80,80,.35)">still on the line</text>
-  <line x1="155" y1="78" x2="50" y2="78" stroke="rgba(255,80,80,.3)" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arr4)"/>
-
-  <!-- Separator -->
-  <line x1="240" y1="20" x2="240" y2="140" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
-
-  <!-- Categorical defection -->
-  <text x="265" y="20" font-family="monospace" font-size="10" fill="rgba(8,224,248,.5)" letter-spacing="1">CATEGORICAL</text>
-  <!-- Poset nodes -->
-  <circle cx="380" cy="130" r="5" fill="rgba(8,224,248,.2)" stroke="rgba(8,224,248,.4)" stroke-width="1.5"/>
-  <text x="388" y="134" font-family="monospace" font-size="10" fill="rgba(8,224,248,.6)">∅꜀</text>
-  <text x="355" y="148" font-family="monospace" font-size="8" fill="rgba(8,224,248,.35)">initial object</text>
-  <circle cx="340" cy="85" r="5" fill="rgba(8,224,248,.6)" filter="url(#glow3b)"/>
-  <circle cx="420" cy="85" r="7" fill="rgba(8,224,248,.8)" filter="url(#glow3)"/>
-  <text x="430" y="89" font-family="monospace" font-size="9" fill="rgba(8,224,248,.7)">σ* payoff</text>
-  <line x1="380" y1="125" x2="344" y2="90" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <line x1="380" y1="125" x2="416" y2="90" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <!-- defect arrow down -->
-  <text x="265" y="55" font-family="monospace" font-size="9" fill="rgba(255,80,80,.5)">defect → ∅꜀</text>
-  <text x="265" y="67" font-family="monospace" font-size="9" fill="rgba(255,80,80,.35)">outside the structure</text>
-  <line x1="415" y1="93" x2="387" y2="122" stroke="rgba(255,80,80,.35)" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr4)"/>
-
-</svg>
-</div>
-    <div class="th-sep"></div>
-    <div class="th-label">6. Composition and Information Loss</div>
-    <div class="th-p"><strong>Proposition 6.1.</strong> Categorically-valued open games over <strong>C</strong> form a symmetric monoidal category <strong>Game(C)</strong>. When φ : <strong>C</strong> → ℝ<sub>thin</sub> exists, there is F : <strong>Game(C)</strong> → <strong>Game(ℝ)</strong>.</div>
-    <div class="th-block">
-      <div class="th-block-label">Proposition 6.2 — Information loss</div>
-      <div class="th-block-text">For C<sub>YM</sub>, any monoidal functor φ : C<sub>YM</sub> → ℝ<sub>thin</sub> forgets structural distinctions — it identifies structurally distinct diagrams assigned the same scalar. Any such φ must assign numerical values to sphere types; different choices produce different orderings; no choice is canonical since sphere types are qualitatively distinct. Therefore any φ is not fully faithful. Many functors exist — cardinality, weight-based. All collapse structural distinctions the categorical representation preserves. The categorical representation makes no arbitrary choice.</div>
+      <div class="th-block-label">The defection object</div>
+      <div class="th-block-text">In classical theory, defection produces a lower number. In categorically-valued theory, defection produces the initial object — the empty structure. You are not worse off. You are outside the structure.</div>
     </div>
 
-    
-<div class="th-svg-wrap">
-<svg viewBox="0 0 520 160" width="520" height="160" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="glow6"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <marker id="arr7" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(8,224,248,.5)"/></marker>
-  </defs>
-  <text x="10" y="20" font-family="monospace" font-size="10" fill="rgba(255,255,255,.35)" letter-spacing="1">GAME COMPOSITION — SEQUENTIAL G ; H</text>
-
-  <!-- G box -->
-  <rect x="60" y="50" width="80" height="60" rx="8" fill="rgba(8,224,248,.05)" stroke="rgba(8,224,248,.3)" stroke-width="1.5"/>
-  <text x="88" y="85" font-family="monospace" font-size="14" fill="rgba(8,224,248,.8)">G</text>
-  <!-- Input wire -->
-  <line x1="20" y1="80" x2="58" y2="80" stroke="rgba(8,224,248,.4)" stroke-width="2" marker-end="url(#arr7)"/>
-  <text x="10" y="75" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">Σ_G</text>
-  <!-- Output wire G → H -->
-  <line x1="142" y1="80" x2="198" y2="80" stroke="rgba(8,224,248,.4)" stroke-width="2" marker-end="url(#arr7)"/>
-  <text x="152" y="73" font-family="monospace" font-size="8" fill="rgba(8,224,248,.35)">C_G(σ,r)</text>
-
-  <!-- H box -->
-  <rect x="200" y="50" width="80" height="60" rx="8" fill="rgba(167,139,250,.05)" stroke="rgba(167,139,250,.3)" stroke-width="1.5"/>
-  <text x="228" y="85" font-family="monospace" font-size="14" fill="rgba(167,139,250,.8)">H</text>
-  <!-- Output wire -->
-  <line x1="282" y1="80" x2="340" y2="80" stroke="rgba(167,139,250,.4)" stroke-width="2" marker-end="url(#arr7)"/>
-  <text x="290" y="73" font-family="monospace" font-size="8" fill="rgba(167,139,250,.35)">C_H(σ,r)</text>
-
-  <!-- Context wire top -->
-  <line x1="240" y1="20" x2="240" y2="48" stroke="rgba(240,168,48,.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="245" y="35" font-family="monospace" font-size="8" fill="rgba(240,168,48,.4)">r ∈ R</text>
-
-  <!-- Composed game bracket -->
-  <rect x="50" y="40" width="242" height="80" rx="12" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1" stroke-dasharray="6,4"/>
-  <text x="52" y="135" font-family="monospace" font-size="9" fill="rgba(255,255,255,.25)">G ; H — payoffs compose via ⊗ in C</text>
-
-  <!-- Parallel composition -->
-  <text x="370" y="20" font-family="monospace" font-size="10" fill="rgba(255,255,255,.35)" letter-spacing="1">PARALLEL G ⊗ H</text>
-  <rect x="370" y="35" width="60" height="35" rx="6" fill="rgba(8,224,248,.05)" stroke="rgba(8,224,248,.25)" stroke-width="1.5"/>
-  <text x="391" y="57" font-family="monospace" font-size="12" fill="rgba(8,224,248,.7)">G</text>
-  <rect x="370" y="85" width="60" height="35" rx="6" fill="rgba(167,139,250,.05)" stroke="rgba(167,139,250,.25)" stroke-width="1.5"/>
-  <text x="391" y="107" font-family="monospace" font-size="12" fill="rgba(167,139,250,.7)">H</text>
-  <!-- Tensor output -->
-  <line x1="432" y1="52" x2="460" y2="80" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#arr7)"/>
-  <line x1="432" y1="102" x2="460" y2="80" stroke="rgba(167,139,250,.3)" stroke-width="1.5" marker-end="url(#arr7)"/>
-  <circle cx="465" cy="80" r="5" fill="rgba(255,215,0,.6)" filter="url(#glow6)"/>
-  <text x="472" y="76" font-family="monospace" font-size="9" fill="rgba(255,215,0,.6)">C_G ⊗ C_H</text>
-  <text x="460" y="95" font-family="monospace" font-size="8" fill="rgba(255,215,0,.35)">in C</text>
-</svg>
-</div>
-    <div class="th-sep"></div>
-    <div class="th-label">7. Participatory Equilibrium</div>
-    <div class="th-p"><strong>Definition 7.1.</strong> A participatory equilibrium is a maximal equilibrium section σ* : R → Σ — no other section σ′ satisfies σ′(r) &gt;<sub>C</sub> σ*(r) for some r while σ′(r) ≥<sub>C</sub> σ*(r) for all r.</div>
     <div class="th-block">
-      <div class="th-block-label">Existence Program 7.2</div>
-      <div class="th-block-text">If Σ is compact and coplay is order-continuous, directed completeness of <strong>C</strong> guarantees best responses exist. Zorn's lemma on partial sections ordered by componentwise domination yields a maximal section. Full proof requires specifying the topology on the space of sections — left for future work. Stated as program, not theorem.<br><br><strong>On equilibrium creation.</strong> Equilibria are more numerous here than in Nash: incomparability itself creates stability — a player with no strictly better deviation (only incomparable ones) has no individual reason to move. However this abundance is conditional. Directed completeness of <strong>C</strong> is the load-bearing condition: it guarantees that for every context r, the best-response set BR(r) is nonempty. If <strong>C</strong> lacks directed completeness — if some ascending chains of payoff objects have no supremum — best responses may fail to exist and the Zorn argument collapses. The existence of participatory equilibria therefore depends critically on the categorical structure of the payoff category, not just on the strategy space.</div>
+      <div class="th-block-label">Participatory equilibrium</div>
+      <div class="th-block-text">A participatory equilibrium is a strategy profile where no player has a strictly dominant deviation. Because the order is partial, incomparable deviations are not improvements. Incomparability is native to the definition.</div>
     </div>
-    <div class="th-block">
-      <div class="th-block-label">Proposition 7.3 — Embedding of Nash</div>
-      <div class="th-block-text">When <strong>C</strong> is the thin category on ℝ, Nash equilibria embed into participatory equilibria and the two coincide. <em>Proof:</em> total order → &gt;<sub>C</sub> is standard strict inequality → ∄σ′<sub>i</sub> with strict dominance is exactly the Nash condition. □</div>
-    </div>
-    <div class="th-block">
-      <div class="th-block-label">Proposition 7.5 — Incomparable equilibria</div>
-      <div class="th-block-text">In Game(C<sub>YM</sub>), there exist participatory equilibria σ*<sub>1</sub> and σ*<sub>2</sub> incomparable in ≤<sub>C</sub>. <em>Proof:</em> take profiles producing D<sub>1</sub>, D<sub>2</sub> with different sphere types and no inclusion relation — incomparable by diagram inclusion, both may be maximal sections. □</div>
-    </div>
-    <div class="th-quote">The equilibrium predicate makes incomparability structurally native. A player does not deviate when no strictly better option exists. In a partial order, incomparable options are not strictly better — they are different. The equilibrium is stable not because the payoff is maximal in an absolute sense but because no available deviation is unambiguously superior.</div>
 
     <div class="th-sep"></div>
-    <div class="th-label">8. Incomparability Is Not a Bug</div>
+
+    <div class="th-label">Incomparability is not a bug</div>
     <div class="th-quote">Incomparability is what value looks like when it is structure rather than quantity.</div>
-    <div class="th-p">Classical theory treats incomparable outcomes as theoretical embarrassment — a sign that the model is incomplete, that a common scale has not yet been found. The entire project of welfare economics is in part a project of forcing comparison: social welfare functions, interpersonal utility comparisons, veil-of-ignorance arguments. We propose the opposite. Incomparability is the faithful representation of participation patterns that produce qualitatively different relational structures. A framework that forces comparison loses the structure. A framework that represents incomparability preserves it. Nash is the special case where all values happen to be comparable. Participatory equilibrium is the general case.</div>
+    <div class="th-p">Classical theory treats incomparable outcomes as a theoretical embarrassment. We propose the opposite: incomparability is the faithful representation of participation patterns that are qualitatively different. A framework that forces comparison loses information. A framework that represents incomparability faithfully preserves it.</div>
 
     <div class="th-sep"></div>
-    <div class="th-label">9. YourMine as Motivating Instance</div>
-    <div class="th-block">
-      <div class="th-block-text" style="font-family:var(--font-m);font-size:13px;">Id(A,B) = colim<sub>s ∈ σ<sub>A</sub> ∩ σ<sub>B</sub></sub> peerSection<sub>s</sub>(A,B)</div>
-    </div>
-    <div class="th-p">An object in C<sub>YM</sub>. Empty when A and B share no spheres. Grows under diagram inclusion. Partially ordered. Two users with different shared sphere compositions produce incomparable identity surfaces — incomparable participatory equilibria. The mandatory sphere social.sphere.js implements the monoidal unit I — always present, preventing complete withdrawal. YourMine motivates rather than proves the framework. Formal verification requires showing peerSection() composition is a well-defined functor into C<sub>YM</sub> — future work.</div>
-    <div class="th-negs">
-      <div class="th-neg">No central authority — context produced by players, not assigned from outside.</div>
-      <div class="th-neg">No fixed identity — identity is the colimit of all shared sphere compositions.</div>
-      <div class="th-neg">No universal ranking — participation patterns are incomparable in the partial order.</div>
-      <div class="th-neg">No defection payoff — withdrawal produces ∅, not a lower number.</div>
-    </div>
 
-    
-<div class="th-svg-wrap">
-<svg viewBox="0 0 520 200" width="520" height="200" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="glow4"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <marker id="arr5" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(8,224,248,.6)"/></marker>
-  </defs>
-  <!-- User A -->
-  <circle cx="80" cy="100" r="22" fill="rgba(8,224,248,.07)" stroke="rgba(8,224,248,.3)" stroke-width="1.5"/>
-  <text x="70" y="97" font-family="monospace" font-size="11" fill="rgba(8,224,248,.9)">A</text>
-  <text x="58" y="112" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">σ_A</text>
-  <!-- Spheres of A -->
-  <text x="20" y="30" font-family="monospace" font-size="8" fill="rgba(255,255,255,.3)">active spheres:</text>
-  <rect x="20" y="35" width="45" height="16" rx="4" fill="rgba(8,224,248,.08)" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="24" y="47" font-family="monospace" font-size="8" fill="rgba(8,224,248,.6)">chess</text>
-  <rect x="70" y="35" width="45" height="16" rx="4" fill="rgba(8,224,248,.08)" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="74" y="47" font-family="monospace" font-size="8" fill="rgba(8,224,248,.6)">music</text>
-  <rect x="45" y="55" width="45" height="16" rx="4" fill="rgba(8,224,248,.08)" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="49" y="67" font-family="monospace" font-size="8" fill="rgba(8,224,248,.6)">code</text>
+    <div class="th-label">The value sequence</div>
+    <div class="th-p">The viscoelastic theory of value (The Eye and the Hand, ch. 4) provides a physical grounding. Value emerges from a generative metabolic process:</div>
 
-  <!-- User B -->
-  <circle cx="440" cy="100" r="22" fill="rgba(167,139,250,.07)" stroke="rgba(167,139,250,.3)" stroke-width="1.5"/>
-  <text x="430" y="97" font-family="monospace" font-size="11" fill="rgba(167,139,250,.9)">B</text>
-  <text x="418" y="112" font-family="monospace" font-size="8" fill="rgba(167,139,250,.4)">σ_B</text>
-  <!-- Spheres of B -->
-  <text x="390" y="30" font-family="monospace" font-size="8" fill="rgba(255,255,255,.3)">active spheres:</text>
-  <rect x="385" y="35" width="45" height="16" rx="4" fill="rgba(167,139,250,.08)" stroke="rgba(167,139,250,.2)" stroke-width="1"/>
-  <text x="389" y="47" font-family="monospace" font-size="8" fill="rgba(167,139,250,.6)">chess</text>
-  <rect x="435" y="35" width="45" height="16" rx="4" fill="rgba(167,139,250,.08)" stroke="rgba(167,139,250,.2)" stroke-width="1"/>
-  <text x="439" y="47" font-family="monospace" font-size="8" fill="rgba(167,139,250,.6)">music</text>
-  <rect x="410" y="55" width="55" height="16" rx="4" fill="rgba(167,139,250,.04)" stroke="rgba(167,139,250,.1)" stroke-width="1" stroke-dasharray="3,2"/>
-  <text x="414" y="67" font-family="monospace" font-size="8" fill="rgba(167,139,250,.3)">design</text>
-
-  <!-- Shared intersection -->
-  <ellipse cx="260" cy="100" rx="60" ry="35" fill="rgba(8,224,248,.04)" stroke="rgba(8,224,248,.15)" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="228" y="88" font-family="monospace" font-size="8" fill="rgba(8,224,248,.5)">σ_A ∩ σ_B</text>
-  <rect x="225" y="93" width="40" height="14" rx="3" fill="rgba(8,224,248,.1)" stroke="rgba(8,224,248,.3)" stroke-width="1"/>
-  <text x="229" y="104" font-family="monospace" font-size="8" fill="rgba(8,224,248,.8)">chess</text>
-  <rect x="270" y="93" width="40" height="14" rx="3" fill="rgba(8,224,248,.1)" stroke="rgba(8,224,248,.3)" stroke-width="1"/>
-  <text x="274" y="104" font-family="monospace" font-size="8" fill="rgba(8,224,248,.8)">music</text>
-
-  <!-- Arrows from A and B to intersection -->
-  <line x1="103" y1="100" x2="198" y2="100" stroke="rgba(8,224,248,.25)" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr5)"/>
-  <line x1="417" y1="100" x2="332" y2="100" stroke="rgba(167,139,250,.25)" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr5)"/>
-
-  <!-- Colimit result -->
-  <text x="180" y="165" font-family="monospace" font-size="9" fill="rgba(255,255,255,.3)">Id(A,B) = colim peerSection_s(A,B)</text>
-  <text x="195" y="180" font-family="monospace" font-size="9" fill="rgba(8,224,248,.4)">object in C_YM — not a number</text>
-
-  <!-- Annotation: code not shared -->
-  <text x="22" y="155" font-family="monospace" font-size="8" fill="rgba(255,255,255,.2)">code ∉ σ_B</text>
-  <text x="22" y="167" font-family="monospace" font-size="8" fill="rgba(255,255,255,.15)">→ not in colimit</text>
-  <text x="390" y="155" font-family="monospace" font-size="8" fill="rgba(255,255,255,.2)">design ∉ σ_A</text>
-  <text x="390" y="167" font-family="monospace" font-size="8" fill="rgba(255,255,255,.15)">→ not in colimit</text>
-</svg>
-</div>
-    <div class="th-sep"></div>
-    <div class="th-label">10. Viscoelastic Value: An Interpretation</div>
-    <div class="th-p">The framework in sections 4–7 is mathematically self-contained. The viscoelastic theory of value (The Eye and the Hand, ch. 4) provides a physical grounding that is not required for validity but suggests categorical payoffs represent what value actually is — not merely a formal generalization.</div>
-    <div class="th-p">Economic activity is a process of articulating distinct cognitive universes. Value emerges from this articulation as the emergent force of a metabolic process with specific physical structure: viscoelastic behavior. A viscoelastic material combines elastic behavior — temporary energy storage against entropy — and viscous behavior — irreversible dissipation proportional to rate of deformation. The same structure operates in the cognitive and economic domain.</div>
     <div class="th-chain">
       <span class="th-chain-item">Elasticity</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Velocity</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Liquidity</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Utility</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Value</span>
     </div>
-    <div class="th-p"><strong>Elasticity</strong> — structural memory, stored potential against entropy. <strong>Velocity</strong> — temporal activation of stored potential through the network. <strong>Liquidity</strong> — the limit state where elastic tension relaxes into free circulation. <strong>Utility</strong> — directional conversion of liquid energy into organized action. <strong>Value</strong> — the integral: effort accumulated over time, metabolic tension maintained against entropy.</div>
-    <div class="th-p">The scalar payoff of classical theory is the terminal state of this sequence — value as already-produced quantity. Two outcomes with the same scalar payoff may be in radically different metabolic states: one with high elasticity and low velocity, another with low elasticity and high liquidity. Same number. Not the same outcome. Categorical payoffs represent states in the generative sequence. Incomparable equilibria represent agents in different metabolic phases — not better or worse, but different in kind.</div>
 
-    
-<div class="th-svg-wrap">
-<svg viewBox="0 0 520 200" width="520" height="200" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <filter id="glow5"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="glow5b"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <marker id="arr6" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,.3)"/></marker>
-  </defs>
-  <!-- Spring for elasticity -->
-  <text x="18" y="18" font-family="monospace" font-size="9" fill="rgba(8,224,248,.7)" letter-spacing="1">ELASTICITY</text>
-  <path d="M30,30 Q35,40 40,30 Q45,20 50,30 Q55,40 60,30 Q65,20 70,30 Q75,40 80,30" fill="none" stroke="rgba(8,224,248,.6)" stroke-width="2" filter="url(#glow5b)"/>
-  <text x="22" y="60" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">stored potential</text>
-  <text x="22" y="72" font-family="monospace" font-size="8" fill="rgba(8,224,248,.35)">structural memory</text>
-
-  <!-- Arrow -->
-  <line x1="105" y1="45" x2="125" y2="45" stroke="rgba(255,255,255,.2)" stroke-width="1.5" marker-end="url(#arr6)"/>
-
-  <!-- Velocity — wave -->
-  <text x="128" y="18" font-family="monospace" font-size="9" fill="rgba(240,168,48,.7)" letter-spacing="1">VELOCITY</text>
-  <path d="M130,45 Q140,25 150,45 Q160,65 170,45 Q180,25 190,45" fill="none" stroke="rgba(240,168,48,.6)" stroke-width="2" filter="url(#glow5b)"/>
-  <text x="130" y="72" font-family="monospace" font-size="8" fill="rgba(240,168,48,.4)">activation rate</text>
-  <text x="130" y="84" font-family="monospace" font-size="8" fill="rgba(240,168,48,.35)">network flow</text>
-
-  <!-- Arrow -->
-  <line x1="208" y1="45" x2="228" y2="45" stroke="rgba(255,255,255,.2)" stroke-width="1.5" marker-end="url(#arr6)"/>
-
-  <!-- Liquidity — fluid -->
-  <text x="232" y="18" font-family="monospace" font-size="9" fill="rgba(100,200,255,.7)" letter-spacing="1">LIQUIDITY</text>
-  <path d="M235,35 Q245,55 255,35 Q260,25 270,40 Q278,52 285,38" fill="none" stroke="rgba(100,200,255,.5)" stroke-width="2" stroke-dasharray="4,2" filter="url(#glow5b)"/>
-  <text x="232" y="65" font-family="monospace" font-size="8" fill="rgba(100,200,255,.4)">free circulation</text>
-  <text x="232" y="77" font-family="monospace" font-size="8" fill="rgba(100,200,255,.35)">conversion potential</text>
-
-  <!-- Arrow -->
-  <line x1="305" y1="45" x2="325" y2="45" stroke="rgba(255,255,255,.2)" stroke-width="1.5" marker-end="url(#arr6)"/>
-
-  <!-- Utility — arrow directed -->
-  <text x="328" y="18" font-family="monospace" font-size="9" fill="rgba(200,255,100,.7)" letter-spacing="1">UTILITY</text>
-  <line x1="332" y1="55" x2="372" y2="35" stroke="rgba(200,255,100,.6)" stroke-width="2.5" marker-end="url(#arr6)" filter="url(#glow5b)"/>
-  <text x="328" y="75" font-family="monospace" font-size="8" fill="rgba(200,255,100,.4)">directed action</text>
-  <text x="328" y="87" font-family="monospace" font-size="8" fill="rgba(200,255,100,.35)">organized output</text>
-
-  <!-- Arrow -->
-  <line x1="395" y1="45" x2="415" y2="45" stroke="rgba(255,255,255,.2)" stroke-width="1.5" marker-end="url(#arr6)"/>
-
-  <!-- Value — circle/integral -->
-  <text x="418" y="18" font-family="monospace" font-size="9" fill="rgba(255,215,0,.8)" letter-spacing="1">VALUE</text>
-  <circle cx="450" cy="45" r="18" fill="rgba(255,215,0,.06)" stroke="rgba(255,215,0,.4)" stroke-width="2" filter="url(#glow5)"/>
-  <text x="441" y="50" font-family="monospace" font-size="13" fill="rgba(255,215,0,.8)">∫</text>
-  <text x="418" y="80" font-family="monospace" font-size="8" fill="rgba(255,215,0,.4)">effort integral</text>
-  <text x="415" y="92" font-family="monospace" font-size="8" fill="rgba(255,215,0,.35)">emergent force</text>
-
-  <!-- Bottom annotation: scalar vs categorical -->
-  <line x1="20" y1="125" x2="500" y2="125" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
-  <text x="20" y="142" font-family="monospace" font-size="8" fill="rgba(240,168,48,.4)">Scalar payoff captures only ∫ (terminal state)</text>
-  <text x="20" y="155" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">Categorical payoff captures (ε, v, λ, u) — the full metabolic state</text>
-  <text x="20" y="170" font-family="monospace" font-size="8" fill="rgba(255,255,255,.2)">Same integral value ≠ same metabolic state → incomparability is real</text>
-
-  <!-- Animation hint: two different metabolic states, same value -->
-  <rect x="20" y="178" width="220" height="16" rx="3" fill="rgba(240,168,48,.04)" stroke="rgba(240,168,48,.1)" stroke-width="1"/>
-  <text x="25" y="190" font-family="monospace" font-size="8" fill="rgba(240,168,48,.5)">high ε, low v → same ∫ as</text>
-  <rect x="260" y="178" width="240" height="16" rx="3" fill="rgba(8,224,248,.04)" stroke="rgba(8,224,248,.1)" stroke-width="1"/>
-  <text x="265" y="190" font-family="monospace" font-size="8" fill="rgba(8,224,248,.5)">low ε, high λ → incomparable states</text>
-</svg>
-</div>
-    <div class="th-sep"></div>
-    <div class="th-label">11. Relation to Existing Work</div>
-    <div class="th-p"><strong>Ghani et al.</strong> Our framework extends theirs by replacing real-valued payoffs with categorically-valued payoffs. Their framework is the thin ℝ case of ours. Our claim is narrower than earlier versions: classical open games cannot represent payoffs with compositional structure and partial order without structural loss.</div>
-    <div class="th-p"><strong>Sen.</strong> Sen's challenge to completeness is the economic antecedent of our partial order on <strong>C</strong>. Where Sen stops — without compositional structure, without equilibrium theory — our framework continues.</div>
-    <div class="th-p"><strong>Incomplete preferences.</strong> Aumann (1962), Bewley (2002), Dubra-Maccheroni-Ok (2004) develop utility theory for incomplete preferences. Our framework provides the game-theoretic extension where incomparability is native.</div>
-    <div class="th-p"><strong>Multi-criteria decision theory.</strong> Roy (1996): outcomes in ℝⁿ. Our payoffs are objects in a category, not vectors — the difference is compositional structure via monoidal products.</div>
-    <div class="th-p"><strong>Thermodynamic economics.</strong> Georgescu-Roegen (1971) introduced entropy. The viscoelastic interpretation identifies the specific physical structure — elasticity, viscosity, relaxation time — that governs value generation.</div>
+    <div class="th-p">The scalar payoff of classical game theory is the terminal state of this sequence. Categorical payoffs represent states in the generative sequence, not just its output.</div>
 
     <div class="th-sep"></div>
-    <div class="th-label">12. Open Problems</div>
+
+    <div class="th-label">YourMine as instance</div>
+    <div class="th-p">The identity surface of user A as seen by user B is an object in the category of diagrams. It is empty when they share nothing. It grows under composition. It is partially ordered by inclusion. Two users with different shared sphere configurations produce incomparable identity surfaces — neither participation pattern dominates the other.</div>
+
     <div class="th-negs">
-      <div class="th-neg"><strong>Existence.</strong> Complete the existence program 7.2 — topology on sections, extension condition for Zorn.</div>
-      <div class="th-neg"><strong>Uniqueness.</strong> Conditions on <strong>C</strong> guaranteeing unique participatory equilibria.</div>
-      <div class="th-neg"><strong>Efficiency.</strong> Social welfare as colimit over players' payoff objects. Price of anarchy in this setting.</div>
-      <div class="th-neg"><strong>Forgetful functor.</strong> Which structural information is lost by F : <strong>Game(C)</strong> → <strong>Game(ℝ)</strong>?</div>
-      <div class="th-neg"><strong>Formal viscoelastic payoff category C<sub>V</sub>.</strong> Objects as viscoelastic state vectors with precise metabolic coupling rules for ⊗.</div>
-      <div class="th-neg"><strong>Sen and categorical capabilities.</strong> Can capability sets be represented as objects in a payoff category?</div>
-      <div class="th-neg"><strong>Formal verification.</strong> Can participatory equilibria be verified in Lean or Agda?</div>
+      <div class="th-neg">No central authority — context is produced by the players, not assigned from outside.</div>
+      <div class="th-neg">No fixed identity — identity is the colimit of all shared sphere compositions.</div>
+      <div class="th-neg">No universal ranking — participation patterns are incomparable in the partial order.</div>
     </div>
 
     <div class="th-sep"></div>
-    <div class="th-label">13. Conclusion</div>
-    <div class="th-quote">The question is not how to generalize Nash equilibrium.<br>The question is what a payoff is.<br><br>Classical theory: a number.<br>Our answer: a composable object.</div>
-    <div class="th-p">Classical theory embeds representability and completeness — appropriate for markets, inappropriate for participatory systems where value is relational, compositional, structurally irreducible to a scalar. Sen saw the completeness failure philosophically. The incomplete preferences literature formalized it for individual decisions. Our framework extends it to strategic interaction: categorically-valued open games where payoffs are objects in a symmetric monoidal category, equilibria are maximal sections in a partial order, and incomparable equilibria are the faithful representation of qualitative difference.</div>
-    <div class="th-p">The viscoelastic theory suggests a physical grounding: payoff objects are states in a generative metabolic process — elastic, moving, liquid, useful, and finally valuable. Not required for mathematical validity. Offered as evidence that categorical payoffs are not merely a formal generalization but a representation of what value actually is.</div>
-    <div class="th-p">Incomparability is not a theoretical failure. It is what value looks like when it is structure rather than quantity. A composable object is not a generalization of a number. It is a different answer to a different question: what do we produce when we act together?</div>
 
-    <div class="th-sep"></div>
-    <div class="th-label">References</div>
-    <div class="th-p" style="color:var(--text3);font-size:12px;line-height:2.2;">
-      Aumann, R. J. (1962). Utility theory without the completeness axiom. <em>Econometrica</em>.<br>
-      Bewley, T. F. (2002). Knightian decision theory: Part I. <em>Decisions in Economics and Finance</em>.<br>
-      Dubra, J., Maccheroni, F., Ok, E. A. (2004). Expected utility without the completeness axiom. <em>Journal of Economic Theory</em>.<br>
-      Georgescu-Roegen, N. (1971). <em>The Entropy Law and the Economic Process</em>. Harvard UP.<br>
-      Ghani, N., Hedges, J., Winschel, V., Zahn, P. (2018). Compositional game theory. <em>LICS 2018</em>.<br>
-      Kelly, G. M. (1982). <em>Basic Concepts of Enriched Category Theory</em>. Cambridge UP.<br>
-      Lawvere, F. W. (1973). Metric spaces, generalized logic, closed categories. <em>Rend. Sem. Mat. Fis. Milano</em>.<br>
-      Mac Lane, S. (1971). <em>Categories for the Working Mathematician</em>. Springer.<br>
-      Nash, J. (1950). Equilibrium points in n-person games. <em>PNAS</em>.<br>
-      Roy, B. (1996). <em>Multicriteria Methodology for Decision Aiding</em>. Kluwer.<br>
-      Sen, A. (1979). Equality of what? <em>Tanner Lecture on Human Values</em>, Stanford.<br>
-      Sen, A. (1985). <em>Commodities and Capabilities</em>. North-Holland.<br>
-      Sen, A. (1999). <em>Development as Freedom</em>. Oxford UP.<br>
-      von Neumann, J., Morgenstern, O. (1944). <em>Theory of Games and Economic Behavior</em>. Princeton UP.<br>
-      Yong, T., JdC (2024). <em>The Eye and the Hand</em>, ch. 4 : The Viscoelasticity of Value. Unpublished.<br>
-      Zorn, M. (1935). A remark on method in transfinite algebra. <em>Bulletin of the AMS</em>.
-    </div>
+    <div class="th-final">A composable object is not a generalization of a number.<br>It is a different answer to a different question.</div>
+    <div class="th-p" style="color:var(--text3);font-size:12px;margin-top:24px;">Yong, JdC — <em>What Is a Payoff? Participatory Value and Categorically-Valued Open Games</em> — Working paper 2025.</div>
 
   </div>
 </div>
-<button id="theory-close">✕</button>
+<button id="theory-close">&#10005;</button>
 
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
@@ -1125,4 +757,170 @@ n spheres → 2ⁿ configurations (expansion)</div>
 <div id="panel-spheres" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Spheres</h2><button class="ym-btn" id="spheres-build-btn">Build</button></div><div class="panel-body" id="panel-spheres-body"></div></div>
 <div id="panel-profile" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Profile</h2><button id="profile-share-btn" class="ym-btn"></button></div><div class="panel-body" id="panel-profile-body"></div></div>
 <div id="panel-build" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>Build</h2></div><div class="panel-body" id="panel-build-body"></div></div>
-<div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;f
+<div id="panel-mine" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2>YourMine</h2></div><div class="panel-body" style="overflow:hidden;min-height:0"><div id="panel-mine-wallet" style="display:flex;flex-direction:column"></div><div id="panel-mine-build" style="display:none;flex-direction:column"></div><div id="panel-mine-formula" style="display:none;padding:16px"></div><div id="panel-mine-liste" style="display:none;flex-direction:column"></div></div><div class="ym-tabs" id="mine-tabs-bar"><div class="ym-tab active" data-mine-tab="wallet">Wallet</div><div class="ym-tab" data-mine-tab="liste">Apps</div></div></div>
+<div id="panel-sphere" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="sphere-panel-title">Sphere</h2></div><div class="panel-body" id="panel-sphere-body"></div></div>
+<div id="panel-profile-view" class="ym-panel"><div class="panel-handle"></div><div class="panel-head"><h2 id="profile-view-title">Profile</h2></div><div class="panel-body" id="panel-profile-view-body"></div></div>
+<div id="ym-sign-dlg"><div id="ym-sign-box"><div id="ym-sign-sphere"></div><div id="ym-sign-detail"></div><div><button id="ym-sign-reject">Reject</button><button id="ym-sign-confirm">Sign</button></div></div></div>
+<div id="panel-switcher"><div class="panel-handle" id="switcher-handle"></div><div id="switcher-grid"></div></div>
+<div class="dlg" id="folder-dlg"><div class="dlg-box"><div class="dlg-title">Folder</div><input class="ym-input" id="folder-name-input"><div><button class="ym-btn" id="folder-cancel">Cancel</button><button class="ym-btn" id="folder-confirm">Create</button></div></div></div>
+<div class="dlg" id="bg-dlg"><div class="dlg-box" style="display:flex;flex-direction:column"><div class="dlg-title" id="bg-dlg-title">Background</div><div id="theme-list"></div><input id="theme-custom-input" class="ym-input"><button id="theme-custom-btn" class="ym-btn">Use</button><button class="ym-btn" id="bg-wp">Upload</button><button class="ym-btn" id="bg-remove">Remove</button><div id="bg-presets"></div><button class="ym-btn" id="bg-spheres">Spheres</button><button class="ym-btn" id="bg-del" style="display:none"></button></div></div>
+<button id="pwa-install-btn" style="display:none"></button>
+
+<script>
+(function(){
+  try{
+  var cv  = document.getElementById('ym-canvas');
+  var ctx = cv ? cv.getContext('2d') : null;
+  if(!cv||!ctx){return;}
+  var W, H, DPR;
+  var scroller = document.getElementById('ym-landing');
+  var scrollY=0, scrollVel=0, lastScroll=0, raf;
+
+  function resize(){
+    DPR=Math.min(window.devicePixelRatio||1,2);
+    W=cv.width=window.innerWidth*DPR; H=cv.height=window.innerHeight*DPR;
+    cv.style.width=window.innerWidth+'px'; cv.style.height=window.innerHeight+'px';
+  }
+
+  var PERM=new Uint8Array(512);
+  (function(){var p=new Uint8Array(256);for(var i=0;i<256;i++)p[i]=i;for(var i=255;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=p[i];p[i]=p[j];p[j]=t;}for(var i=0;i<512;i++)PERM[i]=p[i&255];})();
+
+  function fade(t){return t*t*t*(t*(t*6-15)+10);}
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function grad2(h,x,y){var hh=h&3;var u=hh<2?x:y;var v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
+  function noise2(x,y){
+    var xi=Math.floor(x)&255,yi=Math.floor(y)&255;
+    var xf=x-Math.floor(x),yf=y-Math.floor(y);
+    var u=fade(xf),v=fade(yf);
+    var aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];
+    return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);
+  }
+  function fbm(x,y){return noise2(x,y)*0.5+noise2(x*2.1,y*2.1)*0.3+noise2(x*4.3,y*4.3)*0.2;}
+
+  var lastT=0,timeAcc=0,OW,OH,offscreen,offCtx,imgData,buf32;
+  function makeOff(){OW=Math.ceil(W/3);OH=Math.ceil(H/3);offscreen=document.createElement('canvas');offscreen.width=OW;offscreen.height=OH;offCtx=offscreen.getContext('2d');}
+  function makeImg(){imgData=offCtx.createImageData(OW,OH);buf32=new Uint32Array(imgData.data.buffer);}
+
+  function draw(ts){
+    raf=requestAnimationFrame(draw);
+    var dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;
+    scrollVel+=(0-scrollVel)*0.12;
+    var t=timeAcc*0.00018;
+    var scaleX=0.0048,scaleY=0.0052,idx=0;
+    for(var py=0;py<OH;py++){
+      var fy=py*scaleY+t*0.6;
+      for(var px=0;px<OW;px++){
+        var fx=px*scaleX+t*0.4;
+        var n=fbm(fx,fy),n2=fbm(fx+t*0.3,fy+0.7);
+        var v=( n*0.6+n2*0.4)*0.5+0.5;
+        var hv=fbm(fx*0.5+1.3,fy*0.5+t*0.2)*0.5+0.5;
+        var r,g,b;
+        if(hv<0.5){var tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
+        else{var tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
+        var a=Math.min(0.52,v*v*0.52);
+        var ai=(a*255)|0;
+        buf32[idx++]=(ai<<24)|(b<<16)|(g<<8)|r;
+      }
+    }
+    offCtx.putImageData(imgData,0,0);
+    ctx.clearRect(0,0,W,H);
+    ctx.drawImage(offscreen,0,0,W,H);
+  }
+
+  scroller.addEventListener('scroll',function(){var sy=scroller.scrollTop;scrollVel=(sy-lastScroll)*0.6;lastScroll=sy;scrollY=sy;},{passive:true});
+  resize();makeOff();makeImg();raf=requestAnimationFrame(draw);
+  window.addEventListener('resize',function(){resize();makeOff();makeImg();},{passive:true});
+  document.addEventListener('visibilitychange',function(){if(document.hidden)cancelAnimationFrame(raf);else{lastT=0;raf=requestAnimationFrame(draw);}});
+  }catch(e){console.warn('[hello] canvas:',e.message);}
+})();
+
+// Animate illustrations on scroll
+(function(){
+  // Observe mf-illo-wrap directly (manifesto has no reveal wrapper)
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting) e.target.classList.add('visible');
+    });
+  }, {threshold:0.2});
+  document.querySelectorAll('.mf-illo-wrap').forEach(function(el){ obs.observe(el); });
+})();
+</script>
+
+<script>
+(function(){
+  var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
+  var DEF_THEME=GH_RAW+'themes/default.html';
+  var THEME_KEY='ym_theme_url';
+  var THEME_CACHE='ym_theme_cache';
+  function goDefault(){localStorage.setItem(THEME_KEY,DEF_THEME);localStorage.removeItem(THEME_CACHE);location.reload();}
+  var s1=document.getElementById('lp-start-btn');if(s1)s1.addEventListener('click',goDefault);
+  var s2=document.getElementById('lp-start-btn-2');if(s2)s2.addEventListener('click',goDefault);
+
+  // Manifesto
+  var overlay=document.getElementById('manifesto-overlay');
+  var closeBtn=document.getElementById('manifesto-close');
+  if(closeBtn)closeBtn.style.cssText='display:none!important;';
+  function openManifesto(){
+    if(overlay)overlay.classList.add('open');
+    if(closeBtn)closeBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';
+  }
+  function closeManifesto(){
+    if(overlay)overlay.classList.remove('open');
+    if(closeBtn)closeBtn.style.cssText='display:none!important;';
+  }
+  var mb1=document.getElementById('lp-manifesto-btn');if(mb1)mb1.addEventListener('click',openManifesto);
+  var mb2=document.getElementById('lp-manifesto-btn-2');if(mb2)mb2.addEventListener('click',openManifesto);
+  if(closeBtn)closeBtn.addEventListener('click',closeManifesto);
+  if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeManifesto();});
+
+  // Theory
+  var theoryOverlay=document.getElementById('theory-overlay');
+  var theoryCloseBtn=document.getElementById('theory-close');
+  if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';
+  function openTheory(){
+    if(theoryOverlay)theoryOverlay.classList.add('open');
+    if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(8,224,248,.2);color:rgba(8,224,248,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';
+  }
+  function closeTheory(){
+    if(theoryOverlay)theoryOverlay.classList.remove('open');
+    if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';
+  }
+  var tb1=document.getElementById('lp-theory-btn');if(tb1)tb1.addEventListener('click',openTheory);
+  var tb2=document.getElementById('lp-theory-btn-2');if(tb2)tb2.addEventListener('click',openTheory);
+  if(theoryCloseBtn)theoryCloseBtn.addEventListener('click',closeTheory);
+  if(theoryOverlay)theoryOverlay.addEventListener('click',function(e){if(e.target===theoryOverlay)closeTheory();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeManifesto();closeTheory();}});
+
+  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){
+    e.target.classList.add('visible');
+    // Also show any lp-illo-wrap inside this reveal
+    e.target.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});
+    io.unobserve(e.target);
+  }});},{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(function(el){
+    var r=el.getBoundingClientRect();
+    if(r.top<window.innerHeight&&r.bottom>0){
+      el.classList.add('visible');
+      el.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});
+    }
+    else{io.observe(el);}
+  });
+  function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
+  blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
+  var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0){n.style.cssText='display:none!important';}});});});
+  obs.observe(document.body,{childList:true});
+  var bgDlg=document.getElementById('bg-dlg');
+  if(bgDlg)bgDlg.addEventListener('click',function(e){if(e.target===bgDlg)bgDlg.classList.remove('open');});
+  var thBtn=document.getElementById('theme-custom-btn');
+  if(thBtn)thBtn.addEventListener('click',function(){
+    var inp=document.getElementById('theme-custom-input');
+    var url=(inp?inp.value:'').trim();if(!url)return;
+    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+    localStorage.setItem(THEME_KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();
+  });
+})();
+
+</script>
+</body>
+</html>
