@@ -65,9 +65,9 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-badge-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;background:var(--gold);box-shadow:0 0 7px var(--gold);animation:pulse 2s ease infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .lp-logo{font-family:var(--font-d);font-size:clamp(28px,9vw,148px);font-weight:800;letter-spacing:-.015em;line-height:.95;background:linear-gradient(140deg,var(--gold) 0%,#fff 38%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:44px;width:100%;opacity:0;animation:fadeUp .7s .15s ease forwards;}
-.lp-ctas{display:flex;gap:6px;flex-wrap:nowrap;justify-content:center;opacity:0;animation:fadeUp .55s .32s ease forwards;}
-@media(max-width:480px){.lp-btn{padding:8px 10px;font-size:10px;gap:4px;}}
-.lp-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 26px;border-radius:10px;font-family:var(--font-b);font-size:13px;font-weight:600;letter-spacing:.01em;cursor:pointer;border:none;text-decoration:none;transition:all .18s ease;}
+.lp-ctas{display:flex;gap:5px;flex-wrap:nowrap;justify-content:center;opacity:0;animation:fadeUp .55s .32s ease forwards;}
+@media(max-width:480px){.lp-btn{padding:7px 9px;font-size:10px;gap:3px;}}
+.lp-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:10px 16px;border-radius:10px;font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.01em;cursor:pointer;border:none;text-decoration:none;transition:all .18s ease;}
 .lp-btn-primary{background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.75));color:#05030a;box-shadow:0 0 0 1px rgba(240,168,48,.28),0 4px 22px rgba(240,168,48,.18);}
 .lp-btn-primary:hover{box-shadow:0 0 0 1px rgba(240,168,48,.5),0 8px 34px rgba(240,168,48,.32);transform:translateY(-1px)}
 .lp-btn-secondary{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--text3);}
@@ -109,30 +109,14 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .lp-footer-logo{font-family:var(--font-d);font-size:clamp(22px,5vw,40px);font-weight:800;letter-spacing:.05em;background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;}
 .lp-footer-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
 .lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.3);letter-spacing:.15em;}
+.lp-illo{width:100%;height:70px;margin:20px 0;display:block;}
+.lp-illo-wrap{opacity:1;}
 
 /* Theory overlay */
-#theory-overlay{
-  position:fixed;inset:0;z-index:1000;
-  background:rgba(5,5,7,.97);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
-  opacity:0;pointer-events:none;
-  transition:opacity .35s ease;
-}
+#theory-overlay{position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease;}
 #theory-overlay.open{opacity:1;pointer-events:all;}
-#theory-inner{
-  max-width:680px;margin:0 auto;
-  padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));
-}
-#theory-close{
-  position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;
-  display:none;align-items:center;justify-content:center;
-  background:rgba(5,5,7,.85);border:1px solid rgba(8,224,248,.2);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  color:var(--text2);font-size:18px;width:48px;height:48px;
-  border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);
-  z-index:1001;
-}
+#theory-inner{max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));}
+#theory-close{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;display:none;align-items:center;justify-content:center;background:rgba(5,5,7,.85);border:1px solid rgba(8,224,248,.2);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--text2);font-size:18px;width:48px;height:48px;border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);z-index:1001;}
 #theory-close:hover{background:rgba(8,224,248,.08);color:var(--cyan);}
 .th-eyebrow{font-family:var(--font-m);font-size:9px;color:var(--cyan);letter-spacing:.28em;text-transform:uppercase;margin-bottom:16px;opacity:.7;}
 .th-h{font-family:var(--font-d);font-size:clamp(22px,4vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--text);margin-bottom:24px;}
@@ -150,35 +134,15 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .th-chain-arrow{color:var(--cyan);font-size:14px;opacity:.5;flex-shrink:0;}
 .th-negs{display:flex;flex-direction:column;gap:8px;margin:16px 0;}
 .th-neg{font-size:clamp(13px,1.7vw,15px);color:var(--text3);}
-.th-neg::before{content:'— ';color:rgba(8,224,248,.4);}
+.th-neg::before{content:'&#8212; ';color:rgba(8,224,248,.4);}
 .th-final{font-family:var(--font-d);font-size:clamp(18px,3vw,28px);font-weight:800;letter-spacing:-.01em;color:var(--text);margin:28px 0 8px;}
 
 /* Manifesto overlay */
-#manifesto-overlay{
-  position:fixed;inset:0;z-index:1000;
-  background:rgba(5,5,7,.96);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
-  opacity:0;pointer-events:none;
-  transition:opacity .35s ease;
-}
+#manifesto-overlay{position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease;}
 #manifesto-overlay.open{opacity:1;pointer-events:all;}
-#manifesto-inner{
-  max-width:680px;margin:0 auto;
-  padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));
-}
-#manifesto-close{
-  position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;
-  display:none;align-items:center;justify-content:center;
-  background:rgba(5,5,7,.85);border:1px solid rgba(255,255,255,.12);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  color:var(--text2);font-size:18px;width:48px;height:48px;
-  border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);
-  z-index:1001;
-}
+#manifesto-inner{max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));}
+#manifesto-close{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;display:none;align-items:center;justify-content:center;background:rgba(5,5,7,.85);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--text2);font-size:18px;width:48px;height:48px;border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);z-index:1001;}
 #manifesto-close:hover{background:rgba(255,255,255,.1);color:var(--text);}
-.lp-illo{width:100%;height:70px;margin:20px 0;display:block;}
-.lp-illo-wrap{opacity:1;} /* reveal parent handles animation */
 .mf-illo{width:100%;height:80px;margin:16px 0;display:block;overflow:visible;}
 .mf-illo-wrap{opacity:0;transform:translateY(8px);transition:opacity .6s ease,transform .6s ease;}
 .mf-illo-wrap.visible{opacity:1;transform:none;}
@@ -187,10 +151,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .mf-subtitle{font-family:var(--font-m);font-size:clamp(10px,1.5vw,12px);color:var(--text3);margin-bottom:40px;line-height:1.6;}
 .mf-sep{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);margin:32px 0;}
 .mf-section-label{font-family:var(--font-m);font-size:8px;color:var(--purple);letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;opacity:.6;}
-.mf-sub-label{font-family:var(--font-m);font-size:8px;color:rgba(167,139,250,.4);letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px;padding-left:12px;border-left:1px solid rgba(167,139,250,.2);}
 .mf-section-title{font-family:var(--font-d);font-size:clamp(16px,3vw,24px);font-weight:800;color:var(--text);margin-bottom:12px;line-height:1.2;}
 .mf-p{font-size:clamp(13px,1.8vw,15px);color:var(--text2);line-height:1.85;margin-bottom:10px;}
-.mf-p+.mf-p{margin-top:0;}
 .mf-quote{font-family:var(--font-d);font-size:clamp(14px,2.2vw,18px);font-weight:700;color:var(--text);border-left:2px solid rgba(167,139,250,.4);padding-left:16px;margin:20px 0;line-height:1.5;}
 .mf-table{width:100%;border-collapse:collapse;margin:20px 0;font-family:var(--font-m);font-size:11px;}
 .mf-table th{text-align:left;padding:8px 12px;color:var(--text3);letter-spacing:.1em;border-bottom:1px solid rgba(255,255,255,.06);}
@@ -213,8 +175,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="lp-ctas">
       <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
       <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
-      <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn">✦ Manifesto</button>
-      <button class="lp-btn lp-btn-theory" id="lp-theory-btn">◈ Theory</button>
+      <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn">&#10022; Manifesto</button>
+      <button class="lp-btn lp-btn-theory" id="lp-theory-btn">&#9672; Theory</button>
     </div>
   </div>
   <div class="lp lp-body">
@@ -231,18 +193,16 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   <path d="M180,35 C240,35 260,42 320,42" stroke="rgba(167,139,250,0.3)" stroke-width="1" fill="none"/>
   <path d="M180,55 C240,55 260,48 320,48" stroke="rgba(240,168,48,0.2)" stroke-width="1" fill="none"/>
   <path d="M180,55 C240,55 260,62 320,62" stroke="rgba(240,168,48,0.15)" stroke-width="1" fill="none"/>
-  <!-- End dots -->
   <circle cx="320" cy="8" r="2" fill="rgba(76,201,240,0.6)"/>
   <circle cx="320" cy="22" r="2" fill="rgba(76,201,240,0.5)"/>
   <circle cx="320" cy="28" r="2" fill="rgba(167,139,250,0.6)"/>
   <circle cx="320" cy="42" r="2" fill="rgba(167,139,250,0.5)"/>
   <circle cx="320" cy="48" r="2" fill="rgba(240,168,48,0.5)"/>
   <circle cx="320" cy="62" r="2" fill="rgba(240,168,48,0.4)"/>
-  <!-- Origin -->
   <circle cx="40" cy="35" r="5" fill="rgba(240,168,48,0.15)" stroke="rgba(240,168,48,0.6)" stroke-width="1.5"/>
   <circle cx="40" cy="35" r="2" fill="rgba(240,168,48,0.8)"/>
 </svg></div>
-    <div class="lp-h">Build weird things.<br>Shape the web.</div>
+      <div class="lp-h">Build weird things.<br>Shape the web.</div>
       <div class="lp-tags">
         <span class="lp-tag">Connect anything</span>
         <span class="lp-tag">Remix interactions</span>
@@ -253,16 +213,11 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="lp-sep"></div>
     <div class="reveal">
       <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <!-- Terminal prompt -->
   <rect x="20" y="22" width="160" height="26" rx="4" fill="rgba(255,255,255,0.03)" stroke="rgba(240,168,48,0.2)" stroke-width="1"/>
   <text x="32" y="39" font-family="monospace" font-size="10" fill="rgba(240,168,48,0.6)">_&gt; prompt</text>
-  <rect x="112" y="29" width="8" height="12" rx="1" fill="rgba(240,168,48,0.5)">
-    <animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/>
-  </rect>
-  <!-- Arrow -->
+  <rect x="112" y="29" width="8" height="12" rx="1" fill="rgba(240,168,48,0.5)"><animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/></rect>
   <path d="M185,35 L240,35" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
   <circle cx="240" cy="35" r="2" fill="rgba(255,255,255,0.2)"/>
-  <!-- Expanding web -->
   <circle cx="340" cy="35" r="4" fill="rgba(76,201,240,0.7)"/>
   <circle cx="380" cy="20" r="3" fill="rgba(167,139,250,0.5)"/>
   <circle cx="380" cy="50" r="3" fill="rgba(167,139,250,0.5)"/>
@@ -278,8 +233,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   <line x1="380" y1="50" x2="420" y2="35" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
   <line x1="380" y1="50" x2="420" y2="58" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
 </svg></div>
-    <div class="lp-quote">Give one prompt anywhere —<br>even from your phone.</div>
-
+      <div class="lp-quote">Give one prompt anywhere —<br>even from your phone.</div>
       <div class="lp-stanza">
         <div class="lp-line">You enter a shared context of creation.</div>
         <div class="lp-line">Where giving is receiving.</div>
@@ -291,11 +245,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="reveal">
       <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
   <circle cx="120" cy="35" r="8" fill="rgba(240,168,48,0.15)" stroke="rgba(240,168,48,0.5)" stroke-width="1.5"/>
-  <circle cx="120" cy="35" r="3" fill="rgba(240,168,48,0.8)">
-    <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/>
-  </circle>
+  <circle cx="120" cy="35" r="3" fill="rgba(240,168,48,0.8)"><animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/></circle>
   <line x1="128" y1="35" x2="200" y2="35" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-  <!-- Four primitives -->
   <rect x="200" y="10" width="90" height="20" rx="3" fill="rgba(76,201,240,0.08)" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
   <text x="245" y="24" font-family="monospace" font-size="8" fill="rgba(76,201,240,0.7)" text-anchor="middle">interaction</text>
   <rect x="200" y="35" width="90" height="20" rx="3" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
@@ -307,7 +258,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   <line x1="128" y1="30" x2="200" y2="20" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
   <line x1="128" y1="40" x2="200" y2="45" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
 </svg></div>
-    <div class="lp-h">One action is enough.</div>
+      <div class="lp-h">One action is enough.</div>
       <p class="lp-p">A single prompt — or a single line — can connect your code to a living layer of:</p>
       <div class="lp-grid">
         <div class="lp-gitem">interaction</div>
@@ -325,20 +276,16 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="lp-sep"></div>
     <div class="reveal">
       <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <!-- Identity — fading -->
   <text x="80" y="25" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.12)" text-anchor="middle">identity</text>
   <line x1="35" y1="25" x2="125" y2="25" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <!-- Ownership — fading -->
   <text x="80" y="48" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.08)" text-anchor="middle">ownership</text>
   <line x1="30" y1="48" x2="130" y2="48" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-  <!-- Separator -->
   <line x1="200" y1="10" x2="200" y2="60" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-  <!-- Participation — glowing -->
   <text x="380" y="40" font-family="monospace" font-size="16" fill="rgba(240,168,48,0.9)" text-anchor="middle" font-weight="bold">participation</text>
   <circle cx="380" cy="36" r="40" fill="none" stroke="rgba(240,168,48,0.08)" stroke-width="20"/>
   <circle cx="380" cy="36" r="28" fill="none" stroke="rgba(240,168,48,0.06)" stroke-width="12"/>
 </svg></div>
-    <div class="lp-label">Core principle</div>
+      <div class="lp-label">Core principle</div>
       <div class="lp-card">
         <div class="lp-card-lines">
           <div class="lp-card-line">Identity does not matter.</div>
@@ -351,18 +298,15 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
     <div class="lp-sep"></div>
     <div class="reveal">
       <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <!-- Crossed out center -->
   <circle cx="300" cy="35" r="15" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="3,3"/>
   <line x1="289" y1="24" x2="311" y2="46" stroke="rgba(255,69,96,0.2)" stroke-width="1.5"/>
   <line x1="311" y1="24" x2="289" y2="46" stroke="rgba(255,69,96,0.2)" stroke-width="1.5"/>
-  <!-- Distributed nodes — all equal -->
   <circle cx="80" cy="20" r="5" fill="rgba(76,201,240,0.2)" stroke="rgba(76,201,240,0.5)" stroke-width="1"/>
   <circle cx="160" cy="55" r="5" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
   <circle cx="200" cy="15" r="5" fill="rgba(240,168,48,0.2)" stroke="rgba(240,168,48,0.5)" stroke-width="1"/>
   <circle cx="400" cy="20" r="5" fill="rgba(240,168,48,0.2)" stroke="rgba(240,168,48,0.5)" stroke-width="1"/>
   <circle cx="440" cy="55" r="5" fill="rgba(76,201,240,0.2)" stroke="rgba(76,201,240,0.5)" stroke-width="1"/>
   <circle cx="520" cy="15" r="5" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
-  <!-- Connections between peers, skipping center -->
   <line x1="80" y1="20" x2="160" y2="55" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
   <line x1="80" y1="20" x2="200" y2="15" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
   <line x1="160" y1="55" x2="200" y2="15" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
@@ -371,7 +315,7 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
   <line x1="440" y1="55" x2="520" y2="15" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
   <line x1="200" y1="15" x2="400" y2="20" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
 </svg></div>
-    <div class="lp-negs">
+      <div class="lp-negs">
         <div class="lp-neg">No central authority.</div>
         <div class="lp-neg">No platform dependency.</div>
         <div class="lp-neg">No fixed reality.</div>
@@ -390,8 +334,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
       <div class="lp-ctas" style="justify-content:center">
         <button class="lp-btn lp-btn-primary" id="lp-start-btn-2">&#9654; Start</button>
         <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
-        <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn-2">✦ Manifesto</button>
-        <button class="lp-btn lp-btn-theory" id="lp-theory-btn-2">◈ Theory</button>
+        <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn-2">&#10022; Manifesto</button>
+        <button class="lp-btn lp-btn-theory" id="lp-theory-btn-2">&#9672; Theory</button>
       </div>
     </div>
   </div>
@@ -405,347 +349,194 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 <!-- Manifesto overlay -->
 <div id="manifesto-overlay">
   <div id="manifesto-inner">
-
     <div class="mf-eyebrow">Manifesto</div>
     <div class="mf-title">Participation is All You Need</div>
     <div class="mf-subtitle">Toward distributed cognitive substrates beyond the transformer paradigm</div>
-
-
     <div class="mf-sep"></div>
-
     <div class="mf-section-label">1. The limits of attention</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <radialGradient id="g1" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <!-- Noise dots -->
-  <g opacity="0.25">
-    <circle cx="42" cy="20" r="1.5" fill="#a78bfa"/><circle cx="78" cy="55" r="1" fill="#a78bfa"/>
-    <circle cx="130" cy="15" r="2" fill="#a78bfa"/><circle cx="160" cy="60" r="1" fill="#a78bfa"/>
-    <circle cx="200" cy="30" r="1.5" fill="#a78bfa"/><circle cx="450" cy="20" r="2" fill="#a78bfa"/>
-    <circle cx="490" cy="55" r="1.5" fill="#a78bfa"/><circle cx="530" cy="15" r="1" fill="#a78bfa"/>
-    <circle cx="560" cy="60" r="2" fill="#a78bfa"/><circle cx="510" cy="35" r="1.5" fill="#a78bfa"/>
-  </g>
-  <!-- Narrowing funnel lines -->
-  <path d="M0,10 Q300,40 600,10" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/>
-  <path d="M0,70 Q300,40 600,70" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/>
-  <path d="M180,5 Q300,40 420,5" stroke="rgba(167,139,250,0.25)" stroke-width="1" fill="none"/>
-  <path d="M180,75 Q300,40 420,75" stroke="rgba(167,139,250,0.25)" stroke-width="1" fill="none"/>
-  <!-- Central focus -->
-  <circle cx="300" cy="40" r="24" fill="url(#g1)"/>
-  <circle cx="300" cy="40" r="4" fill="#a78bfa" opacity="0.9">
-    <animate attributeName="r" values="4;6;4" dur="3s" repeatCount="indefinite"/>
-    <animate attributeName="opacity" values="0.9;0.5;0.9" dur="3s" repeatCount="indefinite"/>
-  </circle>
-</svg></div>
-    <div class="mf-p">The transformer architecture demonstrated that a single mechanism — scaled attention over token sequences — could unify language understanding and generation. Eight years later, transformers dominate AI. Yet a structural tension has emerged in how they are typically deployed: increasingly centralized, stateless between sessions, and dependent on knowledge frozen at training time.</div>
-    <div class="mf-p">In most current product implementations, a transformer has no memory beyond its context window. Every session tends to begin from zero. The intelligence lives in data centers. Users, in practice, are treated as endpoints. These are not inevitable failures — they are consequences of design choices that made sense at scale, and that the participation paradigm proposes to complement.</div>
-
+    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="g1" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#a78bfa" stop-opacity="0.8"/><stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/></radialGradient></defs><g opacity="0.25"><circle cx="42" cy="20" r="1.5" fill="#a78bfa"/><circle cx="78" cy="55" r="1" fill="#a78bfa"/><circle cx="130" cy="15" r="2" fill="#a78bfa"/><circle cx="160" cy="60" r="1" fill="#a78bfa"/><circle cx="200" cy="30" r="1.5" fill="#a78bfa"/><circle cx="450" cy="20" r="2" fill="#a78bfa"/><circle cx="490" cy="55" r="1.5" fill="#a78bfa"/><circle cx="530" cy="15" r="1" fill="#a78bfa"/><circle cx="560" cy="60" r="2" fill="#a78bfa"/><circle cx="510" cy="35" r="1.5" fill="#a78bfa"/></g><path d="M0,10 Q300,40 600,10" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/><path d="M0,70 Q300,40 600,70" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/><path d="M180,5 Q300,40 420,5" stroke="rgba(167,139,250,0.25)" stroke-width="1" fill="none"/><path d="M180,75 Q300,40 420,75" stroke="rgba(167,139,250,0.25)" stroke-width="1" fill="none"/><circle cx="300" cy="40" r="24" fill="url(#g1)"/><circle cx="300" cy="40" r="4" fill="#a78bfa" opacity="0.9"><animate attributeName="r" values="4;6;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.9;0.5;0.9" dur="3s" repeatCount="indefinite"/></circle></svg></div>
+    <div class="mf-p">The transformer architecture demonstrated that a single mechanism — scaled attention over token sequences — could unify language understanding and generation. Eight years later, transformers dominate AI. Yet a structural tension has emerged: increasingly centralized, stateless between sessions, dependent on knowledge frozen at training time.</div>
+    <div class="mf-p">In most current product implementations, a transformer has no memory beyond its context window. Every session begins from zero. The intelligence lives in data centers. Users are treated as endpoints. These are not inevitable failures — they are consequences of design choices that the participation paradigm proposes to complement.</div>
     <div class="mf-sep"></div>
-
     <div class="mf-section-label">2. What participation offers</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Connections -->
-  <line x1="300" y1="40" x2="180" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <line x1="300" y1="40" x2="420" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <line x1="300" y1="40" x2="180" y2="60" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <line x1="300" y1="40" x2="420" y2="60" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <line x1="180" y1="20" x2="80" y2="15" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <line x1="420" y1="20" x2="520" y2="15" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <line x1="180" y1="60" x2="80" y2="65" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <line x1="420" y1="60" x2="520" y2="65" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <!-- Outer nodes -->
-  <circle cx="80" cy="15" r="3" fill="#4cc9f0" opacity="0.5"/>
-  <circle cx="520" cy="15" r="3" fill="#4cc9f0" opacity="0.5"/>
-  <circle cx="80" cy="65" r="3" fill="#4cc9f0" opacity="0.5"/>
-  <circle cx="520" cy="65" r="3" fill="#4cc9f0" opacity="0.5"/>
-  <!-- Mid nodes -->
-  <circle cx="180" cy="20" r="5" fill="#a78bfa" opacity="0.7"/>
-  <circle cx="420" cy="20" r="5" fill="#a78bfa" opacity="0.7"/>
-  <circle cx="180" cy="60" r="5" fill="#a78bfa" opacity="0.7"/>
-  <circle cx="420" cy="60" r="5" fill="#a78bfa" opacity="0.7"/>
-  <!-- Center node pulsing -->
-  <circle cx="300" cy="40" r="10" fill="rgba(167,139,250,0.15)"/>
-  <circle cx="300" cy="40" r="6" fill="#a78bfa" opacity="0.9">
-    <animate attributeName="r" values="6;9;6" dur="2s" repeatCount="indefinite"/>
-  </circle>
-</svg></div>
+    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg"><line x1="300" y1="40" x2="180" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="300" y1="40" x2="420" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="300" y1="40" x2="180" y2="60" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="300" y1="40" x2="420" y2="60" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="180" y1="20" x2="80" y2="15" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><line x1="420" y1="20" x2="520" y2="15" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><line x1="180" y1="60" x2="80" y2="65" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><line x1="420" y1="60" x2="520" y2="65" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><circle cx="80" cy="15" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="520" cy="15" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="80" cy="65" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="520" cy="65" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="180" cy="20" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="420" cy="20" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="180" cy="60" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="420" cy="60" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="300" cy="40" r="10" fill="rgba(167,139,250,0.15)"/><circle cx="300" cy="40" r="6" fill="#a78bfa" opacity="0.9"><animate attributeName="r" values="6;9;6" dur="2s" repeatCount="indefinite"/></circle></svg></div>
     <div class="mf-quote">Participation generates persistent state.<br>Participation distributes knowledge across time.<br>Participation decentralizes intelligence.</div>
-    <div class="mf-p">When a user participates in a network, structured behavioral signals accumulate into a living representation. This persists between sessions because it is not a context window — it is a profile that evolves.</div>
-
+    <div class="mf-p">When a user participates in a network, structured behavioral signals accumulate into a living representation that persists between sessions — not a context window but a profile that evolves.</div>
     <div class="mf-sep"></div>
-
     <div class="mf-section-label">3. The paradigm shift</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Left: vertical stack (transformer) -->
-  <rect x="60" y="15" width="80" height="12" rx="2" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <rect x="60" y="32" width="80" height="12" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
-  <rect x="60" y="49" width="80" height="12" rx="2" fill="rgba(167,139,250,0.1)" stroke="rgba(167,139,250,0.15)" stroke-width="1"/>
-  <!-- Arrow -->
-  <path d="M220,40 L340,40" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" marker-end="url(#arr)"/>
-  <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/></marker></defs>
-  <!-- Right: distributed (participation) -->
-  <circle cx="420" cy="25" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/>
-  <circle cx="460" cy="50" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/>
-  <circle cx="500" cy="25" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/>
-  <circle cx="540" cy="50" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/>
-  <line x1="420" y1="25" x2="460" y2="50" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-  <line x1="460" y1="50" x2="500" y2="25" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-  <line x1="500" y1="25" x2="540" y2="50" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-  <line x1="420" y1="25" x2="500" y2="25" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-</svg></div>
+    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg"><rect x="60" y="15" width="80" height="12" rx="2" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><rect x="60" y="32" width="80" height="12" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.2)" stroke-width="1"/><rect x="60" y="49" width="80" height="12" rx="2" fill="rgba(167,139,250,0.1)" stroke="rgba(167,139,250,0.15)" stroke-width="1"/><path d="M220,40 L340,40" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" marker-end="url(#arr)"/><defs><marker id="arr" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/></marker></defs><circle cx="420" cy="25" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><circle cx="460" cy="50" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><circle cx="500" cy="25" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><circle cx="540" cy="50" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><line x1="420" y1="25" x2="460" y2="50" stroke="rgba(76,201,240,0.3)" stroke-width="1"/><line x1="460" y1="50" x2="500" y2="25" stroke="rgba(76,201,240,0.3)" stroke-width="1"/><line x1="500" y1="25" x2="540" y2="50" stroke="rgba(76,201,240,0.3)" stroke-width="1"/><line x1="420" y1="25" x2="500" y2="25" stroke="rgba(76,201,240,0.2)" stroke-width="1"/></svg></div>
     <table class="mf-table">
-      <tr><th></th><th>Transformer</th><th>Hybrid / current</th><th>Participation</th></tr>
-      <tr><td>Memory</td><td>Context window (ephemeral)</td><td>RAG / external store</td><td>Living profile (persistent)</td></tr>
-      <tr><td>Knowledge</td><td>Frozen at training</td><td>Retrieved at query time</td><td>Continuously updated by network</td></tr>
-      <tr><td>Modules</td><td>Internal experts</td><td>Tool calls / plugins</td><td>Independent spheres</td></tr>
-      <tr><td>Reasoning</td><td>Single model inference</td><td>Agent chains</td><td>Collective emergence</td></tr>
-      <tr><td>Identity</td><td>Stateless session</td><td>User account + history</td><td>Non-consistent living identity</td></tr>
+      <tr><th></th><th>Transformer</th><th>Hybrid</th><th>Participation</th></tr>
+      <tr><td>Memory</td><td>Context window</td><td>RAG / external store</td><td>Living profile</td></tr>
+      <tr><td>Knowledge</td><td>Frozen at training</td><td>Retrieved at query</td><td>Continuously updated</td></tr>
+      <tr><td>Identity</td><td>Stateless session</td><td>User account</td><td>Non-consistent living identity</td></tr>
       <tr><td>Value</td><td>Accrues to platform</td><td>Partially shared</td><td>Generated by users</td></tr>
     </table>
-
     <div class="mf-sep"></div>
-
-    <div class="mf-section-label">4. Attention ≠ Participation</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Flat attention line -->
-  <line x1="40" y1="40" x2="260" y2="40" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="150" y="30" font-family="monospace" font-size="8" fill="rgba(167,139,250,0.4)" text-anchor="middle">attention</text>
-  <!-- ≠ symbol -->
-  <text x="300" y="44" font-family="monospace" font-size="16" fill="rgba(255,255,255,0.2)" text-anchor="middle">≠</text>
-  <!-- Participation wave -->
-  <path d="M340,40 Q360,15 380,40 Q400,65 420,40 Q440,15 460,40 Q480,65 500,40 Q520,15 540,40" 
-        stroke="rgba(76,201,240,0.6)" stroke-width="1.5" fill="none"/>
-  <text x="450" y="72" font-family="monospace" font-size="8" fill="rgba(76,201,240,0.5)" text-anchor="middle">participation</text>
-</svg></div>
-    <div class="mf-p">Most social networks, as currently designed, function less as participation systems and more as attention extraction systems. Their primary metric tends to be time on screen, clicks, engagement — not contribution, coordination, or emergence.</div>
-    <div class="mf-quote">Social networks have largely failed to produce collective intelligence — not because it is impossible, but because their architecture was optimized for a different goal.</div>
-    <div class="mf-p">The productive opposition is not individual ↔ crowd. It is <strong style="color:var(--purple)">attention ↔ participation</strong>.</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive"><strong>Intelligence as representation</strong> — the system builds a model and responds. Intelligence localized in weights. Benchmarkable.</div>
-      <div class="mf-primitive"><strong>Intelligence as dynamics</strong> — the system evolves toward better configurations. Intelligence in the trajectory. The question is not "what does it know?" but "where does it go?"</div>
-    </div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">5. Collective reasoning is reorganization</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Random left -->
-  <circle cx="50" cy="30" r="2" fill="rgba(167,139,250,0.4)"/>
-  <circle cx="90" cy="55" r="2" fill="rgba(167,139,250,0.4)"/>
-  <circle cx="70" cy="20" r="2" fill="rgba(167,139,250,0.4)"/>
-  <circle cx="110" cy="45" r="2" fill="rgba(167,139,250,0.4)"/>
-  <circle cx="55" cy="65" r="2" fill="rgba(167,139,250,0.4)"/>
-  <circle cx="130" cy="25" r="2" fill="rgba(167,139,250,0.4)"/>
-  <!-- Arrow -->
-  <path d="M200,40 L380,40" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-  <circle cx="380" cy="40" r="2" fill="rgba(255,255,255,0.2)"/>
-  <!-- Organized right — hexagonal pattern -->
-  <g transform="translate(420,40)">
-    <circle cx="0" cy="0" r="3" fill="rgba(76,201,240,0.7)"/>
-    <circle cx="20" cy="0" r="3" fill="rgba(76,201,240,0.6)"/>
-    <circle cx="-20" cy="0" r="3" fill="rgba(76,201,240,0.6)"/>
-    <circle cx="10" cy="-17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <circle cx="-10" cy="-17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <circle cx="10" cy="17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <circle cx="-10" cy="17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <line x1="0" y1="0" x2="20" y2="0" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="-20" y2="0" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="10" y2="-17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="-10" y2="-17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="10" y2="17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="-10" y2="17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-  </g>
-</svg></div>
-    <div class="mf-code">participants → interactions → network reorganization → emergence</div>
-    <div class="mf-p">The result is not an answer. It is a transformation of the state of the system. A city reasons by reorganizing. A market converges toward a state. An ant colony does not compute the optimal path — the path appears.</div>
-    <div class="mf-quote">We have spent eight years optimizing the individual cognitive mechanism — attention — and almost no work has been done on the social substrate in which cognition is embedded.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">6. The four primitives</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="g6a" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#a78bfa" stop-opacity="0.6"/><stop offset="100%" stop-color="#a78bfa" stop-opacity="0.2"/></linearGradient>
-    <linearGradient id="g6b" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#4cc9f0" stop-opacity="0.6"/><stop offset="100%" stop-color="#4cc9f0" stop-opacity="0.2"/></linearGradient>
-  </defs>
-  <rect x="60" y="25" width="100" height="30" rx="4" fill="url(#g6a)" stroke="rgba(167,139,250,0.4)" stroke-width="1"/>
-  <rect x="175" y="25" width="100" height="30" rx="4" fill="url(#g6a)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <rect x="290" y="25" width="100" height="30" rx="4" fill="url(#g6b)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/>
-  <rect x="405" y="25" width="100" height="30" rx="4" fill="url(#g6b)" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-  <!-- Connectors -->
-  <line x1="160" y1="40" x2="175" y2="40" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-  <line x1="275" y1="40" x2="290" y2="40" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-  <line x1="390" y1="40" x2="405" y2="40" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-</svg></div>
+    <div class="mf-section-label">4. The four primitives</div>
     <div class="mf-primitives">
       <div class="mf-primitive"><strong>Persistent identity</strong> — recognizable across time by accumulated participation history, not by name.</div>
       <div class="mf-primitive"><strong>Structured broadcast</strong> — participants emit structured signals about their current state to the network.</div>
       <div class="mf-primitive"><strong>Composition</strong> — the intersection of two participants' states produces something neither held alone.</div>
-      <div class="mf-primitive"><strong>Incentive alignment</strong> — participation generates value for participants directly, rather than accruing it centrally.</div>
+      <div class="mf-primitive"><strong>Incentive alignment</strong> — participation generates value for participants directly, rather than accruing centrally.</div>
     </div>
-
     <div class="mf-sep"></div>
-
-    <div class="mf-section-label">7. The human is a component</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Circuit lines -->
-  <path d="M0,40 L120,40 L140,20 L200,20 L220,40 L380,40 L400,20 L460,20 L480,40 L600,40" stroke="rgba(167,139,250,0.2)" stroke-width="1" fill="none"/>
-  <path d="M140,20 L140,60 L200,60 L200,20" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/>
-  <path d="M400,20 L400,60 L460,60 L460,20" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/>
-  <!-- Regular components (rectangles) -->
-  <rect x="50" y="33" width="30" height="14" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <rect x="400" y="33" width="60" height="14" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <rect x="500" y="33" width="40" height="14" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <!-- Human node — circle, highlighted -->
-  <circle cx="300" cy="40" r="16" fill="rgba(76,201,240,0.08)" stroke="rgba(76,201,240,0.5)" stroke-width="1.5"/>
-  <circle cx="300" cy="35" r="5" fill="rgba(76,201,240,0.4)"/>
-  <path d="M290,52 Q300,44 310,52" stroke="rgba(76,201,240,0.4)" stroke-width="1.5" fill="none"/>
-</svg></div>
-    <div class="mf-p">In the current dominant architecture:</div>
-    <div class="mf-code">Human → AI → Response</div>
-    <div class="mf-p">The human is exterior to the cognitive system. Even "human-in-the-loop" frames the human as a correction mechanism, not a constitutive component. What the participation paradigm proposes:</div>
-    <div class="mf-code">Human ↔ Network ↔ Modules ↔ AI</div>
-    <div class="mf-quote">The human is not merely a user of the system.<br>The human becomes a component of the system's dynamics.</div>
-    <div class="mf-p">The fundamental unit tends toward participation itself rather than the individual. Identity is not the input — identity emerges as output. A city is a movement. A language is a movement. YourMine aims to be a movement: the pattern persists as participants enter and leave.</div>
-    <div class="mf-quote">The AI field tends to ask: how do we produce a better representation of the world?<br><br>The participation paradigm asks: how do we create the conditions for a world to self-organize?</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">8. Expansion, not amplification</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <!-- Amplification: same wave, bigger amplitude — left -->
-  <path d="M20,40 Q40,25 60,40 Q80,55 100,40 Q120,25 140,40" stroke="rgba(167,139,250,0.3)" stroke-width="1" fill="none"/>
-  <path d="M20,40 Q40,15 60,40 Q80,65 100,40 Q120,15 140,40" stroke="rgba(167,139,250,0.5)" stroke-width="1.5" fill="none"/>
-  <text x="80" y="75" font-family="monospace" font-size="7" fill="rgba(167,139,250,0.35)" text-anchor="middle">amplification</text>
-  <!-- Separator -->
-  <line x1="220" y1="10" x2="220" y2="70" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <!-- Expansion: growing rings — right -->
-  <circle cx="420" cy="40" r="8" fill="none" stroke="rgba(76,201,240,0.6)" stroke-width="1.5"/>
-  <circle cx="420" cy="40" r="18" fill="none" stroke="rgba(76,201,240,0.4)" stroke-width="1"/>
-  <circle cx="420" cy="40" r="28" fill="none" stroke="rgba(76,201,240,0.25)" stroke-width="1"/>
-  <circle cx="420" cy="40" r="38" fill="none" stroke="rgba(76,201,240,0.12)" stroke-width="1"/>
-  <circle cx="420" cy="40" r="3" fill="rgba(76,201,240,0.8)"/>
-  <text x="420" y="75" font-family="monospace" font-size="7" fill="rgba(76,201,240,0.4)" text-anchor="middle">expansion</text>
-</svg></div>
-    <div class="mf-quote">Participation creates more participation if and only if it expands the configuration space of the system.</div>
-    <div class="mf-p">Without this condition, participation produces amplification — not emergence. And amplification of an existing pattern is not intelligence. It is repetition at scale.</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive"><strong>Diversity</strong> — more variations within the same rules. Same interactions, same structures. Still amplification.</div>
-      <div class="mf-primitive"><strong>Expansion</strong> — new dimensions of rules become possible. Interactions that were structurally impossible before. The coordinate system changes.</div>
-    </div>
-    <div class="mf-code">n spheres → n options          (amplification)
-n spheres → 2ⁿ configurations (expansion)</div>
-    <div class="mf-p">The composition primitive — <code style="color:var(--cyan)">peerSection()</code> — converts the system from amplifier to expander. Without it, spheres are apps. With it, spheres are dimensions.</div>
-
-    <div class="mf-sep"></div>
-
-    <div class="mf-section-label">9. The open question</div>
+    <div class="mf-section-label">5. The open question</div>
     <div class="mf-quote">Emergence is not a property of participation.<br>It is a property of the rewriting of the rules of participation themselves.</div>
-    <div class="mf-p">The highest bar: not new interactions within existing rules — new rules that make previously impossible interactions possible. Participants can currently add spheres. They cannot yet change the grammar of participation itself. That is the frontier.</div>
-    <div class="mf-p">The system is running. The observation is ongoing. Whether this constitutes genuine emergence — in the sense of complex systems theory — remains an empirical question. But the test is clear: not whether participation increases. Whether <strong style="color:var(--purple)">new things become possible</strong>.</div>
-
+    <div class="mf-p">The system is running. The observation is ongoing. Whether this constitutes genuine emergence remains an empirical question. But the test is clear: not whether participation increases. Whether <strong style="color:var(--purple)">new things become possible</strong>.</div>
     <div class="mf-sep"></div>
     <div class="mf-end">"A city is not its buildings.<br>A language is not its words.<br>A movement is not its members.<br>YourMine is not its code."</div>
     <div class="mf-end-sub" style="margin-top:16px">
       <a href="https://github.com/theodoreyong9/YourMinedApp" target="_blank" rel="noopener" style="color:rgba(167,139,250,.5);text-decoration:none;font-size:10px;letter-spacing:.1em">github.com/theodoreyong9/YourMinedApp</a>
     </div>
-
   </div>
 </div>
-
-<button id="manifesto-close">✕</button>
+<button id="manifesto-close">&#10005;</button>
 
 <!-- Theory overlay -->
 <div id="theory-overlay">
   <div id="theory-inner">
 
-    <div class="th-eyebrow">YourMine — Theoretical Foundation</div>
-    <div class="th-h">What is a payoff?</div>
+    <div class="th-eyebrow">Working Paper &#8212; Yong, JdC &#8212; 2025</div>
+    <div class="th-h">What Is a Payoff?<br><span style="font-size:.6em;color:var(--cyan);-webkit-text-fill-color:var(--cyan)">Participatory Value and Categorically-Valued Open Games</span></div>
 
-    <div class="th-p">Every theory of games assumes that what you win or lose can be expressed as a number. A real number. Something you can rank, compare, add. This assumption is so embedded it is rarely stated. It is just the definition of a payoff.</div>
-
-    <div class="th-p">We argue this assumption fails for a class of systems — <strong>participatory, distributed, compositional</strong> — where what engagement produces is not a quantity but a structure. A relational object. Something that grows when you compose it with others and collapses to nothing when you withdraw.</div>
-
-    <div class="th-sep"></div>
-
-    <div class="th-quote">The question is not how to generalize Nash equilibrium.<br>The question is what a payoff is.</div>
+    <div class="th-label">Abstract</div>
+    <div class="th-p">Classical game theory rests on a hidden ontological commitment: every value relevant to strategic behavior is representable as a real number. We argue this commitment fails for a class of systems &#8212; participatory, distributed, compositional &#8212; where the reward for engagement is not a quantity but a structure: a relational object produced by composition, destroyed by defection, and irreducible to any scalar without loss of information. We propose <em>categorically-valued open games</em> &#8212; open games where payoff functions map strategy profiles to objects in a symmetric monoidal category C &#8212; as the minimal formal extension required to represent structural value. The classical case is recovered from the thin symmetric monoidal category induced by the total order on the reals. The framework admits incomparable equilibria. The central claim: <strong>incomparability is not a bug. It is what value looks like when it is structure rather than quantity.</strong></div>
 
     <div class="th-sep"></div>
-
-    <div class="th-label">The scalar assumption</div>
-    <div class="th-p">Classical game theory requires two things: that every value can be assigned a number (representability), and that any two values can be compared (completeness). For markets and auctions, this works. Value is designed to be numerical there.</div>
-    <div class="th-p">But participation produces something different. When two people share a sphere — a common context, a practice, a way of interacting — they produce a <em>relational object</em>. This object has structure. It can be extended. It can be partially ordered. It cannot be naturally reduced to a number without losing what makes it what it is.</div>
+    <div class="th-label">1. The Hidden Assumption</div>
+    <div class="th-p">Every payoff function in classical game theory has the form U<sub>i</sub> : &#931; &#8594; &#8477;. This is so standard it appears not as an assumption but as a definition. The assumption carries two substantive commitments. <strong>Representability</strong>: every value can be assigned a real number. <strong>Completeness</strong>: any two values can be compared &#8212; for any outcomes a and b, either a &#8805; b or b &#8805; a. These are not mathematical necessities. They are assumptions about what value is. And they fail for systems where what engagement produces is not a quantity but a structure.</div>
 
     <div class="th-sep"></div>
-
-    <div class="th-label">Sen and incomplete preferences</div>
-    <div class="th-p">Amartya Sen saw a related failure in welfare economics. He argued that forcing a complete ranking on incommensurable values — health, political freedom, social recognition — distorts the value structure rather than representing it. The agent who cannot rank more freedom against less health is not irrational. They are recognizing that the comparison the theory demands does not exist.</div>
-    <div class="th-p">Sen proposed capability sets as a richer representation. But capability sets lack compositional structure — they do not combine when people interact strategically. There is no equilibrium theory for capability-valued games. That is the gap we address.</div>
+    <div class="th-label">2. Where Scalar Utility Fails</div>
+    <div class="th-p"><strong>Relational value.</strong> When two people discover a common context &#8212; a game, a discipline, a way of working &#8212; something is created: a relational object, a shared structure that enables certain interactions and recognitions. This object has structure. It can be extended. It is partially ordered. It can be destroyed by withdrawal. There is no canonical way to assign a real number to it that preserves its compositional properties. Any numerical assignment collapses distinctions that matter. This is not a measurement limitation &#8212; it is a structural mismatch.</div>
+    <div class="th-p"><strong>Sen and completeness.</strong> Amartya Sen&#8217;s critique of welfare economics targets precisely the completeness assumption (1979, 1985, 1999). Forcing complete preference orderings on incommensurable values distorts the value structure. The agent who cannot rank more political freedom against less health is not irrational &#8212; they are recognizing that the comparison the theory demands does not exist. Sen&#8217;s framework admits genuinely incomparable outcomes. The partial order on C is the formal structure Sen&#8217;s critique requires.</div>
+    <div class="th-p"><strong>Formal antecedents.</strong> Aumann (1962) showed utility functions need not exist when preferences are incomplete. Bewley (2002) developed Knightian decision theory for agents who cannot rank all alternatives. Dubra, Maccheroni, Ok (2004) characterized expected utility for incomplete preferences. What this literature lacks is a game-theoretic extension. Our framework provides this in the language of open game theory.</div>
 
     <div class="th-sep"></div>
+    <div class="th-label">3. Background: Open Games</div>
+    <div class="th-p"><strong>Definition 3.1 (Ghani et al. 2018).</strong> An open game G consists of: players N with strategy sets &#931;<sub>i</sub>; a play function P : &#931; &#8594; X; a coplay function C : &#931; &#215; R &#8594; &#215;<sub>i</sub> &#8477; mapping strategy profiles and an external context r &#8712; R to real-valued payoffs; an equilibrium predicate E : R &#8594; &#120107;(&#931;). Open games compose sequentially (G;H) and in parallel (G&#8855;H), forming a symmetric monoidal category Game. Nash is the degenerate case where R is a singleton.</div>
+    <div class="th-p">Limitation: the coplay function maps to &#8477; and uses total numerical comparison. It cannot represent games where payoffs are objects with compositional structure and partial order.</div>
 
-    <div class="th-label">Categorically-valued open games</div>
-    <div class="th-p">We extend open game theory (Ghani, Hedges, 2018) by replacing real-valued payoffs with objects in a symmetric monoidal category <em>C</em>. The classical case — a number — is recovered as the thin category induced by the total order on ℝ. The new framework admits payoffs that compose, that have an initial object (the empty relational structure produced by defection), and that are only partially ordered.</div>
-
+    <div class="th-sep"></div>
+    <div class="th-label">4. Categorically-Valued Open Games</div>
+    <div class="th-p"><strong>Definition 4.1 (Payoff Category).</strong> A payoff category is a symmetric monoidal category (C, &#8855;, I) with: a partial order &#8804;<sub>C</sub> on objects compatible with &#8855;; an initial object &#8709;<sub>C</sub>; directed completeness.</div>
     <div class="th-block">
-      <div class="th-block-label">The defection object</div>
-      <div class="th-block-text">In classical theory, defection produces a lower number — you still exist in the payoff space, just worse off. In categorically-valued theory, defection produces ∅<sub>C</sub> — the initial object, the empty structure. You are not worse off. You are outside the structure. This is the correct representation of what social defection actually produces.</div>
+      <div class="th-block-label">Example 4.2 &#8212; Classical case</div>
+      <div class="th-block-text">Recovered from the thin symmetric monoidal category induced by the total order on &#8477; &#8746; {&#8722;&#8734;}. Morphism a &#8594; b exists iff a &#8804; b. Monoidal product is max. Initial object is &#8722;&#8734;. Because the order is total, all objects are comparable &#8212; classical game theory is a special instance of categorical structure.</div>
+    </div>
+    <div class="th-block">
+      <div class="th-block-label">Example 4.4 &#8212; YourMine payoff category C<sub>YM</sub></div>
+      <div class="th-block-text">Objects: finite diagrams of sphere contributions &#8212; formal colimits of peerSection() outputs indexed by subsets of active spheres. Morphisms: natural transformations. Monoidal product: diagram union. Unit I: mandatory sphere social.sphere.js. Initial object &#8709;: empty diagram. Partial order: diagram inclusion D<sub>1</sub> &#8804; D<sub>2</sub> iff D<sub>1</sub> is a subdiagram of D<sub>2</sub>. Not total &#8212; two diagrams with different sphere types and no inclusion relation are incomparable.</div>
+    </div>
+    <div class="th-block">
+      <div class="th-block-label">Definition 4.5 &#8212; Equilibrium predicate (revised for partial orders)</div>
+      <div class="th-block-text">A categorically-valued open game G over C has equilibrium predicate:<br><br>&#963; &#8712; E(r) iff &#8704;i, &#8708; &#963;&#8242;<sub>i</sub> : C<sub>i</sub>(&#963;&#8242;<sub>i</sub>, &#963;<sub>-i</sub>, r) &gt;<sub>C</sub> C<sub>i</sub>(&#963;, r)<br><br>where &gt;<sub>C</sub> is the strict part: a &gt;<sub>C</sub> b if a &#8805;<sub>C</sub> b and b &#8817;<sub>C</sub> a.<br><br>When the order is total this reduces exactly to Nash. When payoffs are incomparable, neither strictly dominates &#8212; the equilibrium is stable. Incomparability is native to the definition.<br><br><strong>Why not Pareto-maximality?</strong> Pareto shifts the game from non-cooperative to cooperative: it assumes players coordinate. Absence of strict deviation is the minimal generalization of Nash to a partial order, preserving individual rationality without assuming coordination.<br><br><strong>Does an equilibrium always exist?</strong> Not automatically. Directed completeness of C is the load-bearing condition: it guarantees best responses exist even in a partial order. Without it, equilibrium existence is not guaranteed.<br><br>Note: not enrichment in the sense of Kelly (1982). We replace payoff values, not hom-sets. We use "categorically-valued" to avoid terminological confusion.</div>
+    </div>
+    <div class="th-p"><strong>Proposition 4.7.</strong> When C is the thin category on &#8477;, Definition 4.5 recovers Ghani et al. exactly.</div>
+
+    <div class="th-sep"></div>
+    <div class="th-label">5. The Defection Object</div>
+    <div class="th-p"><strong>Proposition 5.1.</strong> In a categorically-valued open game where payoffs are colimits of contribution diagrams, a player who contributes nothing receives &#8709;<sub>C</sub> &#8212; the initial object. Proof: colimit of empty diagram is the initial object.</div>
+    <div class="th-p">In classical theory defection produces a lower number &#8212; the player still exists in the payoff space. In categorically-valued theory defection produces &#8709;<sub>C</sub> &#8212; not a reduced quantity but an absence of structure. You do not become slightly less valuable. You withdraw from the structure entirely. In C<sub>YM</sub> this is the empty identity surface. In the classical thin category, &#8709; = &#8722;&#8734;, recovering the classical representation.</div>
+
+    <div class="th-sep"></div>
+    <div class="th-label">6. Composition and Information Loss</div>
+    <div class="th-p"><strong>Proposition 6.1.</strong> Categorically-valued open games over C form a symmetric monoidal category Game(C). When &#966; : C &#8594; &#8477;<sub>thin</sub> exists, there is F : Game(C) &#8594; Game(&#8477;).</div>
+    <div class="th-block">
+      <div class="th-block-label">Proposition 6.2 &#8212; Information loss</div>
+      <div class="th-block-text">For C<sub>YM</sub>, any monoidal functor &#966; : C<sub>YM</sub> &#8594; &#8477;<sub>thin</sub> forgets structural distinctions &#8212; it identifies structurally distinct diagrams assigned the same scalar. Any such &#966; must assign numerical values to sphere types; different choices produce different orderings; no choice is canonical since sphere types are qualitatively distinct. Therefore any &#966; is not fully faithful. Many functors exist &#8212; cardinality, weight-based. All collapse structural distinctions the categorical representation preserves.</div>
     </div>
 
+    <div class="th-sep"></div>
+    <div class="th-label">7. Participatory Equilibrium</div>
+    <div class="th-p"><strong>Definition 7.1.</strong> A participatory equilibrium is a maximal equilibrium section &#963;* : R &#8594; &#931; &#8212; no other section &#963;&#8242; satisfies &#963;&#8242;(r) &gt;<sub>C</sub> &#963;*(r) for some r while &#963;&#8242;(r) &#8805;<sub>C</sub> &#963;*(r) for all r.</div>
     <div class="th-block">
-      <div class="th-block-label">Participatory equilibrium</div>
-      <div class="th-block-text">A participatory equilibrium is a strategy profile where no player has a strictly dominant deviation — no unilateral change produces a payoff strictly above their current one in the partial order. Because the order is partial, incomparable deviations are not improvements. They are just different. Incomparability is native to the definition.</div>
+      <div class="th-block-label">Existence Program 7.2</div>
+      <div class="th-block-text">If &#931; is compact and coplay is order-continuous, directed completeness of C guarantees best responses exist. A Zorn&#8217;s lemma argument on partial sections ordered by componentwise domination yields a maximal section. Full proof requires specifying the topology on the space of sections. Stated as program, not theorem.<br><br>Equilibria are more numerous here than in Nash: incomparability itself creates stability &#8212; a player with no strictly better deviation has no individual reason to move. However this abundance is conditional on directed completeness of C.</div>
     </div>
+    <div class="th-block">
+      <div class="th-block-label">Proposition 7.3 &#8212; Embedding of Nash</div>
+      <div class="th-block-text">When C is the thin category on &#8477;, Nash equilibria embed into participatory equilibria and the two coincide. Proof: total order &#8594; &gt;<sub>C</sub> is standard strict inequality &#8594; absence of strict dominance is exactly the Nash condition.</div>
+    </div>
+    <div class="th-block">
+      <div class="th-block-label">Proposition 7.5 &#8212; Incomparable equilibria</div>
+      <div class="th-block-text">In Game(C<sub>YM</sub>), there exist participatory equilibria &#963;*<sub>1</sub> and &#963;*<sub>2</sub> incomparable in &#8804;<sub>C</sub>. Proof: take profiles producing D<sub>1</sub>, D<sub>2</sub> with different sphere types and no inclusion relation &#8212; incomparable by diagram inclusion, both may be maximal sections.</div>
+    </div>
+    <div class="th-quote">The equilibrium predicate makes incomparability structurally native. A player does not deviate when no strictly better option exists. In a partial order, incomparable options are not strictly better &#8212; they are different. The equilibrium is stable not because the payoff is maximal in an absolute sense but because no available deviation is unambiguously superior.</div>
 
     <div class="th-sep"></div>
-
-    <div class="th-label">Incomparability is not a bug</div>
+    <div class="th-label">8. Incomparability Is Not a Bug</div>
     <div class="th-quote">Incomparability is what value looks like when it is structure rather than quantity.</div>
-    <div class="th-p">Classical theory treats incomparable outcomes as a theoretical embarrassment — a sign that the model is incomplete, that a common scale has not yet been found. The entire project of welfare economics is in part a project of finding ways to compare the incomparable.</div>
-    <div class="th-p">We propose the opposite reading. Two participation patterns that produce qualitatively different relational structures are not better or worse than each other. They are different in kind. A framework that forces comparison loses information. A framework that represents incomparability faithfully preserves it.</div>
+    <div class="th-p">Classical theory treats incomparable outcomes as theoretical embarrassment &#8212; a sign that the model is incomplete, that a common scale has not yet been found. The entire project of welfare economics is in part a project of forcing comparison. We propose the opposite. Incomparability is the faithful representation of participation patterns that produce qualitatively different relational structures. A framework that forces comparison loses the structure. Nash is the special case where all values happen to be comparable. Participatory equilibrium is the general case.</div>
 
     <div class="th-sep"></div>
+    <div class="th-label">9. YourMine as Motivating Instance</div>
+    <div class="th-block">
+      <div class="th-block-text" style="font-family:var(--font-m);font-size:13px;">Id(A,B) = colim<sub>s &#8712; &#963;<sub>A</sub> &#8745; &#963;<sub>B</sub></sub> peerSection<sub>s</sub>(A,B)</div>
+    </div>
+    <div class="th-p">An object in C<sub>YM</sub>. Empty when A and B share no spheres. Grows under diagram inclusion. Partially ordered. Two users with different shared sphere compositions produce incomparable identity surfaces &#8212; incomparable participatory equilibria. The mandatory sphere social.sphere.js implements the monoidal unit I &#8212; always present, preventing complete withdrawal.</div>
+    <div class="th-negs">
+      <div class="th-neg">No central authority &#8212; context produced by players, not assigned from outside.</div>
+      <div class="th-neg">No fixed identity &#8212; identity is the colimit of all shared sphere compositions.</div>
+      <div class="th-neg">No universal ranking &#8212; participation patterns are incomparable in the partial order.</div>
+      <div class="th-neg">No defection payoff &#8212; withdrawal produces &#8709;, not a lower number.</div>
+    </div>
 
-    <div class="th-label">The value sequence</div>
-    <div class="th-p">The viscoelastic theory of value (L'Œil et la Main, ch. 4) provides a physical grounding for this framework. Value is not assigned to objects from outside. It emerges from a generative metabolic process:</div>
-
+    <div class="th-sep"></div>
+    <div class="th-label">10. Viscoelastic Value: An Interpretation</div>
+    <div class="th-p">The framework in sections 4&#8211;7 is mathematically self-contained. The viscoelastic theory of value (The Eye and the Hand, ch. 4) provides a physical grounding that is not required for validity. Economic activity is a process of articulating distinct cognitive universes. Value emerges as the force of a metabolic process with specific physical structure: viscoelastic behavior &#8212; combining elastic energy storage and viscous dissipation.</div>
     <div class="th-chain">
       <span class="th-chain-item">Elasticity</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Velocity</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Liquidity</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Utility</span>
-      <span class="th-chain-arrow">→</span>
+      <span class="th-chain-arrow">&#8594;</span>
       <span class="th-chain-item">Value</span>
     </div>
-
-    <div class="th-p">The scalar payoff of classical game theory is the terminal state of this sequence — value as already-produced quantity, abstracted from the process that generated it. Categorical payoffs represent states in the generative sequence, not just its output.</div>
+    <div class="th-p"><strong>Elasticity</strong> &#8212; structural memory, stored potential against entropy. <strong>Velocity</strong> &#8212; temporal activation of stored potential through the network. <strong>Liquidity</strong> &#8212; free circulation where elastic tension relaxes. <strong>Utility</strong> &#8212; directional conversion of liquid energy into organized action. <strong>Value</strong> &#8212; the integral: effort accumulated over time, metabolic tension maintained against entropy.</div>
+    <div class="th-p">The scalar payoff of classical theory is the terminal state of this sequence. Two outcomes with the same scalar payoff may be in radically different metabolic states: one with high elasticity and low velocity, another with low elasticity and high liquidity. Same number. Not the same outcome. Categorical payoffs represent states in the generative sequence. Incomparable equilibria represent agents in different metabolic phases &#8212; not better or worse, but different in kind.</div>
 
     <div class="th-sep"></div>
-
-    <div class="th-label">YourMine as instance</div>
-    <div class="th-p">The identity surface of user A as seen by user B — produced by composing the contributions of all spheres they share — is an object in the category of diagrams. It is the empty diagram when they share nothing. It grows under composition. It is partially ordered by inclusion. Two users with different shared sphere configurations produce incomparable identity surfaces: neither participation pattern dominates the other. They are qualitatively different.</div>
-
+    <div class="th-label">11. Open Problems</div>
     <div class="th-negs">
-      <div class="th-neg">No central authority — because the context is produced by the players, not assigned from outside.</div>
-      <div class="th-neg">No fixed identity — because identity is the colimit of all shared sphere compositions.</div>
-      <div class="th-neg">No universal ranking — because participation patterns are incomparable in the partial order.</div>
+      <div class="th-neg"><strong>Existence.</strong> Complete the existence program 7.2 &#8212; specify the topology on sections, verify the extension condition for Zorn.</div>
+      <div class="th-neg"><strong>Uniqueness.</strong> Conditions on C guaranteeing unique participatory equilibria.</div>
+      <div class="th-neg"><strong>Efficiency.</strong> Social welfare as colimit over players&#8217; payoff objects. Price of anarchy in this setting.</div>
+      <div class="th-neg"><strong>Forgetful functor.</strong> Which structural information is lost by F : Game(C) &#8594; Game(&#8477;)?</div>
+      <div class="th-neg"><strong>Formal viscoelastic payoff category C<sub>V</sub>.</strong> Objects as viscoelastic state vectors with precise metabolic coupling rules for &#8855;.</div>
+      <div class="th-neg"><strong>Formal verification.</strong> Can participatory equilibria be verified in Lean or Agda?</div>
     </div>
 
     <div class="th-sep"></div>
+    <div class="th-label">12. Conclusion</div>
+    <div class="th-quote">The question is not how to generalize Nash equilibrium.<br>The question is what a payoff is.<br><br>Classical theory: a number.<br>Our answer: a composable object.</div>
+    <div class="th-p">Classical theory embeds representability and completeness &#8212; appropriate for markets, inappropriate for participatory systems where value is relational, compositional, structurally irreducible to a scalar. Sen saw the completeness failure philosophically. Our framework extends it to strategic interaction. Incomparability is not a theoretical failure. It is what value looks like when it is structure rather than quantity.</div>
 
-    <div class="th-final">A composable object is not a generalization of a number.<br>It is a different answer to a different question.</div>
-    <div class="th-p" style="color:var(--text3);font-size:12px;margin-top:24px;">Yong, JdC — <em>What Is a Payoff? Participatory Value and Categorically-Valued Open Games</em> — Working paper 2025.</div>
+    <div class="th-sep"></div>
+    <div class="th-label">References</div>
+    <div class="th-p" style="color:var(--text3);font-size:12px;line-height:2.2;">
+      Aumann, R. J. (1962). Utility theory without the completeness axiom. <em>Econometrica</em>.<br>
+      Bewley, T. F. (2002). Knightian decision theory: Part I. <em>Decisions in Economics and Finance</em>.<br>
+      Dubra, J., Maccheroni, F., Ok, E. A. (2004). Expected utility without the completeness axiom. <em>Journal of Economic Theory</em>.<br>
+      Georgescu-Roegen, N. (1971). <em>The Entropy Law and the Economic Process</em>. Harvard UP.<br>
+      Ghani, N., Hedges, J., Winschel, V., Zahn, P. (2018). Compositional game theory. <em>LICS 2018</em>.<br>
+      Kelly, G. M. (1982). <em>Basic Concepts of Enriched Category Theory</em>. Cambridge UP.<br>
+      Nash, J. (1950). Equilibrium points in n-person games. <em>PNAS</em>.<br>
+      Sen, A. (1979). Equality of what? <em>Tanner Lecture on Human Values</em>, Stanford.<br>
+      Sen, A. (1985). <em>Commodities and Capabilities</em>. North-Holland.<br>
+      Sen, A. (1999). <em>Development as Freedom</em>. Oxford UP.<br>
+      von Neumann, J., Morgenstern, O. (1944). <em>Theory of Games and Economic Behavior</em>. Princeton UP.<br>
+      Yong, T., JdC (2024). <em>The Eye and the Hand</em>, ch. 4: The Viscoelasticity of Value. Unpublished.<br>
+      Zorn, M. (1935). A remark on method in transfinite algebra. <em>Bulletin of the AMS</em>.
+    </div>
 
   </div>
 </div>
-<button id="theory-close">✕</button>
+<button id="theory-close">&#10005;</button>
 
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
@@ -773,58 +564,18 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var W, H, DPR;
   var scroller = document.getElementById('ym-landing');
   var scrollY=0, scrollVel=0, lastScroll=0, raf;
-
-  function resize(){
-    DPR=Math.min(window.devicePixelRatio||1,2);
-    W=cv.width=window.innerWidth*DPR; H=cv.height=window.innerHeight*DPR;
-    cv.style.width=window.innerWidth+'px'; cv.style.height=window.innerHeight+'px';
-  }
-
+  function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=cv.width=window.innerWidth*DPR;H=cv.height=window.innerHeight*DPR;cv.style.width=window.innerWidth+'px';cv.style.height=window.innerHeight+'px';}
   var PERM=new Uint8Array(512);
   (function(){var p=new Uint8Array(256);for(var i=0;i<256;i++)p[i]=i;for(var i=255;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=p[i];p[i]=p[j];p[j]=t;}for(var i=0;i<512;i++)PERM[i]=p[i&255];})();
-
   function fade(t){return t*t*t*(t*(t*6-15)+10);}
   function lerp(a,b,t){return a+(b-a)*t;}
   function grad2(h,x,y){var hh=h&3;var u=hh<2?x:y;var v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
-  function noise2(x,y){
-    var xi=Math.floor(x)&255,yi=Math.floor(y)&255;
-    var xf=x-Math.floor(x),yf=y-Math.floor(y);
-    var u=fade(xf),v=fade(yf);
-    var aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];
-    return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);
-  }
+  function noise2(x,y){var xi=Math.floor(x)&255,yi=Math.floor(y)&255;var xf=x-Math.floor(x),yf=y-Math.floor(y);var u=fade(xf),v=fade(yf);var aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);}
   function fbm(x,y){return noise2(x,y)*0.5+noise2(x*2.1,y*2.1)*0.3+noise2(x*4.3,y*4.3)*0.2;}
-
   var lastT=0,timeAcc=0,OW,OH,offscreen,offCtx,imgData,buf32;
   function makeOff(){OW=Math.ceil(W/3);OH=Math.ceil(H/3);offscreen=document.createElement('canvas');offscreen.width=OW;offscreen.height=OH;offCtx=offscreen.getContext('2d');}
   function makeImg(){imgData=offCtx.createImageData(OW,OH);buf32=new Uint32Array(imgData.data.buffer);}
-
-  function draw(ts){
-    raf=requestAnimationFrame(draw);
-    var dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;
-    scrollVel+=(0-scrollVel)*0.12;
-    var t=timeAcc*0.00018;
-    var scaleX=0.0048,scaleY=0.0052,idx=0;
-    for(var py=0;py<OH;py++){
-      var fy=py*scaleY+t*0.6;
-      for(var px=0;px<OW;px++){
-        var fx=px*scaleX+t*0.4;
-        var n=fbm(fx,fy),n2=fbm(fx+t*0.3,fy+0.7);
-        var v=( n*0.6+n2*0.4)*0.5+0.5;
-        var hv=fbm(fx*0.5+1.3,fy*0.5+t*0.2)*0.5+0.5;
-        var r,g,b;
-        if(hv<0.5){var tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
-        else{var tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
-        var a=Math.min(0.52,v*v*0.52);
-        var ai=(a*255)|0;
-        buf32[idx++]=(ai<<24)|(b<<16)|(g<<8)|r;
-      }
-    }
-    offCtx.putImageData(imgData,0,0);
-    ctx.clearRect(0,0,W,H);
-    ctx.drawImage(offscreen,0,0,W,H);
-  }
-
+  function draw(ts){raf=requestAnimationFrame(draw);var dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;scrollVel+=(0-scrollVel)*0.12;var t=timeAcc*0.00018;var scaleX=0.0048,scaleY=0.0052,idx=0;for(var py=0;py<OH;py++){var fy=py*scaleY+t*0.6;for(var px=0;px<OW;px++){var fx=px*scaleX+t*0.4;var n=fbm(fx,fy),n2=fbm(fx+t*0.3,fy+0.7);var v=(n*0.6+n2*0.4)*0.5+0.5;var hv=fbm(fx*0.5+1.3,fy*0.5+t*0.2)*0.5+0.5;var r,g,b;if(hv<0.5){var tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}else{var tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}var a=Math.min(0.52,v*v*0.52);var ai=(a*255)|0;buf32[idx++]=(ai<<24)|(b<<16)|(g<<8)|r;}}offCtx.putImageData(imgData,0,0);ctx.clearRect(0,0,W,H);ctx.drawImage(offscreen,0,0,W,H);}
   scroller.addEventListener('scroll',function(){var sy=scroller.scrollTop;scrollVel=(sy-lastScroll)*0.6;lastScroll=sy;scrollY=sy;},{passive:true});
   resize();makeOff();makeImg();raf=requestAnimationFrame(draw);
   window.addEventListener('resize',function(){resize();makeOff();makeImg();},{passive:true});
@@ -832,15 +583,9 @@ n spheres → 2ⁿ configurations (expansion)</div>
   }catch(e){console.warn('[hello] canvas:',e.message);}
 })();
 
-// Animate illustrations on scroll
 (function(){
-  // Observe mf-illo-wrap directly (manifesto has no reveal wrapper)
-  var obs = new IntersectionObserver(function(entries){
-    entries.forEach(function(e){
-      if(e.isIntersecting) e.target.classList.add('visible');
-    });
-  }, {threshold:0.2});
-  document.querySelectorAll('.mf-illo-wrap').forEach(function(el){ obs.observe(el); });
+  var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.2});
+  document.querySelectorAll('.mf-illo-wrap').forEach(function(el){obs.observe(el);});
 })();
 </script>
 
@@ -854,56 +599,29 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var s1=document.getElementById('lp-start-btn');if(s1)s1.addEventListener('click',goDefault);
   var s2=document.getElementById('lp-start-btn-2');if(s2)s2.addEventListener('click',goDefault);
 
-  // Manifesto
   var overlay=document.getElementById('manifesto-overlay');
   var closeBtn=document.getElementById('manifesto-close');
   if(closeBtn)closeBtn.style.cssText='display:none!important;';
-  function openManifesto(){
-    if(overlay)overlay.classList.add('open');
-    if(closeBtn)closeBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';
-  }
-  function closeManifesto(){
-    if(overlay)overlay.classList.remove('open');
-    if(closeBtn)closeBtn.style.cssText='display:none!important;';
-  }
+  function openManifesto(){if(overlay)overlay.classList.add('open');if(closeBtn)closeBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';}
+  function closeManifesto(){if(overlay)overlay.classList.remove('open');if(closeBtn)closeBtn.style.cssText='display:none!important;';}
   var mb1=document.getElementById('lp-manifesto-btn');if(mb1)mb1.addEventListener('click',openManifesto);
   var mb2=document.getElementById('lp-manifesto-btn-2');if(mb2)mb2.addEventListener('click',openManifesto);
   if(closeBtn)closeBtn.addEventListener('click',closeManifesto);
   if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeManifesto();});
 
-  // Theory
   var theoryOverlay=document.getElementById('theory-overlay');
   var theoryCloseBtn=document.getElementById('theory-close');
   if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';
-  function openTheory(){
-    if(theoryOverlay)theoryOverlay.classList.add('open');
-    if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(8,224,248,.2);color:rgba(8,224,248,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';
-  }
-  function closeTheory(){
-    if(theoryOverlay)theoryOverlay.classList.remove('open');
-    if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';
-  }
+  function openTheory(){if(theoryOverlay)theoryOverlay.classList.add('open');if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(8,224,248,.2);color:rgba(8,224,248,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';}
+  function closeTheory(){if(theoryOverlay)theoryOverlay.classList.remove('open');if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';}
   var tb1=document.getElementById('lp-theory-btn');if(tb1)tb1.addEventListener('click',openTheory);
   var tb2=document.getElementById('lp-theory-btn-2');if(tb2)tb2.addEventListener('click',openTheory);
   if(theoryCloseBtn)theoryCloseBtn.addEventListener('click',closeTheory);
   if(theoryOverlay)theoryOverlay.addEventListener('click',function(e){if(e.target===theoryOverlay)closeTheory();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeManifesto();closeTheory();}});
 
-  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){
-    e.target.classList.add('visible');
-    // Also show any lp-illo-wrap inside this reveal
-    e.target.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});
-    io.unobserve(e.target);
-  }});},{threshold:.12});
-  document.querySelectorAll('.reveal').forEach(function(el){
-    var r=el.getBoundingClientRect();
-    if(r.top<window.innerHeight&&r.bottom>0){
-      el.classList.add('visible');
-      el.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});
-    }
-    else{io.observe(el);}
-  });
+  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');e.target.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});io.unobserve(e.target);}});},{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(function(el){var r=el.getBoundingClientRect();if(r.top<window.innerHeight&&r.bottom>0){el.classList.add('visible');el.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});}else{io.observe(el);}});
   function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
   blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
   var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0){n.style.cssText='display:none!important';}});});});
@@ -911,11 +629,6 @@ n spheres → 2ⁿ configurations (expansion)</div>
   var bgDlg=document.getElementById('bg-dlg');
   if(bgDlg)bgDlg.addEventListener('click',function(e){if(e.target===bgDlg)bgDlg.classList.remove('open');});
   var thBtn=document.getElementById('theme-custom-btn');
-  if(thBtn)thBtn.addEventListener('click',function(){
-    var inp=document.getElementById('theme-custom-input');
-    var url=(inp?inp.value:'').trim();if(!url)return;
-    url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
-    localStorage.setItem(THEME_KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();
-  });
+  if(thBtn)thBtn.addEventListener('click',function(){var inp=document.getElementById('theme-custom-input');var url=(inp?inp.value:'').trim();if(!url)return;url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem(THEME_KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();});
 })();
 </script>
