@@ -66,8 +66,8 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .lp-logo{font-family:var(--font-d);font-size:clamp(28px,9vw,148px);font-weight:800;letter-spacing:-.015em;line-height:.95;background:linear-gradient(140deg,var(--gold) 0%,#fff 38%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:44px;width:100%;opacity:0;animation:fadeUp .7s .15s ease forwards;}
 .lp-ctas{display:flex;gap:6px;flex-wrap:nowrap;justify-content:center;opacity:0;animation:fadeUp .55s .32s ease forwards;}
-@media(max-width:380px){.lp-btn{padding:6px 8px;font-size:10px;}}
-.lp-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:10px 14px;border-radius:10px;font-family:var(--font-b);font-size:11px;font-weight:600;letter-spacing:.01em;cursor:pointer;border:none;text-decoration:none;transition:all .18s ease;}
+@media(max-width:480px){.lp-btn{padding:8px 10px;font-size:10px;gap:4px;}}
+.lp-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 26px;border-radius:10px;font-family:var(--font-b);font-size:13px;font-weight:600;letter-spacing:.01em;cursor:pointer;border:none;text-decoration:none;transition:all .18s ease;}
 .lp-btn-primary{background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.75));color:#05030a;box-shadow:0 0 0 1px rgba(240,168,48,.28),0 4px 22px rgba(240,168,48,.18);}
 .lp-btn-primary:hover{box-shadow:0 0 0 1px rgba(240,168,48,.5),0 8px 34px rgba(240,168,48,.32);transform:translateY(-1px)}
 .lp-btn-secondary{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--text3);}
@@ -151,9 +151,6 @@ body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-fam
 .th-negs{display:flex;flex-direction:column;gap:8px;margin:16px 0;}
 .th-neg{font-size:clamp(13px,1.7vw,15px);color:var(--text3);}
 .th-neg::before{content:'— ';color:rgba(8,224,248,.4);}
-/* Theory SVGs */
-.th-svg-wrap{width:100%;margin:24px 0;display:flex;justify-content:center;overflow-x:auto;}
-.th-svg-wrap svg{max-width:100%;height:auto;overflow:visible;}
 .th-final{font-family:var(--font-d);font-size:clamp(18px,3vw,28px);font-weight:800;letter-spacing:-.01em;color:var(--text);margin:28px 0 8px;}
 
 /* Manifesto overlay */
@@ -686,58 +683,59 @@ n spheres → 2ⁿ configurations (expansion)</div>
     <div class="th-sep"></div>
 
     <div class="th-label">Sen and incomplete preferences</div>
-    <div class="th-p">Amartya Sen saw a related failure in welfare economics. He argued that forcing a complete ranking on incommensurable values distorts the value structure. The agent who cannot rank more freedom against less health is not irrational. They are recognizing that the comparison the theory demands does not exist.</div>
-    <div class="th-p">Sen proposed capability sets as a richer representation. But capability sets lack compositional structure. There is no equilibrium theory for capability-valued games. That is the gap we address.</div>
+    <div class="th-p">Amartya Sen saw a related failure in welfare economics. He argued that forcing a complete ranking on incommensurable values — health, political freedom, social recognition — distorts the value structure rather than representing it. The agent who cannot rank more freedom against less health is not irrational. They are recognizing that the comparison the theory demands does not exist.</div>
+    <div class="th-p">Sen proposed capability sets as a richer representation. But capability sets lack compositional structure — they do not combine when people interact strategically. There is no equilibrium theory for capability-valued games. That is the gap we address.</div>
 
     <div class="th-sep"></div>
 
     <div class="th-label">Categorically-valued open games</div>
-    <div class="th-p">We extend open game theory (Ghani, Hedges, 2018) by replacing real-valued payoffs with objects in a symmetric monoidal category C. The classical case is recovered as the thin category induced by the total order on the reals. The new framework admits payoffs that compose, that have an initial object (the empty relational structure produced by defection), and that are only partially ordered.</div>
+    <div class="th-p">We extend open game theory (Ghani, Hedges, 2018) by replacing real-valued payoffs with objects in a symmetric monoidal category <em>C</em>. The classical case — a number — is recovered as the thin category induced by the total order on ℝ. The new framework admits payoffs that compose, that have an initial object (the empty relational structure produced by defection), and that are only partially ordered.</div>
 
     <div class="th-block">
       <div class="th-block-label">The defection object</div>
-      <div class="th-block-text">In classical theory, defection produces a lower number. In categorically-valued theory, defection produces the initial object — the empty structure. You are not worse off. You are outside the structure.</div>
+      <div class="th-block-text">In classical theory, defection produces a lower number — you still exist in the payoff space, just worse off. In categorically-valued theory, defection produces ∅<sub>C</sub> — the initial object, the empty structure. You are not worse off. You are outside the structure. This is the correct representation of what social defection actually produces.</div>
     </div>
 
     <div class="th-block">
       <div class="th-block-label">Participatory equilibrium</div>
-      <div class="th-block-text">A participatory equilibrium is a strategy profile where no player has a strictly dominant deviation. Because the order is partial, incomparable deviations are not improvements. Incomparability is native to the definition.</div>
+      <div class="th-block-text">A participatory equilibrium is a strategy profile where no player has a strictly dominant deviation — no unilateral change produces a payoff strictly above their current one in the partial order. Because the order is partial, incomparable deviations are not improvements. They are just different. Incomparability is native to the definition.</div>
     </div>
 
     <div class="th-sep"></div>
 
     <div class="th-label">Incomparability is not a bug</div>
     <div class="th-quote">Incomparability is what value looks like when it is structure rather than quantity.</div>
-    <div class="th-p">Classical theory treats incomparable outcomes as a theoretical embarrassment. We propose the opposite: incomparability is the faithful representation of participation patterns that are qualitatively different. A framework that forces comparison loses information. A framework that represents incomparability faithfully preserves it.</div>
+    <div class="th-p">Classical theory treats incomparable outcomes as a theoretical embarrassment — a sign that the model is incomplete, that a common scale has not yet been found. The entire project of welfare economics is in part a project of finding ways to compare the incomparable.</div>
+    <div class="th-p">We propose the opposite reading. Two participation patterns that produce qualitatively different relational structures are not better or worse than each other. They are different in kind. A framework that forces comparison loses information. A framework that represents incomparability faithfully preserves it.</div>
 
     <div class="th-sep"></div>
 
     <div class="th-label">The value sequence</div>
-    <div class="th-p">The viscoelastic theory of value (The Eye and the Hand, ch. 4) provides a physical grounding. Value emerges from a generative metabolic process:</div>
+    <div class="th-p">The viscoelastic theory of value (L'Œil et la Main, ch. 4) provides a physical grounding for this framework. Value is not assigned to objects from outside. It emerges from a generative metabolic process:</div>
 
     <div class="th-chain">
       <span class="th-chain-item">Elasticity</span>
-      <span class="th-chain-arrow">&#8594;</span>
+      <span class="th-chain-arrow">→</span>
       <span class="th-chain-item">Velocity</span>
-      <span class="th-chain-arrow">&#8594;</span>
+      <span class="th-chain-arrow">→</span>
       <span class="th-chain-item">Liquidity</span>
-      <span class="th-chain-arrow">&#8594;</span>
+      <span class="th-chain-arrow">→</span>
       <span class="th-chain-item">Utility</span>
-      <span class="th-chain-arrow">&#8594;</span>
+      <span class="th-chain-arrow">→</span>
       <span class="th-chain-item">Value</span>
     </div>
 
-    <div class="th-p">The scalar payoff of classical game theory is the terminal state of this sequence. Categorical payoffs represent states in the generative sequence, not just its output.</div>
+    <div class="th-p">The scalar payoff of classical game theory is the terminal state of this sequence — value as already-produced quantity, abstracted from the process that generated it. Categorical payoffs represent states in the generative sequence, not just its output.</div>
 
     <div class="th-sep"></div>
 
     <div class="th-label">YourMine as instance</div>
-    <div class="th-p">The identity surface of user A as seen by user B is an object in the category of diagrams. It is empty when they share nothing. It grows under composition. It is partially ordered by inclusion. Two users with different shared sphere configurations produce incomparable identity surfaces — neither participation pattern dominates the other.</div>
+    <div class="th-p">The identity surface of user A as seen by user B — produced by composing the contributions of all spheres they share — is an object in the category of diagrams. It is the empty diagram when they share nothing. It grows under composition. It is partially ordered by inclusion. Two users with different shared sphere configurations produce incomparable identity surfaces: neither participation pattern dominates the other. They are qualitatively different.</div>
 
     <div class="th-negs">
-      <div class="th-neg">No central authority — context is produced by the players, not assigned from outside.</div>
-      <div class="th-neg">No fixed identity — identity is the colimit of all shared sphere compositions.</div>
-      <div class="th-neg">No universal ranking — participation patterns are incomparable in the partial order.</div>
+      <div class="th-neg">No central authority — because the context is produced by the players, not assigned from outside.</div>
+      <div class="th-neg">No fixed identity — because identity is the colimit of all shared sphere compositions.</div>
+      <div class="th-neg">No universal ranking — because participation patterns are incomparable in the partial order.</div>
     </div>
 
     <div class="th-sep"></div>
@@ -747,7 +745,7 @@ n spheres → 2ⁿ configurations (expansion)</div>
 
   </div>
 </div>
-<button id="theory-close">&#10005;</button>
+<button id="theory-close">✕</button>
 
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
@@ -920,7 +918,4 @@ n spheres → 2ⁿ configurations (expansion)</div>
     localStorage.setItem(THEME_KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();
   });
 })();
-
 </script>
-</body>
-</html>
