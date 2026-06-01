@@ -220,10 +220,10 @@ function renderFlow(buildContent){
       ));
       // 2.2 AI — disabled (soon)
       const aiBtn = _flowBtn(
-        '<span style="font-size:20px;opacity:.35">&#10022;</span><div><div style="font-size:13px;color:var(--text3)">Test the YourMine agent</div><div style="font-size:10px;color:var(--text3);margin-top:2px;opacity:.6">AI code generation &nbsp;<span style="font-family:var(--font-m,monospace);font-size:9px;letter-spacing:.1em;opacity:.7">(soon)</span></div></div>',
+        '<span style="font-size:20px;opacity:.5">&#10022;</span><div><div style="font-size:13px;color:var(--text2)">Test the YourMine agent</div><div style="font-size:10px;margin-top:2px;display:flex;align-items:center;gap:6px"><span style="color:var(--text3)">AI code generation</span><span style="font-family:var(--font-m,monospace);font-size:9px;letter-spacing:.12em;color:var(--gold);opacity:.7;background:rgba(240,168,48,.08);border:1px solid rgba(240,168,48,.2);border-radius:4px;padding:1px 5px">soon</span></div></div>',
         ()=>{}
       );
-      aiBtn.style.opacity='0.45';
+      aiBtn.style.opacity='0.6';
       aiBtn.style.cursor='not-allowed';
       aiBtn.style.pointerEvents='none';
       wrap.appendChild(aiBtn);
