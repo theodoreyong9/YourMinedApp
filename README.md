@@ -58,6 +58,22 @@ This means a few lightweight conventions replace what a framework would enforce 
 
 These are not bugs in the architecture. They are the visible seam between a kernel that must stay open and a builder space that must stay free.
 
+## What YourMine actually is
+
+The profile is not a feature. It is the infrastructure.
+
+Every app on the web today implements its own authentication — its own login, its own user table, its own permission system. YourMine collapses all of that into one thing: **the profile is already there**. Apps don't authenticate users. They receive an identity that already exists, already has a history, already carries its own permissions.
+
+There is no auth to implement. There is no account to create. The user arrives with their profile — a cryptographic identity backed by a Solana wallet — and the sphere receives it through `ctx`.
+
+**Permission is the token.** Not a role, not an access list, not a verified account. If you hold YRM, you participate. The token is the permission system.
+
+**Distribution is a prompt.** Any builder can distribute a sphere or a theme by giving a single prompt — by voice, by text, from a phone, from anywhere. The recipient doesn't install anything. They don't sign up. They speak or type, and the sphere appears in their YourMine.
+
+This is not Web3. Web3 replaced trust with ownership. YourMine replaces authentication with participation. The user doesn't prove who they are — they simply act, and the network receives the action.
+
+**Web4 = participate without permission.**
+
 ## Architecture Overview
 
 ```
@@ -783,7 +799,21 @@ window.YM_THEME_META = {
   name:        "My Theme",
   icon:        "🎨",
   description: "Short description shown in Themes list",
+  requiredSpheres: ["safety.sphere.js", "status.sphere.js"],
 };
+</script>
+```
+
+**`requiredSpheres`** — optional array of sphere filenames that the theme needs. app.js activates them automatically at startup, after social.sphere.js. The user can deactivate them later — required means auto-activated on first load, not permanently mandatory (only social.sphere.js is permanently mandatory).
+
+```js
+// Examples
+requiredSpheres: []                          // default — no extra spheres
+requiredSpheres: ["safety.sphere.js"]        // safety hub theme
+requiredSpheres: ["radio.sphere.js", "status.sphere.js"]  // ambient theme
+```
+
+
 
 window.YM_WALLPAPER_PRESETS = [
   { label: 'City Night', url: 'https://images.unsplash.com/photo-xxx?w=1400&q=80' },
@@ -1499,7 +1529,14 @@ deactivate() {
 | `window.YM_Mine_pubkey()` | `mine.js` | Current Solana public key or null |
 | `window.YM_calcClaimable()` | `mine.js` | Claimable YM |
 | `window._mineState` | `mine.js` | Read-only wallet state |
-| `window.YM_Liste` | `liste.js` | Sphere list API |
+| `window.YM_Liste` | `liste.js` | Sphere list API — fully independent, usable in any theme |
+
+`liste.js` has no dependency on `panel-mine` or `mine.js`. To embed the full sphere/theme list with filters, pills and search in your own theme:
+
+```js
+const container = document.getElementById('my-list-container');
+window.YM_Liste.render(container);
+```
 | `window.YM_Build` | `build.js` | Build/publish API |
 | `window.YM_toast(msg, type)` | `app.js` | Toast |
 | `window.YM.setTheme(url, prevUrl?)` | `app.js` | Switch theme — prefetches HTML, caches, reloads. `prevUrl` optional, stored as `ym_prev_theme` |
@@ -1610,7 +1647,7 @@ window.YM_NAV_CONFIG = {
 | `window.YM_escHtml(str)` | `app.js` | HTML-escape |
 | `window.YM_canSeeSphere(name, uuid)` | `profile.js` | Visibility check |
 | `window.YM_getSphereVisibility(name)` | `profile.js` | `'all'` \| `'contacts'` \| `uuid[]` |
-| `window.YM_THEME_META` | theme | `{ name, icon, description }` |
+| `window.YM_THEME_META` | theme | `{ name, icon, description, requiredSpheres? }` |
 | `window.YM_WALLPAPER_PRESETS` | theme | `[{ label, url }]` |
 | `window.YM_ZONE_CONFIG` | theme | `{ spheresOnly, socialFilters }` |
 | `window._ymNearSpheres` | `social.sphere.js` | `Set<filename>` of nearby sphere filenames |
