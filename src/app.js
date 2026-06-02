@@ -44,6 +44,7 @@
   const sw      = document.getElementById('panel-switcher');
 
   let _panel    = null;
+  let _currentSphereId = null;
   let _prevPanel = null;
   const navStack     = [];
   const _openPanels  = new Map();
@@ -497,19 +498,16 @@
     const el = document.getElementById(_panel);
 
     // Take snapshot at reduce time — panel is full and representative
-    if (_panel === 'panel-sphere') {
+    if (_panel === 'panel-sphere' && _currentSphereId) {
       const panelEl = document.getElementById('panel-sphere');
-      if (panelEl) {
-        const activeSphere = [..._openSpheres.entries()].find(([,v]) => v);
-        if (activeSphere) {
-          const [sid, data] = activeSphere;
-          _openSpheres.set(sid, {
-            ...data,
-            snapshot: panelEl.innerHTML,
-            panelW: panelEl.offsetWidth || data.panelW,
-            panelH: panelEl.offsetHeight || data.panelH,
-          });
-        }
+      if (panelEl && _openSpheres.has(_currentSphereId)) {
+        const data = _openSpheres.get(_currentSphereId);
+        _openSpheres.set(_currentSphereId, {
+          ...data,
+          snapshot: panelEl.innerHTML,
+          panelW: panelEl.offsetWidth || data.panelW,
+          panelH: panelEl.offsetHeight || data.panelH,
+        });
       }
     }
     if (_panel === 'panel-folder' || _panel === 'panel-profile-view') {
@@ -1033,6 +1031,7 @@
       panelW:   panelEl ? (panelEl.offsetWidth  || deskPanelW) : deskPanelW,
       panelH:   panelEl ? (panelEl.offsetHeight || deskPanelH) : deskPanelH,
     });
+    _currentSphereId = id;
 
     openPanel('panel-sphere');
     log('open', { sphere: id });
