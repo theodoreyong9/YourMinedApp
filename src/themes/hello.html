@@ -91,13 +91,14 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
 /* ── WEB4 ── */
 #s-web4{padding:120px 0;}
 .w4-row{
-  display:flex;align-items:baseline;gap:20px;
-  padding:18px 0;border-bottom:1px solid rgba(255,255,255,.07);
+  display:flex;flex-direction:column;gap:4px;
+  padding:20px 0;border-bottom:1px solid rgba(255,255,255,.07);
 }
+.w4-top{display:flex;align-items:baseline;gap:16px;}
 .w4-era{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.06em;width:38px;flex-shrink:0;}
 .w4-w{font-family:var(--font-d);font-size:clamp(30px,6vw,68px);font-weight:800;letter-spacing:-.04em;line-height:1;color:rgba(255,255,255,.13);}
 .w4-w.on{color:var(--text);}
-.w4-d{font-size:13px;font-weight:300;color:var(--text3);margin-left:auto;text-align:right;max-width:140px;line-height:1.5;}
+.w4-d{font-size:13px;font-weight:300;color:var(--text3);padding-left:54px;line-height:1.5;}
 .w4-d.on{color:var(--text2);}
 
 /* ── CTA ── */
@@ -129,56 +130,25 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
   <button class="btn-start" id="lp-start-btn">Start ›</button>
 </section>
 
-<hr class="d">
-
-<!-- svg — network -->
-<section style="padding:80px 0;overflow:hidden;">
-<svg viewBox="0 0 960 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
-  <defs>
-    <filter id="gl"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <radialGradient id="rg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#08e0f8" stop-opacity=".45"/><stop offset="100%" stop-color="#08e0f8" stop-opacity="0"/></radialGradient>
-  </defs>
-  <ellipse cx="480" cy="140" rx="440" ry="130" fill="none" stroke="rgba(45,212,191,.03)" stroke-width="1"/>
-  <ellipse cx="480" cy="140" rx="300" ry="90" fill="none" stroke="rgba(45,212,191,.05)" stroke-width="1"/>
-  <ellipse cx="480" cy="140" rx="150" ry="48" fill="none" stroke="rgba(45,212,191,.09)" stroke-width="1"/>
-  <!-- outer nodes -->
-  <circle cx="55" cy="55" r="2" fill="#08e0f8"><animate attributeName="opacity" values=".2;.6;.2" dur="4.2s" repeatCount="indefinite"/></circle>
-  <circle cx="905" cy="55" r="2" fill="#f0a830"><animate attributeName="opacity" values=".5;.2;.5" dur="3.6s" repeatCount="indefinite"/></circle>
-  <circle cx="55" cy="225" r="2" fill="#a78bfa"><animate attributeName="opacity" values=".3;.7;.3" dur="5.1s" repeatCount="indefinite"/></circle>
-  <circle cx="905" cy="225" r="2" fill="#08e0f8"><animate attributeName="opacity" values=".7;.3;.7" dur="2.9s" repeatCount="indefinite"/></circle>
-  <circle cx="290" cy="25" r="1.5" fill="#f0a830"><animate attributeName="opacity" values=".4;.9;.4" dur="3.3s" repeatCount="indefinite"/></circle>
-  <circle cx="670" cy="25" r="1.5" fill="#a78bfa"><animate attributeName="opacity" values=".8;.3;.8" dur="4s" repeatCount="indefinite"/></circle>
-  <circle cx="290" cy="255" r="1.5" fill="#08e0f8"><animate attributeName="opacity" values=".3;.7;.3" dur="3.8s" repeatCount="indefinite"/></circle>
-  <circle cx="670" cy="255" r="1.5" fill="#f0a830"><animate attributeName="opacity" values=".6;.2;.6" dur="4.6s" repeatCount="indefinite"/></circle>
-  <!-- mid nodes -->
-  <circle cx="195" cy="95" r="4" fill="#08e0f8" opacity=".5" filter="url(#gl)"/>
-  <circle cx="765" cy="95" r="4" fill="#f0a830" opacity=".5" filter="url(#gl)"/>
-  <circle cx="195" cy="195" r="4" fill="#a78bfa" opacity=".5" filter="url(#gl)"/>
-  <circle cx="765" cy="195" r="4" fill="#08e0f8" opacity=".5" filter="url(#gl)"/>
-  <!-- lines -->
-  <g fill="none" opacity=".1">
-    <line x1="55" y1="55" x2="195" y2="95" stroke="#08e0f8" stroke-width="1"/>
-    <line x1="905" y1="55" x2="765" y2="95" stroke="#f0a830" stroke-width="1"/>
-    <line x1="55" y1="225" x2="195" y2="195" stroke="#a78bfa" stroke-width="1"/>
-    <line x1="905" y1="225" x2="765" y2="195" stroke="#08e0f8" stroke-width="1"/>
-    <line x1="290" y1="25" x2="480" y2="140" stroke="#f0a830" stroke-width="1"/>
-    <line x1="670" y1="25" x2="480" y2="140" stroke="#a78bfa" stroke-width="1"/>
+<!-- svg — topological -->
+<section style="padding:60px 0;overflow:hidden;">
+<svg viewBox="0 0 960 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+  <defs><filter id="tblur"><feGaussianBlur stdDeviation="2"/></filter></defs>
+  <g fill="none" stroke-width="1">
+    <ellipse cx="480" cy="120" rx="440" ry="100" stroke="rgba(240,168,48,.05)"/>
+    <ellipse cx="480" cy="120" rx="395" ry="88" stroke="rgba(240,168,48,.07)"/>
+    <ellipse cx="480" cy="120" rx="348" ry="75" stroke="rgba(240,168,48,.08)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="360 480 120" dur="40s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="480" cy="120" rx="300" ry="62" stroke="rgba(240,168,48,.09)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="-360 480 120" dur="32s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="480" cy="120" rx="252" ry="52" stroke="rgba(8,224,248,.10)"><animateTransform attributeName="transform" type="rotate" from="15 480 120" to="375 480 120" dur="28s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="480" cy="120" rx="204" ry="42" stroke="rgba(8,224,248,.13)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="-360 480 120" dur="22s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="480" cy="120" rx="156" ry="34" stroke="rgba(167,139,250,.15)"><animateTransform attributeName="transform" type="rotate" from="30 480 120" to="390 480 120" dur="18s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="480" cy="120" rx="108" ry="26" stroke="rgba(167,139,250,.20)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="-360 480 120" dur="14s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="480" cy="120" rx="62" ry="17" stroke="rgba(167,139,250,.28)"><animateTransform attributeName="transform" type="rotate" from="45 480 120" to="405 480 120" dur="10s" repeatCount="indefinite"/></ellipse>
+    <ellipse cx="480" cy="120" rx="22" ry="9" stroke="rgba(8,224,248,.45)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="360 480 120" dur="7s" repeatCount="indefinite"/></ellipse>
   </g>
-  <g fill="none" opacity=".22">
-    <line x1="195" y1="95" x2="480" y2="140" stroke="#08e0f8" stroke-width="1.5"/>
-    <line x1="765" y1="95" x2="480" y2="140" stroke="#f0a830" stroke-width="1.5"/>
-    <line x1="195" y1="195" x2="480" y2="140" stroke="#a78bfa" stroke-width="1.5"/>
-    <line x1="765" y1="195" x2="480" y2="140" stroke="#08e0f8" stroke-width="1.5"/>
-  </g>
-  <circle cx="480" cy="140" r="65" fill="url(#rg)" opacity=".2"/>
-  <circle cx="480" cy="140" r="10" fill="rgba(45,212,191,.12)" stroke="rgba(45,212,191,.28)" stroke-width="1.5"/>
-  <circle cx="480" cy="140" r="4" fill="rgba(45,212,191,.9)" filter="url(#gl)">
-    <animate attributeName="r" values="4;7;4" dur="3s" repeatCount="indefinite"/>
-  </circle>
+  <ellipse cx="480" cy="120" rx="55" ry="25" fill="rgba(8,224,248,.04)" filter="url(#tblur)"/>
 </svg>
 </section>
-
-<hr class="d">
 
 <!-- grid -->
 <section id="s-grid">
@@ -193,19 +163,50 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
 </div>
 </section>
 
-<hr class="d">
+<!-- svg 2 — geometric -->
+<section style="padding:60px 0;overflow:hidden;">
+<svg viewBox="0 0 960 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+  <defs>
+    <filter id="gblur"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <!-- Hexagonal grid — spheres metaphor -->
+  <g fill="none" stroke-width="1">
+    <!-- row 1 -->
+    <polygon points="200,60 230,43 260,60 260,94 230,111 200,94" stroke="rgba(240,168,48,.12)"/>
+    <polygon points="260,60 290,43 320,60 320,94 290,111 260,94" stroke="rgba(240,168,48,.16)"/>
+    <polygon points="320,60 350,43 380,60 380,94 350,111 320,94" stroke="rgba(8,224,248,.18)"/>
+    <polygon points="380,60 410,43 440,60 440,94 410,111 380,94" stroke="rgba(8,224,248,.22)"/>
+    <polygon points="440,60 470,43 500,60 500,94 470,111 440,94" stroke="rgba(8,224,248,.26)"/>
+    <polygon points="500,60 530,43 560,60 560,94 530,111 500,94" stroke="rgba(8,224,248,.22)"/>
+    <polygon points="560,60 590,43 620,60 620,94 590,111 560,94" stroke="rgba(167,139,250,.18)"/>
+    <polygon points="620,60 650,43 680,60 680,94 650,111 620,94" stroke="rgba(167,139,250,.14)"/>
+    <polygon points="680,60 710,43 740,60 740,94 710,111 680,94" stroke="rgba(167,139,250,.10)"/>
+    <!-- row 2 offset -->
+    <polygon points="230,111 260,94 290,111 290,145 260,162 230,145" stroke="rgba(240,168,48,.10)"/>
+    <polygon points="290,111 320,94 350,111 350,145 320,162 290,145" stroke="rgba(240,168,48,.14)"/>
+    <polygon points="350,111 380,94 410,111 410,145 380,162 350,145" stroke="rgba(8,224,248,.16)"/>
+    <polygon points="410,111 440,94 470,111 470,145 440,162 410,145" stroke="rgba(8,224,248,.20)"/>
+    <polygon points="470,111 500,94 530,111 530,145 500,162 470,145" stroke="rgba(8,224,248,.20)"/>
+    <polygon points="530,111 560,94 590,111 590,145 560,162 530,145" stroke="rgba(167,139,250,.16)"/>
+    <polygon points="590,111 620,94 650,111 650,145 620,162 590,145" stroke="rgba(167,139,250,.12)"/>
+    <polygon points="650,111 680,94 710,111 710,145 680,162 650,145" stroke="rgba(167,139,250,.08)"/>
+  </g>
+  <!-- glowing center hex -->
+  <polygon points="440,60 470,43 500,60 500,94 470,111 440,94" stroke="rgba(8,224,248,.5)" stroke-width="1.5" fill="rgba(8,224,248,.04)" filter="url(#gblur)">
+    <animate attributeName="opacity" values=".5;1;.5" dur="3s" repeatCount="indefinite"/>
+  </polygon>
+</svg>
+</section>
 
 <!-- web4 -->
 <section id="s-web4">
 <div class="w">
-  <div class="w4-row"><span class="w4-era">Web1</span><span class="w4-w">Connect.</span><span class="w4-d">You are a visitor.</span></div>
-  <div class="w4-row"><span class="w4-era">Web2</span><span class="w4-w">Interact.</span><span class="w4-d">Platforms own everything.</span></div>
-  <div class="w4-row"><span class="w4-era">Web3</span><span class="w4-w">Own.</span><span class="w4-d">Assets. Still governed.</span></div>
-  <div class="w4-row"><span class="w4-era" style="color:var(--gold)">Web4</span><span class="w4-w on">Liberate.</span><span class="w4-d on">No platform.<br>No authority.</span></div>
+  <div class="w4-row"><div class="w4-top"><span class="w4-era">Web1</span><span class="w4-w">Connect.</span></div><div class="w4-d">You are a visitor.</div></div>
+  <div class="w4-row"><div class="w4-top"><span class="w4-era">Web2</span><span class="w4-w">Interact.</span></div><div class="w4-d">Platforms own everything.</div></div>
+  <div class="w4-row"><div class="w4-top"><span class="w4-era">Web3</span><span class="w4-w">Own.</span></div><div class="w4-d">Assets. Still governed.</div></div>
+  <div class="w4-row"><div class="w4-top"><span class="w4-era" style="color:var(--gold)">Web4</span><span class="w4-w on">Liberate.</span></div><div class="w4-d on">No platform. No authority.</div></div>
 </div>
 </section>
-
-<hr class="d">
 
 <!-- cta -->
 <section id="s-cta">
