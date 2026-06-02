@@ -1,182 +1,140 @@
 <!-- YourMine — Landing Theme -->
-<script>
-window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine landing page theme"};
-</script>
+<script>window.YM_THEME_META={"name":"Hello","icon":"✦","description":"YourMine landing"};</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@800&family=Outfit:wght@200;300&display=swap" rel="stylesheet">
 
 <style>
-:root{
-  --bg:#06060e;--text:#e4e6f4;--text2:rgba(228,230,244,.52);--text3:rgba(228,230,244,.2);
-  --gold:#f0a830;--cyan:#08e0f8;
-  --font-d:'Syne',sans-serif;--font-b:'Space Grotesk',sans-serif;--font-m:'JetBrains Mono',monospace;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{height:100%;overflow:hidden;background:#06060e}
-body{height:100%;overflow:hidden;background:#06060e;color:var(--text);font-family:var(--font-b);-webkit-font-smoothing:antialiased;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-family:'Outfit',sans-serif;-webkit-font-smoothing:antialiased}
+#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,#desktop-slider .icon-wrap{display:none!important}
+.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill,#ym-edge-back,#ym-edge-back-btn{display:none!important}
+#ym-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4}
+#land{position:fixed;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10}
 
-#ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
-#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
-.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
-#desktop-slider .icon-wrap{display:none!important}
-.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,
-.ym-separator,.pill,#ym-edge-back,#ym-edge-back-btn{display:none!important}
+@keyframes up{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+@keyframes gp{0%,100%{background-position:0%}50%{background-position:100%}}
 
-#ym-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;}
-#ym-landing{position:fixed;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;}
-
-.w{max-width:600px;margin:0 auto;padding:0 24px;}
-hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
-@keyframes up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
-
-/* ── HERO ── */
-#hero{
-  min-height:100dvh;display:flex;flex-direction:column;
+/* ── chaque bloc = plein écran centré ── */
+.block{
+  min-height:100dvh;
+  display:flex;flex-direction:column;
   align-items:center;justify-content:center;
-  padding:80px 24px;text-align:center;
-  background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(45,212,191,.05),transparent 60%);
+  text-align:center;padding:60px 32px;
 }
-.hero-title-wrap{opacity:0;animation:up .8s .1s cubic-bezier(.16,1,.3,1) forwards;}
-.hero-title{
-  font-family:var(--font-d);font-size:9vw;font-weight:800;
-  letter-spacing:.04em;line-height:.9;
-  background:linear-gradient(90deg,var(--gold) 0%,rgba(255,255,255,.9) 50%,var(--cyan) 100%);
+
+/* ── YOURMINE ── */
+.ym-title{
+  font-family:'Syne',sans-serif;
+  font-size:clamp(56px,12vw,160px);
+  font-weight:800;letter-spacing:.06em;line-height:1;
+  background:linear-gradient(90deg,#f0a830,#fff 44%,#08e0f8);
+  background-size:200%;
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  background-size:200% 100%;animation:titleshift 6s 1s ease-in-out infinite;
+  animation:up .9s .1s cubic-bezier(.16,1,.3,1) both, gp 7s 1s ease-in-out infinite;
+  margin-bottom:52px;
 }
-@keyframes titleshift{0%,100%{background-position:0%}50%{background-position:100%}}
-.hero-sub{
-  font-size:clamp(18px,2.5vw,24px);font-weight:300;
-  color:var(--text2);margin:24px 0 52px;letter-spacing:-.01em;
-  opacity:0;animation:up .7s .3s cubic-bezier(.16,1,.3,1) forwards;
+
+/* ── YOUR WEB YOUR RULES ── */
+.yw-title{
+  font-family:'Syne',sans-serif;
+  font-size:clamp(44px,9vw,120px);
+  font-weight:800;letter-spacing:-.01em;line-height:.97;
+  color:#e8eaf2;
 }
-.hero-sub strong{color:var(--text);font-weight:600;}
-.btn-start{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:16px 38px;border-radius:980px;
-  background:var(--text);color:#000;
-  font-size:17px;font-weight:600;letter-spacing:-.02em;
+
+/* ── texte corps ── */
+.body{
+  font-size:clamp(24px,4vw,48px);
+  font-weight:200;
+  line-height:1.65;
+  letter-spacing:-.01em;
+  color:rgba(232,234,242,.45);
+}
+.body strong{color:#e8eaf2;font-weight:300}
+
+/* ── bouton ── */
+.btn{
+  font-family:'Outfit',sans-serif;
+  font-size:17px;font-weight:300;
+  padding:16px 52px;border-radius:100px;
   border:none;cursor:pointer;
-  box-shadow:0 0 0 0 rgba(228,230,244,0);
-  transition:all .2s ease;
-  opacity:0;animation:up .6s .5s cubic-bezier(.16,1,.3,1) forwards;
+  background:#e8eaf2;color:#06060e;
+  animation:up .7s .5s cubic-bezier(.16,1,.3,1) both;
+  transition:opacity .15s,transform .15s;
 }
-.btn-start:hover{background:rgba(228,230,244,.88);transform:scale(.97);}
+.btn:hover{opacity:.85;transform:scale(.97)}
 
-/* ── GRID ── */
-#s-grid{padding:120px 0;}
-.grid-title{
-  font-family:var(--font-d);font-size:clamp(36px,5.5vw,60px);font-weight:800;
-  letter-spacing:-.04em;line-height:1.05;
-  color:var(--text);margin-bottom:56px;
+/* ── icônes séparatrices ── */
+.icon-block{
+  min-height:30vh;
+  display:flex;align-items:center;justify-content:center;
 }
-.grid-title em{font-style:normal;color:var(--gold);}
-.grid{
-  display:grid;grid-template-columns:1fr 1fr;
-  gap:1px;background:rgba(255,255,255,.09);
-  border-radius:20px;overflow:hidden;
-}
-@media(max-width:480px){.grid{grid-template-columns:1fr;}}
-.cell{padding:40px 30px;background:#06060e;transition:background .15s;}
-.cell:hover{background:#0c0c16;}
-.cell-n{
-  font-family:var(--font-d);font-size:clamp(22px,3.5vw,36px);font-weight:800;
-  letter-spacing:-.03em;color:var(--text);margin-bottom:8px;
-  line-height:1;
-}
-.cell-n b{color:var(--gold);}
-.cell-t{font-size:14px;font-weight:300;color:var(--text2);line-height:1.65;}
-
-/* ── WEB4 ── */
-#s-web4{padding:120px 0;}
-.w4-row{
-  display:flex;flex-direction:column;gap:4px;
-  padding:20px 0;border-bottom:1px solid rgba(255,255,255,.07);
-}
-.w4-top{display:flex;align-items:baseline;gap:16px;}
-.w4-era{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.06em;width:38px;flex-shrink:0;}
-.w4-w{font-family:var(--font-d);font-size:clamp(30px,6vw,68px);font-weight:800;letter-spacing:-.04em;line-height:1;color:rgba(255,255,255,.13);}
-.w4-w.on{color:var(--text);}
-.w4-d{font-size:13px;font-weight:300;color:var(--text3);padding-left:54px;line-height:1.5;}
-.w4-d.on{color:var(--text2);}
-
-/* ── CTA ── */
-#s-cta{
-  padding:180px 24px calc(160px + env(safe-area-inset-bottom,0px));
-  text-align:center;
-  background:radial-gradient(ellipse 70% 50% at 50% 100%,rgba(240,168,48,.05),transparent 60%);
-}
-.cta-title{
-  font-family:var(--font-d);font-size:clamp(60px,14vw,148px);font-weight:800;
-  letter-spacing:-.048em;line-height:.88;
-  color:var(--text);margin-bottom:48px;
-}
-.cta-title span{color:rgba(228,230,244,.18);}
-.cta-just{
-  font-size:clamp(18px,2.5vw,22px);font-weight:300;
-  color:var(--text2);letter-spacing:-.01em;
-}
-
-.icon-sep{padding:60px 0;display:flex;justify-content:center;}
-.w .icon-sep{padding:0 0 60px;}
-.icon-sep-inner{opacity:.18;}
 </style>
 
 <canvas id="ym-canvas"></canvas>
+<div id="land">
 
-<div id="ym-landing">
-
-<!-- hero -->
-<section id="hero">
-  <div class="hero-title-wrap"><h1 class="hero-title">YOURMINE</h1></div>
-  <p class="hero-sub"><strong>Ungovernable web.</strong></p>
-  <button class="btn-start" id="lp-start-btn">Start ›</button>
-</section>
-
-
-
-<div class="w"><div class="icon-sep"><div class="icon-sep-inner" style="font-size:160px;color:white;line-height:1;font-family:sans-serif;font-weight:100">&#8249;</div></div></div>
-<!-- grid -->
-<section id="s-grid">
-<div class="w">
-  <div class="grid-title">Not a platform.<br>A <em>new web</em>.</div>
-  <div class="grid">
-    <div class="cell"><div class="cell-n">No <b>platform.</b></div><p class="cell-t">No store. No login. One prompt, live anywhere.</p></div>
-    <div class="cell"><div class="cell-n">No <b>authority.</b></div><p class="cell-t">Can't be governed even after it's sold.</p></div>
-    <div class="cell"><div class="cell-n">No <b>identity.</b></div><p class="cell-t">Only participation. What you share with others is all that exists.</p></div>
-    <div class="cell"><div class="cell-n">100% <b>forkable.</b></div><p class="cell-t">Every fork that improves can be merged back. Indestructible.</p></div>
+  <!-- 1. YOURMINE + Start -->
+  <div class="block">
+    <div class="ym-title">YOURMINE</div>
+    <button class="btn" id="s1">Start ›</button>
   </div>
+
+  <!-- 2. Your web. Your rules. -->
+  <div class="block">
+    <div class="yw-title">Your web.<br>Your rules.</div>
+  </div>
+
+  <!-- icône 1 — chevron -->
+  <div class="icon-block" style="opacity:.18">
+    <svg width="52" height="52" viewBox="0 0 24 24" fill="none">
+      <path d="M15 6L9 12L15 18" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+  <!-- 3. One click -->
+  <div class="block">
+    <div class="body">
+      One click to run it.<br>
+      One prompt to shape it.
+    </div>
+  </div>
+
+  <!-- icône 2 — Y -->
+  <div class="icon-block" style="opacity:.18">
+    <svg width="48" height="48" viewBox="0 0 22 22" fill="none">
+      <line x1="11" y1="1"   x2="11"  y2="11"  stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="11" y1="11"  x2="1.6" y2="17"  stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="11" y1="11"  x2="20.4" y2="17" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <!-- 4. Web 1→4 -->
+  <div class="block">
+    <div class="body">
+      Web 1 gave access.<br>
+      Web 2 gave interaction.<br>
+      Web 3 gave ownership.<br><br>
+      <strong>YourMine gives liberation.</strong><br>
+      From anywhere.
+    </div>
+  </div>
+
+  <!-- icône 3 — YM logo -->
+  <div class="icon-block">
+    <img src="https://yourmine-dapp.web.app/ym512.png" style="width:96px;height:96px;border-radius:18px;object-fit:contain">
+  </div>
+
+  <!-- 5. Welcome to Web 4 + Start -->
+  <div class="block">
+    <div class="yw-title" style="margin-bottom:52px">Welcome<br>to Web 4.</div>
+    <button class="btn" id="s2">Start ›</button>
+  </div>
+
 </div>
-</section>
 
-
-
-
-
-<div class="w"><div class="icon-sep"><div class="icon-sep-inner"><svg width="160" height="160" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="11" y1="1" x2="11" y2="11" stroke="white" stroke-width="2.2" stroke-linecap="round"/><line x1="11" y1="11" x2="1.6" y2="17" stroke="white" stroke-width="2.2" stroke-linecap="round"/><line x1="11" y1="11" x2="20.4" y2="17" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg></div></div></div>
-<!-- web4 -->
-<section id="s-web4">
-<div class="w">
-  <div class="w4-row"><div class="w4-top"><span class="w4-era">Web1</span><span class="w4-w">Connect.</span></div><div class="w4-d">You are a visitor.</div></div>
-  <div class="w4-row"><div class="w4-top"><span class="w4-era">Web2</span><span class="w4-w">Interact.</span></div><div class="w4-d">Platforms own everything.</div></div>
-  <div class="w4-row"><div class="w4-top"><span class="w4-era">Web3</span><span class="w4-w">Own.</span></div><div class="w4-d">Assets. Still governed.</div></div>
-  <div class="w4-row"><div class="w4-top"><span class="w4-era" style="color:var(--gold)">Web4</span><span class="w4-w on">Liberate.</span></div><div class="w4-d on">No platform. No authority.</div></div>
-</div>
-</section>
-
-<div class="w"><div class="icon-sep"><div class="icon-sep-inner"><img src="https://yourmine-dapp.web.app/ym512.png" style="width:160px;height:160px;object-fit:contain;border-radius:28px"></div></div></div>
-<!-- cta -->
-<section id="s-cta">
-<div class="w" style="text-align:center;">
-  <div class="cta-title">YOUR<br><span>WEB.</span><br>YOUR<br><span>RULES.</span></div>
-  <button class="btn-start" id="lp-start-btn-2" style="margin-top:48px;">Start ›</button>
-</div>
-</section>
-
-</div>
-
-<!-- infrastructure -->
+<!-- YM infrastructure -->
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
 <div id="drag-ghost"></div><div id="page-dots"></div>
@@ -197,48 +155,57 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
 <script>
 (function(){
   try{
-  var cv=document.getElementById('ym-canvas'),ctx=cv?cv.getContext('2d'):null;
-  if(!cv||!ctx)return;
-  var W,H,DPR,scroller=document.getElementById('ym-landing');
-  var lastScroll=0,raf,lastT=0,timeAcc=0,OW,OH,offscreen,offCtx,imgData,buf32;
-  function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=cv.width=window.innerWidth*DPR;H=cv.height=window.innerHeight*DPR;cv.style.width=window.innerWidth+'px';cv.style.height=window.innerHeight+'px';}
-  var PERM=new Uint8Array(512);
-  (function(){var p=new Uint8Array(256);for(var i=0;i<256;i++)p[i]=i;for(var i=255;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=p[i];p[i]=p[j];p[j]=t;}for(var i=0;i<512;i++)PERM[i]=p[i&255];})();
-  function fade(t){return t*t*t*(t*(t*6-15)+10);}
-  function lerp(a,b,t){return a+(b-a)*t;}
-  function grad2(h,x,y){var hh=h&3,u=hh<2?x:y,v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
-  function noise2(x,y){var xi=Math.floor(x)&255,yi=Math.floor(y)&255,xf=x-Math.floor(x),yf=y-Math.floor(y),u=fade(xf),v=fade(yf),aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);}
-  function fbm(x,y){return noise2(x,y)*.5+noise2(x*2.1,y*2.1)*.3+noise2(x*4.3,y*4.3)*.2;}
-  function makeOff(){OW=Math.ceil(W/3);OH=Math.ceil(H/3);offscreen=document.createElement('canvas');offscreen.width=OW;offscreen.height=OH;offCtx=offscreen.getContext('2d');}
-  function makeImg(){imgData=offCtx.createImageData(OW,OH);buf32=new Uint32Array(imgData.data.buffer);}
-  function draw(ts){raf=requestAnimationFrame(draw);var dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;var t=timeAcc*.00018,idx=0;
-    for(var py=0;py<OH;py++){var fy=py*.0052+t*.6;for(var px=0;px<OW;px++){var fx=px*.0048+t*.4,n=fbm(fx,fy),n2=fbm(fx+t*.3,fy+.7),v=(n*.6+n2*.4)*.5+.5,hv=fbm(fx*.5+1.3,fy*.5+t*.2)*.5+.5,r,g,b;
-      if(hv<.5){var tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
-      else{var tt=(hv-.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
-      var a=Math.min(.42,v*v*.42),ai=(a*255)|0;buf32[idx++]=(ai<<24)|(b<<16)|(g<<8)|r;}}
-    offCtx.putImageData(imgData,0,0);ctx.clearRect(0,0,W,H);ctx.drawImage(offscreen,0,0,W,H);}
-  scroller.addEventListener('scroll',function(){lastScroll=scroller.scrollTop;},{passive:true});
-  resize();makeOff();makeImg();raf=requestAnimationFrame(draw);
-  window.addEventListener('resize',function(){resize();makeOff();makeImg();},{passive:true});
-  document.addEventListener('visibilitychange',function(){if(document.hidden)cancelAnimationFrame(raf);else{lastT=0;raf=requestAnimationFrame(draw);}});
-  }catch(e){console.warn('[hello]',e.message);}
+    var cv=document.getElementById('ym-canvas'),ctx=cv?cv.getContext('2d'):null;
+    if(!cv||!ctx)return;
+    var W,H,DPR,OW,OH,oc,ox,id,b32,raf,lT=0,tA=0;
+    function res(){DPR=Math.min(window.devicePixelRatio||1,2);W=cv.width=innerWidth*DPR;H=cv.height=innerHeight*DPR;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';}
+    var P=new Uint8Array(512);
+    (function(){var p=new Uint8Array(256),i,j,t;for(i=0;i<256;i++)p[i]=i;for(i=255;i>0;i--){j=Math.floor(Math.random()*(i+1));t=p[i];p[i]=p[j];p[j]=t;}for(i=0;i<512;i++)P[i]=p[i&255];})();
+    function fd(t){return t*t*t*(t*(t*6-15)+10);}
+    function lp(a,b,t){return a+(b-a)*t;}
+    function gr(h,x,y){var hh=h&3,u=hh<2?x:y,v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
+    function ns(x,y){var xi=~~x&255,yi=~~y&255,xf=x-~~x,yf=y-~~y,u=fd(xf),v=fd(yf),aa=P[P[xi]+yi],ab=P[P[xi]+yi+1],ba=P[P[xi+1]+yi],bb=P[P[xi+1]+yi+1];return lp(lp(gr(aa,xf,yf),gr(ba,xf-1,yf),u),lp(gr(ab,xf,yf-1),gr(bb,xf-1,yf-1),u),v);}
+    function fbm(x,y){return ns(x,y)*.5+ns(x*2.1,y*2.1)*.3+ns(x*4.3,y*4.3)*.2;}
+    function mo(){OW=Math.ceil(W/3);OH=Math.ceil(H/3);oc=document.createElement('canvas');oc.width=OW;oc.height=OH;ox=oc.getContext('2d');}
+    function mi(){id=ox.createImageData(OW,OH);b32=new Uint32Array(id.data.buffer);}
+    function dr(ts){
+      raf=requestAnimationFrame(dr);tA+=Math.min(ts-lT,50);lT=ts;
+      var t=tA*.00018,i=0,r,g,b,tt;
+      for(var py=0;py<OH;py++){var fy=py*.0052+t*.6;for(var px=0;px<OW;px++){
+        var fx=px*.0048+t*.4,n=fbm(fx,fy),n2=fbm(fx+t*.3,fy+.7),v=(n*.6+n2*.4)*.5+.5,hv=fbm(fx*.5+1.3,fy*.5+t*.2)*.5+.5;
+        if(hv<.5){tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
+        else{tt=(hv-.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
+        b32[i++]=((Math.min(.42,v*v*.42)*255|0)<<24)|(b<<16)|(g<<8)|r;
+      }}
+      ox.putImageData(id,0,0);ctx.clearRect(0,0,W,H);ctx.drawImage(oc,0,0,W,H);
+    }
+    res();mo();mi();raf=requestAnimationFrame(dr);
+    window.addEventListener('resize',function(){res();mo();mi();},{passive:true});
+    document.addEventListener('visibilitychange',function(){if(document.hidden)cancelAnimationFrame(raf);else{lT=0;raf=requestAnimationFrame(dr);}});
+  }catch(e){}
 })();
 </script>
 
 <script>
 (function(){
-  var KEY='ym_theme_url',CACHE='ym_theme_cache';
-  var GH='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/themes/default.html';
-  function go(){localStorage.setItem(KEY,GH);localStorage.removeItem(CACHE);location.reload();}
-  var b=document.getElementById('lp-start-btn');if(b)b.addEventListener('click',go);
-  var b2=document.getElementById('lp-start-btn-2');if(b2)b2.addEventListener('click',go);
-  function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
-  blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
-  var obs=new MutationObserver(function(mm){mm.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1&&(n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
-  obs.observe(document.body,{childList:true});
-  var bg=document.getElementById('bg-dlg');if(bg)bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
-  var th=document.getElementById('theme-custom-btn');
-  if(th)th.addEventListener('click',function(){var i=document.getElementById('theme-custom-input'),url=(i?i.value:'').trim();if(!url)return;url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem(KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();});
+  var K='ym_theme_url',C='ym_theme_cache';
+  var D='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/themes/default.html';
+  function go(){localStorage.setItem(K,D);localStorage.removeItem(C);location.reload();}
+  ['s1','s2'].forEach(function(id){var b=document.getElementById(id);if(b)b.addEventListener('click',go);});
+  function bd(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
+  bd();window.addEventListener('ym:sphere-activated',bd);
+  new MutationObserver(function(mm){mm.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1&&(n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});}).observe(document.body,{childList:true});
+  var bgd=document.getElementById('bg-dlg');
+  if(bgd)bgd.addEventListener('click',function(e){if(e.target===bgd)bgd.classList.remove('open');});
+  var thb=document.getElementById('theme-custom-btn');
+  if(thb)thb.addEventListener('click',function(){
+    var i=document.getElementById('theme-custom-input'),u=(i?i.value:'').trim();
+    if(!u)return;
+    u=u.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');
+    localStorage.setItem(K,u);
+    if(window.YM&&window.YM.setTheme){window.YM.setTheme(u);return;}
+    location.reload();
+  });
 })();
 </script>
 </body>
