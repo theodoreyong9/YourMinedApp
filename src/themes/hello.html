@@ -33,8 +33,8 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
 /* ── HERO ── */
 #hero{
   min-height:100dvh;display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  padding:80px 24px;text-align:center;
+  align-items:flex-start;justify-content:center;
+  padding:80px 48px;text-align:left;
   background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(45,212,191,.05),transparent 60%);
 }
 .hero-title-wrap{opacity:0;animation:up .8s .1s cubic-bezier(.16,1,.3,1) forwards;}
@@ -117,6 +117,10 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
   font-size:clamp(18px,2.5vw,22px);font-weight:300;
   color:var(--text2);letter-spacing:-.01em;
 }
+
+.icon-sep{padding:60px 0;display:flex;justify-content:flex-start;}
+.w .icon-sep{padding:0 0 60px;}
+.icon-sep-inner{opacity:.18;}
 </style>
 
 <canvas id="ym-canvas"></canvas>
@@ -130,26 +134,9 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
   <button class="btn-start" id="lp-start-btn">Start ›</button>
 </section>
 
-<!-- svg — topological -->
-<section style="padding:60px 0;overflow:hidden;">
-<svg viewBox="0 0 960 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
-  <defs><filter id="tblur"><feGaussianBlur stdDeviation="2"/></filter></defs>
-  <g fill="none" stroke-width="1">
-    <ellipse cx="480" cy="120" rx="440" ry="100" stroke="rgba(240,168,48,.05)"/>
-    <ellipse cx="480" cy="120" rx="395" ry="88" stroke="rgba(240,168,48,.07)"/>
-    <ellipse cx="480" cy="120" rx="348" ry="75" stroke="rgba(240,168,48,.08)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="360 480 120" dur="40s" repeatCount="indefinite"/></ellipse>
-    <ellipse cx="480" cy="120" rx="300" ry="62" stroke="rgba(240,168,48,.09)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="-360 480 120" dur="32s" repeatCount="indefinite"/></ellipse>
-    <ellipse cx="480" cy="120" rx="252" ry="52" stroke="rgba(8,224,248,.10)"><animateTransform attributeName="transform" type="rotate" from="15 480 120" to="375 480 120" dur="28s" repeatCount="indefinite"/></ellipse>
-    <ellipse cx="480" cy="120" rx="204" ry="42" stroke="rgba(8,224,248,.13)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="-360 480 120" dur="22s" repeatCount="indefinite"/></ellipse>
-    <ellipse cx="480" cy="120" rx="156" ry="34" stroke="rgba(167,139,250,.15)"><animateTransform attributeName="transform" type="rotate" from="30 480 120" to="390 480 120" dur="18s" repeatCount="indefinite"/></ellipse>
-    <ellipse cx="480" cy="120" rx="108" ry="26" stroke="rgba(167,139,250,.20)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="-360 480 120" dur="14s" repeatCount="indefinite"/></ellipse>
-    <ellipse cx="480" cy="120" rx="62" ry="17" stroke="rgba(167,139,250,.28)"><animateTransform attributeName="transform" type="rotate" from="45 480 120" to="405 480 120" dur="10s" repeatCount="indefinite"/></ellipse>
-    <ellipse cx="480" cy="120" rx="22" ry="9" stroke="rgba(8,224,248,.45)"><animateTransform attributeName="transform" type="rotate" from="0 480 120" to="360 480 120" dur="7s" repeatCount="indefinite"/></ellipse>
-  </g>
-  <ellipse cx="480" cy="120" rx="55" ry="25" fill="rgba(8,224,248,.04)" filter="url(#tblur)"/>
-</svg>
-</section>
 
+
+<div class="w"><div class="icon-sep"><div class="icon-sep-inner"><svg width="28" height="28" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"><line x1="11" y1="1" x2="11" y2="11" stroke="white" stroke-width="2.2" stroke-linecap="round"/><line x1="11" y1="11" x2="1.6" y2="17" stroke="white" stroke-width="2.2" stroke-linecap="round"/><line x1="11" y1="11" x2="20.4" y2="17" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg></div></div></div>
 <!-- grid -->
 <section id="s-grid">
 <div class="w">
@@ -163,41 +150,11 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
 </div>
 </section>
 
-<!-- svg 2 — geometric -->
-<section style="padding:60px 0;overflow:hidden;">
-<svg viewBox="0 0 960 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
-  <defs>
-    <filter id="gblur"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-  <!-- Hexagonal grid — spheres metaphor -->
-  <g fill="none" stroke-width="1">
-    <!-- row 1 -->
-    <polygon points="200,60 230,43 260,60 260,94 230,111 200,94" stroke="rgba(240,168,48,.12)"/>
-    <polygon points="260,60 290,43 320,60 320,94 290,111 260,94" stroke="rgba(240,168,48,.16)"/>
-    <polygon points="320,60 350,43 380,60 380,94 350,111 320,94" stroke="rgba(8,224,248,.18)"/>
-    <polygon points="380,60 410,43 440,60 440,94 410,111 380,94" stroke="rgba(8,224,248,.22)"/>
-    <polygon points="440,60 470,43 500,60 500,94 470,111 440,94" stroke="rgba(8,224,248,.26)"/>
-    <polygon points="500,60 530,43 560,60 560,94 530,111 500,94" stroke="rgba(8,224,248,.22)"/>
-    <polygon points="560,60 590,43 620,60 620,94 590,111 560,94" stroke="rgba(167,139,250,.18)"/>
-    <polygon points="620,60 650,43 680,60 680,94 650,111 620,94" stroke="rgba(167,139,250,.14)"/>
-    <polygon points="680,60 710,43 740,60 740,94 710,111 680,94" stroke="rgba(167,139,250,.10)"/>
-    <!-- row 2 offset -->
-    <polygon points="230,111 260,94 290,111 290,145 260,162 230,145" stroke="rgba(240,168,48,.10)"/>
-    <polygon points="290,111 320,94 350,111 350,145 320,162 290,145" stroke="rgba(240,168,48,.14)"/>
-    <polygon points="350,111 380,94 410,111 410,145 380,162 350,145" stroke="rgba(8,224,248,.16)"/>
-    <polygon points="410,111 440,94 470,111 470,145 440,162 410,145" stroke="rgba(8,224,248,.20)"/>
-    <polygon points="470,111 500,94 530,111 530,145 500,162 470,145" stroke="rgba(8,224,248,.20)"/>
-    <polygon points="530,111 560,94 590,111 590,145 560,162 530,145" stroke="rgba(167,139,250,.16)"/>
-    <polygon points="590,111 620,94 650,111 650,145 620,162 590,145" stroke="rgba(167,139,250,.12)"/>
-    <polygon points="650,111 680,94 710,111 710,145 680,162 650,145" stroke="rgba(167,139,250,.08)"/>
-  </g>
-  <!-- glowing center hex -->
-  <polygon points="440,60 470,43 500,60 500,94 470,111 440,94" stroke="rgba(8,224,248,.5)" stroke-width="1.5" fill="rgba(8,224,248,.04)" filter="url(#gblur)">
-    <animate attributeName="opacity" values=".5;1;.5" dur="3s" repeatCount="indefinite"/>
-  </polygon>
-</svg>
-</section>
 
+
+
+
+<div class="w"><div class="icon-sep"><div class="icon-sep-inner"><img src="https://yourmine-dapp.web.app/ym512.png" style="width:28px;height:28px;object-fit:contain;border-radius:6px"></div></div></div>
 <!-- web4 -->
 <section id="s-web4">
 <div class="w">
@@ -208,10 +165,13 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
 </div>
 </section>
 
+<div class="w"><div class="icon-sep"><div class="icon-sep-inner" style="font-size:28px;color:white;line-height:1">&#8249;</div></div></div>
 <!-- cta -->
 <section id="s-cta">
+<div class="w" style="text-align:left;">
   <div class="cta-title">YOUR<br><span>WEB.</span><br>YOUR<br><span>RULES.</span></div>
   <button class="btn-start" id="lp-start-btn-2" style="margin-top:48px;">Start ›</button>
+</div>
 </section>
 
 </div>
@@ -281,3 +241,5 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
   if(th)th.addEventListener('click',function(){var i=document.getElementById('theme-custom-input'),url=(i?i.value:'').trim();if(!url)return;url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem(KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();});
 })();
 </script>
+</body>
+</html>
