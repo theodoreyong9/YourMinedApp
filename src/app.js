@@ -495,6 +495,39 @@
   function reducePanel() {
     if (!_panel) return;
     const el = document.getElementById(_panel);
+
+    // Take snapshot at reduce time — panel is full and representative
+    if (_panel === 'panel-sphere') {
+      const panelEl = document.getElementById('panel-sphere');
+      if (panelEl) {
+        const activeSphere = [..._openSpheres.entries()].find(([,v]) => v);
+        if (activeSphere) {
+          const [sid, data] = activeSphere;
+          _openSpheres.set(sid, {
+            ...data,
+            snapshot: panelEl.innerHTML,
+            panelW: panelEl.offsetWidth || data.panelW,
+            panelH: panelEl.offsetHeight || data.panelH,
+          });
+        }
+      }
+    }
+    if (_panel === 'panel-folder' || _panel === 'panel-profile-view') {
+      const panelEl = document.getElementById(_panel);
+      if (panelEl) {
+        _openPanels.forEach((data, pid) => {
+          if (data.panelId === _panel || pid === _panel) {
+            _openPanels.set(pid, {
+              ...data,
+              snapshot: panelEl.innerHTML,
+              panelW: panelEl.offsetWidth || data.panelW,
+              panelH: panelEl.offsetHeight || data.panelH,
+            });
+          }
+        });
+      }
+    }
+
     if (el) { el.classList.remove('open'); el.style.zIndex = ''; }
     if (_prevPanel) {
       const prev = document.getElementById(_prevPanel);
@@ -996,7 +1029,7 @@
     const deskPanelH = isDesktop ? window.innerHeight : (window.innerHeight - 80);
     _openSpheres.set(id, {
       label:   s.name || id.replace('.sphere.js', ''),
-      snapshot: panelEl ? panelEl.innerHTML : '',
+      snapshot: '',
       panelW:   panelEl ? (panelEl.offsetWidth  || deskPanelW) : deskPanelW,
       panelH:   panelEl ? (panelEl.offsetHeight || deskPanelH) : deskPanelH,
     });
