@@ -17,21 +17,19 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 
 /* ── chaque bloc = plein écran centré ── */
 #land .block{
-  min-height:100dvh;
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  text-align:center;padding:60px 32px;
+  min-height:100dvh !important;
+  display:flex !important;flex-direction:column !important;
+  align-items:center !important;justify-content:center !important;
+  text-align:center !important;padding:60px 32px !important;
 }
 
 /* ── YOURMINE ── */
 #land .ym-title{
   font-family:'Syne',sans-serif;
-  font-size:7vw;
+  font-size:9vw !important;
   font-weight:800;letter-spacing:0;line-height:1;
-  background:linear-gradient(90deg,#f0a830,#fff 44%,#08e0f8);
-  background-size:200%;
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  animation:up .9s .1s cubic-bezier(.16,1,.3,1) both, gp 7s 1s ease-in-out infinite;
+  color:#e8eaf2;
+  animation:up .9s .1s cubic-bezier(.16,1,.3,1) both;
   margin-bottom:52px;
   display:block;width:100%;text-align:center;
 }
@@ -39,14 +37,14 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 /* ── YOUR WEB YOUR RULES ── */
 #land .yw-title{
   font-family:'Syne',sans-serif;
-  font-size:clamp(44px,9vw,120px);
+  font-size:clamp(44px,9vw,120px) !important;
   font-weight:800;letter-spacing:-.01em;line-height:.97;
   color:#e8eaf2;
 }
 
 /* ── texte corps ── */
 #land .body{
-  font-size:clamp(24px,4vw,48px);
+  font-size:clamp(24px,4vw,48px) !important;
   font-weight:200;
   line-height:1.65;
   letter-spacing:-.01em;
@@ -78,7 +76,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 
   <!-- 1. YOURMINE + Start -->
   <div class="block">
-    <div class="ym-title">YOURMINE</div>
+    <div class="ym-title" style="font-family:'Syne',sans-serif!important;font-size:9vw!important;font-weight:800!important;letter-spacing:0!important;line-height:1!important;background:linear-gradient(90deg,#f0a830,#fff 44%,#08e0f8)!important;background-size:200%!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important;background-clip:text!important;display:block!important;width:100%!important;text-align:center!important;margin-bottom:52px!important;">YOURMINE</div>
     <button class="btn" id="s1">Start ›</button>
   </div>
 
