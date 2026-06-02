@@ -127,8 +127,8 @@ async function refresh(){
     _weather=await fetchWeather(_location.lat,_location.lon);
     const cur=_weather.current;
     const code=cur.weather_code;
-    const badge=cur.precipitation>0?1:0;
-    if(_ctx)_ctx.setNotification(badge);
+    // Update icon when weather refreshes — no notification badge
+    if(_ctx&&_ctx.setIcon)_ctx.setIcon(weatherCode(code));
     return _weather;
   }catch(e){
     if(_ctx)_ctx.toast(e.message,'error');
