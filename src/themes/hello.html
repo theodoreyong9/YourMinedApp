@@ -10,7 +10,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 #ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,#desktop-slider .icon-wrap{display:none!important}
 .ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill,#ym-edge-back,#ym-edge-back-btn{display:none!important}
 #ym-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4}
-#land{position:fixed;inset:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10}
+#land{position:fixed;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10}
 
 @keyframes up{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
 @keyframes gp{0%,100%{background-position:0%}50%{background-position:100%}}
@@ -26,7 +26,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 /* ── YOURMINE ── */
 .ym-title{
   font-family:'Syne',sans-serif;
-  font-size:8.5vw;
+  font-size:clamp(56px,12vw,160px);
   font-weight:800;letter-spacing:.06em;line-height:1;
   background:linear-gradient(90deg,#f0a830,#fff 44%,#08e0f8);
   background-size:200%;
