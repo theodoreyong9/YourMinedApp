@@ -65,15 +65,12 @@ function renderSphereProfiles(container,fromSphere){
             }).join(''))+
           '</div>';
 
-        // Gestion des boutons de visibilité
         visRow.querySelectorAll('.vis-pill').forEach(function(btn){
           btn.addEventListener('click',function(){
             var val=this.dataset.vis;
             if(val==='custom'){
-              // Affiche la liste de contacts
               var customDiv=visRow.querySelector('#vis-custom-'+name.replace(/\./g,'_'));
               customDiv.style.display=customDiv.style.display==='none'?'block':'none';
-              // Collecte les uuid cochés
               var checked=Array.from(customDiv.querySelectorAll('input:checked')).map(function(i){return i.dataset.uuid;});
               setSphereVisibility(name,checked.length?checked:'contacts');
             }else{
@@ -90,7 +87,6 @@ function renderSphereProfiles(container,fromSphere){
           });
         });
 
-        // Mise à jour en temps réel des checkboxes custom
         var customDiv=visRow.querySelector('#vis-custom-'+name.replace(/\./g,'_'));
         if(customDiv){
           customDiv.querySelectorAll('input[type=checkbox]').forEach(function(cb){
@@ -103,10 +99,12 @@ function renderSphereProfiles(container,fromSphere){
 
         content.appendChild(visRow);
 
-        // profileSection de la sphere
+        // FIX: use a dedicated subcontainer so sphere's innerHTML= can't overwrite the visibility toggle
         if(s&&typeof s.profileSection==='function'){
-          try{s.profileSection(content);}
-          catch(e){content.innerHTML+='<div style="color:var(--text3);font-size:11px">'+e.message+'</div>';}
+          var profileSubContainer=document.createElement('div');
+          content.appendChild(profileSubContainer);
+          try{s.profileSection(profileSubContainer);}
+          catch(e){profileSubContainer.innerHTML='<div style="color:var(--text3);font-size:11px">'+e.message+'</div>';}
         }else if(!s){
           content.innerHTML+='<div style="color:var(--text2);font-size:12px">Active</div>';
         }
@@ -117,10 +115,6 @@ function renderSphereProfiles(container,fromSphere){
     if(fromSphere&&name===fromSphere&&s&&s.profileSection){requestAnimationFrame(function(){openAcc();wrap.scrollIntoView({behavior:'smooth',block:'start'});});}
   });
 }
-
-// NOTE: Les autres fonctions (render, renderContactsTab, showShare, etc.)
-// sont copiées depuis le document 5 ci-dessous
-
 
 function render(fromSphere){
   var body=document.getElementById('panel-profile-body');
@@ -174,7 +168,6 @@ function _restoreBackupData(data){
   var SP=window.YM&&window.YM.saveProfile;
   if(!data||data._version!==1)throw new Error('Format invalide');
   if(data.profile){
-    // Ne pas écraser l'UUID — non-transférable
     var curP=window.YM&&window.YM.getProfile&&window.YM.getProfile();
     if(curP&&curP.uuid)data.profile.uuid=curP.uuid;
     if(SP)SP(data.profile);
