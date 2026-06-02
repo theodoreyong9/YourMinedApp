@@ -38,7 +38,7 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
   background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(45,212,191,.05),transparent 60%);
 }
 .hero-title{
-  font-family:var(--font-d);font-size:clamp(76px,19vw,210px);font-weight:800;
+  font-family:var(--font-d);font-size:clamp(52px,13vw,180px);font-weight:800;
   letter-spacing:-.045em;line-height:.88;
   background:linear-gradient(90deg,var(--gold) 0%,rgba(255,255,255,.9) 50%,var(--cyan) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
@@ -210,7 +210,7 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
 <!-- cta -->
 <section id="s-cta">
   <div class="cta-title">YOUR<br><span>WEB.</span><br>YOUR<br><span>RULES.</span></div>
-  <div class="cta-just">Just build.</div>
+  <button class="btn-start" id="lp-start-btn-2" style="margin-top:48px;">Start ›</button>
 </section>
 
 </div>
@@ -270,6 +270,7 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
   var GH='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/themes/default.html';
   function go(){localStorage.setItem(KEY,GH);localStorage.removeItem(CACHE);location.reload();}
   var b=document.getElementById('lp-start-btn');if(b)b.addEventListener('click',go);
+  var b2=document.getElementById('lp-start-btn-2');if(b2)b2.addEventListener('click',go);
   function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
   blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
   var obs=new MutationObserver(function(mm){mm.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1&&(n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
