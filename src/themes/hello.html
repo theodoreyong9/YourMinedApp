@@ -1,867 +1,217 @@
-<!-- YourMine — Landing Theme + Perlin Skin Texture -->
+<!-- YourMine — Landing Theme -->
 <script>
 window.YM_THEME_META = {"name":"Hello","icon":"✦","description":"YourMine landing page theme"};
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=block" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=block" rel="stylesheet">
 
 <style>
 :root{
-  --bg:#050507;--text:#f0f0f8;--text2:rgba(240,240,248,.52);--text3:rgba(240,240,248,.2);
-  --gold:#f0a830;--cyan:#22d3ee;--purple:#a78bfa;
-  --font-d:'Syne',sans-serif;--font-b:'Inter',sans-serif;--font-m:'JetBrains Mono',monospace;
+  --bg:#000;--text:#f5f5f7;--text2:rgba(245,245,247,.52);--text3:rgba(245,245,247,.2);
+  --gold:#f0a830;--cyan:#2dd4bf;
+  --font:'Inter',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html{height:100%;overflow:hidden;background:var(--bg)}
-body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-b)}
+html{height:100%;overflow:hidden;background:#000}
+body{height:100%;overflow:hidden;background:#000;color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;}
 
 #ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,
 #panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,
 .ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,
 #desktop-slider .icon-wrap{display:none!important}
-.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill,#ym-edge-back,#ym-edge-back-btn,#pwa-install-btn{display:none!important}
+.ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,
+.ym-separator,.pill,#ym-edge-back,#ym-edge-back-btn{display:none!important}
 
-#ym-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
-#ym-landing{position:fixed;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:transparent;z-index:10;}
-#ym-landing::before{
-  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
-  background:
-    radial-gradient(ellipse 80% 55% at 95% -5%,rgba(34,211,238,.045),transparent 60%),
-    radial-gradient(ellipse 65% 60% at -5% 110%,rgba(240,168,48,.035),transparent 60%),
-    radial-gradient(ellipse 45% 45% at 50% 55%,rgba(167,139,250,.018),transparent 70%);
+#ym-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;}
+#ym-landing{position:fixed;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10;}
+
+.w{max-width:600px;margin:0 auto;padding:0 24px;}
+hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
+@keyframes up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+/* ── HERO ── */
+#hero{
+  min-height:100dvh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:80px 24px;text-align:center;
+  background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(45,212,191,.05),transparent 60%);
 }
+.hero-title{
+  font-size:clamp(76px,19vw,210px);font-weight:700;
+  letter-spacing:-.045em;line-height:.88;color:var(--text);
+  opacity:0;animation:up .8s .1s cubic-bezier(.16,1,.3,1) forwards;
+}
+.hero-sub{
+  font-size:clamp(18px,2.5vw,24px);font-weight:300;
+  color:var(--text2);margin:24px 0 52px;letter-spacing:-.01em;
+  opacity:0;animation:up .7s .3s cubic-bezier(.16,1,.3,1) forwards;
+}
+.hero-sub strong{color:var(--text);font-weight:600;}
+.btn-start{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:16px 38px;border-radius:980px;
+  background:var(--text);color:#000;
+  font-size:17px;font-weight:600;letter-spacing:-.02em;
+  border:none;cursor:pointer;
+  box-shadow:0 0 0 0 rgba(245,245,247,0);
+  transition:all .2s ease;
+  opacity:0;animation:up .6s .5s cubic-bezier(.16,1,.3,1) forwards;
+}
+.btn-start:hover{background:rgba(245,245,247,.88);transform:scale(.97);}
 
-.reveal>*{opacity:1;transform:none;}.reveal.visible>*{opacity:1;transform:none;}.lp-stanza .lp-line{opacity:1;transform:none;}.lp-grid .lp-gitem{opacity:1;transform:none;}.lp-tags .lp-tag{opacity:1;transform:none;}.lp-card .lp-card-line{opacity:1;transform:none;}.lp-negs .lp-neg{opacity:1;transform:none;}
+/* ── GRID ── */
+#s-grid{padding:120px 0;}
+.grid-title{
+  font-size:clamp(36px,5.5vw,60px);font-weight:700;
+  letter-spacing:-.04em;line-height:1.05;
+  color:var(--text);margin-bottom:56px;
+}
+.grid-title em{font-style:normal;color:var(--gold);}
+.grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:1px;background:rgba(255,255,255,.09);
+  border-radius:20px;overflow:hidden;
+}
+@media(max-width:480px){.grid{grid-template-columns:1fr;}}
+.cell{padding:40px 30px;background:#000;transition:background .15s;}
+.cell:hover{background:#0b0b0b;}
+.cell-n{
+  font-size:clamp(22px,3.5vw,36px);font-weight:700;
+  letter-spacing:-.03em;color:var(--text);margin-bottom:8px;
+  line-height:1;
+}
+.cell-n b{color:var(--gold);}
+.cell-t{font-size:14px;font-weight:300;color:var(--text2);line-height:1.65;}
 
+/* ── WEB4 ── */
+#s-web4{padding:120px 0;}
+.w4-row{
+  display:flex;align-items:baseline;gap:20px;
+  padding:18px 0;border-bottom:1px solid rgba(255,255,255,.07);
+}
+.w4-era{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.06em;width:38px;flex-shrink:0;}
+.w4-w{font-size:clamp(30px,6vw,68px);font-weight:700;letter-spacing:-.04em;line-height:1;color:rgba(255,255,255,.13);}
+.w4-w.on{color:var(--text);}
+.w4-d{font-size:13px;font-weight:300;color:var(--text3);margin-left:auto;text-align:right;max-width:140px;line-height:1.5;}
+.w4-d.on{color:var(--text2);}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-.lp{position:relative;z-index:1;}
-.lp-hero{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:100px 28px 80px;text-align:center;overflow:hidden;}
-.lp-badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-m);font-size:11px;letter-spacing:.07em;color:var(--gold);background:rgba(240,168,48,.07);border:1px solid rgba(240,168,48,.18);border-radius:100px;padding:7px 15px;margin-bottom:28px;opacity:0;animation:fadeUp .55s .05s ease forwards;}
-.lp-badge-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;background:var(--gold);box-shadow:0 0 7px var(--gold);animation:pulse 2s ease infinite;}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.lp-logo{font-family:var(--font-d);font-size:clamp(28px,9vw,148px);font-weight:800;letter-spacing:-.015em;line-height:.95;background:linear-gradient(140deg,var(--gold) 0%,#fff 38%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:44px;width:100%;opacity:0;animation:fadeUp .7s .15s ease forwards;}
-.lp-ctas{display:flex;gap:5px;flex-wrap:nowrap;justify-content:center;opacity:0;animation:fadeUp .55s .32s ease forwards;}
-@media(max-width:480px){.lp-btn{padding:7px 9px;font-size:10px;gap:3px;}}
-.lp-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:10px 16px;border-radius:10px;font-family:var(--font-b);font-size:12px;font-weight:600;letter-spacing:.01em;cursor:pointer;border:none;text-decoration:none;transition:all .18s ease;}
-.lp-btn-primary{background:linear-gradient(135deg,var(--gold),rgba(240,168,48,.75));color:#05030a;box-shadow:0 0 0 1px rgba(240,168,48,.28),0 4px 22px rgba(240,168,48,.18);}
-.lp-btn-primary:hover{box-shadow:0 0 0 1px rgba(240,168,48,.5),0 8px 34px rgba(240,168,48,.32);transform:translateY(-1px)}
-.lp-btn-secondary{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--text3);}
-.lp-btn-secondary:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.15);color:var(--text2)}
-.lp-btn-manifesto{background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.18);color:rgba(167,139,250,.7);}
-.lp-btn-manifesto:hover{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.35);color:var(--purple)}
-.lp-btn-theory{background:rgba(8,224,248,.06);border:1px solid rgba(8,224,248,.18);color:rgba(8,224,248,.7);}
-.lp-btn-theory:hover{background:rgba(8,224,248,.11);border-color:rgba(8,224,248,.35);color:var(--cyan)}
-@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-.lp-body{max-width:600px;margin:0 auto;padding:0 28px 120px;}
-.lp-vline{width:1px;height:64px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.07),transparent);margin:0 auto 64px;}
-.lp-sep{height:220px;}.lp-sep-sm{height:80px;}
-.lp-label{font-family:var(--font-m);font-size:9px;color:var(--gold);letter-spacing:.24em;text-transform:uppercase;margin-bottom:18px;opacity:.65;}
-.lp-h{font-family:var(--font-d);font-size:clamp(26px,5vw,52px);font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--text);margin-bottom:20px;}
-.lp-h em{font-style:normal;background:linear-gradient(90deg,var(--gold),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.lp-p{font-size:clamp(14px,1.9vw,16px);color:var(--text2);line-height:1.82;}
-.lp-p+.lp-p{margin-top:10px;}
-.lp-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px;}
-.lp-tag{font-family:var(--font-b);font-size:13px;font-weight:500;color:var(--text2);letter-spacing:.01em;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 14px;transition:border-color .15s,color .15s;}
-.lp-tag:hover{border-color:rgba(255,255,255,.14);color:var(--text)}
-.lp-quote{font-family:var(--font-d);font-size:clamp(17px,3vw,26px);font-weight:700;line-height:1.4;color:var(--text);border-left:2px solid rgba(240,168,48,.38);padding-left:18px;margin-bottom:22px;}
-.lp-stanza{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
-.lp-line{font-size:clamp(13px,1.8vw,15px);color:var(--text3);line-height:1.75;}
-.lp-line.hi{color:var(--text);font-weight:600;}
-.lp-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:20px 0;}
-.lp-gitem{padding:15px 17px;border-radius:11px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.065);font-family:var(--font-m);font-size:11px;letter-spacing:.05em;color:var(--text2);}
-.lp-gitem:nth-child(1){border-left-color:rgba(34,211,238,.25);}.lp-gitem:nth-child(2){border-left-color:rgba(240,168,48,.25);}
-.lp-gitem:nth-child(3){border-left-color:rgba(167,139,250,.25);}.lp-gitem:nth-child(4){border-left-color:rgba(34,211,238,.18);}
-.lp-instant{font-family:var(--font-d);font-size:clamp(18px,3.5vw,32px);font-weight:800;letter-spacing:.01em;color:var(--cyan);margin:20px 0;}
-.lp-negs{display:flex;flex-direction:column;gap:7px;margin:16px 0;}
-.lp-neg{font-size:clamp(13px,1.7vw,15px);color:var(--text3);}
-.lp-neg::before{content:'— ';color:rgba(255,69,96,.35);}
-.lp-card{background:rgba(255,255,255,.022);border:1px solid rgba(255,255,255,.068);border-radius:16px;padding:28px 22px;}
-.lp-card-lines{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;}
-.lp-card-line{font-size:clamp(14px,1.9vw,16px);color:var(--text3);line-height:1.65;}
-.lp-card-line.hi{font-weight:600;background:linear-gradient(90deg,var(--gold),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.lp-welcome{font-family:var(--font-d);font-size:clamp(24px,4.5vw,44px);font-weight:800;letter-spacing:-.01em;color:var(--text);margin-bottom:28px;}
-.lp-footer{text-align:center;padding:72px 28px calc(72px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(255,255,255,.05);}
-.lp-footer-logo{font-family:var(--font-d);font-size:clamp(22px,5vw,40px);font-weight:800;letter-spacing:.05em;background:linear-gradient(135deg,var(--gold),#fff,var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:10px;}
-.lp-footer-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);letter-spacing:.2em;text-transform:uppercase;margin-bottom:6px;}
-.lp-footer-tag{font-family:var(--font-m);font-size:10px;color:rgba(240,168,48,.3);letter-spacing:.15em;}
-.lp-illo{width:100%;height:70px;margin:20px 0;display:block;}
-.lp-illo-wrap{opacity:1;}
-
-/* Theory overlay */
-#theory-overlay{position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease;}
-#theory-overlay.open{opacity:1;pointer-events:all;}
-#theory-inner{max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));}
-#theory-close{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;display:none;align-items:center;justify-content:center;background:rgba(5,5,7,.85);border:1px solid rgba(8,224,248,.2);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--text2);font-size:18px;width:48px;height:48px;border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);z-index:1001;}
-#theory-close:hover{background:rgba(8,224,248,.08);color:var(--cyan);}
-.th-eyebrow{font-family:var(--font-m);font-size:9px;color:var(--cyan);letter-spacing:.28em;text-transform:uppercase;margin-bottom:16px;opacity:.7;}
-.th-h{font-family:var(--font-d);font-size:clamp(22px,4vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.1;color:var(--text);margin-bottom:24px;}
-.th-p{font-size:clamp(13px,1.7vw,15px);color:var(--text2);line-height:1.85;margin-bottom:18px;}
-.th-p strong{color:var(--text);font-weight:600;}
-.th-p em{font-style:normal;color:var(--cyan);}
-.th-sep{height:40px;}
-.th-label{font-family:var(--font-m);font-size:9px;color:var(--cyan);letter-spacing:.24em;text-transform:uppercase;margin-bottom:14px;opacity:.65;}
-.th-quote{font-family:var(--font-d);font-size:clamp(16px,2.5vw,22px);font-weight:700;line-height:1.4;color:var(--text);border-left:2px solid rgba(8,224,248,.35);padding-left:18px;margin-bottom:22px;}
-.th-block{background:rgba(8,224,248,.04);border:1px solid rgba(8,224,248,.1);border-radius:12px;padding:22px 20px;margin-bottom:18px;}
-.th-block-label{font-family:var(--font-m);font-size:10px;color:var(--cyan);letter-spacing:.18em;text-transform:uppercase;margin-bottom:10px;opacity:.6;}
-.th-block-text{font-size:clamp(13px,1.7vw,15px);color:var(--text2);line-height:1.75;}
-.th-chain{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:20px 0;}
-.th-chain-item{font-family:var(--font-m);font-size:11px;color:var(--text2);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 13px;}
-.th-chain-arrow{color:var(--cyan);font-size:14px;opacity:.5;flex-shrink:0;}
-.th-negs{display:flex;flex-direction:column;gap:8px;margin:16px 0;}
-.th-neg{font-size:clamp(13px,1.7vw,15px);color:var(--text3);}
-.th-neg::before{content:'— ';color:rgba(8,224,248,.4);}
-.th-final{font-family:var(--font-d);font-size:clamp(18px,3vw,28px);font-weight:800;letter-spacing:-.01em;color:var(--text);margin:28px 0 8px;}
-
-/* Manifesto overlay */
-#manifesto-overlay{position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transition:opacity .35s ease;}
-#manifesto-overlay.open{opacity:1;pointer-events:all;}
-#manifesto-inner{max-width:680px;margin:0 auto;padding:60px 28px calc(80px + env(safe-area-inset-bottom,0px));}
-#manifesto-close{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;display:none;align-items:center;justify-content:center;background:rgba(5,5,7,.85);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:var(--text2);font-size:18px;width:48px;height:48px;border-radius:50%;cursor:pointer;transition:all .15s;font-family:var(--font-b);z-index:1001;}
-#manifesto-close:hover{background:rgba(255,255,255,.1);color:var(--text);}
-.mf-illo{width:100%;height:80px;margin:16px 0;display:block;overflow:visible;}
-.mf-illo-wrap{opacity:0;transform:translateY(8px);transition:opacity .6s ease,transform .6s ease;}
-.mf-illo-wrap.visible{opacity:1;transform:none;}
-.mf-eyebrow{font-family:var(--font-m);font-size:9px;color:var(--purple);letter-spacing:.28em;text-transform:uppercase;margin-bottom:16px;opacity:.7;}
-.mf-title{font-family:var(--font-d);font-size:clamp(22px,5vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.1;background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px;}
-.mf-subtitle{font-family:var(--font-m);font-size:clamp(10px,1.5vw,12px);color:var(--text3);margin-bottom:40px;line-height:1.6;}
-.mf-sep{height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);margin:32px 0;}
-.mf-section-label{font-family:var(--font-m);font-size:8px;color:var(--purple);letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px;opacity:.6;}
-.mf-section-title{font-family:var(--font-d);font-size:clamp(16px,3vw,24px);font-weight:800;color:var(--text);margin-bottom:12px;line-height:1.2;}
-.mf-p{font-size:clamp(13px,1.8vw,15px);color:var(--text2);line-height:1.85;margin-bottom:10px;}
-.mf-quote{font-family:var(--font-d);font-size:clamp(14px,2.2vw,18px);font-weight:700;color:var(--text);border-left:2px solid rgba(167,139,250,.4);padding-left:16px;margin:20px 0;line-height:1.5;}
-.mf-table{width:100%;border-collapse:collapse;margin:20px 0;font-family:var(--font-m);font-size:11px;}
-.mf-table th{text-align:left;padding:8px 12px;color:var(--text3);letter-spacing:.1em;border-bottom:1px solid rgba(255,255,255,.06);}
-.mf-table td{padding:8px 12px;color:var(--text2);border-bottom:1px solid rgba(255,255,255,.04);vertical-align:top;}
-.mf-table td:first-child{color:var(--text3);}
-.mf-code{font-family:var(--font-m);font-size:11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px 16px;color:var(--cyan);margin:16px 0;white-space:pre;overflow-x:auto;}
-.mf-primitives{display:flex;flex-direction:column;gap:8px;margin:16px 0;}
-.mf-primitive{padding:12px 14px;border-radius:8px;background:rgba(167,139,250,.04);border:1px solid rgba(167,139,250,.1);font-size:13px;color:var(--text2);line-height:1.6;}
-.mf-primitive strong{color:var(--purple);}
-.mf-end{font-family:var(--font-d);font-size:clamp(14px,2.5vw,20px);font-weight:800;color:var(--text);text-align:center;margin:40px 0 8px;line-height:1.4;}
-.mf-end-sub{font-family:var(--font-m);font-size:11px;color:var(--text3);text-align:center;letter-spacing:.1em;}
-
-/* Theory SVGs */
-.th-svg{width:100%;margin:20px 0;display:block;overflow:visible;}
+/* ── CTA ── */
+#s-cta{
+  padding:180px 24px calc(160px + env(safe-area-inset-bottom,0px));
+  text-align:center;
+  background:radial-gradient(ellipse 70% 50% at 50% 100%,rgba(240,168,48,.05),transparent 60%);
+}
+.cta-title{
+  font-size:clamp(60px,14vw,148px);font-weight:700;
+  letter-spacing:-.048em;line-height:.88;
+  color:var(--text);margin-bottom:48px;
+}
+.cta-title span{color:rgba(245,245,247,.18);}
+.cta-just{
+  font-size:clamp(18px,2.5vw,22px);font-weight:300;
+  color:var(--text2);letter-spacing:-.01em;
+}
 </style>
 
 <canvas id="ym-canvas"></canvas>
 
 <div id="ym-landing">
-  <div class="lp lp-hero">
-    <div class="lp-badge"><span class="lp-badge-dot"></span>&gt; One prompt. One sovereign web.</div>
-    <div class="lp-logo">YOURMINE</div>
-    <div class="lp-ctas">
-      <button class="lp-btn lp-btn-primary" id="lp-start-btn">&#9654; Start</button>
-      <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
-      <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn">✦ Manifesto</button>
-      <button class="lp-btn lp-btn-theory" id="lp-theory-btn">◈ Theory</button>
-    </div>
-  </div>
-  <div class="lp lp-body">
-    <div class="lp-vline"></div>
-    <div class="reveal">
-      <div class="lp-label">The open web playground</div>
-      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <path d="M40,35 C100,35 120,15 180,15" stroke="rgba(240,168,48,0.5)" stroke-width="1.5" fill="none"/>
-  <path d="M40,35 C100,35 120,35 180,35" stroke="rgba(240,168,48,0.35)" stroke-width="1.5" fill="none"/>
-  <path d="M40,35 C100,35 120,55 180,55" stroke="rgba(240,168,48,0.2)" stroke-width="1.5" fill="none"/>
-  <path d="M180,15 C240,15 260,8 320,8" stroke="rgba(76,201,240,0.4)" stroke-width="1" fill="none"/>
-  <path d="M180,15 C240,15 260,22 320,22" stroke="rgba(76,201,240,0.3)" stroke-width="1" fill="none"/>
-  <path d="M180,35 C240,35 260,28 320,28" stroke="rgba(167,139,250,0.3)" stroke-width="1" fill="none"/>
-  <path d="M180,35 C240,35 260,42 320,42" stroke="rgba(167,139,250,0.3)" stroke-width="1" fill="none"/>
-  <path d="M180,55 C240,55 260,48 320,48" stroke="rgba(240,168,48,0.2)" stroke-width="1" fill="none"/>
-  <path d="M180,55 C240,55 260,62 320,62" stroke="rgba(240,168,48,0.15)" stroke-width="1" fill="none"/>
-  <circle cx="320" cy="8" r="2" fill="rgba(76,201,240,0.6)"/>
-  <circle cx="320" cy="22" r="2" fill="rgba(76,201,240,0.5)"/>
-  <circle cx="320" cy="28" r="2" fill="rgba(167,139,250,0.6)"/>
-  <circle cx="320" cy="42" r="2" fill="rgba(167,139,250,0.5)"/>
-  <circle cx="320" cy="48" r="2" fill="rgba(240,168,48,0.5)"/>
-  <circle cx="320" cy="62" r="2" fill="rgba(240,168,48,0.4)"/>
-  <circle cx="40" cy="35" r="5" fill="rgba(240,168,48,0.15)" stroke="rgba(240,168,48,0.6)" stroke-width="1.5"/>
-  <circle cx="40" cy="35" r="2" fill="rgba(240,168,48,0.8)"/>
-</svg></div>
-      <div class="lp-h">Build weird things.<br>Shape the web.</div>
-      <div class="lp-tags">
-        <span class="lp-tag">Connect anything</span>
-        <span class="lp-tag">Remix interactions</span>
-        <span class="lp-tag">Fork realities</span>
-        <span class="lp-tag">Create worlds together</span>
-      </div>
-    </div>
-    <div class="lp-sep"></div>
-    <div class="reveal">
-      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <rect x="20" y="22" width="160" height="26" rx="4" fill="rgba(255,255,255,0.03)" stroke="rgba(240,168,48,0.2)" stroke-width="1"/>
-  <text x="32" y="39" font-family="monospace" font-size="10" fill="rgba(240,168,48,0.6)">_&gt; prompt</text>
-  <rect x="112" y="29" width="8" height="12" rx="1" fill="rgba(240,168,48,0.5)"><animate attributeName="opacity" values="1;0;1" dur="1.2s" repeatCount="indefinite"/></rect>
-  <path d="M185,35 L240,35" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
-  <circle cx="240" cy="35" r="2" fill="rgba(255,255,255,0.2)"/>
-  <circle cx="340" cy="35" r="4" fill="rgba(76,201,240,0.7)"/>
-  <circle cx="380" cy="20" r="3" fill="rgba(167,139,250,0.5)"/>
-  <circle cx="380" cy="50" r="3" fill="rgba(167,139,250,0.5)"/>
-  <circle cx="420" cy="12" r="2.5" fill="rgba(76,201,240,0.4)"/>
-  <circle cx="420" cy="35" r="2.5" fill="rgba(76,201,240,0.4)"/>
-  <circle cx="420" cy="58" r="2.5" fill="rgba(76,201,240,0.4)"/>
-  <circle cx="460" cy="25" r="2" fill="rgba(240,168,48,0.4)"/>
-  <circle cx="460" cy="45" r="2" fill="rgba(240,168,48,0.4)"/>
-  <line x1="340" y1="35" x2="380" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <line x1="340" y1="35" x2="380" y2="50" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <line x1="380" y1="20" x2="420" y2="12" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <line x1="380" y1="20" x2="420" y2="35" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <line x1="380" y1="50" x2="420" y2="35" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <line x1="380" y1="50" x2="420" y2="58" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-</svg></div>
-      <div class="lp-quote">Give one prompt anywhere —<br>even from your phone.</div>
-      <div class="lp-stanza">
-        <div class="lp-line">You enter a shared context of creation.</div>
-        <div class="lp-line">Where giving is receiving.</div>
-        <div class="lp-line">Without intermediaries.</div>
-        <div class="lp-line hi">As long as your web exists.</div>
-      </div>
-    </div>
-    <div class="lp-sep"></div>
-    <div class="reveal">
-      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="120" cy="35" r="8" fill="rgba(240,168,48,0.15)" stroke="rgba(240,168,48,0.5)" stroke-width="1.5"/>
-  <circle cx="120" cy="35" r="3" fill="rgba(240,168,48,0.8)"><animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite"/></circle>
-  <line x1="128" y1="35" x2="200" y2="35" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-  <rect x="200" y="10" width="90" height="20" rx="3" fill="rgba(76,201,240,0.08)" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-  <text x="245" y="24" font-family="monospace" font-size="8" fill="rgba(76,201,240,0.7)" text-anchor="middle">interaction</text>
-  <rect x="200" y="35" width="90" height="20" rx="3" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <text x="245" y="49" font-family="monospace" font-size="8" fill="rgba(167,139,250,0.7)" text-anchor="middle">participation</text>
-  <rect x="310" y="10" width="90" height="20" rx="3" fill="rgba(167,139,250,0.08)" stroke="rgba(167,139,250,0.25)" stroke-width="1"/>
-  <text x="355" y="24" font-family="monospace" font-size="8" fill="rgba(167,139,250,0.6)" text-anchor="middle">propagation</text>
-  <rect x="310" y="35" width="110" height="20" rx="3" fill="rgba(76,201,240,0.06)" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <text x="365" y="49" font-family="monospace" font-size="8" fill="rgba(76,201,240,0.5)" text-anchor="middle">interoperability</text>
-  <line x1="128" y1="30" x2="200" y2="20" stroke="rgba(76,201,240,0.2)" stroke-width="1"/>
-  <line x1="128" y1="40" x2="200" y2="45" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
-</svg></div>
-      <div class="lp-h">One action is enough.</div>
-      <p class="lp-p">A single prompt — or a single line — can connect your code to a living layer of:</p>
-      <div class="lp-grid">
-        <div class="lp-gitem">interaction</div>
-        <div class="lp-gitem">participation</div>
-        <div class="lp-gitem">propagation</div>
-        <div class="lp-gitem">interoperability</div>
-      </div>
-      <div class="lp-instant">Instantly.</div>
-      <div class="lp-negs">
-        <div class="lp-neg">No setup.</div>
-        <div class="lp-neg">No deployment friction.</div>
-        <div class="lp-neg">No platform lock-in.</div>
-      </div>
-    </div>
-    <div class="lp-sep"></div>
-    <div class="reveal">
-      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <text x="80" y="25" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.12)" text-anchor="middle">identity</text>
-  <line x1="35" y1="25" x2="125" y2="25" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <text x="80" y="48" font-family="monospace" font-size="11" fill="rgba(255,255,255,0.08)" text-anchor="middle">ownership</text>
-  <line x1="30" y1="48" x2="130" y2="48" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-  <line x1="200" y1="10" x2="200" y2="60" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-  <text x="380" y="40" font-family="monospace" font-size="16" fill="rgba(240,168,48,0.9)" text-anchor="middle" font-weight="bold">participation</text>
-  <circle cx="380" cy="36" r="40" fill="none" stroke="rgba(240,168,48,0.08)" stroke-width="20"/>
-  <circle cx="380" cy="36" r="28" fill="none" stroke="rgba(240,168,48,0.06)" stroke-width="12"/>
-</svg></div>
-      <div class="lp-label">Core principle</div>
-      <div class="lp-card">
-        <div class="lp-card-lines">
-          <div class="lp-card-line">Identity does not matter.</div>
-          <div class="lp-card-line">Ownership does not matter.</div>
-          <div class="lp-card-line hi">Only participation.</div>
-        </div>
-        <p class="lp-p">Participation generates value — continuously redistributed through a built-in protocol.</p>
-      </div>
-    </div>
-    <div class="lp-sep"></div>
-    <div class="reveal">
-      <div class="lp-illo-wrap"><svg class="lp-illo" viewBox="0 0 600 70" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="300" cy="35" r="15" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="3,3"/>
-  <line x1="289" y1="24" x2="311" y2="46" stroke="rgba(255,69,96,0.2)" stroke-width="1.5"/>
-  <line x1="311" y1="24" x2="289" y2="46" stroke="rgba(255,69,96,0.2)" stroke-width="1.5"/>
-  <circle cx="80" cy="20" r="5" fill="rgba(76,201,240,0.2)" stroke="rgba(76,201,240,0.5)" stroke-width="1"/>
-  <circle cx="160" cy="55" r="5" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
-  <circle cx="200" cy="15" r="5" fill="rgba(240,168,48,0.2)" stroke="rgba(240,168,48,0.5)" stroke-width="1"/>
-  <circle cx="400" cy="20" r="5" fill="rgba(240,168,48,0.2)" stroke="rgba(240,168,48,0.5)" stroke-width="1"/>
-  <circle cx="440" cy="55" r="5" fill="rgba(76,201,240,0.2)" stroke="rgba(76,201,240,0.5)" stroke-width="1"/>
-  <circle cx="520" cy="15" r="5" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.5)" stroke-width="1"/>
-  <line x1="80" y1="20" x2="160" y2="55" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <line x1="80" y1="20" x2="200" y2="15" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <line x1="160" y1="55" x2="200" y2="15" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-  <line x1="400" y1="20" x2="440" y2="55" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <line x1="400" y1="20" x2="520" y2="15" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <line x1="440" y1="55" x2="520" y2="15" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-  <line x1="200" y1="15" x2="400" y2="20" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-</svg></div>
-      <div class="lp-negs">
-        <div class="lp-neg">No central authority.</div>
-        <div class="lp-neg">No platform dependency.</div>
-        <div class="lp-neg">No fixed reality.</div>
-      </div>
-    </div>
-    <div class="lp-sep"></div>
-    <div class="reveal" style="text-align:center">
-      <div class="lp-label" style="text-align:center;margin-bottom:12px">Web4</div>
-      <div class="lp-card-lines" style="text-align:center;margin-bottom:20px">
-        <div class="lp-card-line">Web1 = connect.</div>
-        <div class="lp-card-line">Web2 = interact.</div>
-        <div class="lp-card-line">Web3 = own.</div>
-        <div class="lp-card-line hi">Web4 = liberate.</div>
-      </div>
-      <div class="lp-welcome">Welcome to YourMine.</div>
-      <div class="lp-ctas" style="justify-content:center">
-        <button class="lp-btn lp-btn-primary" id="lp-start-btn-2">&#9654; Start</button>
-        <a class="lp-btn lp-btn-secondary" href="https://github.com/theodoreyong9/YourMinedApp/blob/main/README.md" target="_blank" rel="noopener">&gt;_ prompt</a>
-        <button class="lp-btn lp-btn-manifesto" id="lp-manifesto-btn-2">✦ Manifesto</button>
-        <button class="lp-btn lp-btn-theory" id="lp-theory-btn-2">◈ Theory</button>
-      </div>
-    </div>
-  </div>
-  <div class="lp lp-footer">
-    <div class="lp-footer-logo">YOURMINE</div>
-    <div class="lp-footer-sub">Code. Remix. Connect. Repeat.</div>
-    <div class="lp-footer-tag">No limits.</div>
-  </div>
-</div>
 
-<!-- Manifesto overlay -->
-<div id="manifesto-overlay">
-  <div id="manifesto-inner">
-    <div class="mf-eyebrow">Manifesto</div>
-    <div class="mf-title">Participation is All You Need</div>
-    <div class="mf-subtitle">Toward distributed cognitive substrates beyond the transformer paradigm</div>
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">1. The limits of attention</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="g1" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#a78bfa" stop-opacity="0.8"/><stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/></radialGradient></defs><g opacity="0.25"><circle cx="42" cy="20" r="1.5" fill="#a78bfa"/><circle cx="78" cy="55" r="1" fill="#a78bfa"/><circle cx="130" cy="15" r="2" fill="#a78bfa"/><circle cx="160" cy="60" r="1" fill="#a78bfa"/><circle cx="200" cy="30" r="1.5" fill="#a78bfa"/><circle cx="450" cy="20" r="2" fill="#a78bfa"/><circle cx="490" cy="55" r="1.5" fill="#a78bfa"/><circle cx="530" cy="15" r="1" fill="#a78bfa"/><circle cx="560" cy="60" r="2" fill="#a78bfa"/><circle cx="510" cy="35" r="1.5" fill="#a78bfa"/></g><path d="M0,10 Q300,40 600,10" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/><path d="M0,70 Q300,40 600,70" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/><path d="M180,5 Q300,40 420,5" stroke="rgba(167,139,250,0.25)" stroke-width="1" fill="none"/><path d="M180,75 Q300,40 420,75" stroke="rgba(167,139,250,0.25)" stroke-width="1" fill="none"/><circle cx="300" cy="40" r="24" fill="url(#g1)"/><circle cx="300" cy="40" r="4" fill="#a78bfa" opacity="0.9"><animate attributeName="r" values="4;6;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.9;0.5;0.9" dur="3s" repeatCount="indefinite"/></circle></svg></div>
-    <div class="mf-p">The transformer architecture demonstrated that a single mechanism — scaled attention over token sequences — could unify language understanding and generation. Eight years later, transformers dominate AI. Yet a structural tension has emerged: increasingly centralized, stateless between sessions, dependent on knowledge frozen at training time.</div>
-    <div class="mf-p">In most current product implementations, a transformer has no memory beyond its context window. Every session begins from zero. The intelligence lives in data centers. Users are treated as endpoints. These are not inevitable failures — they are consequences of design choices that the participation paradigm proposes to complement.</div>
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">2. What participation offers</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg"><line x1="300" y1="40" x2="180" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="300" y1="40" x2="420" y2="20" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="300" y1="40" x2="180" y2="60" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="300" y1="40" x2="420" y2="60" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><line x1="180" y1="20" x2="80" y2="15" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><line x1="420" y1="20" x2="520" y2="15" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><line x1="180" y1="60" x2="80" y2="65" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><line x1="420" y1="60" x2="520" y2="65" stroke="rgba(76,201,240,0.2)" stroke-width="1"/><circle cx="80" cy="15" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="520" cy="15" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="80" cy="65" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="520" cy="65" r="3" fill="#4cc9f0" opacity="0.5"/><circle cx="180" cy="20" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="420" cy="20" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="180" cy="60" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="420" cy="60" r="5" fill="#a78bfa" opacity="0.7"/><circle cx="300" cy="40" r="10" fill="rgba(167,139,250,0.15)"/><circle cx="300" cy="40" r="6" fill="#a78bfa" opacity="0.9"><animate attributeName="r" values="6;9;6" dur="2s" repeatCount="indefinite"/></circle></svg></div>
-    <div class="mf-quote">Participation generates persistent state.<br>Participation distributes knowledge across time.<br>Participation decentralizes intelligence.</div>
-    <div class="mf-p">When a user participates in a network, structured behavioral signals accumulate into a living representation that persists between sessions — not a context window but a profile that evolves.</div>
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">3. The paradigm shift</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg"><rect x="60" y="15" width="80" height="12" rx="2" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/><rect x="60" y="32" width="80" height="12" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.2)" stroke-width="1"/><rect x="60" y="49" width="80" height="12" rx="2" fill="rgba(167,139,250,0.1)" stroke="rgba(167,139,250,0.15)" stroke-width="1"/><path d="M220,40 L340,40" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" marker-end="url(#arr)"/><defs><marker id="arr" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1"/></marker></defs><circle cx="420" cy="25" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><circle cx="460" cy="50" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><circle cx="500" cy="25" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><circle cx="540" cy="50" r="8" fill="rgba(76,201,240,0.15)" stroke="rgba(76,201,240,0.4)" stroke-width="1"/><line x1="420" y1="25" x2="460" y2="50" stroke="rgba(76,201,240,0.3)" stroke-width="1"/><line x1="460" y1="50" x2="500" y2="25" stroke="rgba(76,201,240,0.3)" stroke-width="1"/><line x1="500" y1="25" x2="540" y2="50" stroke="rgba(76,201,240,0.3)" stroke-width="1"/><line x1="420" y1="25" x2="500" y2="25" stroke="rgba(76,201,240,0.2)" stroke-width="1"/></svg></div>
-    <table class="mf-table">
-      <tr><th></th><th>Transformer</th><th>Hybrid</th><th>Participation</th></tr>
-      <tr><td>Memory</td><td>Context window</td><td>RAG / external store</td><td>Living profile</td></tr>
-      <tr><td>Knowledge</td><td>Frozen at training</td><td>Retrieved at query</td><td>Continuously updated</td></tr>
-      <tr><td>Identity</td><td>Stateless session</td><td>User account</td><td>Non-consistent living identity</td></tr>
-      <tr><td>Value</td><td>Accrues to platform</td><td>Partially shared</td><td>Generated by users</td></tr>
-    </table>
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">4. Attention ≠ Participation</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <line x1="40" y1="40" x2="260" y2="40" stroke="rgba(167,139,250,0.4)" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="150" y="30" font-family="monospace" font-size="8" fill="rgba(167,139,250,0.4)" text-anchor="middle">attention</text>
-  <text x="300" y="44" font-family="monospace" font-size="16" fill="rgba(255,255,255,0.2)" text-anchor="middle">≠</text>
-  <path d="M340,40 Q360,15 380,40 Q400,65 420,40 Q440,15 460,40 Q480,65 500,40 Q520,15 540,40" stroke="rgba(76,201,240,0.6)" stroke-width="1.5" fill="none"/>
-  <text x="450" y="72" font-family="monospace" font-size="8" fill="rgba(76,201,240,0.5)" text-anchor="middle">participation</text>
-</svg></div>
-    <div class="mf-p">Most social networks function less as participation systems and more as attention extraction systems. Their primary metric tends to be time on screen, clicks, engagement — not contribution, coordination, or emergence.</div>
-    <div class="mf-quote">Social networks have largely failed to produce collective intelligence — not because it is impossible, but because their architecture was optimized for a different goal.</div>
-    <div class="mf-p">The productive opposition is not individual ↔ crowd. It is <strong style="color:var(--purple)">attention ↔ participation</strong>.</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive"><strong>Intelligence as representation</strong> — the system builds a model and responds. Intelligence localized in weights. Benchmarkable.</div>
-      <div class="mf-primitive"><strong>Intelligence as dynamics</strong> — the system evolves toward better configurations. Intelligence in the trajectory. The question is not "what does it know?" but "where does it go?"</div>
-    </div>
+<!-- hero -->
+<section id="hero">
+  <h1 class="hero-title">YOURMINE</h1>
+  <p class="hero-sub"><strong>Ungovernable web.</strong></p>
+  <button class="btn-start" id="lp-start-btn">Start ›</button>
+</section>
 
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">5. Collective reasoning is reorganization</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="50" cy="30" r="2" fill="rgba(167,139,250,0.4)"/><circle cx="90" cy="55" r="2" fill="rgba(167,139,250,0.4)"/>
-  <circle cx="70" cy="20" r="2" fill="rgba(167,139,250,0.4)"/><circle cx="110" cy="45" r="2" fill="rgba(167,139,250,0.4)"/>
-  <circle cx="55" cy="65" r="2" fill="rgba(167,139,250,0.4)"/><circle cx="130" cy="25" r="2" fill="rgba(167,139,250,0.4)"/>
-  <path d="M200,40 L380,40" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
-  <circle cx="380" cy="40" r="2" fill="rgba(255,255,255,0.2)"/>
-  <g transform="translate(420,40)">
-    <circle cx="0" cy="0" r="3" fill="rgba(76,201,240,0.7)"/>
-    <circle cx="20" cy="0" r="3" fill="rgba(76,201,240,0.6)"/>
-    <circle cx="-20" cy="0" r="3" fill="rgba(76,201,240,0.6)"/>
-    <circle cx="10" cy="-17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <circle cx="-10" cy="-17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <circle cx="10" cy="17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <circle cx="-10" cy="17" r="3" fill="rgba(76,201,240,0.5)"/>
-    <line x1="0" y1="0" x2="20" y2="0" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="-20" y2="0" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="10" y2="-17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="-10" y2="-17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="10" y2="17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
-    <line x1="0" y1="0" x2="-10" y2="17" stroke="rgba(76,201,240,0.3)" stroke-width="1"/>
+<hr class="d">
+
+<!-- svg — network -->
+<section style="padding:80px 0;overflow:hidden;">
+<svg viewBox="0 0 960 280" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+  <defs>
+    <filter id="gl"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <radialGradient id="rg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#2dd4bf" stop-opacity=".45"/><stop offset="100%" stop-color="#2dd4bf" stop-opacity="0"/></radialGradient>
+  </defs>
+  <ellipse cx="480" cy="140" rx="440" ry="130" fill="none" stroke="rgba(45,212,191,.03)" stroke-width="1"/>
+  <ellipse cx="480" cy="140" rx="300" ry="90" fill="none" stroke="rgba(45,212,191,.05)" stroke-width="1"/>
+  <ellipse cx="480" cy="140" rx="150" ry="48" fill="none" stroke="rgba(45,212,191,.09)" stroke-width="1"/>
+  <!-- outer nodes -->
+  <circle cx="55" cy="55" r="2" fill="#2dd4bf"><animate attributeName="opacity" values=".2;.6;.2" dur="4.2s" repeatCount="indefinite"/></circle>
+  <circle cx="905" cy="55" r="2" fill="#f0a830"><animate attributeName="opacity" values=".5;.2;.5" dur="3.6s" repeatCount="indefinite"/></circle>
+  <circle cx="55" cy="225" r="2" fill="#a78bfa"><animate attributeName="opacity" values=".3;.7;.3" dur="5.1s" repeatCount="indefinite"/></circle>
+  <circle cx="905" cy="225" r="2" fill="#2dd4bf"><animate attributeName="opacity" values=".7;.3;.7" dur="2.9s" repeatCount="indefinite"/></circle>
+  <circle cx="290" cy="25" r="1.5" fill="#f0a830"><animate attributeName="opacity" values=".4;.9;.4" dur="3.3s" repeatCount="indefinite"/></circle>
+  <circle cx="670" cy="25" r="1.5" fill="#a78bfa"><animate attributeName="opacity" values=".8;.3;.8" dur="4s" repeatCount="indefinite"/></circle>
+  <circle cx="290" cy="255" r="1.5" fill="#2dd4bf"><animate attributeName="opacity" values=".3;.7;.3" dur="3.8s" repeatCount="indefinite"/></circle>
+  <circle cx="670" cy="255" r="1.5" fill="#f0a830"><animate attributeName="opacity" values=".6;.2;.6" dur="4.6s" repeatCount="indefinite"/></circle>
+  <!-- mid nodes -->
+  <circle cx="195" cy="95" r="4" fill="#2dd4bf" opacity=".5" filter="url(#gl)"/>
+  <circle cx="765" cy="95" r="4" fill="#f0a830" opacity=".5" filter="url(#gl)"/>
+  <circle cx="195" cy="195" r="4" fill="#a78bfa" opacity=".5" filter="url(#gl)"/>
+  <circle cx="765" cy="195" r="4" fill="#2dd4bf" opacity=".5" filter="url(#gl)"/>
+  <!-- lines -->
+  <g fill="none" opacity=".1">
+    <line x1="55" y1="55" x2="195" y2="95" stroke="#2dd4bf" stroke-width="1"/>
+    <line x1="905" y1="55" x2="765" y2="95" stroke="#f0a830" stroke-width="1"/>
+    <line x1="55" y1="225" x2="195" y2="195" stroke="#a78bfa" stroke-width="1"/>
+    <line x1="905" y1="225" x2="765" y2="195" stroke="#2dd4bf" stroke-width="1"/>
+    <line x1="290" y1="25" x2="480" y2="140" stroke="#f0a830" stroke-width="1"/>
+    <line x1="670" y1="25" x2="480" y2="140" stroke="#a78bfa" stroke-width="1"/>
   </g>
-</svg></div>
-    <div class="mf-code">participants → interactions → network reorganization → emergence</div>
-    <div class="mf-p">The result is not an answer. It is a transformation of the state of the system. A city reasons by reorganizing. A market converges toward a state. An ant colony does not compute the optimal path — the path appears.</div>
-    <div class="mf-quote">We have spent eight years optimizing the individual cognitive mechanism — attention — and almost no work has been done on the social substrate in which cognition is embedded.</div>
+  <g fill="none" opacity=".22">
+    <line x1="195" y1="95" x2="480" y2="140" stroke="#2dd4bf" stroke-width="1.5"/>
+    <line x1="765" y1="95" x2="480" y2="140" stroke="#f0a830" stroke-width="1.5"/>
+    <line x1="195" y1="195" x2="480" y2="140" stroke="#a78bfa" stroke-width="1.5"/>
+    <line x1="765" y1="195" x2="480" y2="140" stroke="#2dd4bf" stroke-width="1.5"/>
+  </g>
+  <circle cx="480" cy="140" r="65" fill="url(#rg)" opacity=".2"/>
+  <circle cx="480" cy="140" r="10" fill="rgba(45,212,191,.12)" stroke="rgba(45,212,191,.28)" stroke-width="1.5"/>
+  <circle cx="480" cy="140" r="4" fill="rgba(45,212,191,.9)" filter="url(#gl)">
+    <animate attributeName="r" values="4;7;4" dur="3s" repeatCount="indefinite"/>
+  </circle>
+</svg>
+</section>
 
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">6. The four primitives</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive"><strong>Persistent identity</strong> — recognizable across time by accumulated participation history, not by name.</div>
-      <div class="mf-primitive"><strong>Structured broadcast</strong> — participants emit structured signals about their current state to the network.</div>
-      <div class="mf-primitive"><strong>Composition</strong> — the intersection of two participants' states produces something neither held alone.</div>
-      <div class="mf-primitive"><strong>Incentive alignment</strong> — participation generates value for participants directly, rather than accruing centrally.</div>
-    </div>
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">7. The human is a component</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <path d="M0,40 L120,40 L140,20 L200,20 L220,40 L380,40 L400,20 L460,20 L480,40 L600,40" stroke="rgba(167,139,250,0.2)" stroke-width="1" fill="none"/>
-  <path d="M140,20 L140,60 L200,60 L200,20" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/>
-  <path d="M400,20 L400,60 L460,60 L460,20" stroke="rgba(167,139,250,0.15)" stroke-width="1" fill="none"/>
-  <rect x="50" y="33" width="30" height="14" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <rect x="400" y="33" width="60" height="14" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <rect x="500" y="33" width="40" height="14" rx="2" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="1"/>
-  <circle cx="300" cy="40" r="16" fill="rgba(76,201,240,0.08)" stroke="rgba(76,201,240,0.5)" stroke-width="1.5"/>
-  <circle cx="300" cy="35" r="5" fill="rgba(76,201,240,0.4)"/>
-  <path d="M290,52 Q300,44 310,52" stroke="rgba(76,201,240,0.4)" stroke-width="1.5" fill="none"/>
-</svg></div>
-    <div class="mf-p">In the current dominant architecture:</div>
-    <div class="mf-code">Human → AI → Response</div>
-    <div class="mf-p">The human is exterior to the cognitive system. Even "human-in-the-loop" frames the human as a correction mechanism, not a constitutive component. What the participation paradigm proposes:</div>
-    <div class="mf-code">Human ↔ Network ↔ Modules ↔ AI</div>
-    <div class="mf-quote">The human is not merely a user of the system.<br>The human becomes a component of the system's dynamics.</div>
-    <div class="mf-p">The fundamental unit tends toward participation itself rather than the individual. Identity is not the input — identity emerges as output. A city is a movement. A language is a movement. YourMine aims to be a movement: the pattern persists as participants enter and leave.</div>
-    <div class="mf-quote">The AI field tends to ask: how do we produce a better representation of the world?<br><br>The participation paradigm asks: how do we create the conditions for a world to self-organize?</div>
+<hr class="d">
 
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">8. Expansion, not amplification</div>
-    <div class="mf-illo-wrap"><svg class="mf-illo" viewBox="0 0 600 80" xmlns="http://www.w3.org/2000/svg">
-  <path d="M20,40 Q40,25 60,40 Q80,55 100,40 Q120,25 140,40" stroke="rgba(167,139,250,0.3)" stroke-width="1" fill="none"/>
-  <path d="M20,40 Q40,15 60,40 Q80,65 100,40 Q120,15 140,40" stroke="rgba(167,139,250,0.5)" stroke-width="1.5" fill="none"/>
-  <text x="80" y="75" font-family="monospace" font-size="7" fill="rgba(167,139,250,0.35)" text-anchor="middle">amplification</text>
-  <line x1="220" y1="10" x2="220" y2="70" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
-  <circle cx="420" cy="40" r="8" fill="none" stroke="rgba(76,201,240,0.6)" stroke-width="1.5"/>
-  <circle cx="420" cy="40" r="18" fill="none" stroke="rgba(76,201,240,0.4)" stroke-width="1"/>
-  <circle cx="420" cy="40" r="28" fill="none" stroke="rgba(76,201,240,0.25)" stroke-width="1"/>
-  <circle cx="420" cy="40" r="38" fill="none" stroke="rgba(76,201,240,0.12)" stroke-width="1"/>
-  <circle cx="420" cy="40" r="3" fill="rgba(76,201,240,0.8)"/>
-  <text x="420" y="75" font-family="monospace" font-size="7" fill="rgba(76,201,240,0.4)" text-anchor="middle">expansion</text>
-</svg></div>
-    <div class="mf-quote">Participation creates more participation if and only if it expands the configuration space of the system.</div>
-    <div class="mf-p">Without this condition, participation produces amplification — not emergence. And amplification of an existing pattern is not intelligence. It is repetition at scale.</div>
-    <div class="mf-primitives">
-      <div class="mf-primitive"><strong>Diversity</strong> — more variations within the same rules. Same interactions, same structures. Still amplification.</div>
-      <div class="mf-primitive"><strong>Expansion</strong> — new dimensions of rules become possible. Interactions that were structurally impossible before. The coordinate system changes.</div>
-    </div>
-    <div class="mf-code">n spheres → n options          (amplification)
-n spheres → 2ⁿ configurations (expansion)</div>
-    <div class="mf-p">The composition primitive — <code style="color:var(--cyan)">peerSection()</code> — converts the system from amplifier to expander. Without it, spheres are apps. With it, spheres are dimensions.</div>
-
-    <div class="mf-sep"></div>
-    <div class="mf-section-label">9. The open question</div>
-    <div class="mf-quote">Emergence is not a property of participation.<br>It is a property of the rewriting of the rules of participation themselves.</div>
-    <div class="mf-p">The system is running. The observation is ongoing. Whether this constitutes genuine emergence remains an empirical question. But the test is clear: not whether participation increases. Whether <strong style="color:var(--purple)">new things become possible</strong>.</div>
-    <div class="mf-sep"></div>
-    <div class="mf-end">"A city is not its buildings.<br>A language is not its words.<br>A movement is not its members.<br>YourMine is not its code."</div>
-    <div class="mf-end-sub" style="margin-top:16px">
-      <a href="https://github.com/theodoreyong9/YourMinedApp" target="_blank" rel="noopener" style="color:rgba(167,139,250,.5);text-decoration:none;font-size:10px;letter-spacing:.1em">github.com/theodoreyong9/YourMinedApp</a>
-    </div>
+<!-- grid -->
+<section id="s-grid">
+<div class="w">
+  <div class="grid-title">Not a platform.<br>A <em>new web</em>.</div>
+  <div class="grid">
+    <div class="cell"><div class="cell-n">No <b>platform.</b></div><p class="cell-t">No store. No login. One prompt, live anywhere.</p></div>
+    <div class="cell"><div class="cell-n">No <b>authority.</b></div><p class="cell-t">Can't be governed even after it's sold.</p></div>
+    <div class="cell"><div class="cell-n">No <b>identity.</b></div><p class="cell-t">Only participation. What you share with others is all that exists.</p></div>
+    <div class="cell"><div class="cell-n">100% <b>forkable.</b></div><p class="cell-t">Every fork that improves can be merged back. Indestructible.</p></div>
   </div>
 </div>
-<button id="manifesto-close">✕</button>
+</section>
 
-<!-- Theory overlay -->
-<div id="theory-overlay">
-  <div id="theory-inner">
+<hr class="d">
 
-    <div class="th-eyebrow">Working Paper — Yong, JdC — 2025</div>
-    <div class="th-h">What Is a Payoff?<br><span style="font-size:.6em;color:var(--cyan);-webkit-text-fill-color:var(--cyan)">Participatory Value and Categorically-Valued Open Games</span></div>
-
-    <div class="th-label">Abstract</div>
-    <div class="th-p">Classical game theory rests on a hidden ontological commitment: every value relevant to strategic behavior is representable as a real number. We argue this commitment fails for a class of systems — participatory, distributed, compositional — where the reward for engagement is not a quantity but a structure: a relational object produced by composition, destroyed by defection, and irreducible to any scalar without loss of information. We propose <em>categorically-valued open games</em> — open games where payoff functions map strategy profiles to objects in a symmetric monoidal category C — as the minimal formal extension required to represent structural value. The classical case is recovered from the thin symmetric monoidal category induced by the total order on the reals. The framework admits incomparable equilibria. The central claim: <strong>incomparability is not a bug. It is what value looks like when it is structure rather than quantity.</strong></div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">1. The Hidden Assumption</div>
-    <div class="th-p">Every payoff function in classical game theory has the form U<sub>i</sub> : Σ → ℝ. This is so standard it appears not as an assumption but as a definition. The assumption carries two substantive commitments. <strong>Representability</strong>: every value can be assigned a real number. <strong>Completeness</strong>: any two values can be compared — for any outcomes a and b, either a ≥ b or b ≥ a. These are not mathematical necessities. They are assumptions about what value is. And they fail for systems where what engagement produces is not a quantity but a structure.</div>
-
-    
-<svg class="th-svg" viewBox="0 0 520 150" xmlns="http://www.w3.org/2000/svg">
-  <defs><filter id="tg1"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <marker id="ta1" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(240,168,48,.7)"/></marker>
-  <marker id="ta2" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(8,224,248,.7)"/></marker></defs>
-  <!-- Left: total order -->
-  <text x="20" y="18" font-family="monospace" font-size="9" fill="rgba(240,168,48,.55)" letter-spacing="2">SCALAR — total order</text>
-  <line x1="20" y1="70" x2="200" y2="70" stroke="rgba(240,168,48,.35)" stroke-width="1.5" marker-end="url(#ta1)"/>
-  <circle cx="50" cy="70" r="4" fill="rgba(240,168,48,.8)" filter="url(#tg1)"/>
-  <circle cx="90" cy="70" r="4" fill="rgba(240,168,48,.8)" filter="url(#tg1)"/>
-  <circle cx="130" cy="70" r="4" fill="rgba(240,168,48,.8)" filter="url(#tg1)"/>
-  <circle cx="170" cy="70" r="4" fill="rgba(240,168,48,.8)" filter="url(#tg1)"/>
-  <text x="40" y="90" font-family="monospace" font-size="8" fill="rgba(240,168,48,.35)">−∞</text>
-  <text x="162" y="90" font-family="monospace" font-size="8" fill="rgba(240,168,48,.35)">+∞</text>
-  <text x="22" y="115" font-family="monospace" font-size="8" fill="rgba(240,168,48,.3)">a ≤ b or b ≤ a — always</text>
-  <!-- Arrow -->
-  <text x="212" y="74" font-family="monospace" font-size="16" fill="rgba(255,255,255,.15)">→</text>
-  <!-- Right: partial order -->
-  <text x="268" y="18" font-family="monospace" font-size="9" fill="rgba(8,224,248,.55)" letter-spacing="2">CATEGORICAL — partial order</text>
-  <circle cx="370" cy="125" r="5" fill="rgba(8,224,248,.7)" filter="url(#tg1)"/>
-  <text x="380" y="129" font-family="monospace" font-size="9" fill="rgba(8,224,248,.45)">∅</text>
-  <circle cx="330" cy="78" r="5" fill="rgba(8,224,248,.7)" filter="url(#tg1)"/>
-  <text x="310" y="74" font-family="monospace" font-size="9" fill="rgba(8,224,248,.45)">D₁</text>
-  <circle cx="410" cy="78" r="5" fill="rgba(8,224,248,.7)" filter="url(#tg1)"/>
-  <text x="418" y="74" font-family="monospace" font-size="9" fill="rgba(8,224,248,.45)">D₂</text>
-  <circle cx="370" cy="35" r="5" fill="rgba(8,224,248,.7)" filter="url(#tg1)"/>
-  <text x="378" y="31" font-family="monospace" font-size="9" fill="rgba(8,224,248,.45)">D₁⊗D₂</text>
-  <line x1="370" y1="119" x2="334" y2="84" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#ta2)"/>
-  <line x1="370" y1="119" x2="406" y2="84" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#ta2)"/>
-  <line x1="334" y1="72" x2="366" y2="41" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#ta2)"/>
-  <line x1="410" y1="72" x2="378" y2="41" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#ta2)"/>
-  <line x1="335" y1="78" x2="405" y2="78" stroke="rgba(255,80,80,.3)" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="348" y="70" font-family="monospace" font-size="8" fill="rgba(255,80,80,.5)">incomparable</text>
-  <text x="270" y="145" font-family="monospace" font-size="8" fill="rgba(8,224,248,.3)">D₁ ≰ D₂ and D₂ ≰ D₁ — both valid</text>
-</svg>
-
-    <div class="th-sep"></div>
-    <div class="th-label">2. Where Scalar Utility Fails</div>
-    <div class="th-p"><strong>Relational value.</strong> When two people discover a common context — a game, a discipline, a way of working — something is created: a relational object, a shared structure that enables certain interactions and recognitions. This object has structure. It can be extended. It is partially ordered. It can be destroyed by withdrawal. There is no canonical way to assign a real number to it that preserves its compositional properties. Any numerical assignment collapses distinctions that matter. This is not a measurement limitation — it is a structural mismatch.</div>
-    <div class="th-p"><strong>Sen and completeness.</strong> Amartya Sen's critique of welfare economics targets precisely the completeness assumption (1979, 1985, 1999). Forcing complete preference orderings on incommensurable values distorts the value structure. The agent who cannot rank more political freedom against less health is not irrational — they are recognizing that the comparison the theory demands does not exist. Sen's framework admits genuinely incomparable outcomes. The partial order on C is the formal structure Sen's critique requires.</div>
-    <div class="th-p"><strong>Formal antecedents.</strong> Aumann (1962) showed utility functions need not exist when preferences are incomplete. Bewley (2002) developed Knightian decision theory for agents who cannot rank all alternatives. Dubra, Maccheroni, Ok (2004) characterized expected utility for incomplete preferences. What this literature lacks is a game-theoretic extension. Our framework provides this in the language of open game theory.</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">3. Background: Open Games</div>
-    <div class="th-p"><strong>Definition 3.1 (Ghani et al. 2018).</strong> An open game G consists of: players N with strategy sets Σ<sub>i</sub>; a play function P : Σ → X; a coplay function C : Σ × R → ×<sub>i</sub> ℝ mapping strategy profiles and an external context r ∈ R to real-valued payoffs; an equilibrium predicate E : R → 𝒫(Σ). Open games compose sequentially (G;H) and in parallel (G⊗H), forming a symmetric monoidal category Game. Nash is the degenerate case where R is a singleton.</div>
-    <div class="th-p">Limitation: the coplay function maps to ℝ and uses total numerical comparison. It cannot represent games where payoffs are objects with compositional structure and partial order.</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">4. Categorically-Valued Open Games</div>
-    <div class="th-p"><strong>Definition 4.1 (Payoff Category).</strong> A payoff category is a symmetric monoidal category (C, ⊗, I) with: a partial order ≤<sub>C</sub> on objects compatible with ⊗; an initial object ∅<sub>C</sub>; directed completeness.</div>
-    <div class="th-block">
-      <div class="th-block-label">Example 4.2 — Classical case</div>
-      <div class="th-block-text">Recovered from the thin symmetric monoidal category induced by the total order on ℝ ∪ {−∞}. Morphism a → b exists iff a ≤ b. Monoidal product is max. Initial object is −∞. Because the order is total, all objects are comparable — classical game theory is a special instance of categorical structure.</div>
-    </div>
-    <div class="th-block">
-      <div class="th-block-label">Example 4.4 — YourMine payoff category C<sub>YM</sub></div>
-      <div class="th-block-text">Objects: finite diagrams of sphere contributions — formal colimits of peerSection() outputs indexed by subsets of active spheres. Morphisms: natural transformations. Monoidal product: diagram union. Unit I: mandatory sphere social.sphere.js. Initial object ∅: empty diagram. Partial order: diagram inclusion D<sub>1</sub> ≤ D<sub>2</sub> iff D<sub>1</sub> is a subdiagram of D<sub>2</sub>. Not total — two diagrams with different sphere types and no inclusion relation are incomparable.</div>
-    </div>
-    <div class="th-block">
-      <div class="th-block-label">Definition 4.5 — Equilibrium predicate (revised for partial orders)</div>
-      <div class="th-block-text">A categorically-valued open game G over C has equilibrium predicate:<br><br>σ ∈ E(r) iff ∀i, ∄ σ′<sub>i</sub> : C<sub>i</sub>(σ′<sub>i</sub>, σ<sub>-i</sub>, r) &gt;<sub>C</sub> C<sub>i</sub>(σ, r)<br><br>where &gt;<sub>C</sub> is the strict part: a &gt;<sub>C</sub> b if a ≥<sub>C</sub> b and b ≱<sub>C</sub> a.<br><br>When the order is total this reduces exactly to Nash. When payoffs are incomparable, neither strictly dominates — the equilibrium is stable. Incomparability is native to the definition.<br><br><strong>Why not Pareto-maximality?</strong> Pareto shifts the game from non-cooperative to cooperative: it assumes players coordinate. Absence of strict deviation is the minimal generalization of Nash to a partial order, preserving individual rationality without assuming coordination.<br><br><strong>Does an equilibrium always exist?</strong> Not automatically. Directed completeness of C is the load-bearing condition: it guarantees best responses exist even in a partial order. Without it, equilibrium existence is not guaranteed.<br><br>Note: not enrichment in the sense of Kelly (1982). We replace payoff values, not hom-sets. We use "categorically-valued" to avoid terminological confusion.</div>
-    </div>
-    
-<svg class="th-svg" viewBox="0 0 520 170" xmlns="http://www.w3.org/2000/svg">
-  <defs><filter id="tg2"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <marker id="ta3" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(8,224,248,.6)"/></marker>
-  <marker id="ta4" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(255,80,80,.6)"/></marker></defs>
-  <text x="10" y="18" font-family="monospace" font-size="9" fill="rgba(255,255,255,.35)">EQUILIBRIUM σ* — no strictly dominant deviation</text>
-  <!-- Current payoff -->
-  <rect x="15" y="35" width="130" height="40" rx="8" fill="rgba(8,224,248,.05)" stroke="rgba(8,224,248,.2)" stroke-width="1.5"/>
-  <text x="35" y="53" font-family="monospace" font-size="10" fill="rgba(8,224,248,.8)">C(σ*, r)</text>
-  <text x="28" y="68" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">current payoff</text>
-  <!-- Strictly better — blocked -->
-  <rect x="230" y="15" width="150" height="40" rx="8" fill="rgba(255,80,80,.05)" stroke="rgba(255,80,80,.25)" stroke-width="1"/>
-  <text x="248" y="33" font-family="monospace" font-size="9" fill="rgba(255,80,80,.7)">C(σ′,r) &gt;꜀ C(σ*,r)</text>
-  <text x="248" y="48" font-family="monospace" font-size="8" fill="rgba(255,80,80,.4)">strictly better → deviation!</text>
-  <line x1="147" y1="50" x2="225" y2="35" stroke="rgba(255,80,80,.4)" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ta4)"/>
-  <text x="155" y="30" font-family="monospace" font-size="9" fill="rgba(255,80,80,.6)">∄ such σ′</text>
-  <text x="152" y="44" font-family="monospace" font-size="8" fill="rgba(255,80,80,.4)">→ equilibrium</text>
-  <!-- Incomparable — not better -->
-  <rect x="230" y="95" width="150" height="40" rx="8" fill="rgba(8,224,248,.04)" stroke="rgba(8,224,248,.15)" stroke-width="1"/>
-  <text x="240" y="113" font-family="monospace" font-size="9" fill="rgba(8,224,248,.6)">C(σ′,r) ≁꜀ C(σ*,r)</text>
-  <text x="244" y="128" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">incomparable → not better</text>
-  <line x1="147" y1="60" x2="225" y2="108" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#ta3)"/>
-  <text x="152" y="88" font-family="monospace" font-size="9" fill="rgba(8,224,248,.5)">different,</text>
-  <text x="152" y="100" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">not worse</text>
-  <text x="10" y="155" font-family="monospace" font-size="8" fill="rgba(255,255,255,.25)">Incomparable deviations are not improvements — they are structurally different.</text>
-  <text x="10" y="168" font-family="monospace" font-size="8" fill="rgba(255,255,255,.2)">The equilibrium is stable because no deviation is unambiguously superior.</text>
-</svg>
-
-    <div class="th-p"><strong>Proposition 4.7.</strong> When C is the thin category on ℝ, Definition 4.5 recovers Ghani et al. exactly.</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">5. The Defection Object</div>
-    <div class="th-p"><strong>Proposition 5.1.</strong> In a categorically-valued open game where payoffs are colimits of contribution diagrams, a player who contributes nothing receives ∅<sub>C</sub> — the initial object. Proof: colimit of empty diagram is the initial object.</div>
-    <div class="th-p">In classical theory defection produces a lower number — the player still exists in the payoff space. In categorically-valued theory defection produces ∅<sub>C</sub> — not a reduced quantity but an absence of structure. You do not become slightly less valuable. You withdraw from the structure entirely. In C<sub>YM</sub> this is the empty identity surface. In the classical thin category, ∅ = −∞, recovering the classical representation.</div>
-
-    
-<svg class="th-svg" viewBox="0 0 520 140" xmlns="http://www.w3.org/2000/svg">
-  <defs><filter id="tg3"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <filter id="tg3b"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <marker id="ta5" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(255,80,80,.6)"/></marker></defs>
-  <!-- Classical -->
-  <text x="15" y="18" font-family="monospace" font-size="9" fill="rgba(240,168,48,.5)">CLASSICAL — defect → lower number</text>
-  <line x1="15" y1="70" x2="210" y2="70" stroke="rgba(240,168,48,.2)" stroke-width="1"/>
-  <circle cx="40" cy="70" r="3" fill="rgba(240,168,48,.25)"/>
-  <circle cx="80" cy="70" r="3" fill="rgba(240,168,48,.25)"/>
-  <circle cx="120" cy="70" r="3" fill="rgba(240,168,48,.25)"/>
-  <circle cx="165" cy="70" r="7" fill="rgba(240,168,48,.7)" filter="url(#tg3b)"/>
-  <text x="153" y="90" font-family="monospace" font-size="8" fill="rgba(240,168,48,.5)">σ* payoff</text>
-  <circle cx="40" cy="70" r="6" fill="none" stroke="rgba(255,80,80,.45)" stroke-width="1.5" stroke-dasharray="3,2"/>
-  <text x="16" y="50" font-family="monospace" font-size="8" fill="rgba(255,80,80,.5)">defect → lower number</text>
-  <text x="22" y="62" font-family="monospace" font-size="8" fill="rgba(255,80,80,.3)">still on the line</text>
-  <line x1="158" y1="68" x2="50" y2="68" stroke="rgba(255,80,80,.3)" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ta5)"/>
-  <!-- Separator -->
-  <line x1="235" y1="15" x2="235" y2="130" stroke="rgba(255,255,255,.06)" stroke-width="1"/>
-  <!-- Categorical -->
-  <text x="255" y="18" font-family="monospace" font-size="9" fill="rgba(8,224,248,.5)">CATEGORICAL — defect → ∅</text>
-  <circle cx="370" cy="120" r="5" fill="rgba(8,224,248,.2)" stroke="rgba(8,224,248,.4)" stroke-width="1.5"/>
-  <text x="380" y="124" font-family="monospace" font-size="10" fill="rgba(8,224,248,.6)">∅꜀</text>
-  <text x="348" y="138" font-family="monospace" font-size="8" fill="rgba(8,224,248,.3)">initial object</text>
-  <circle cx="330" cy="75" r="5" fill="rgba(8,224,248,.6)" filter="url(#tg3b)"/>
-  <circle cx="415" cy="70" r="8" fill="rgba(8,224,248,.8)" filter="url(#tg3)"/>
-  <text x="426" y="74" font-family="monospace" font-size="9" fill="rgba(8,224,248,.7)">σ* payoff</text>
-  <line x1="370" y1="114" x2="334" y2="81" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <line x1="370" y1="114" x2="410" y2="79" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="255" y="50" font-family="monospace" font-size="8" fill="rgba(255,80,80,.5)">defect → ∅꜀</text>
-  <text x="255" y="62" font-family="monospace" font-size="8" fill="rgba(255,80,80,.3)">outside the structure</text>
-  <line x1="408" y1="78" x2="378" y2="112" stroke="rgba(255,80,80,.35)" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#ta5)"/>
-</svg>
-
-    <div class="th-sep"></div>
-    <div class="th-label">6. Composition and Information Loss</div>
-    <div class="th-p"><strong>Proposition 6.1.</strong> Categorically-valued open games over C form a symmetric monoidal category Game(C). When φ : C → ℝ<sub>thin</sub> exists, there is F : Game(C) → Game(ℝ).</div>
-    <div class="th-block">
-      <div class="th-block-label">Proposition 6.2 — Information loss</div>
-      <div class="th-block-text">For C<sub>YM</sub>, any monoidal functor φ : C<sub>YM</sub> → ℝ<sub>thin</sub> forgets structural distinctions — it identifies structurally distinct diagrams assigned the same scalar. Any such φ must assign numerical values to sphere types; different choices produce different orderings; no choice is canonical since sphere types are qualitatively distinct. Therefore any φ is not fully faithful. Many functors exist — cardinality, weight-based. All collapse structural distinctions the categorical representation preserves.</div>
-    </div>
-
-    
-<svg class="th-svg" viewBox="0 0 520 155" xmlns="http://www.w3.org/2000/svg">
-  <defs><filter id="tg4"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <marker id="ta6" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(8,224,248,.5)"/></marker></defs>
-  <text x="10" y="16" font-family="monospace" font-size="9" fill="rgba(255,255,255,.3)">SEQUENTIAL G ; H</text>
-  <!-- G box -->
-  <rect x="55" y="35" width="75" height="55" rx="8" fill="rgba(8,224,248,.05)" stroke="rgba(8,224,248,.3)" stroke-width="1.5"/>
-  <text x="81" y="67" font-family="monospace" font-size="16" fill="rgba(8,224,248,.8)">G</text>
-  <line x1="15" y1="62" x2="53" y2="62" stroke="rgba(8,224,248,.4)" stroke-width="2" marker-end="url(#ta6)"/>
-  <text x="8" y="57" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">Σ_G</text>
-  <line x1="132" y1="62" x2="190" y2="62" stroke="rgba(8,224,248,.4)" stroke-width="2" marker-end="url(#ta6)"/>
-  <text x="143" y="55" font-family="monospace" font-size="8" fill="rgba(8,224,248,.3)">C_G(σ,r)</text>
-  <!-- H box -->
-  <rect x="192" y="35" width="75" height="55" rx="8" fill="rgba(167,139,250,.05)" stroke="rgba(167,139,250,.3)" stroke-width="1.5"/>
-  <text x="219" y="67" font-family="monospace" font-size="16" fill="rgba(167,139,250,.8)">H</text>
-  <line x1="269" y1="62" x2="330" y2="62" stroke="rgba(167,139,250,.4)" stroke-width="2" marker-end="url(#ta6)"/>
-  <text x="275" y="55" font-family="monospace" font-size="8" fill="rgba(167,139,250,.3)">C_H(σ,r)</text>
-  <!-- Context -->
-  <line x1="230" y1="10" x2="230" y2="33" stroke="rgba(240,168,48,.3)" stroke-width="1.5" stroke-dasharray="4,3"/>
-  <text x="235" y="24" font-family="monospace" font-size="8" fill="rgba(240,168,48,.4)">r ∈ R</text>
-  <!-- Bracket -->
-  <rect x="45" y="25" width="234" height="76" rx="12" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1" stroke-dasharray="6,4"/>
-  <text x="46" y="120" font-family="monospace" font-size="8" fill="rgba(255,255,255,.2)">G ; H — payoffs compose via ⊗ in C</text>
-
-  <!-- Parallel -->
-  <text x="360" y="16" font-family="monospace" font-size="9" fill="rgba(255,255,255,.3)">PARALLEL G ⊗ H</text>
-  <rect x="360" y="25" width="55" height="32" rx="6" fill="rgba(8,224,248,.05)" stroke="rgba(8,224,248,.25)" stroke-width="1.5"/>
-  <text x="380" y="46" font-family="monospace" font-size="12" fill="rgba(8,224,248,.7)">G</text>
-  <rect x="360" y="68" width="55" height="32" rx="6" fill="rgba(167,139,250,.05)" stroke="rgba(167,139,250,.25)" stroke-width="1.5"/>
-  <text x="380" y="89" font-family="monospace" font-size="12" fill="rgba(167,139,250,.7)">H</text>
-  <line x1="417" y1="41" x2="448" y2="68" stroke="rgba(8,224,248,.3)" stroke-width="1.5" marker-end="url(#ta6)"/>
-  <line x1="417" y1="84" x2="448" y2="68" stroke="rgba(167,139,250,.3)" stroke-width="1.5" marker-end="url(#ta6)"/>
-  <circle cx="453" cy="68" r="5" fill="rgba(255,215,0,.6)" filter="url(#tg4)"/>
-  <text x="461" y="65" font-family="monospace" font-size="8" fill="rgba(255,215,0,.6)">C_G ⊗ C_H</text>
-  <text x="455" y="80" font-family="monospace" font-size="8" fill="rgba(255,215,0,.3)">in C</text>
-</svg>
-
-    <div class="th-sep"></div>
-    <div class="th-label">7. Participatory Equilibrium</div>
-    <div class="th-p"><strong>Definition 7.1.</strong> A participatory equilibrium is a maximal equilibrium section σ* : R → Σ — no other section σ′ satisfies σ′(r) &gt;<sub>C</sub> σ*(r) for some r while σ′(r) ≥<sub>C</sub> σ*(r) for all r.</div>
-    <div class="th-block">
-      <div class="th-block-label">Existence Program 7.2</div>
-      <div class="th-block-text">If Σ is compact and coplay is order-continuous, directed completeness of C guarantees best responses exist. A Zorn's lemma argument on partial sections ordered by componentwise domination yields a maximal section. Full proof requires specifying the topology on the space of sections. Stated as program, not theorem.<br><br>Equilibria are more numerous here than in Nash: incomparability itself creates stability — a player with no strictly better deviation has no individual reason to move. However this abundance is conditional on directed completeness of C.</div>
-    </div>
-    <div class="th-block">
-      <div class="th-block-label">Proposition 7.3 — Embedding of Nash</div>
-      <div class="th-block-text">When C is the thin category on ℝ, Nash equilibria embed into participatory equilibria and the two coincide. Proof: total order → &gt;<sub>C</sub> is standard strict inequality → absence of strict dominance is exactly the Nash condition.</div>
-    </div>
-    <div class="th-block">
-      <div class="th-block-label">Proposition 7.5 — Incomparable equilibria</div>
-      <div class="th-block-text">In Game(C<sub>YM</sub>), there exist participatory equilibria σ*<sub>1</sub> and σ*<sub>2</sub> incomparable in ≤<sub>C</sub>. Proof: take profiles producing D<sub>1</sub>, D<sub>2</sub> with different sphere types and no inclusion relation — incomparable by diagram inclusion, both may be maximal sections.</div>
-    </div>
-    <div class="th-quote">The equilibrium predicate makes incomparability structurally native. A player does not deviate when no strictly better option exists. In a partial order, incomparable options are not strictly better — they are different. The equilibrium is stable not because the payoff is maximal in an absolute sense but because no available deviation is unambiguously superior.</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">8. Incomparability Is Not a Bug</div>
-    <div class="th-quote">Incomparability is what value looks like when it is structure rather than quantity.</div>
-    <div class="th-p">Classical theory treats incomparable outcomes as theoretical embarrassment — a sign that the model is incomplete, that a common scale has not yet been found. The entire project of welfare economics is in part a project of forcing comparison. We propose the opposite. Incomparability is the faithful representation of participation patterns that produce qualitatively different relational structures. A framework that forces comparison loses the structure. Nash is the special case where all values happen to be comparable. Participatory equilibrium is the general case.</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">9. YourMine as Motivating Instance</div>
-    <div class="th-block">
-      <div class="th-block-text" style="font-family:var(--font-m);font-size:13px;">Id(A,B) = colim<sub>s ∈ σ<sub>A</sub> ∩ σ<sub>B</sub></sub> peerSection<sub>s</sub>(A,B)</div>
-    </div>
-    
-<svg class="th-svg" viewBox="0 0 520 195" xmlns="http://www.w3.org/2000/svg">
-  <defs><filter id="tg5"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <marker id="ta7" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(8,224,248,.5)"/></marker></defs>
-  <!-- User A -->
-  <circle cx="75" cy="95" r="22" fill="rgba(8,224,248,.06)" stroke="rgba(8,224,248,.3)" stroke-width="1.5"/>
-  <text x="65" y="92" font-family="monospace" font-size="12" fill="rgba(8,224,248,.9)">A</text>
-  <text x="55" y="107" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">σ_A</text>
-  <text x="15" y="28" font-family="monospace" font-size="8" fill="rgba(255,255,255,.25)">active spheres:</text>
-  <rect x="15" y="33" width="40" height="15" rx="3" fill="rgba(8,224,248,.07)" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="19" y="44" font-family="monospace" font-size="8" fill="rgba(8,224,248,.6)">chess</text>
-  <rect x="60" y="33" width="42" height="15" rx="3" fill="rgba(8,224,248,.07)" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="64" y="44" font-family="monospace" font-size="8" fill="rgba(8,224,248,.6)">music</text>
-  <rect x="36" y="52" width="38" height="15" rx="3" fill="rgba(8,224,248,.07)" stroke="rgba(8,224,248,.2)" stroke-width="1"/>
-  <text x="40" y="63" font-family="monospace" font-size="8" fill="rgba(8,224,248,.6)">code</text>
-  <!-- User B -->
-  <circle cx="445" cy="95" r="22" fill="rgba(167,139,250,.06)" stroke="rgba(167,139,250,.3)" stroke-width="1.5"/>
-  <text x="435" y="92" font-family="monospace" font-size="12" fill="rgba(167,139,250,.9)">B</text>
-  <text x="423" y="107" font-family="monospace" font-size="8" fill="rgba(167,139,250,.4)">σ_B</text>
-  <text x="385" y="28" font-family="monospace" font-size="8" fill="rgba(255,255,255,.25)">active spheres:</text>
-  <rect x="382" y="33" width="40" height="15" rx="3" fill="rgba(167,139,250,.07)" stroke="rgba(167,139,250,.2)" stroke-width="1"/>
-  <text x="386" y="44" font-family="monospace" font-size="8" fill="rgba(167,139,250,.6)">chess</text>
-  <rect x="427" y="33" width="42" height="15" rx="3" fill="rgba(167,139,250,.07)" stroke="rgba(167,139,250,.2)" stroke-width="1"/>
-  <text x="431" y="44" font-family="monospace" font-size="8" fill="rgba(167,139,250,.6)">music</text>
-  <rect x="404" y="52" width="50" height="15" rx="3" fill="rgba(167,139,250,.04)" stroke="rgba(167,139,250,.1)" stroke-width="1" stroke-dasharray="3,2"/>
-  <text x="408" y="63" font-family="monospace" font-size="8" fill="rgba(167,139,250,.3)">design</text>
-  <!-- Intersection -->
-  <ellipse cx="260" cy="95" rx="58" ry="32" fill="rgba(8,224,248,.04)" stroke="rgba(8,224,248,.15)" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="222" y="83" font-family="monospace" font-size="8" fill="rgba(8,224,248,.45)">σ_A ∩ σ_B</text>
-  <rect x="222" y="88" width="38" height="13" rx="3" fill="rgba(8,224,248,.1)" stroke="rgba(8,224,248,.3)" stroke-width="1"/>
-  <text x="226" y="98" font-family="monospace" font-size="8" fill="rgba(8,224,248,.8)">chess</text>
-  <rect x="265" y="88" width="38" height="13" rx="3" fill="rgba(8,224,248,.1)" stroke="rgba(8,224,248,.3)" stroke-width="1"/>
-  <text x="269" y="98" font-family="monospace" font-size="8" fill="rgba(8,224,248,.8)">music</text>
-  <!-- Arrows -->
-  <line x1="98" y1="95" x2="198" y2="95" stroke="rgba(8,224,248,.25)" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ta7)"/>
-  <line x1="422" y1="95" x2="322" y2="95" stroke="rgba(167,139,250,.25)" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#ta7)"/>
-  <!-- Colimit result -->
-  <text x="170" y="158" font-family="monospace" font-size="9" fill="rgba(255,255,255,.25)">Id(A,B) = colim peerSection_s(A,B)</text>
-  <text x="185" y="172" font-family="monospace" font-size="9" fill="rgba(8,224,248,.4)">object in C_YM — not a number</text>
-  <!-- Notes -->
-  <text x="15" y="150" font-family="monospace" font-size="8" fill="rgba(255,255,255,.18)">code ∉ σ_B</text>
-  <text x="15" y="162" font-family="monospace" font-size="8" fill="rgba(255,255,255,.13)">→ not in colimit</text>
-  <text x="388" y="150" font-family="monospace" font-size="8" fill="rgba(255,255,255,.18)">design ∉ σ_A</text>
-  <text x="388" y="162" font-family="monospace" font-size="8" fill="rgba(255,255,255,.13)">→ not in colimit</text>
-  <!-- Empty case -->
-  <text x="140" y="186" font-family="monospace" font-size="8" fill="rgba(255,80,80,.35)">σ_A ∩ σ_B = ∅ → Id(A,B) = ∅_C — the defection object</text>
-</svg>
-
-    <div class="th-p">An object in C<sub>YM</sub>. Empty when A and B share no spheres. Grows under diagram inclusion. Partially ordered. Two users with different shared sphere compositions produce incomparable identity surfaces — incomparable participatory equilibria. The mandatory sphere social.sphere.js implements the monoidal unit I — always present, preventing complete withdrawal.</div>
-    <div class="th-negs">
-      <div class="th-neg">No central authority — context produced by players, not assigned from outside.</div>
-      <div class="th-neg">No fixed identity — identity is the colimit of all shared sphere compositions.</div>
-      <div class="th-neg">No universal ranking — participation patterns are incomparable in the partial order.</div>
-      <div class="th-neg">No defection payoff — withdrawal produces ∅, not a lower number.</div>
-    </div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">10. Viscoelastic Value: An Interpretation</div>
-    <div class="th-p">The framework in sections 4–7 is mathematically self-contained. The viscoelastic theory of value (The Eye and the Hand, ch. 4) provides a physical grounding that is not required for validity. Economic activity is a process of articulating distinct cognitive universes. Value emerges as the force of a metabolic process with specific physical structure: viscoelastic behavior — combining elastic energy storage and viscous dissipation.</div>
-    <div class="th-chain">
-      <span class="th-chain-item">Elasticity</span>
-      <span class="th-chain-arrow">→</span>
-      <span class="th-chain-item">Velocity</span>
-      <span class="th-chain-arrow">→</span>
-      <span class="th-chain-item">Liquidity</span>
-      <span class="th-chain-arrow">→</span>
-      <span class="th-chain-item">Utility</span>
-      <span class="th-chain-arrow">→</span>
-      <span class="th-chain-item">Value</span>
-    </div>
-    
-<svg class="th-svg" viewBox="0 0 520 190" xmlns="http://www.w3.org/2000/svg">
-  <defs><filter id="tg6"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <filter id="tg6b"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  <marker id="ta8" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="rgba(255,255,255,.25)"/></marker></defs>
-  <!-- Elasticity — spring -->
-  <text x="14" y="16" font-family="monospace" font-size="8" fill="rgba(8,224,248,.6)">ELASTICITY</text>
-  <path d="M22,25 Q28,38 34,25 Q40,12 46,25 Q52,38 58,25 Q64,12 70,25 Q76,38 82,25" fill="none" stroke="rgba(8,224,248,.6)" stroke-width="2" filter="url(#tg6b)"/>
-  <text x="14" y="52" font-family="monospace" font-size="7" fill="rgba(8,224,248,.35)">stored potential</text>
-  <text x="14" y="63" font-family="monospace" font-size="7" fill="rgba(8,224,248,.3)">structural memory</text>
-  <line x1="96" y1="35" x2="114" y2="35" stroke="rgba(255,255,255,.18)" stroke-width="1.5" marker-end="url(#ta8)"/>
-  <!-- Velocity — wave -->
-  <text x="118" y="16" font-family="monospace" font-size="8" fill="rgba(240,168,48,.6)">VELOCITY</text>
-  <path d="M118,35 Q128,18 138,35 Q148,52 158,35 Q168,18 178,35 Q188,52 198,35" fill="none" stroke="rgba(240,168,48,.6)" stroke-width="2" filter="url(#tg6b)"/>
-  <text x="118" y="60" font-family="monospace" font-size="7" fill="rgba(240,168,48,.35)">activation rate</text>
-  <text x="118" y="71" font-family="monospace" font-size="7" fill="rgba(240,168,48,.3)">network flow</text>
-  <line x1="205" y1="35" x2="223" y2="35" stroke="rgba(255,255,255,.18)" stroke-width="1.5" marker-end="url(#ta8)"/>
-  <!-- Liquidity — fluid -->
-  <text x="227" y="16" font-family="monospace" font-size="8" fill="rgba(100,200,255,.6)">LIQUIDITY</text>
-  <path d="M228,28 Q238,48 248,28 Q254,16 264,34 Q272,48 280,32" fill="none" stroke="rgba(100,200,255,.5)" stroke-width="2" stroke-dasharray="4,2" filter="url(#tg6b)"/>
-  <text x="227" y="58" font-family="monospace" font-size="7" fill="rgba(100,200,255,.35)">free circulation</text>
-  <text x="227" y="69" font-family="monospace" font-size="7" fill="rgba(100,200,255,.3)">conversion potential</text>
-  <line x1="290" y1="35" x2="308" y2="35" stroke="rgba(255,255,255,.18)" stroke-width="1.5" marker-end="url(#ta8)"/>
-  <!-- Utility — directed arrow -->
-  <text x="314" y="16" font-family="monospace" font-size="8" fill="rgba(180,255,100,.6)">UTILITY</text>
-  <line x1="318" y1="48" x2="360" y2="24" stroke="rgba(180,255,100,.6)" stroke-width="2.5" marker-end="url(#ta8)" filter="url(#tg6b)"/>
-  <text x="314" y="62" font-family="monospace" font-size="7" fill="rgba(180,255,100,.35)">directed action</text>
-  <text x="314" y="73" font-family="monospace" font-size="7" fill="rgba(180,255,100,.3)">organized output</text>
-  <line x1="375" y1="35" x2="393" y2="35" stroke="rgba(255,255,255,.18)" stroke-width="1.5" marker-end="url(#ta8)"/>
-  <!-- Value — integral -->
-  <text x="398" y="16" font-family="monospace" font-size="8" fill="rgba(255,215,0,.7)">VALUE</text>
-  <circle cx="432" cy="35" r="18" fill="rgba(255,215,0,.05)" stroke="rgba(255,215,0,.4)" stroke-width="2" filter="url(#tg6)"/>
-  <text x="424" y="41" font-family="monospace" font-size="14" fill="rgba(255,215,0,.8)">∫</text>
-  <text x="398" y="64" font-family="monospace" font-size="7" fill="rgba(255,215,0,.35)">effort integral</text>
-  <text x="398" y="75" font-family="monospace" font-size="7" fill="rgba(255,215,0,.3)">emergent force</text>
-  <!-- Bottom annotations -->
-  <line x1="15" y1="105" x2="505" y2="105" stroke="rgba(255,255,255,.05)" stroke-width="1"/>
-  <text x="15" y="120" font-family="monospace" font-size="8" fill="rgba(240,168,48,.4)">Scalar payoff captures only ∫ — the terminal state</text>
-  <text x="15" y="133" font-family="monospace" font-size="8" fill="rgba(8,224,248,.4)">Categorical payoff captures (ε, v, λ, u) — the full metabolic state</text>
-  <text x="15" y="146" font-family="monospace" font-size="8" fill="rgba(255,255,255,.18)">Same ∫ value ≠ same metabolic state → incomparability is real</text>
-  <!-- Two incomparable states -->
-  <rect x="15" y="158" width="220" height="16" rx="3" fill="rgba(240,168,48,.04)" stroke="rgba(240,168,48,.1)" stroke-width="1"/>
-  <text x="20" y="170" font-family="monospace" font-size="8" fill="rgba(240,168,48,.5)">high ε, low v → same ∫ as</text>
-  <rect x="250" y="158" width="255" height="16" rx="3" fill="rgba(8,224,248,.04)" stroke="rgba(8,224,248,.1)" stroke-width="1"/>
-  <text x="255" y="170" font-family="monospace" font-size="8" fill="rgba(8,224,248,.5)">low ε, high λ → incomparable states</text>
-</svg>
-
-    <div class="th-p"><strong>Elasticity</strong> — structural memory, stored potential against entropy. <strong>Velocity</strong> — temporal activation of stored potential through the network. <strong>Liquidity</strong> — free circulation where elastic tension relaxes. <strong>Utility</strong> — directional conversion of liquid energy into organized action. <strong>Value</strong> — the integral: effort accumulated over time, metabolic tension maintained against entropy.</div>
-    <div class="th-p">The scalar payoff of classical theory is the terminal state of this sequence. Two outcomes with the same scalar payoff may be in radically different metabolic states: one with high elasticity and low velocity, another with low elasticity and high liquidity. Same number. Not the same outcome. Categorical payoffs represent states in the generative sequence. Incomparable equilibria represent agents in different metabolic phases — not better or worse, but different in kind.</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">11. Open Problems</div>
-    <div class="th-negs">
-      <div class="th-neg"><strong>Existence.</strong> Complete the existence program 7.2 — specify the topology on sections, verify the extension condition for Zorn.</div>
-      <div class="th-neg"><strong>Uniqueness.</strong> Conditions on C guaranteeing unique participatory equilibria.</div>
-      <div class="th-neg"><strong>Efficiency.</strong> Social welfare as colimit over players' payoff objects. Price of anarchy in this setting.</div>
-      <div class="th-neg"><strong>Forgetful functor.</strong> Which structural information is lost by F : Game(C) → Game(ℝ)?</div>
-      <div class="th-neg"><strong>Formal viscoelastic payoff category C<sub>V</sub>.</strong> Objects as viscoelastic state vectors with precise metabolic coupling rules for ⊗.</div>
-      <div class="th-neg"><strong>Formal verification.</strong> Can participatory equilibria be verified in Lean or Agda?</div>
-    </div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">12. Conclusion</div>
-    <div class="th-quote">The question is not how to generalize Nash equilibrium.<br>The question is what a payoff is.<br><br>Classical theory: a number.<br>Our answer: a composable object.</div>
-    <div class="th-p">Classical theory embeds representability and completeness — appropriate for markets, inappropriate for participatory systems where value is relational, compositional, structurally irreducible to a scalar. Sen saw the completeness failure philosophically. Our framework extends it to strategic interaction. Incomparability is not a theoretical failure. It is what value looks like when it is structure rather than quantity.</div>
-
-    <div class="th-sep"></div>
-    <div class="th-label">References</div>
-    <div class="th-p" style="color:var(--text3);font-size:12px;line-height:2.2;">
-      Aumann, R. J. (1962). Utility theory without the completeness axiom. <em>Econometrica</em>.<br>
-      Bewley, T. F. (2002). Knightian decision theory: Part I. <em>Decisions in Economics and Finance</em>.<br>
-      Dubra, J., Maccheroni, F., Ok, E. A. (2004). Expected utility without the completeness axiom. <em>Journal of Economic Theory</em>.<br>
-      Georgescu-Roegen, N. (1971). <em>The Entropy Law and the Economic Process</em>. Harvard UP.<br>
-      Ghani, N., Hedges, J., Winschel, V., Zahn, P. (2018). Compositional game theory. <em>LICS 2018</em>.<br>
-      Kelly, G. M. (1982). <em>Basic Concepts of Enriched Category Theory</em>. Cambridge UP.<br>
-      Nash, J. (1950). Equilibrium points in n-person games. <em>PNAS</em>.<br>
-      Sen, A. (1979). Equality of what? <em>Tanner Lecture on Human Values</em>, Stanford.<br>
-      Sen, A. (1985). <em>Commodities and Capabilities</em>. North-Holland.<br>
-      Sen, A. (1999). <em>Development as Freedom</em>. Oxford UP.<br>
-      von Neumann, J., Morgenstern, O. (1944). <em>Theory of Games and Economic Behavior</em>. Princeton UP.<br>
-      Yong, T., JdC (2024). <em>The Eye and the Hand</em>, ch. 4: The Viscoelasticity of Value. Unpublished.<br>
-      Zorn, M. (1935). A remark on method in transfinite algebra. <em>Bulletin of the AMS</em>.
-    </div>
-
-  </div>
+<!-- web4 -->
+<section id="s-web4">
+<div class="w">
+  <div class="w4-row"><span class="w4-era">Web1</span><span class="w4-w">Connect.</span><span class="w4-d">You are a visitor.</span></div>
+  <div class="w4-row"><span class="w4-era">Web2</span><span class="w4-w">Interact.</span><span class="w4-d">Platforms own everything.</span></div>
+  <div class="w4-row"><span class="w4-era">Web3</span><span class="w4-w">Own.</span><span class="w4-d">Assets. Still governed.</span></div>
+  <div class="w4-row"><span class="w4-era" style="color:var(--gold)">Web4</span><span class="w4-w on">Liberate.</span><span class="w4-d on">No platform.<br>No authority.</span></div>
 </div>
-<button id="theory-close">✕</button>
+</section>
 
+<hr class="d">
+
+<!-- cta -->
+<section id="s-cta">
+  <div class="cta-title">YOUR<br><span>WEB.</span><br>YOUR<br><span>RULES.</span></div>
+  <div class="cta-just">Just build.</div>
+</section>
+
+</div>
+
+<!-- infrastructure -->
 <div id="ym-wp"></div><div id="ym-bg"></div><div id="ym-loader" style="display:none"></div>
 <div id="toasts"></div><div id="desktop"><div id="desktop-slider"></div></div>
 <div id="drag-ghost"></div><div id="page-dots"></div>
@@ -882,79 +232,46 @@ n spheres → 2ⁿ configurations (expansion)</div>
 <script>
 (function(){
   try{
-  var cv  = document.getElementById('ym-canvas');
-  var ctx = cv ? cv.getContext('2d') : null;
-  if(!cv||!ctx){return;}
-  var W, H, DPR;
-  var scroller = document.getElementById('ym-landing');
-  var scrollY=0, scrollVel=0, lastScroll=0, raf;
+  var cv=document.getElementById('ym-canvas'),ctx=cv?cv.getContext('2d'):null;
+  if(!cv||!ctx)return;
+  var W,H,DPR,scroller=document.getElementById('ym-landing');
+  var lastScroll=0,raf,lastT=0,timeAcc=0,OW,OH,offscreen,offCtx,imgData,buf32;
   function resize(){DPR=Math.min(window.devicePixelRatio||1,2);W=cv.width=window.innerWidth*DPR;H=cv.height=window.innerHeight*DPR;cv.style.width=window.innerWidth+'px';cv.style.height=window.innerHeight+'px';}
   var PERM=new Uint8Array(512);
   (function(){var p=new Uint8Array(256);for(var i=0;i<256;i++)p[i]=i;for(var i=255;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=p[i];p[i]=p[j];p[j]=t;}for(var i=0;i<512;i++)PERM[i]=p[i&255];})();
   function fade(t){return t*t*t*(t*(t*6-15)+10);}
   function lerp(a,b,t){return a+(b-a)*t;}
-  function grad2(h,x,y){var hh=h&3;var u=hh<2?x:y;var v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
-  function noise2(x,y){var xi=Math.floor(x)&255,yi=Math.floor(y)&255;var xf=x-Math.floor(x),yf=y-Math.floor(y);var u=fade(xf),v=fade(yf);var aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);}
-  function fbm(x,y){return noise2(x,y)*0.5+noise2(x*2.1,y*2.1)*0.3+noise2(x*4.3,y*4.3)*0.2;}
-  var lastT=0,timeAcc=0,OW,OH,offscreen,offCtx,imgData,buf32;
+  function grad2(h,x,y){var hh=h&3,u=hh<2?x:y,v=hh<2?y:x;return((hh&1)?-u:u)+((hh&2)?-v:v);}
+  function noise2(x,y){var xi=Math.floor(x)&255,yi=Math.floor(y)&255,xf=x-Math.floor(x),yf=y-Math.floor(y),u=fade(xf),v=fade(yf),aa=PERM[PERM[xi]+yi],ab=PERM[PERM[xi]+yi+1],ba=PERM[PERM[xi+1]+yi],bb=PERM[PERM[xi+1]+yi+1];return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);}
+  function fbm(x,y){return noise2(x,y)*.5+noise2(x*2.1,y*2.1)*.3+noise2(x*4.3,y*4.3)*.2;}
   function makeOff(){OW=Math.ceil(W/3);OH=Math.ceil(H/3);offscreen=document.createElement('canvas');offscreen.width=OW;offscreen.height=OH;offCtx=offscreen.getContext('2d');}
   function makeImg(){imgData=offCtx.createImageData(OW,OH);buf32=new Uint32Array(imgData.data.buffer);}
-  function draw(ts){raf=requestAnimationFrame(draw);var dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;scrollVel+=(0-scrollVel)*0.12;var t=timeAcc*0.00018;var scaleX=0.0048,scaleY=0.0052,idx=0;for(var py=0;py<OH;py++){var fy=py*scaleY+t*0.6;for(var px=0;px<OW;px++){var fx=px*scaleX+t*0.4;var n=fbm(fx,fy),n2=fbm(fx+t*0.3,fy+0.7);var v=(n*0.6+n2*0.4)*0.5+0.5;var hv=fbm(fx*0.5+1.3,fy*0.5+t*0.2)*0.5+0.5;var r,g,b;if(hv<0.5){var tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}else{var tt=(hv-0.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}var a=Math.min(0.52,v*v*0.52);var ai=(a*255)|0;buf32[idx++]=(ai<<24)|(b<<16)|(g<<8)|r;}}offCtx.putImageData(imgData,0,0);ctx.clearRect(0,0,W,H);ctx.drawImage(offscreen,0,0,W,H);}
-  scroller.addEventListener('scroll',function(){var sy=scroller.scrollTop;scrollVel=(sy-lastScroll)*0.6;lastScroll=sy;scrollY=sy;},{passive:true});
+  function draw(ts){raf=requestAnimationFrame(draw);var dt=Math.min(ts-lastT,50);lastT=ts;timeAcc+=dt;var t=timeAcc*.00018,idx=0;
+    for(var py=0;py<OH;py++){var fy=py*.0052+t*.6;for(var px=0;px<OW;px++){var fx=px*.0048+t*.4,n=fbm(fx,fy),n2=fbm(fx+t*.3,fy+.7),v=(n*.6+n2*.4)*.5+.5,hv=fbm(fx*.5+1.3,fy*.5+t*.2)*.5+.5,r,g,b;
+      if(hv<.5){var tt=hv*2;r=(240*(1-tt)+34*tt)|0;g=(168*(1-tt)+211*tt)|0;b=(48*(1-tt)+238*tt)|0;}
+      else{var tt=(hv-.5)*2;r=(34*(1-tt)+167*tt)|0;g=(211*(1-tt)+139*tt)|0;b=(238*(1-tt)+250*tt)|0;}
+      var a=Math.min(.42,v*v*.42),ai=(a*255)|0;buf32[idx++]=(ai<<24)|(b<<16)|(g<<8)|r;}}
+    offCtx.putImageData(imgData,0,0);ctx.clearRect(0,0,W,H);ctx.drawImage(offscreen,0,0,W,H);}
+  scroller.addEventListener('scroll',function(){lastScroll=scroller.scrollTop;},{passive:true});
   resize();makeOff();makeImg();raf=requestAnimationFrame(draw);
   window.addEventListener('resize',function(){resize();makeOff();makeImg();},{passive:true});
   document.addEventListener('visibilitychange',function(){if(document.hidden)cancelAnimationFrame(raf);else{lastT=0;raf=requestAnimationFrame(draw);}});
-  }catch(e){console.warn('[hello] canvas:',e.message);}
-})();
-
-(function(){
-  var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible');});},{threshold:0.2});
-  document.querySelectorAll('.mf-illo-wrap').forEach(function(el){obs.observe(el);});
+  }catch(e){console.warn('[hello]',e.message);}
 })();
 </script>
 
 <script>
 (function(){
-  var GH_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
-  var DEF_THEME=GH_RAW+'themes/default.html';
-  var THEME_KEY='ym_theme_url';
-  var THEME_CACHE='ym_theme_cache';
-  function goDefault(){localStorage.setItem(THEME_KEY,DEF_THEME);localStorage.removeItem(THEME_CACHE);location.reload();}
-  var s1=document.getElementById('lp-start-btn');if(s1)s1.addEventListener('click',goDefault);
-  var s2=document.getElementById('lp-start-btn-2');if(s2)s2.addEventListener('click',goDefault);
-
-  var overlay=document.getElementById('manifesto-overlay');
-  var closeBtn=document.getElementById('manifesto-close');
-  if(closeBtn)closeBtn.style.cssText='display:none!important;';
-  function openManifesto(){if(overlay)overlay.classList.add('open');if(closeBtn)closeBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';}
-  function closeManifesto(){if(overlay)overlay.classList.remove('open');if(closeBtn)closeBtn.style.cssText='display:none!important;';}
-  var mb1=document.getElementById('lp-manifesto-btn');if(mb1)mb1.addEventListener('click',openManifesto);
-  var mb2=document.getElementById('lp-manifesto-btn-2');if(mb2)mb2.addEventListener('click',openManifesto);
-  if(closeBtn)closeBtn.addEventListener('click',closeManifesto);
-  if(overlay)overlay.addEventListener('click',function(e){if(e.target===overlay)closeManifesto();});
-
-  var theoryOverlay=document.getElementById('theory-overlay');
-  var theoryCloseBtn=document.getElementById('theory-close');
-  if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';
-  function openTheory(){if(theoryOverlay)theoryOverlay.classList.add('open');if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:flex!important;position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));right:20px;z-index:9999;width:48px;height:48px;border-radius:50%;align-items:center;justify-content:center;background:rgba(5,5,7,.9);border:1px solid rgba(8,224,248,.2);color:rgba(8,224,248,.7);font-size:18px;cursor:pointer;backdrop-filter:blur(12px);';}
-  function closeTheory(){if(theoryOverlay)theoryOverlay.classList.remove('open');if(theoryCloseBtn)theoryCloseBtn.style.cssText='display:none!important;';}
-  var tb1=document.getElementById('lp-theory-btn');if(tb1)tb1.addEventListener('click',openTheory);
-  var tb2=document.getElementById('lp-theory-btn-2');if(tb2)tb2.addEventListener('click',openTheory);
-  if(theoryCloseBtn)theoryCloseBtn.addEventListener('click',closeTheory);
-  if(theoryOverlay)theoryOverlay.addEventListener('click',function(e){if(e.target===theoryOverlay)closeTheory();});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeManifesto();closeTheory();}});
-
-  var io=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('visible');e.target.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});io.unobserve(e.target);}});},{threshold:.12});
-  document.querySelectorAll('.reveal').forEach(function(el){var r=el.getBoundingClientRect();if(r.top<window.innerHeight&&r.bottom>0){el.classList.add('visible');el.querySelectorAll('.lp-illo-wrap').forEach(function(il){il.classList.add('visible');});}else{io.observe(el);}});
+  var KEY='ym_theme_url',CACHE='ym_theme_cache';
+  var GH='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/themes/default.html';
+  function go(){localStorage.setItem(KEY,GH);localStorage.removeItem(CACHE);location.reload();}
+  var b=document.getElementById('lp-start-btn');if(b)b.addEventListener('click',go);
   function blockDesk(){if(window.YM_Desk){window.YM_Desk.addIcon=function(){};window.YM_Desk.renderDesk=function(){};}}
   blockDesk();window.addEventListener('ym:sphere-activated',blockDesk);
-  var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0){n.style.cssText='display:none!important';}});});});
+  var obs=new MutationObserver(function(mm){mm.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1&&(n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
   obs.observe(document.body,{childList:true});
-  var bgDlg=document.getElementById('bg-dlg');
-  if(bgDlg)bgDlg.addEventListener('click',function(e){if(e.target===bgDlg)bgDlg.classList.remove('open');});
-  var thBtn=document.getElementById('theme-custom-btn');
-  if(thBtn)thBtn.addEventListener('click',function(){var inp=document.getElementById('theme-custom-input');var url=(inp?inp.value:'').trim();if(!url)return;url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem(THEME_KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();});
+  var bg=document.getElementById('bg-dlg');if(bg)bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
+  var th=document.getElementById('theme-custom-btn');
+  if(th)th.addEventListener('click',function(){var i=document.getElementById('theme-custom-input'),url=(i?i.value:'').trim();if(!url)return;url=url.replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/');localStorage.setItem(KEY,url);if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}location.reload();});
 })();
 </script>
-</body>
-</html>
