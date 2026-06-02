@@ -37,14 +37,13 @@ hr.d{border:none;height:1px;background:rgba(255,255,255,.08);margin:0;}
   padding:80px 24px;text-align:center;
   background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(45,212,191,.05),transparent 60%);
 }
-.hero-title-wrap{width:100%;overflow:hidden;opacity:0;animation:up .8s .1s cubic-bezier(.16,1,.3,1) forwards;}
+.hero-title-wrap{opacity:0;animation:up .8s .1s cubic-bezier(.16,1,.3,1) forwards;}
 .hero-title{
-  font-family:var(--font-d);font-size:clamp(40px,12vw,160px);font-weight:800;
+  font-family:var(--font-d);font-size:9vw;font-weight:800;
   letter-spacing:.04em;line-height:.9;
   background:linear-gradient(90deg,var(--gold) 0%,rgba(255,255,255,.9) 50%,var(--cyan) 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
   background-size:200% 100%;animation:titleshift 6s 1s ease-in-out infinite;
-  word-break:break-all;
 }
 @keyframes titleshift{0%,100%{background-position:0%}50%{background-position:100%}}
 .hero-sub{
