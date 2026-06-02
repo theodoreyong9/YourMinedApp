@@ -16,7 +16,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 @keyframes gp{0%,100%{background-position:0%}50%{background-position:100%}}
 
 /* ── chaque bloc = plein écran centré ── */
-.block{
+#land .block{
   min-height:100dvh;
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
@@ -24,7 +24,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 }
 
 /* ── YOURMINE ── */
-.ym-title{
+#land .ym-title{
   font-family:'Syne',sans-serif;
   font-size:7vw;
   font-weight:800;letter-spacing:0;line-height:1;
@@ -37,7 +37,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 }
 
 /* ── YOUR WEB YOUR RULES ── */
-.yw-title{
+#land .yw-title{
   font-family:'Syne',sans-serif;
   font-size:clamp(44px,9vw,120px);
   font-weight:800;letter-spacing:-.01em;line-height:.97;
@@ -45,17 +45,17 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 }
 
 /* ── texte corps ── */
-.body{
+#land .body{
   font-size:clamp(24px,4vw,48px);
   font-weight:200;
   line-height:1.65;
   letter-spacing:-.01em;
   color:rgba(232,234,242,.45);
 }
-.body strong{color:#e8eaf2;font-weight:300}
+#land .body strong{color:#e8eaf2;font-weight:300}
 
 /* ── bouton ── */
-.btn{
+#land .btn{
   font-family:'Outfit',sans-serif;
   font-size:17px;font-weight:300;
   padding:16px 52px;border-radius:100px;
@@ -64,10 +64,10 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
   animation:up .7s .5s cubic-bezier(.16,1,.3,1) both;
   transition:opacity .15s,transform .15s;
 }
-.btn:hover{opacity:.85;transform:scale(.97)}
+#land .btn:hover{opacity:.85;transform:scale(.97)}
 
 /* ── icônes séparatrices ── */
-.icon-block{
+#land .icon-block{
   min-height:30vh;
   display:flex;align-items:center;justify-content:center;
 }
