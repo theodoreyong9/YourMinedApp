@@ -90,7 +90,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
   </div>
 
   <!-- 2. Your web. Your rules. -->
-  <div class="block">
+  <div class="block icon-block" id="rules-block">
     <div class="yw-title"><span style="-webkit-text-fill-color:rgba(232,234,242,.3);color:rgba(232,234,242,.3)">Your </span>web.<br><span style="-webkit-text-fill-color:rgba(232,234,242,.3);color:rgba(232,234,242,.3)">Your </span>rules.</div>
   </div>
 
@@ -119,13 +119,13 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
   </div>
 
   <!-- 4. Web 1→4 -->
-  <div class="block">
+  <div class="block" id="web-block">
     <div class="body">
-      Web 1 gave access.<br>
-      Web 2 gave interaction.<br>
-      Web 3 gave ownership.<br><br>
-      <strong>YourMine gives liberation.</strong><br>
-      From anywhere.
+      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease">Web 1 gave access.</span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease .4s">Web 2 gave interaction.</span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease .8s">Web 3 gave ownership.</span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease 1.2s;margin-top:24px"><strong>YourMine gives liberation.</strong></span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease 1.6s">From anywhere.</span>
     </div>
   </div>
 
@@ -219,13 +219,39 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 
 <script>
 (function(){
+  var land = document.getElementById('land');
   var blocks = document.querySelectorAll('#land .block, #land .icon-block');
   blocks.forEach(function(b){ b.style.opacity='0'; b.style.transition='opacity .6s ease'; });
+
+  var scrollDir = 'down';
+  var lastY = 0;
+  land.addEventListener('scroll', function(){
+    var cur = land.scrollTop;
+    scrollDir = cur >= lastY ? 'down' : 'up';
+    lastY = cur;
+  }, {passive:true});
+
   var io = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
-      e.target.style.opacity = e.isIntersecting ? '1' : '0';
+      if(!e.isIntersecting){ e.target.style.opacity='0'; return; }
+      e.target.style.opacity='1';
+      // Trigger line-by-line animation for web-block
+      if(e.target.id === 'web-block'){
+        e.target.querySelectorAll('.wline').forEach(function(l){ l.style.opacity='1'; });
+      }
+      if(!e.target.classList.contains('icon-block')) return;
+      var el = e.target;
+      var dir = scrollDir;
+      var isRules = e.target.id === 'rules-block';
+      // rules-block: auto only when coming from below (going up)
+      if(isRules && dir === 'down') return;
+      var delay = isRules ? 2000 : 500;
+      setTimeout(function(){
+        var target = dir === 'down' ? el.nextElementSibling : el.previousElementSibling;
+        if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+      }, delay);
     });
-  }, {threshold: 0.5});
+  }, {threshold: 0.6});
   blocks.forEach(function(b){ io.observe(b); });
 })();
 </script>
