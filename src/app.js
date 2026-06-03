@@ -1356,18 +1356,6 @@
     OC();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
-    // Permanently guarantee edge-back is always on top — survives any theme overlay
-    (function _guardEdgeBack() {
-      function _raise() {
-        var eb  = document.getElementById('ym-edge-back');
-        var ebt = document.getElementById('ym-edge-back-btn');
-        if(eb)  { eb.style.setProperty('z-index','2147483647','important');  document.body.appendChild(eb); }
-        if(ebt) { ebt.style.setProperty('z-index','2147483647','important'); document.body.appendChild(ebt); }
-      }
-      new MutationObserver(function(){ _raise(); }).observe(document.body, {childList:true, subtree:true});
-      _raise();
-    })();
-
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
       try {
         const url = (m === 'liste.js' && window.YM_LISTE_URL) ? window.YM_LISTE_URL : GH_BASE + m;
