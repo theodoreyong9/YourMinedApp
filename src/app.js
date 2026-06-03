@@ -1361,11 +1361,15 @@
       function _raise() {
         var eb  = document.getElementById('ym-edge-back');
         var ebt = document.getElementById('ym-edge-back-btn');
-        if(eb)  eb.style.setProperty('z-index','2147483647','important');
-        if(ebt) ebt.style.setProperty('z-index','2147483647','important');
+        if(eb)  { eb.style.setProperty('z-index','2147483647','important');  document.body.appendChild(eb); }
+        if(ebt) { ebt.style.setProperty('z-index','2147483647','important'); document.body.appendChild(ebt); }
       }
       _raise();
-      new MutationObserver(_raise).observe(document.body, {childList:true, subtree:false});
+      new MutationObserver(function(mutations){
+        mutations.forEach(function(m){
+          if(m.addedNodes.length) _raise();
+        });
+      }).observe(document.body, {childList:true, subtree:false});
     })();
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
