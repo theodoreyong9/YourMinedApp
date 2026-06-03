@@ -455,7 +455,7 @@ async function render(containerArg){
   switchType();
 }
 
-const THEMES_FILES_URL = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
+const THEMES_FILES_URL = (window.YM_THEMES_OVERRIDE && window.YM_THEMES_OVERRIDE.url) || 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/themes-files.json';
 let _themesList=null,_themesLoaded=false,_themeSearch='',_themeFilterCat='Theme';
 
 const PLATFORMS=[
