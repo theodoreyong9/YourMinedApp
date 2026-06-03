@@ -1312,7 +1312,10 @@
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
-      try { await loadScript(GH_BASE + m); }
+      try {
+        const url = (m === 'liste.js' && window.YM_LISTE_URL) ? window.YM_LISTE_URL : GH_BASE + m;
+        await loadScript(url);
+      }
       catch (e) { console.warn('[YM]', m, e.message); }
     }
 
