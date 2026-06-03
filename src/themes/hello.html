@@ -121,17 +121,17 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
   <!-- 4a. Web evolution — auto transition -->
   <div class="block icon-block" id="web-block">
     <div class="body">
-      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease">Web 1 gave access.</span>
-      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease .5s">Web 2 gave interaction.</span>
-      <span class="wline" style="display:block;opacity:0;transition:opacity .5s ease 1s">Web 3 gave ownership.</span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .7s ease">Web 1 gave access.</span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .7s ease 1.4s">Web 2 gave interaction.</span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .7s ease 2.8s">Web 3 gave ownership.</span>
     </div>
   </div>
 
   <!-- 4b. Liberation — manual from above, auto from below -->
   <div class="block icon-block" id="lib-block">
     <div class="body">
-      <strong>YourMine gives liberation.</strong><br>
-      From anywhere.
+      <span class="wline" style="display:block;opacity:0;transition:opacity .7s ease"><strong>YourMine gives liberation.</strong></span>
+      <span class="wline" style="display:block;opacity:0;transition:opacity .7s ease 1.4s">From anywhere.</span>
     </div>
   </div>
 
@@ -237,22 +237,44 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
     lastY = cur;
   }, {passive:true});
 
+  var _autoTimer = null;
   var io = new IntersectionObserver(function(entries){
     entries.forEach(function(e){
-      if(!e.isIntersecting){ e.target.style.opacity='0'; return; }
-      e.target.style.opacity='1';
-      // Trigger line-by-line animation for web-block
-      if(e.target.id === 'web-block'){
-        e.target.querySelectorAll('.wline').forEach(function(l){ l.style.opacity='1'; });
-      }
-      if(!e.target.classList.contains('icon-block')) return;
       var el = e.target;
+      var id = el.id;
+
+      if(!e.isIntersecting){
+        el.style.opacity='0';
+        // Reset lines so they replay next time
+        if(id === 'web-block' || id === 'lib-block'){
+          el.querySelectorAll('.wline').forEach(function(l){ l.style.opacity='0'; });
+        }
+        // Cancel pending auto-scroll
+        if(_autoTimer){ clearTimeout(_autoTimer); _autoTimer=null; }
+        return;
+      }
+
+      el.style.opacity='1';
       var dir = scrollDir;
-      var isRules = e.target.id === 'rules-block';
-      // rules-block: auto only when coming from below (going up)
-      if(isRules && dir === 'down') return;
-      var delay = isRules ? 2000 : 500;
-      setTimeout(function(){
+
+      // Trigger line-by-line animation
+      if(id === 'web-block' || id === 'lib-block'){
+        el.querySelectorAll('.wline').forEach(function(l){ l.style.opacity='1'; });
+      }
+
+      if(!el.classList.contains('icon-block')) return;
+
+      // rules-block: manual from above only
+      if(id === 'rules-block' && dir === 'down') return;
+
+      var delay;
+      if(id === 'web-block')        delay = 4500;
+      else if(id === 'lib-block')   delay = 3100;
+      else if(id === 'rules-block') delay = 2000;
+      else delay = 500;
+
+      _autoTimer = setTimeout(function(){
+        _autoTimer = null;
         var target = dir === 'down' ? el.nextElementSibling : el.previousElementSibling;
         if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
       }, delay);
