@@ -1060,7 +1060,7 @@
   localStorage.removeItem = function (k)    { if (window._ym_sl && k === PK) { console.warn('[YM] blocked'); return; } return _lsR(k); };
 
   /* ═══════════════════════════════════════════════════════════
-   * P2P (Trystero)
+   * P2P (Trystero — or any YM_TRANSPORT override)
    * ═══════════════════════════════════════════════════════════ */
   const YM_RELAYS = window.YM_RELAYS_OVERRIDE || ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
@@ -1072,6 +1072,51 @@
     console.warn  = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('Trystero') || arguments[0].includes('wss://'))) return; _w.apply(console, arguments); };
     console.error = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('WebSocket') || arguments[0].includes('wss://'))) return; _e.apply(console, arguments); };
 
+    // ── Transport override ──────────────────────────────────────────
+    // Any theme or sphere can provide a custom transport by declaring:
+    //   window.YM_TRANSPORT = {
+    //     connect(roomId, appId),
+    //     send(peerId, data),       // direct message — null peerId = broadcast
+    //     onMessage(callback),      // callback(peerId, data)
+    //     onPeerJoin(callback),     // callback(peerId)
+    //     onPeerLeave(callback),    // callback(peerId)
+    //   }
+    if (window.YM_TRANSPORT) {
+      try {
+        const t = window.YM_TRANSPORT;
+        await t.connect(YM_ROOM, YM_APPID);
+        t.onMessage((pid, data) => {
+          if ((data && data.type === 'social:presence') || cR(pid))
+            window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
+        });
+        t.onPeerJoin(id => {
+          window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
+          setTimeout(() => t.send(id, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 200);
+        });
+        t.onPeerLeave(id => {
+          p2pS.delete(id); p2pR.delete(id);
+          window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
+        });
+        window.YM_P2P = {
+          broadcast(d)     { t.send(null, d); },
+          sendTo(id, d)    { if (cS(id)) t.send(id, d); },
+          transport: t,
+        };
+        setTimeout(() => t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
+        setInterval(() => { if (!document.hidden) t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) {
+            requestAnimationFrame(() => {
+              t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+              window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: '_self_' } }));
+            });
+          }
+        });
+        return;
+      } catch(e) { _w('[YM] YM_TRANSPORT failed, falling back to Trystero:', e.message); }
+    }
+
+    // ── Default: Trystero over Nostr ────────────────────────────────
     for (const cdn of ['https://cdn.jsdelivr.net/npm/trystero@0.21.0/+esm', 'https://esm.run/trystero@0.21.0']) {
       try {
         const { joinRoom } = await import(cdn);
