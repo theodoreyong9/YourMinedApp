@@ -7,7 +7,7 @@ const REPO_OWNER  = 'theodoreyong9';
 const REPO_NAME   = 'YourMinedApp';
 const REPO_BRANCH = 'main';
 const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/';
-const FILES_JSON_URL = RAW_BASE+'files.json';
+const FILES_JSON_URL = (window.YM_REGISTRY_OVERRIDE && window.YM_REGISTRY_OVERRIDE.url) || RAW_BASE+'files.json';
 
 const CACHE_KEY = 'ym_liste_cache_v4';
 const CACHE_TTL = 30 * 60 * 1000;
