@@ -8,7 +8,7 @@ const GH_REPO    = 'YourMinedApp';
 const GH_REPO_URL = 'https://github.com/'+GH_OWNER+'/'+GH_REPO;
 const RAW_BASE   = 'https://raw.githubusercontent.com/'+GH_OWNER+'/'+GH_REPO+'/main/';
 const FILES_URL  = RAW_BASE+'files.json';
-const THEMES_URL = RAW_BASE+'src/themes/index.json';
+const THEMES_URL = (window.YM_THEMES_OVERRIDE && window.YM_THEMES_OVERRIDE.url) || RAW_BASE+'src/themes/index.json';
 
 let _userToken = (function(){
   try{const t=sessionStorage.getItem('ym_build_token');return t?JSON.parse(t):null;}catch{return null;}
