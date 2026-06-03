@@ -1356,27 +1356,13 @@
     OC();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
-    // Guarantee edge-back is always the last child of body (on top of everything)
-    var _raising = false;
-    function _raiseEdgeBack() {
-      if(_raising) return;
+    // Move edge-back to end of body after all theme scripts have run
+    setTimeout(function(){
       var eb  = document.getElementById('ym-edge-back');
       var ebt = document.getElementById('ym-edge-back-btn');
-      if(!eb && !ebt) return;
-      _raising = true;
-      if(eb  && document.body.lastChild !== eb)  document.body.appendChild(eb);
-      if(ebt && document.body.lastChild !== ebt) document.body.appendChild(ebt);
-      _raising = false;
-    }
-    new MutationObserver(function(mm){
-      mm.forEach(function(m){
-        m.addedNodes.forEach(function(n){
-          if(n === document.getElementById('ym-edge-back') || n === document.getElementById('ym-edge-back-btn')) return;
-          _raiseEdgeBack();
-        });
-      });
-    }).observe(document.body, {childList:true});
-    setTimeout(_raiseEdgeBack, 500);
+      if(eb)  document.body.appendChild(eb);
+      if(ebt) document.body.appendChild(ebt);
+    }, 800);
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
       try {
