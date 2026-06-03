@@ -41,8 +41,8 @@ if (_testOwner) {
       var gh  = inpGh.value.trim();
       var url = inpUrl.value.trim();
       var base;
-      if(gh)       base = 'https://raw.githubusercontent.com/' + gh + '/YourMinedApp/main';
-      else if(url) base = url;
+      if(gh)            base = 'https://raw.githubusercontent.com/' + gh + '/YourMinedApp/main';
+      else if(url && url.startsWith('http')) base = url;
       else return;
       localStorage.setItem(YM_TEST_KEY, base);
       _applyTestRepo(base);
