@@ -1,20 +1,59 @@
 <!--
-  YourMine — Test Theme
-  Loads spheres from Keanuji/YourMinedApp/test.json
+  YourMine — Test Theme — Universal sandbox environment
 -->
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
 <script>
-window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Test theme — loads spheres from Keanuji fork"};
+window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Universal sandbox — configure your repo at first launch"};
 
-// Override sphere registry to load from Keanuji's test.json
-window.YM_REGISTRY_OVERRIDE = {
-  url: 'https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.json'
-};
-window.YM_THEMES_OVERRIDE = {
-  url: 'https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test-theme.json'
-};
-// Clear liste cache so the override takes effect
-localStorage.removeItem('ym_liste_cache_v4');
+// ── Sandbox config ─────────────────────────────────────────────
+var YM_TEST_KEY = 'ym_test_repo';
+var _testOwner = localStorage.getItem(YM_TEST_KEY);
+
+function _applyTestRepo(base) {
+  // Normalize — strip trailing slash + convert blob to raw
+  base = base.replace(/\/+$/, '').replace('https://github.com/', 'https://raw.githubusercontent.com/').replace('/blob/', '/');
+  window.YM_REGISTRY_OVERRIDE = { url: base + '/test.json' };
+  window.YM_THEMES_OVERRIDE   = { url: base + '/test-theme.json' };
+  localStorage.removeItem('ym_liste_cache_v4');
+}
+
+if (_testOwner) {
+  _applyTestRepo(_testOwner);
+} else {
+  document.addEventListener('DOMContentLoaded', function() {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#06060e;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;font-family:sans-serif;';
+    ov.innerHTML =
+      '<div style="font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(240,168,48,.6);margin-bottom:20px">Test Environment</div>' +
+      '<div style="font-size:22px;font-weight:700;color:#e8eaf2;margin-bottom:8px">Configure sandbox</div>' +
+      '<div style="font-size:13px;color:rgba(232,234,242,.4);margin-bottom:28px;text-align:center">Will load <b style="color:rgba(232,234,242,.7)">/test.json</b> and <b style="color:rgba(232,234,242,.7)">/test-theme.json</b></div>' +
+      '<input id="ym-test-gh" placeholder="GitHub username (e.g. Keanuji)" style="width:100%;max-width:360px;padding:12px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e8eaf2;font-size:14px;outline:none;margin-bottom:8px;text-align:center;box-sizing:border-box">' +
+      '<div style="font-size:11px;color:rgba(232,234,242,.25);margin-bottom:16px">— or —</div>' +
+      '<input id="ym-test-url" placeholder="https://any-host.com/myrepo" style="width:100%;max-width:360px;padding:12px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e8eaf2;font-size:12px;outline:none;margin-bottom:20px;text-align:center;box-sizing:border-box;font-family:monospace">' +
+      '<button id="ym-test-go" style="width:100%;max-width:360px;padding:14px;border-radius:100px;background:#e8eaf2;color:#06060e;font-size:15px;font-weight:600;border:none;cursor:pointer">Enter sandbox</button>' +
+      '<button id="ym-test-skip" style="margin-top:14px;background:none;border:none;color:rgba(232,234,242,.25);font-size:12px;cursor:pointer;text-decoration:underline">Reset: delete "ym_test_repo" from localStorage</button>';
+    document.body.appendChild(ov);
+    var inpGh  = ov.querySelector('#ym-test-gh');
+    var inpUrl = ov.querySelector('#ym-test-url');
+    inpGh.focus();
+    function go() {
+      var gh  = inpGh.value.trim();
+      var url = inpUrl.value.trim();
+      var base;
+      if(gh)       base = 'https://raw.githubusercontent.com/' + gh + '/YourMinedApp/main';
+      else if(url) base = url;
+      else return;
+      localStorage.setItem(YM_TEST_KEY, base);
+      _applyTestRepo(base);
+      ov.remove();
+    }
+    ov.querySelector('#ym-test-go').addEventListener('click', go);
+    ov.querySelector('#ym-test-skip').addEventListener('click', function(){
+      localStorage.removeItem(YM_TEST_KEY); ov.remove();
+    });
+    [inpGh, inpUrl].forEach(function(i){ i.addEventListener('keydown', function(e){ if(e.key==='Enter') go(); }); });
+  });
+}
 
 window.YM_WALLPAPER_PRESETS = [
   {label:'Night City',   url:'https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=1400&q=80'},
