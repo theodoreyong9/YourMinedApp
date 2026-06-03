@@ -47,6 +47,7 @@ if (_testOwner) {
       localStorage.setItem(YM_TEST_KEY, base);
       _applyTestRepo(base);
       ov.remove();
+      location.reload();
     }
     ov.querySelector('#ym-test-go').addEventListener('click', go);
     ov.querySelector('#ym-test-skip').addEventListener('click', function(){
