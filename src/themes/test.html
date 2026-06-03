@@ -6,11 +6,20 @@
 window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Universal sandbox — configure your repo at first launch"};
 
 // ── Sandbox config ─────────────────────────────────────────────
-function _applyTestRepo(base) {
-  // Normalize — strip trailing slash + convert blob to raw
-  base = base.replace(/\/+$/, '').replace('https://github.com/', 'https://raw.githubusercontent.com/').replace('/blob/', '/');
-  window.YM_REGISTRY_OVERRIDE = { url: base + '/test.json' };
-  window.YM_THEMES_OVERRIDE   = { url: base + '/test-theme.json' };
+var YM_SESSION_KEY = 'ym_test_repo_session';
+var _sessionRepo = sessionStorage.getItem(YM_SESSION_KEY);
+
+function _normalizeBase(base) {
+  return base.replace(/\/+$/, '')
+    .replace('https://github.com/', 'https://raw.githubusercontent.com/')
+    .replace('/blob/', '/');
+}
+
+// If we have a session repo — apply immediately before liste.js loads
+if (_sessionRepo) {
+  var _base = _normalizeBase(_sessionRepo);
+  window.YM_REGISTRY_OVERRIDE = { url: _base + '/test.json' };
+  window.YM_THEMES_OVERRIDE   = { url: _base + '/test-theme.json' };
   localStorage.removeItem('ym_liste_cache_v4');
 }
 
@@ -38,12 +47,9 @@ function _applyTestRepo(base) {
       if(gh)            base = 'https://raw.githubusercontent.com/' + gh + '/YourMinedApp/main';
       else if(url && url.startsWith('http')) base = url;
       else return;
-      _applyTestRepo(base);
-      ov.remove();
-      // Force liste.js to reload with new registry
+      sessionStorage.setItem(YM_SESSION_KEY, base);
       localStorage.removeItem('ym_liste_cache_v4');
-      if(window.YM_Liste && window.YM_Liste._forceRefresh) window.YM_Liste._forceRefresh();
-      else location.reload();
+      location.reload();
     }
     ov.querySelector('#ym-test-go').addEventListener('click', go);
     [inpGh, inpUrl].forEach(function(i){ i.addEventListener('keydown', function(e){ if(e.key==='Enter') go(); }); });
