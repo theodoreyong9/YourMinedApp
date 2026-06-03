@@ -10,7 +10,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 #ym-wp,#ym-bg,#ym-loader,#desktop,#drag-ghost,#page-dots,#nav-bar,#panel-overlay,#panel-switcher,#ym-sign-dlg,#pwa-install-btn,#toasts,.ym-panel,.dlg,[id^="ym-"][id$="-widget"],.ym-widget,#desktop-slider .icon-wrap{display:none!important}
 .ym-overlay,.ym-tabs,.ym-tab,.ym-input,.ym-btn,.ym-card,.ym-notice,.ym-separator,.pill,#ym-edge-back,#ym-edge-back-btn{display:none!important}
 #ym-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4}
-#land{position:fixed;inset:0;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;z-index:10}
+#land{position:fixed;inset:0;overflow-x:hidden;overflow-y:scroll;-webkit-overflow-scrolling:touch;z-index:10;scroll-snap-type:y mandatory;scroll-behavior:smooth}
 
 @keyframes gradPan{0%,100%{background-position:0%}50%{background-position:100%}}
 @keyframes up{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
@@ -22,6 +22,8 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
   display:flex;flex-direction:column;
   align-items:center;justify-content:center;
   text-align:center;padding:60px 32px;
+  scroll-snap-align:start;
+  scroll-snap-stop:always;
 }
 
 /* ── YOURMINE ── */
@@ -71,8 +73,10 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 
 /* ── icônes séparatrices ── */
 #land .icon-block{
-  min-height:30vh;
+  min-height:100dvh;
   display:flex;align-items:center;justify-content:center;
+  scroll-snap-align:start;
+  scroll-snap-stop:always;
 }
 </style>
 
@@ -130,7 +134,7 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
     <img src="https://yourmine-dapp.web.app/ym512.png" style="width:96px;height:96px;border-radius:18px;object-fit:contain">
   </div>
 
-  <!-- 5. Welcome to Web 4 + Start -->
+  <!-- 5. Welcome to Soulnet + Start -->
   <div class="block">
     <div class="yw-title" style="margin-bottom:52px">Welcome<br>to Soulnet.</div>
     <button class="btn" id="s2">Start ›</button>
@@ -210,6 +214,19 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
     if(window.YM&&window.YM.setTheme){window.YM.setTheme(u);return;}
     location.reload();
   });
+})();
+</script>
+
+<script>
+(function(){
+  var blocks = document.querySelectorAll('#land .block, #land .icon-block');
+  blocks.forEach(function(b){ b.style.opacity='0'; b.style.transition='opacity .6s ease'; });
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      e.target.style.opacity = e.isIntersecting ? '1' : '0';
+    });
+  }, {threshold: 0.5});
+  blocks.forEach(function(b){ io.observe(b); });
 })();
 </script>
 </body>
