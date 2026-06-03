@@ -130,8 +130,11 @@ function render(fromSphere){
   if(panelHead&&!panelHead.querySelector('#prof-backup-btn')){
     var bkBtn=document.createElement('button');bkBtn.id='prof-backup-btn';bkBtn.className='ym-btn ym-btn-ghost';
     bkBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';bkBtn.textContent='💾';panelHead.appendChild(bkBtn);
+    var recBtn=document.createElement('button');recBtn.id='prof-recovery-btn';recBtn.className='ym-btn ym-btn-ghost';
+    recBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';recBtn.title='Identity recovery';recBtn.textContent='🔁';panelHead.appendChild(recBtn);
   }
   var bkBtnEl=document.getElementById('prof-backup-btn');if(bkBtnEl){bkBtnEl.onclick=openBackupOverlay;}
+  var recBtnEl=document.getElementById('prof-recovery-btn');if(recBtnEl){recBtnEl.onclick=openRecoveryOverlay;}
   var tcArea=document.createElement('div');tcArea.id='profile-tab-content';
   tcArea.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden';body.appendChild(tcArea);
   var tabs=document.createElement('div');tabs.className='ym-tabs';
@@ -180,6 +183,149 @@ function _restoreBackupData(data){
       localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));
     });
   }
+}
+
+function openRecoveryOverlay(){
+  var p=window.YM&&window.YM.getProfile&&window.YM.getProfile();
+  if(!p)return;
+  var myNewUUID=p.uuid;
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
+  var box=document.createElement('div');
+  box.style.cssText='background:var(--surface2,#12121e);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:var(--r-lg,16px);padding:20px;max-width:340px;width:90vw;max-height:90vh;overflow-y:auto';
+
+  // Two modes — SEND (I need recovery) or RECEIVE (I help someone)
+  box.innerHTML=
+    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px">Identity Recovery</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:18px">'+
+      '<button class="ym-btn rec-tab '+(true?'ym-btn-accent':'ym-btn-ghost')+'" data-tab="send" style="flex:1;font-size:11px">I need recovery</button>'+
+      '<button class="ym-btn rec-tab ym-btn-ghost" data-tab="receive" style="flex:1;font-size:11px">Help someone</button>'+
+    '</div>'+
+    '<div id="rec-send-panel">'+
+      '<div class="ym-notice info" style="font-size:11px;margin-bottom:14px">Enter the UUID of a contact who knew your old identity. They will see your new UUID and can restore it.</div>'+
+      '<input class="ym-input" id="rec-contact-uuid" placeholder="Contact UUID…" style="width:100%;font-size:11px;font-family:var(--font-m);margin-bottom:8px">'+
+      '<div id="rec-send-status" style="font-size:11px;min-height:16px;margin-bottom:8px"></div>'+
+      '<button class="ym-btn ym-btn-accent" id="rec-send-btn" style="width:100%">Send recovery request</button>'+
+    '</div>'+
+    '<div id="rec-receive-panel" style="display:none">'+
+      '<div class="ym-notice info" style="font-size:11px;margin-bottom:14px">If someone sent you a recovery request, their new UUID appears below. Choose who they are in your contacts to restore their identity.</div>'+
+      '<div id="rec-requests-list"></div>'+
+    '</div>'+
+    '<button class="ym-btn ym-btn-ghost" id="rec-close" style="width:100%;font-size:11px;margin-top:12px">Close</button>';
+
+  overlay.appendChild(box);document.body.appendChild(overlay);
+
+  // Tab switching
+  box.querySelectorAll('.rec-tab').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      box.querySelectorAll('.rec-tab').forEach(function(t){t.className='ym-btn rec-tab ym-btn-ghost';t.style.flex='1';t.style.fontSize='11px';});
+      this.className='ym-btn rec-tab ym-btn-accent';this.style.flex='1';this.style.fontSize='11px';
+      var t=this.dataset.tab;
+      document.getElementById('rec-send-panel').style.display=t==='send'?'':'none';
+      document.getElementById('rec-receive-panel').style.display=t==='receive'?'':'none';
+      if(t==='receive') _renderRecoveryRequests();
+    });
+  });
+
+  // SEND — store recovery request locally keyed by contact UUID
+  // When contact opens their receive panel they'll see pending requests
+  var RECOVERY_KEY='ym_recovery_requests';
+  function getRecoveryRequests(){try{return JSON.parse(localStorage.getItem(RECOVERY_KEY)||'[]');}catch{return[];}}
+  function saveRecoveryRequests(arr){localStorage.setItem(RECOVERY_KEY,JSON.stringify(arr));}
+
+  document.getElementById('rec-send-btn').addEventListener('click',function(){
+    var contactUUID=(document.getElementById('rec-contact-uuid').value||'').trim();
+    var status=document.getElementById('rec-send-status');
+    if(!contactUUID){status.textContent='Enter a UUID';status.style.color='var(--red,#e84040)';return;}
+    // Store request: {contactUUID, myNewUUID, timestamp}
+    // When the contact opens their receive panel they check for requests addressed to them
+    // We send via P2P if peer is near, otherwise store for manual check
+    var req={from:myNewUUID,to:contactUUID,ts:Date.now()};
+    if(window.YM_P2P&&window.YM_P2P.sendTo){
+      window.YM_P2P.sendTo(contactUUID,{sphere:'social.sphere.js',type:'identity:recovery-request',data:req});
+    }
+    // Also store locally in case peer is offline
+    var stored=getRecoveryRequests();
+    stored=stored.filter(function(r){return r.to!==contactUUID;});
+    stored.push(req);
+    saveRecoveryRequests(stored);
+    status.textContent='Request sent ✓';status.style.color='var(--green,#30e880)';
+  });
+
+  // RECEIVE — show pending requests addressed to me
+  function _renderRecoveryRequests(){
+    var list=document.getElementById('rec-requests-list');
+    list.innerHTML='';
+    var allReqs=getRecoveryRequests().filter(function(r){return r.to===myNewUUID;});
+    // Also check incoming P2P requests stored in ym_recovery_incoming
+    var incoming=[];try{incoming=JSON.parse(localStorage.getItem('ym_recovery_incoming')||'[]');}catch{}
+    var reqs=allReqs.concat(incoming);
+    if(!reqs.length){
+      list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">No pending requests</div>';
+      return;
+    }
+    var contacts=window.YM&&window.YM.getProfile&&window.YM.getProfile()||{};
+    var contactList=[];try{contactList=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{}
+    reqs.forEach(function(req){
+      var row=document.createElement('div');
+      row.style.cssText='padding:12px;border:1px solid var(--border);border-radius:var(--r-sm,8px);margin-bottom:8px';
+      row.innerHTML=
+        '<div style="font-size:10px;color:var(--text3);font-family:var(--font-m);word-break:break-all;margin-bottom:10px">New UUID: '+req.from+'</div>'+
+        '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Who is this person in your contacts?</div>'+
+        '<select class="ym-input rec-contact-select" style="width:100%;font-size:11px;margin-bottom:8px">'+
+          '<option value="">— Choose a contact —</option>'+
+          contactList.map(function(c){
+            var name=c.nickname||(c.profile&&c.profile.name)||c.uuid.slice(0,8);
+            return'<option value="'+c.uuid+'">'+name+'</option>';
+          }).join('')+
+        '</select>'+
+        '<button class="ym-btn ym-btn-accent rec-confirm-btn" style="width:100%;font-size:11px">Restore identity</button>';
+
+      row.querySelector('.rec-confirm-btn').addEventListener('click',function(){
+        var oldUUID=row.querySelector('.rec-contact-select').value;
+        if(!oldUUID){return;}
+        // Send back the old UUID to the requester via P2P
+        if(window.YM_P2P&&window.YM_P2P.sendTo){
+          window.YM_P2P.sendTo(req.from,{sphere:'social.sphere.js',type:'identity:recovery-response',data:{oldUUID:oldUUID,newUUID:req.from}});
+        }
+        // Update contact list — replace old UUID with new UUID
+        var updated=contactList.map(function(c){
+          if(c.uuid===oldUUID){c.uuid=req.from;if(c.profile)c.profile.uuid=req.from;}
+          return c;
+        });
+        localStorage.setItem('ym_contacts_v1',JSON.stringify(updated));
+        // Remove request
+        var remaining=getRecoveryRequests().filter(function(r){return r.from!==req.from;});
+        saveRecoveryRequests(remaining);
+        row.innerHTML='<div style="color:var(--green,#30e880);font-size:12px">Identity restored ✓</div>';
+        if(window.YM_toast)window.YM_toast('Identity restored','success');
+      });
+      list.appendChild(row);
+    });
+  }
+
+  // Listen for incoming recovery requests via P2P
+  window.addEventListener('ym:p2p-data',function onRecovery(e){
+    var msg=e.detail&&e.detail.msg;
+    if(!msg||msg.sphere!=='social.sphere.js')return;
+    if(msg.type==='identity:recovery-request'&&msg.data.to===myNewUUID){
+      var inc=[];try{inc=JSON.parse(localStorage.getItem('ym_recovery_incoming')||'[]');}catch{}
+      inc=inc.filter(function(r){return r.from!==msg.data.from;});
+      inc.push(msg.data);
+      localStorage.setItem('ym_recovery_incoming',JSON.stringify(inc));
+    }
+    if(msg.type==='identity:recovery-response'&&msg.data.newUUID===myNewUUID){
+      // Restore old UUID
+      var SP=window.YM&&window.YM.saveProfile;
+      if(SP){var prof=p;prof.uuid=msg.data.oldUUID;SP(prof);}
+      if(window.YM_toast)window.YM_toast('Your identity has been restored','success');
+      window.removeEventListener('ym:p2p-data',onRecovery);
+      overlay.remove();
+    }
+  });
+
+  box.querySelector('#rec-close').addEventListener('click',function(){overlay.remove();});
+  overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
 }
 
 function openBackupOverlay(){
