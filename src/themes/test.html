@@ -54,8 +54,11 @@ if (_testOwner) {
     });
     [inpGh, inpUrl].forEach(function(i){ i.addEventListener('keydown', function(e){ if(e.key==='Enter') go(); }); });
   }
-  if(document.body) _showTestOverlay();
-  else document.addEventListener('DOMContentLoaded', _showTestOverlay);
+  function _tryShowOverlay() {
+    if(document.body){ _showTestOverlay(); }
+    else { setTimeout(_tryShowOverlay, 50); }
+  }
+  _tryShowOverlay();
 }
 
 window.YM_WALLPAPER_PRESETS = [
