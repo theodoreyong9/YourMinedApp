@@ -58,11 +58,13 @@ async function _doFetch(){
   if(!entries.length){_sphereList=[];_loaded=true;_writeCache(_sphereList);return _sphereList;}
   const cachedMap={};
   if(cached)cached.list.forEach(s=>{cachedMap[s.fileName]=s;});
+  const _isOverride=!!(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url);
   const _fetchedList=await Promise.all(entries.map(async entry=>{
     const fileName=entry.filename;
-    const url=RAW_BASE+fileName;
     const ghAuthor=entry.ghAuthor||entry.last_committer||'';
     const codeUrl=entry.codeUrl||(ghAuthor?'https://raw.githubusercontent.com/'+ghAuthor+'/'+REPO_NAME+'/'+REPO_BRANCH+'/'+fileName:null);
+    // When override is active, use codeUrl as primary source
+    const url=_isOverride?(codeUrl||RAW_BASE+fileName):RAW_BASE+fileName;
     // Use metadata from files.json directly if available — no need to fetch sphere code
     const entryMeta={
       name:entry.name||null,
