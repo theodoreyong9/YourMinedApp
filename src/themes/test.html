@@ -27,7 +27,7 @@ function _applyTestRepo(base) {
       '<div style="font-size:11px;color:rgba(232,234,242,.25);margin-bottom:16px">— or —</div>' +
       '<input id="ym-test-url" placeholder="https://any-host.com/myrepo" style="width:100%;max-width:360px;padding:12px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e8eaf2;font-size:12px;outline:none;margin-bottom:20px;text-align:center;box-sizing:border-box;font-family:monospace">' +
       '<button id="ym-test-go" style="width:100%;max-width:360px;padding:14px;border-radius:100px;background:#e8eaf2;color:#06060e;font-size:15px;font-weight:600;border:none;cursor:pointer">Enter sandbox</button>' +
-      '<button id="ym-test-skip" style="margin-top:14px;background:none;border:none;color:rgba(232,234,242,.25);font-size:12px;cursor:pointer;text-decoration:underline">Reset: delete "ym_test_repo" from localStorage</button>';
+      '';
     document.body.appendChild(ov);
     var inpGh  = ov.querySelector('#ym-test-gh');
     var inpUrl = ov.querySelector('#ym-test-url');
@@ -47,9 +47,6 @@ function _applyTestRepo(base) {
       else location.reload();
     }
     ov.querySelector('#ym-test-go').addEventListener('click', go);
-    ov.querySelector('#ym-test-skip').addEventListener('click', function(){
-      ov.remove();
-    });
     [inpGh, inpUrl].forEach(function(i){ i.addEventListener('keydown', function(e){ if(e.key==='Enter') go(); }); });
   }
   function _tryShowOverlay() {
