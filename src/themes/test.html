@@ -41,7 +41,10 @@ function _applyTestRepo(base) {
       else return;
       _applyTestRepo(base);
       ov.remove();
-      location.reload();
+      // Force liste.js to reload with new registry
+      localStorage.removeItem('ym_liste_cache_v4');
+      if(window.YM_Liste && window.YM_Liste._forceRefresh) window.YM_Liste._forceRefresh();
+      else location.reload();
     }
     ov.querySelector('#ym-test-go').addEventListener('click', go);
     ov.querySelector('#ym-test-skip').addEventListener('click', function(){
