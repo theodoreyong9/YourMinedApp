@@ -6,9 +6,6 @@
 window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Universal sandbox — configure your repo at first launch"};
 
 // ── Sandbox config ─────────────────────────────────────────────
-var YM_TEST_KEY = 'ym_test_repo';
-var _testOwner = localStorage.getItem(YM_TEST_KEY);
-
 function _applyTestRepo(base) {
   // Normalize — strip trailing slash + convert blob to raw
   base = base.replace(/\/+$/, '').replace('https://github.com/', 'https://raw.githubusercontent.com/').replace('/blob/', '/');
@@ -17,9 +14,7 @@ function _applyTestRepo(base) {
   localStorage.removeItem('ym_liste_cache_v4');
 }
 
-if (_testOwner) {
-  _applyTestRepo(_testOwner);
-} else {
+{
   // Inject overlay immediately — no DOMContentLoaded needed
   function _showTestOverlay() {
     var ov = document.createElement('div');
@@ -44,14 +39,13 @@ if (_testOwner) {
       if(gh)            base = 'https://raw.githubusercontent.com/' + gh + '/YourMinedApp/main';
       else if(url && url.startsWith('http')) base = url;
       else return;
-      localStorage.setItem(YM_TEST_KEY, base);
       _applyTestRepo(base);
       ov.remove();
       location.reload();
     }
     ov.querySelector('#ym-test-go').addEventListener('click', go);
     ov.querySelector('#ym-test-skip').addEventListener('click', function(){
-      localStorage.removeItem(YM_TEST_KEY); ov.remove();
+      ov.remove();
     });
     [inpGh, inpUrl].forEach(function(i){ i.addEventListener('keydown', function(e){ if(e.key==='Enter') go(); }); });
   }
