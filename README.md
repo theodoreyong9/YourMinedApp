@@ -1757,7 +1757,74 @@ const ctx = window.YM_sphereRegistry?.get('mysphere.sphere.js');
 
 ---
 
-## Deployment
+## Sandboxed Test Environment
+
+YourMine has a built-in sandboxed test environment that runs **inside production** — no staging server, no separate deployment.
+
+Any theme can override the sphere registry and theme registry by declaring two variables before the app boots:
+
+```js
+window.YM_REGISTRY_OVERRIDE = {
+  url: 'https://raw.githubusercontent.com/YourFork/YourMinedApp/main/test.json'
+};
+window.YM_THEMES_OVERRIDE = {
+  url: 'https://raw.githubusercontent.com/YourFork/YourMinedApp/main/test-theme.json'
+};
+localStorage.removeItem('ym_liste_cache_v4'); // clear cache so override takes effect
+```
+
+`liste.js` reads `YM_REGISTRY_OVERRIDE.url` as the sphere list source, and `YM_THEMES_OVERRIDE.url` as the theme list source — instead of the default `files.json` and `themes-files.json` from the main repo.
+
+### What this means
+
+- **The sandbox runs in the same runtime as production** — same P2P peers, same wallet, same sphere API
+- **Completely cloisonné** — your test spheres and themes are only visible to users running your test theme
+- **No permission required** — any fork can have its own registry
+- **Zero configuration** — two lines in a theme is all it takes
+
+### `test.json` format
+
+Same format as `files.json`:
+
+```json
+[
+  {
+    "filename": "mysphere.sphere.js",
+    "author": "SolanaWalletPubkey...",
+    "ghAuthor": "githubusername",
+    "codeUrl": "https://raw.githubusercontent.com/githubusername/YourMinedApp/main/mysphere.sphere.js",
+    "score": 0,
+    "laps": 0,
+    "timestamp": 0,
+    "merged_at": 0
+  }
+]
+```
+
+### `test-theme.json` format
+
+Same format as `themes-files.json`. Can be an empty array `[]` to show no themes.
+
+### Example: `test.html`
+
+```html
+<script>
+window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Test theme"};
+window.YM_REGISTRY_OVERRIDE = {
+  url: 'https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.json'
+};
+window.YM_THEMES_OVERRIDE = {
+  url: 'https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test-theme.json'
+};
+localStorage.removeItem('ym_liste_cache_v4');
+</script>
+```
+
+This pattern is used by the `test.html` theme in the main repo — it loads spheres from Keanuji's fork while running on the same production P2P network.
+
+---
+
+
 
 ```
 Vercel / Netlify / GitHub Pages / Cloudflare Pages / Any CDN
