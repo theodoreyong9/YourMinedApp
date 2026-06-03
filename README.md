@@ -673,9 +673,60 @@ activate(ctx) {
 - **10 P2P sends/second** — enforced by `app.js`
 - **Payload size** — keep under 4KB per message (Nostr relay limit)
 
-### Bring your own infrastructure
+### Pluggable transport — `window.YM_TRANSPORT`
 
-YourMine P2P uses **Trystero** over **Nostr relays** (WebSocket). The default relays are:
+The P2P transport is fully swappable. Any theme or sphere can replace Trystero with any backend — WebRTC, Socket.io, a blockchain, a centralized server, anything — by declaring `window.YM_TRANSPORT` before `app.js` boots:
+
+```js
+window.YM_TRANSPORT = {
+  // Called once at startup — connect to the network
+  async connect(roomId, appId) { /* ... */ },
+
+  // Send a message — peerId=null means broadcast to all
+  send(peerId, data) { /* ... */ },
+
+  // Receive messages — callback(peerId, data)
+  onMessage(callback) { /* ... */ },
+
+  // Peer lifecycle
+  onPeerJoin(callback)  { /* ... */ },  // callback(peerId)
+  onPeerLeave(callback) { /* ... */ },  // callback(peerId)
+};
+```
+
+If `YM_TRANSPORT` is defined, app.js uses it instead of Trystero. If it fails, it falls back to Trystero automatically.
+
+**Examples of what you can plug in:**
+
+| Backend | Use case |
+|---------|----------|
+| WebRTC (native) | No relay dependency |
+| Socket.io | Centralized, simple |
+| Gun.js | Decentralized graph DB |
+| Matrix | Federated, E2E encrypted |
+| Solana programs | On-chain messages |
+| `localStorage` events | Local tab testing |
+
+**Minimal example — centralized Socket.io transport:**
+
+```js
+window.YM_TRANSPORT = (function() {
+  const socket = io('https://my-server.com');
+  let _onMsg, _onJoin, _onLeave;
+  socket.on('msg',   (d) => _onMsg   && _onMsg(d.from, d.data));
+  socket.on('join',  (id) => _onJoin  && _onJoin(id));
+  socket.on('leave', (id) => _onLeave && _onLeave(id));
+  return {
+    async connect(roomId, appId) { socket.emit('join', { room: roomId, app: appId }); },
+    send(peerId, data)           { socket.emit('msg', { to: peerId, data }); },
+    onMessage(cb)                { _onMsg = cb; },
+    onPeerJoin(cb)               { _onJoin = cb; },
+    onPeerLeave(cb)              { _onLeave = cb; },
+  };
+})();
+```
+
+
 
 ```js
 const YM_RELAYS = [
@@ -1274,7 +1325,7 @@ window.parent.postMessage({ type: 'ym:resize', height: 600 }, '*');
 10. app.js: fetchSphereList() — populates sphere registry from files.json
 11. app.js: restores active spheres from profile.spheres[]
 12. app.js: activates social.sphere.js (mandatory)
-13. app.js: activates safety.sphere.js (mandatory)
+13. app.js: activates requiredSpheres from YM_THEME_META (optional, user can deactivate later)
 14. app.js: initP2P() — Trystero via Nostr relays
 15. app.js: hides loader on fonts.ready
 ```
@@ -1308,7 +1359,9 @@ activate(ctx) {
 
 ### Mandatory spheres
 
-`social.sphere.js` and `safety.sphere.js` — always active, not deactivatable.
+`social.sphere.js` is the only permanently mandatory sphere — always active, not deactivatable.
+
+`safety.sphere.js` is optional and deactivatable like any other sphere.
 
 ---
 
