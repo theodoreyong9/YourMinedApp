@@ -1356,13 +1356,17 @@
     OC();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
-    // Guarantee edge-back button is always on top — can't be overridden by any theme CSS
-    requestAnimationFrame(function _enforceEdgeBack() {
-      var eb  = document.getElementById('ym-edge-back');
-      var ebt = document.getElementById('ym-edge-back-btn');
-      if(eb)  eb.style.setProperty('z-index','2147483647','important');
-      if(ebt) ebt.style.setProperty('z-index','2147483647','important');
-    });
+    // Permanently guarantee edge-back is always on top — survives any theme overlay
+    (function _guardEdgeBack() {
+      function _raise() {
+        var eb  = document.getElementById('ym-edge-back');
+        var ebt = document.getElementById('ym-edge-back-btn');
+        if(eb)  eb.style.setProperty('z-index','2147483647','important');
+        if(ebt) ebt.style.setProperty('z-index','2147483647','important');
+      }
+      _raise();
+      new MutationObserver(_raise).observe(document.body, {childList:true, subtree:false});
+    })();
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
       try {
