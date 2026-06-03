@@ -18,44 +18,31 @@ html,body{height:100%;overflow:hidden;background:#06060e;color:#e8eaf2;font-fami
 
 /* ── chaque bloc = plein écran centré ── */
 #land .block{
-  min-height:100dvh !important;
-  display:flex !important;flex-direction:column !important;
-  align-items:center !important;justify-content:center !important;
-  text-align:center !important;padding:60px 32px !important;
+  min-height:100dvh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  text-align:center;padding:60px 32px;
 }
 
 /* ── YOURMINE ── */
 #land .ym-title{
   font-family:'Syne',sans-serif;
-  font-size:9vw !important;
-  font-weight:800;letter-spacing:0;line-height:1;
-  color:#e8eaf2;
-  animation:up .9s .1s cubic-bezier(.16,1,.3,1) both;
-  margin-bottom:52px;
-  display:block;width:100%;text-align:center;
-}
-
-/* ── YOUR WEB YOUR RULES ── */
-#land .ym-title{
-  font-family:'Syne',sans-serif;
   font-size:6.5vw;
-  font-weight:800;
-  letter-spacing:0;
-  line-height:1;
+  font-weight:800;letter-spacing:0;line-height:1;
   background:linear-gradient(90deg,#f0a830,#fff 44%,#08e0f8);
   background-size:200%;
   -webkit-background-clip:text;
   -webkit-text-fill-color:transparent;
   background-clip:text;
-  display:block;
-  width:100%;
-  text-align:center;
+  display:block;width:100%;text-align:center;
   margin-bottom:52px;
   animation:up .9s .1s cubic-bezier(.16,1,.3,1) both, gradPan 7s 1s ease-in-out infinite;
 }
+
+/* ── YOUR WEB YOUR RULES + WELCOME TO SOULNET ── */
 #land .yw-title{
   font-family:'Syne',sans-serif;
-  font-size:clamp(44px,9vw,120px) !important;
+  font-size:9vw;
   font-weight:800;letter-spacing:-.01em;line-height:.97;
   color:#e8eaf2;
 }
