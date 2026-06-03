@@ -1356,13 +1356,29 @@
     OC();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
-    // Move edge-back to end of body after all theme scripts have run
+    // Move edge-back to end of body after boot
     setTimeout(function(){
       var eb  = document.getElementById('ym-edge-back');
       var ebt = document.getElementById('ym-edge-back-btn');
       if(eb)  document.body.appendChild(eb);
       if(ebt) document.body.appendChild(ebt);
-    }, 800);
+      // Re-raise any time something is added to body
+      new MutationObserver(function(mm){
+        var moved = false;
+        mm.forEach(function(m){
+          m.addedNodes.forEach(function(n){
+            if(n.id === 'ym-edge-back' || n.id === 'ym-edge-back-btn') return;
+            if(!moved){
+              moved = true;
+              var eb2  = document.getElementById('ym-edge-back');
+              var ebt2 = document.getElementById('ym-edge-back-btn');
+              if(eb2)  document.body.appendChild(eb2);
+              if(ebt2) document.body.appendChild(ebt2);
+            }
+          });
+        });
+      }).observe(document.body, {childList:true});
+    }, 300);
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
       try {
