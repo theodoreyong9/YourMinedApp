@@ -584,11 +584,9 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
         wrap.innerHTML='<img src="'+esc(url)+'" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">'+
           '<div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent,rgba(0,0,0,.7));font-size:9px;color:#fff">'+esc(t.name||'')+'</div>';
         wrap.addEventListener('click',()=>{
-          localStorage.setItem('ym_theme_url',t.codeUrl||'');
           localStorage.setItem('ym_wallpaper',url);
-          localStorage.removeItem('ym_theme_cache');
           window.YM_toast?.('Thème + photo — rechargement…','success');
-          setTimeout(()=>location.reload(),1000);
+          window.YM?.setTheme(t.codeUrl||'');
         });
         grid.appendChild(wrap);
       });
@@ -671,10 +669,7 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
         if(_themeActivating)return;
         _themeActivating=true;
         btn.textContent='…';
-        localStorage.setItem('ym_theme_url',rawUrl);
-        localStorage.removeItem('ym_theme_cache');
-        window.YM_toast?.('Thème — rechargement…','success');
-        setTimeout(()=>{if(window._YM_softReload)window._YM_softReload();else location.reload();},400);
+        window.YM?.setTheme(rawUrl);window.YM_toast?.('Thème — rechargement…','success');
       }},
       {icon:'⊞', label:'Bureau', style:BTN_GHOST, id:'desk', onClick:()=>{
         _addThemeIcon(t,rawUrl);
@@ -821,10 +816,7 @@ function renderLinkContent(container){
         btn.textContent='…';btn.disabled=true;
         try{
           if(type==='theme'){
-            localStorage.setItem('ym_theme_url',url);
-            localStorage.removeItem('ym_theme_cache');
-            window.YM_toast?.('Thème — rechargement…','success');
-            setTimeout(()=>location.reload(),400);
+            window.YM?.setTheme(url);window.YM_toast?.('Thème — rechargement…','success');
           }else{
             const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});
             if(!r.ok)throw new Error('Fetch échoué: HTTP '+r.status);
@@ -870,10 +862,7 @@ function renderLinkContent(container){
           if(typeRow._getCur()==='theme'){
             const blob=new Blob([code],{type:'text/html'});
             const blobUrl=URL.createObjectURL(blob);
-            localStorage.setItem('ym_theme_url',blobUrl);
-            localStorage.removeItem('ym_theme_cache');
-            window.YM_toast?.('Thème — rechargement…','success');
-            setTimeout(()=>location.reload(),400);
+            window.YM?.setTheme(blobUrl);window.YM_toast?.('Thème — rechargement…','success');
           }else{
             await execAndActivate(code);
             ta.value='';
