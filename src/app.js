@@ -1364,12 +1364,8 @@
         if(eb)  { eb.style.setProperty('z-index','2147483647','important');  document.body.appendChild(eb); }
         if(ebt) { ebt.style.setProperty('z-index','2147483647','important'); document.body.appendChild(ebt); }
       }
+      new MutationObserver(function(){ _raise(); }).observe(document.body, {childList:true, subtree:true});
       _raise();
-      new MutationObserver(function(mutations){
-        mutations.forEach(function(m){
-          if(m.addedNodes.length) _raise();
-        });
-      }).observe(document.body, {childList:true, subtree:false});
     })();
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
