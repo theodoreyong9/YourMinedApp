@@ -20,7 +20,8 @@ function _applyTestRepo(base) {
 if (_testOwner) {
   _applyTestRepo(_testOwner);
 } else {
-  document.addEventListener('DOMContentLoaded', function() {
+  // Inject overlay immediately — no DOMContentLoaded needed
+  function _showTestOverlay() {
     var ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#06060e;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;font-family:sans-serif;';
     ov.innerHTML =
@@ -52,7 +53,9 @@ if (_testOwner) {
       localStorage.removeItem(YM_TEST_KEY); ov.remove();
     });
     [inpGh, inpUrl].forEach(function(i){ i.addEventListener('keydown', function(e){ if(e.key==='Enter') go(); }); });
-  });
+  }
+  if(document.body) _showTestOverlay();
+  else document.addEventListener('DOMContentLoaded', _showTestOverlay);
 }
 
 window.YM_WALLPAPER_PRESETS = [
