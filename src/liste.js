@@ -149,6 +149,10 @@ async function activateSphere(sphere){
   if(window.YM_sphereRegistry?.has(sphere.fileName))return;
   const active=getActiveSpheres();
   if(!active.includes(sphere.fileName)){active.push(sphere.fileName);setActiveSpheres(active);}
+  // Store codeUrl for cross-registry fallback
+  if(sphere.codeUrl){
+    try{var _urls=JSON.parse(localStorage.getItem('ym_sphere_codeurls')||'{}');_urls[sphere.fileName]=sphere.codeUrl;localStorage.setItem('ym_sphere_codeurls',JSON.stringify(_urls));}catch(e){}
+  }
   try{
     const sphereObj=await loadSphereCode(sphere);
     if(sphereObj)await window.YM?.activateSphere?.(sphere.fileName,sphereObj);
@@ -200,28 +204,31 @@ async function loadLocalSphere(src,fileName){
   });
 }
 
-async function activateSphereByName(fileName){
+async function activateSphereByName(fileName, codeUrl){
   if(window.YM_sphereRegistry?.has(fileName))return;
   if(!_loaded)await fetchSphereList();
   let sphere=_sphereList.find(s=>s.fileName===fileName);
-  // Fallback: if not in current registry (override), try Theodore's registry
+  // Fallback 1: if override active, try Theodore's registry
   if(!sphere && window.YM_REGISTRY_OVERRIDE){
     try{
-      const fallbackUrl='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/files.json';
-      const res=await fetch(fallbackUrl+'?t='+Date.now(),{cache:'no-store'});
+      const res=await fetch('https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/files.json?t='+Date.now(),{cache:'no-store'});
       if(res.ok){
         const list=await res.json();
         const entry=list.find(function(e){return e.filename===fileName;});
         if(entry){
-          const ghAuthor=entry.ghAuthor||entry.last_committer||'theodoreyong9';
-          sphere={
-            fileName:entry.filename,
-            codeUrl:entry.codeUrl||('https://raw.githubusercontent.com/'+ghAuthor+'/YourMinedApp/main/'+entry.filename),
-            score:entry.score||0,laps:entry.laps||0,author:entry.author||'',ghAuthor,
-          };
+          const ghAuthor=entry.ghAuthor||'theodoreyong9';
+          sphere={fileName:entry.filename,codeUrl:entry.codeUrl||('https://raw.githubusercontent.com/'+ghAuthor+'/YourMinedApp/main/'+entry.filename),score:entry.score||0,laps:entry.laps||0,author:entry.author||'',ghAuthor};
         }
       }
-    }catch(e){console.warn('[Liste] fallback registry failed:',e.message);}
+    }catch(e){console.warn('[Liste] fallback Theodore registry failed:',e.message);}
+  }
+  // Fallback 2: use codeUrl stored at last activation
+  if(!sphere){
+    try{var _urls=JSON.parse(localStorage.getItem('ym_sphere_codeurls')||'{}');if(_urls[fileName])sphere={fileName,codeUrl:_urls[fileName],score:0,laps:0,author:'',ghAuthor:''};}catch(e){}
+  }
+  // Fallback 3: if codeUrl passed directly, use it
+  if(!sphere && codeUrl){
+    sphere={fileName,codeUrl,score:0,laps:0,author:'',ghAuthor:''};
   }
   if(sphere)await activateSphere(sphere);
   else console.warn('[Liste] sphere not found:',fileName);
