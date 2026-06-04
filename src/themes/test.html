@@ -1,11 +1,11 @@
 <!--
-  YourMine — Test Theme — Universal sandbox environment
+  YourMine — Test Theme — Universal test environment
 -->
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
 <script>
-window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Universal sandbox — configure your repo at first launch"};
+window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Test environment — configure your repo at first launch"};
 
-// ── Sandbox config ─────────────────────────────────────────────
+// ── Test environment config ─────────────────────────────────────────────
 var YM_SESSION_KEY = 'ym_test_repo_once';
 var _sessionRepo = localStorage.getItem(YM_SESSION_KEY);
 
@@ -28,22 +28,16 @@ if (!_sessionRepo) {
   // Inject overlay immediately — no DOMContentLoaded needed
   function _showTestOverlay() {
     var ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#06060e;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;font-family:sans-serif;';
+    ov.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:20px;z-index:99999;background:#06060e;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;font-family:sans-serif;';
     ov.innerHTML =
       '<div style="font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(240,168,48,.6);margin-bottom:20px">Test Environment</div>' +
-      '<div style="font-size:22px;font-weight:700;color:#e8eaf2;margin-bottom:8px">Configure sandbox</div>' +
+      '<div style="font-size:22px;font-weight:700;color:#e8eaf2;margin-bottom:8px">Configure test environment</div>' +
       '<div style="font-size:13px;color:rgba(232,234,242,.4);margin-bottom:28px;text-align:center">Will load <b style="color:rgba(232,234,242,.7)">/test.json</b> and <b style="color:rgba(232,234,242,.7)">/test-theme.json</b></div>' +
       '<input id="ym-test-gh" placeholder="GitHub username (e.g. Keanuji)" style="width:100%;max-width:360px;padding:12px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e8eaf2;font-size:14px;outline:none;margin-bottom:8px;text-align:center;box-sizing:border-box">' +
       '<div style="font-size:11px;color:rgba(232,234,242,.25);margin-bottom:16px">— or —</div>' +
       '<input id="ym-test-url" placeholder="https://any-host.com/myrepo" style="width:100%;max-width:360px;padding:12px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e8eaf2;font-size:12px;outline:none;margin-bottom:20px;text-align:center;box-sizing:border-box;font-family:monospace">' +
-      '<button id="ym-test-go" style="width:100%;max-width:360px;padding:14px;border-radius:100px;background:#e8eaf2;color:#06060e;font-size:15px;font-weight:600;border:none;cursor:pointer">Enter sandbox</button>';
+      '<button id="ym-test-go" style="width:100%;max-width:360px;padding:14px;border-radius:100px;background:#e8eaf2;color:#06060e;font-size:15px;font-weight:600;border:none;cursor:pointer">Enter test environment</button>';
     document.body.appendChild(ov);
-    setTimeout(function(){
-      var eb=document.getElementById('ym-edge-back');
-      var ebt=document.getElementById('ym-edge-back-btn');
-      if(eb) document.body.appendChild(eb);
-      if(ebt) document.body.appendChild(ebt);
-    }, 100);
     var inpGh  = ov.querySelector('#ym-test-gh');
     var inpUrl = ov.querySelector('#ym-test-url');
     inpGh.focus();
