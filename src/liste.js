@@ -203,7 +203,26 @@ async function loadLocalSphere(src,fileName){
 async function activateSphereByName(fileName){
   if(window.YM_sphereRegistry?.has(fileName))return;
   if(!_loaded)await fetchSphereList();
-  const sphere=_sphereList.find(s=>s.fileName===fileName);
+  let sphere=_sphereList.find(s=>s.fileName===fileName);
+  // Fallback: if not in current registry (override), try Theodore's registry
+  if(!sphere && window.YM_REGISTRY_OVERRIDE){
+    try{
+      const fallbackUrl='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/files.json';
+      const res=await fetch(fallbackUrl+'?t='+Date.now(),{cache:'no-store'});
+      if(res.ok){
+        const list=await res.json();
+        const entry=list.find(function(e){return e.filename===fileName;});
+        if(entry){
+          const ghAuthor=entry.ghAuthor||entry.last_committer||'theodoreyong9';
+          sphere={
+            fileName:entry.filename,
+            codeUrl:entry.codeUrl||('https://raw.githubusercontent.com/'+ghAuthor+'/YourMinedApp/main/'+entry.filename),
+            score:entry.score||0,laps:entry.laps||0,author:entry.author||'',ghAuthor,
+          };
+        }
+      }
+    }catch(e){console.warn('[Liste] fallback registry failed:',e.message);}
+  }
   if(sphere)await activateSphere(sphere);
   else console.warn('[Liste] sphere not found:',fileName);
 }
