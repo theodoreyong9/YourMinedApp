@@ -148,7 +148,11 @@ function showProofOfWill(){
 
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);margin-bottom:24px"></div>'+
 
-    '<div style="font-size:13px;color:rgba(240,240,248,.6);line-height:1.8;margin-bottom:24px">Most protocols reward computation or capital. YourMine rewards <strong style="color:#ff4560">will</strong> — the deliberate choice to participate, to wait, to contribute quality over quantity.</div>'+
+    '<div style="font-size:13px;color:rgba(240,240,248,.6);line-height:1.8;margin-bottom:16px">Most protocols reward computation or capital. YourMine rewards <strong style="color:#ff4560">will</strong> — the deliberate choice to participate, to wait, to contribute quality over quantity.</div>'+
+
+    '<div style="background:rgba(255,69,96,.04);border:1px solid rgba(255,69,96,.15);border-radius:10px;padding:14px 16px;margin-bottom:24px;font-size:12px;color:rgba(240,240,248,.6);line-height:1.7">'+
+      '<strong style="color:#f0a830">Interplanetary by design.</strong> Bitcoin cannot mine across planets — the speed of light breaks its consensus. Proof of Will mines where you are, with who you are. No global synchronisation required. Your will does not travel. It acts.'+
+    '</div>'+
 
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px">I. Mining — the patience formula</div>'+
     '<div style="font-size:10px;color:rgba(240,240,248,.4);margin-bottom:6px">Standard form:</div>'+
@@ -203,7 +207,12 @@ function showProofOfWill(){
 
     '<div style="text-align:center;font-size:14px;color:rgba(240,240,248,.4);font-style:italic;line-height:1.8">'+
       '"You cannot fake will.<br>You can only demonstrate it."'+
-    '</div>';
+    '</div>'+
+
+    '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin:24px 0"></div>'+
+
+    '<div style="text-align:center;font-size:11px;color:rgba(255,69,96,.5);font-family:monospace;letter-spacing:.15em;text-transform:uppercase">Interplanetary Proof of Will</div>'+
+    '<div style="text-align:center;font-size:12px;color:rgba(240,240,248,.3);margin-top:6px;line-height:1.7">The first consensus mechanism that works beyond Earth.<br>Your will mines where you are.</div>';
 
   overlay.appendChild(closeBtn);
   overlay.appendChild(wrap);
