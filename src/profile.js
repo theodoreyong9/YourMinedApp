@@ -29,6 +29,20 @@ window.YM_canSeeSphere=function(sphereName,peerUUID){
 function renderSphereProfiles(container,fromSphere){
   container.style.cssText='flex:1;overflow-y:auto;padding:12px 16px';
   container.innerHTML='';
+
+  // Re-render if a sphere activates after profile is open
+  var _sphereListener=function(){
+    if(container.isConnected) renderSphereProfiles(container,null);
+  };
+  window.addEventListener('ym:sphere-activated',_sphereListener,{once:false});
+  // Clean up when container is removed
+  var _obs=new MutationObserver(function(){
+    if(!document.body.contains(container)){
+      window.removeEventListener('ym:sphere-activated',_sphereListener);
+      _obs.disconnect();
+    }
+  });
+  _obs.observe(document.body,{childList:true,subtree:true});
   var p=window.YM&&window.YM.getProfile&&window.YM.getProfile();
   var active=(p&&p.spheres)||[];
   if(!active.length){container.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No active spheres</div>';return;}
