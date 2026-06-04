@@ -218,17 +218,10 @@ function renderFlow(buildContent){
           });
         }
       ));
-      // 2.2 AI — disabled (soon)
+      // 2.2 AI
       const aiBtn = _flowBtn(
-        '<span style="font-size:20px;opacity:.5">&#10022;</span><div><div style="font-size:13px;color:var(--text2)">Test the YourMine agent</div><div style="font-size:10px;margin-top:2px;display:flex;align-items:center;gap:6px"><span style="color:var(--text3)">AI code generation</span><span style="font-family:var(--font-m,monospace);font-size:9px;letter-spacing:.12em;color:var(--gold);opacity:.7;background:rgba(240,168,48,.08);border:1px solid rgba(240,168,48,.2);border-radius:4px;padding:1px 5px">soon</span></div></div>',
-        ()=>{}
-      );
-      aiBtn.style.opacity='0.6';
-      aiBtn.style.cursor='not-allowed';
-      aiBtn.style.pointerEvents='none';
-      wrap.appendChild(aiBtn);
-      // original click kept below for when AI is ready
-      const _aiOriginalClick = ()=>{
+        '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Test the YourMine agent</div><div style="font-size:10px;color:var(--text3);margin-top:2px">AI code generation</div></div>',
+        ()=>{
           buildContent.innerHTML='';
           buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
           const aiArea=document.createElement('div');
@@ -246,7 +239,9 @@ function renderFlow(buildContent){
           backWrap3.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
           backWrap3.appendChild(_flowBack(buildContent, renderFlow));
           buildContent.appendChild(backWrap3);
-        }; // end _aiOriginalClick
+        }
+      );
+      wrap.appendChild(aiBtn);
       buildContent.appendChild(wrap);
       buildContent.appendChild(_flowBack(buildContent, renderFlow));
     }
@@ -278,7 +273,7 @@ async function render(containerArg,presetType){
 const PATCH_PREFIX = 'ym_patch_';
 const THEO_RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
 const FILES_JSON_URL = THEO_RAW + 'files.json';
-const THEMES_FILES_JSON_URL = THEO_RAW + 'themes-files.json';
+const THEMES_FILES_JSON_URL = (window.YM_THEMES_OVERRIDE && window.YM_THEMES_OVERRIDE.url) || THEO_RAW + 'themes-files.json';
 
 function getFileName(url){ return url.split('/').pop().split('?')[0]; }
 
