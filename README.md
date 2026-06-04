@@ -1810,9 +1810,9 @@ const ctx = window.YM_sphereRegistry?.get('mysphere.sphere.js');
 
 ---
 
-## Sandboxed Test Environment
+## Test Environment
 
-YourMine has a built-in sandboxed test environment that runs **inside production** — no staging server, no separate deployment.
+YourMine has a built-in test environment that runs **inside production** — no staging server, no separate deployment.
 
 Any theme can override the sphere registry and theme registry by declaring two variables before the app boots:
 
@@ -1830,7 +1830,7 @@ localStorage.removeItem('ym_liste_cache_v4'); // clear cache so override takes e
 
 ### What this means
 
-- **The sandbox runs in the same runtime as production** — same P2P peers, same wallet, same sphere API
+- **Runs in the same runtime as production** — same P2P peers, same wallet, same sphere API
 - **Completely cloisonné** — your test spheres and themes are only visible to users running your test theme
 - **No permission required** — any fork can have its own registry
 - **Zero configuration** — two lines in a theme is all it takes
