@@ -1332,6 +1332,8 @@
       if (!url) return;
       if (prevUrl !== undefined) localStorage.setItem('ym_prev_theme', prevUrl);
       localStorage.setItem('ym_theme_url', url);
+      // Clear test profile key when switching to a non-test theme
+      if (!url.includes('test')) localStorage.removeItem('ym_profile_key');
       fetch(url).then(r => r.ok ? r.text() : null).then(html => {
         if (html) try { localStorage.setItem('ym_theme_cache', html); } catch(e) {}
         location.reload();
