@@ -9,14 +9,11 @@
   const toast = (...a) => window.YM_toast(...a);
   const esc   = (...a) => window.YM_escHtml(...a);
 
-  // Clear stale profile key flag
-  if (!sessionStorage.getItem('ym_profile_key_set')) localStorage.removeItem('ym_profile_key');
-  // Detect test theme from theme URL
+  // Derive profile key from active theme URL — stable across reloads
   const _themeUrl = localStorage.getItem('ym_theme_url') || '';
-  if (_themeUrl.includes('test') && !localStorage.getItem('ym_profile_key')) {
-    localStorage.setItem('ym_profile_key', 'ym_profile_test_v1');
-  }
-  const PK = () => localStorage.getItem('ym_profile_key') || 'ym_profile_v1';
+  const _isTestTheme = _themeUrl.includes('test');
+  const _testHash = _isTestTheme ? (localStorage.getItem('ym_profile_key') || 'ym_profile_test_v1') : null;
+  const PK = () => _isTestTheme ? (_testHash || 'ym_profile_test_v1') : 'ym_profile_v1';
   const AK = 'ym_activity_v1';
 
   function gid() {
