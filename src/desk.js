@@ -4,7 +4,9 @@
 /* jshint esversion:11 */
 'use strict';
 
-const _pkSuffix = (localStorage.getItem('ym_profile_key')||'ym_profile_v1').replace('ym_profile_','').replace('_v1','').replace('v1','') || 'default';
+const _pk = localStorage.getItem('ym_profile_key') || 'ym_profile_v1';
+const _themeSlug = (localStorage.getItem('ym_theme_url')||'default').split('/').pop().replace('.html','').replace('.theme','') || 'default';
+const _pkSuffix = _pk !== 'ym_profile_v1' ? _pk.replace('ym_profile_','') : _themeSlug;
 const DK='ym_desktop_'+_pkSuffix, WK='ym_wallpaper_'+_pkSuffix, PGSK='ym_pages_'+_pkSuffix;
 const isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
 const GRID=()=>isPC()?{cols:8,rows:5}:{cols:4,rows:6};
