@@ -4,7 +4,8 @@
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
 <script>
 window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Test environment — configure your repo at first launch"};
-window.YM_PROFILE_KEY = 'ym_profile_test_v1';
+localStorage.setItem('ym_profile_key', 'ym_profile_test_v1');
+sessionStorage.setItem('ym_profile_key_set', '1');
 
 // ── Test environment config ─────────────────────────────────────────────
 var YM_SESSION_KEY = 'ym_test_repo_once';
