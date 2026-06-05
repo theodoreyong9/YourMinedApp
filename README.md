@@ -2096,4 +2096,43 @@ This means `liste.js` can use metadata directly from `files.json` without fetchi
 
 ---
 
+## Cross-Registry Sphere Loading
+
+When a theme uses `YM_REGISTRY_OVERRIDE`, spheres already activated in the user's profile may come from a different registry. `liste.js` handles this with a 3-level fallback in `activateSphereByName`:
+
+1. **Current registry** — looks in `_sphereList` (the active registry, overridden or default)
+2. **Theodore fallback** — if override is active and sphere not found, fetches `files.json` from `theodoreyong9/YourMinedApp` to find the sphere
+3. **`ym_sphere_codeurls` cache** — at every activation, the sphere's `codeUrl` is stored in localStorage under this key. Used as ultimate fallback across registry switches.
+
+This means spheres from Theodore and Keanuji (or any fork) coexist without bugs — each sphere loads from its real origin regardless of the active registry.
+
+---
+
+## Nav Button Active State — `YM_NAV_CONFIG` Aware
+
+`updateActiveDbtn(panelId, tab)` now scans all `.dbtn` elements and reads their `YM_NAV_CONFIG` entry to find which button matches the current panel+tab combination.
+
+This fixes themes like Zone where `btn-figure` opens `panel-spheres` and `btn-wallet` opens `panel-mine/wallet` — the correct button is activated in both cases.
+
+Themes that declare custom `YM_NAV_CONFIG` get correct active states automatically without any extra code.
+
+---
+
+## Profile — Live Sphere Config
+
+`renderSphereProfiles` now listens to `ym:sphere-activated` and re-renders automatically when a sphere is activated after the profile panel is already open. This fixes the missing configuration sections when a sphere loads asynchronously after the profile is opened.
+
+---
+
+## Interplanetary Proof of Will
+
+Bitcoin cannot mine across planets. The speed of light introduces 3–22 minutes of latency between Earth and Mars, which breaks global consensus. Any chain would fork irreversibly.
+
+Proof of Will is geographically independent by design. Mining happens where you are, with who you are. Your will does not travel — it acts locally. No global synchronisation required.
+
+This makes YourMine the first participation protocol that works at interplanetary scale.
+
+---
+
 *YourMine is open source and open by design. There is no central authority. Fork it, improve it, run it.*
+
