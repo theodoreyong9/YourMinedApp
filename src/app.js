@@ -87,6 +87,7 @@
 
     if (tab === 'wallet' && w) {
       w.style.cssText = 'display:flex; flex:1; flex-direction:column; overflow-y:auto; min-height:0;';
+      w.innerHTML = '';
       if (window.YM_Mine) window.YM_Mine.render(w);
     }
     else if (tab === 'build' && b) {
@@ -1387,6 +1388,8 @@
     _wrapSignWithConfirmation();
     setTimeout(_wrapSignWithConfirmation, 2000);
     window.addEventListener('ym:wallet-unlocked', _wrapSignWithConfirmation);
+    window.addEventListener('ym:wallet-unlocked', () => switchMineTab('wallet'));
+    window.addEventListener('ym:wallet-locked',   () => switchMineTab('wallet'));
 
     // Desk renders first — spheres activate after
     initP2P();
