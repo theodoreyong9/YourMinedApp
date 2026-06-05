@@ -141,8 +141,9 @@ function extractField(code,field){
 }
 
 const MANDATORY_SPHERES=['social.sphere.js'];
-function getActiveSpheres(){return JSON.parse(localStorage.getItem('ym_active_spheres')||'[]');}
-function setActiveSpheres(arr){localStorage.setItem('ym_active_spheres',JSON.stringify(arr));}
+const ACTIVE_KEY = (window.YM_PROFILE_KEY ? window.YM_PROFILE_KEY.replace('profile','active_spheres') : 'ym_active_spheres');
+function getActiveSpheres(){return JSON.parse(localStorage.getItem(ACTIVE_KEY)||'[]');}
+function setActiveSpheres(arr){localStorage.setItem(ACTIVE_KEY,JSON.stringify(arr));}
 function isSphereActive(fileName){return getActiveSpheres().includes(fileName);}
 
 async function activateSphere(sphere){
