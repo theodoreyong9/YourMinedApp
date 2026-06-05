@@ -1395,8 +1395,7 @@
     initP2P();
 
     setTimeout(async function() {
-      try { if (window.YM_Liste && window.YM_Liste.fetchSphereList) await window.YM_Liste.fetchSphereList(); } catch {}
-
+      // Activate from cache immediately — don't wait for network fetch
       const p = LP();
       if (p && p.spheres && p.spheres.length) {
         await Promise.allSettled(
@@ -1408,6 +1407,8 @@
             )
         );
       }
+      // Fetch fresh sphere list in background
+      try { if (window.YM_Liste && window.YM_Liste.fetchSphereList) window.YM_Liste.fetchSphereList(); } catch {}
 
       const _socId = 'social.sphere.js';
       if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
