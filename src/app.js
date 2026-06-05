@@ -9,7 +9,9 @@
   const toast = (...a) => window.YM_toast(...a);
   const esc   = (...a) => window.YM_escHtml(...a);
 
-  const PK = () => window.YM_PROFILE_KEY || 'ym_profile_v1';
+  // Clear profile key if not set by current theme session
+  if (!sessionStorage.getItem('ym_profile_key_set')) localStorage.removeItem('ym_profile_key');
+  const PK = () => localStorage.getItem('ym_profile_key') || 'ym_profile_v1';
   const AK = 'ym_activity_v1';
 
   function gid() {
