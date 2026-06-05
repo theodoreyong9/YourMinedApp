@@ -2094,6 +2094,20 @@ The bot reads these fields from the sphere's `window.YM_S['name.sphere.js'] = { 
 
 This means `liste.js` can use metadata directly from `files.json` without fetching each sphere file individually — faster load, more robust.
 
+### Profile isolation — `window.YM_PROFILE_KEY`
+
+Any theme can declare a separate profile storage key before boot:
+
+```js
+window.YM_PROFILE_KEY = 'ym_profile_test_v1';
+```
+
+app.js reads this variable instead of the default `ym_profile_v1`. Everything stored in the profile — active spheres, contacts, config, bureau layout — is completely isolated from other themes.
+
+Only two keys are ever active: `ym_profile_v1` for all standard themes, and `ym_profile_test_v1` for the test theme. Same UUID if you want, different context.
+
+This makes the test theme a true sandbox — spheres activated in test never appear on the bureau or in the profile of other themes, and vice versa.
+
 ---
 
 ## Cross-Registry Sphere Loading
