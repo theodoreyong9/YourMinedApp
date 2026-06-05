@@ -34,7 +34,9 @@ if (_sessionRepo) {
   window.YM_THEMES_OVERRIDE   = { url: _base + '/test-theme.json' };
   localStorage.removeItem('ym_liste_cache_v4');
   // Derive unique profile key from registry URL
-  var _hash = btoa(_base).slice(0,12).replace(/[^a-z0-9]/gi,'');
+  var _urlParts = _base.replace('https://raw.githubusercontent.com/','').split('/');
+  var _repoOwner = _urlParts[0] || _base;
+  var _hash = btoa(_repoOwner).replace(/[^a-z0-9]/gi,'').slice(0,10);
   localStorage.setItem('ym_profile_key', 'ym_profile_test_' + _hash);
   sessionStorage.setItem('ym_profile_key_set', '1');
 }
