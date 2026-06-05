@@ -2096,17 +2096,29 @@ This means `liste.js` can use metadata directly from `files.json` without fetchi
 
 ### Profile isolation — `window.YM_PROFILE_KEY`
 
-Any theme can declare a separate profile storage key before boot:
+The test theme uses a completely isolated profile — separate active spheres, bureau layout, contacts, and config — without changing the UUID.
+
+The isolation key is derived from the registry owner's GitHub username:
 
 ```js
-window.YM_PROFILE_KEY = 'ym_profile_test_v1';
+var _owner = base.replace('https://raw.githubusercontent.com/','').split('/')[0];
+var _hash  = btoa(_owner).replace(/[^a-z0-9]/gi,'').slice(0,10);
+localStorage.setItem('ym_profile_key', 'ym_profile_test_' + _hash);
 ```
 
-app.js reads this variable instead of the default `ym_profile_v1`. Everything stored in the profile — active spheres, contacts, config, bureau layout — is completely isolated from other themes.
+`app.js`, `liste.js`, and `desk.js` all read `ym_profile_key` from localStorage to derive their storage keys:
 
-Only two keys are ever active: `ym_profile_v1` for all standard themes, and `ym_profile_test_v1` for the test theme. Same UUID if you want, different context.
+| Component | Default key | Test key (example) |
+|-----------|-------------|-------------------|
+| Profile | `ym_profile_v1` | `ym_profile_test_S2VhbnVqaQ` |
+| Active spheres | `ym_active_v1` | `ym_active_test_S2VhbnVqaQ` |
+| Bureau layout | `ym_desktop_default` | `ym_desktop_test_S2VhbnVqaQ` |
+| Wallpaper | `ym_wallpaper_default` | `ym_wallpaper_test_S2VhbnVqaQ` |
+| Pages | `ym_pages_default` | `ym_pages_test_S2VhbnVqaQ` |
 
-This makes the test theme a true sandbox — spheres activated in test never appear on the bureau or in the profile of other themes, and vice versa.
+When switching away from the test theme, `setTheme()` clears `ym_profile_key` — the next boot uses `ym_profile_v1`.
+
+Two different test registries (e.g. Keanuji and another fork) have different hashes and therefore completely separate profiles and bureaux.
 
 ---
 
