@@ -4,8 +4,7 @@
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
 <script>
 window.YM_THEME_META = {"name":"Test","icon":"🧪","description":"Test environment — configure your repo at first launch"};
-localStorage.setItem('ym_profile_key', 'ym_profile_test_v1');
-sessionStorage.setItem('ym_profile_key_set', '1');
+// Profile key set dynamically when registry is configured
 
 // ── Test environment config ─────────────────────────────────────────────
 var YM_SESSION_KEY = 'ym_test_repo_once';
@@ -24,6 +23,10 @@ if (_sessionRepo) {
   window.YM_REGISTRY_OVERRIDE = { url: _base + '/test.json' };
   window.YM_THEMES_OVERRIDE   = { url: _base + '/test-theme.json' };
   localStorage.removeItem('ym_liste_cache_v4');
+  // Derive unique profile key from registry URL
+  var _hash = btoa(_base).slice(0,12).replace(/[^a-z0-9]/gi,'');
+  localStorage.setItem('ym_profile_key', 'ym_profile_test_' + _hash);
+  sessionStorage.setItem('ym_profile_key_set', '1');
 }
 
 if (!_sessionRepo) {
