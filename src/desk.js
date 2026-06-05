@@ -4,7 +4,8 @@
 /* jshint esversion:11 */
 'use strict';
 
-const DK='ym_desktop_v1', WK='ym_wallpaper', PGSK='ym_pages';
+const _pkSuffix = (localStorage.getItem('ym_profile_key')||'ym_profile_v1').replace('ym_profile_','').replace('_v1','').replace('v1','') || 'default';
+const DK='ym_desktop_'+_pkSuffix, WK='ym_wallpaper_'+_pkSuffix, PGSK='ym_pages_'+_pkSuffix;
 const isPC=()=>window.matchMedia('(hover:hover) and (pointer:fine)').matches;
 const GRID=()=>isPC()?{cols:8,rows:5}:{cols:4,rows:6};
 
