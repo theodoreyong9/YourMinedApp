@@ -396,16 +396,32 @@
    * ═══════════════════════════════════════════════════════════ */
   let _blockOverlayUntil = 0;
 
-  function updateActiveDbtn(panelId) {
+  function updateActiveDbtn(panelId, tab) {
     document.getElementById('nav-bar').addEventListener('contextmenu', e => e.preventDefault());
     document.querySelectorAll('.dbtn').forEach(b => {
       b.addEventListener('contextmenu', e => e.preventDefault());
       b.classList.remove('active');
     });
     if (!panelId) return;
-    const map = { 'panel-profile': 'btn-profile', 'panel-mine': 'btn-figure' };
-    const btnId = map[panelId];
-    if (btnId) { const btn = document.getElementById(btnId); if (btn) btn.classList.add('active'); }
+    // Find which button matches this panel+tab combo, respecting YM_NAV_CONFIG
+    let matched = null;
+    document.querySelectorAll('.dbtn').forEach(b => {
+      const cfg = window.YM_NAV_CONFIG?.[b.id];
+      const btnPanel = cfg?.panel ?? (b.id === 'btn-wallet' ? 'panel-mine' : b.id === 'btn-figure' ? 'panel-mine' : b.id === 'btn-profile' ? 'panel-profile' : null);
+      const btnTab   = cfg?.tab   ?? (b.id === 'btn-wallet' ? 'wallet' : b.id === 'btn-figure' ? 'liste' : null);
+      if (btnPanel === panelId) {
+        if (!tab || !btnTab || btnTab === tab) {
+          if (!matched) matched = b;
+        }
+      }
+    });
+    // Fallback to static map
+    if (!matched) {
+      const map = { 'panel-profile': 'btn-profile', 'panel-mine': 'btn-figure', 'panel-spheres': 'btn-figure' };
+      const btnId = map[panelId];
+      if (btnId) matched = document.getElementById(btnId);
+    }
+    if (matched) matched.classList.add('active');
   }
 
   function openPanel(id) {
@@ -795,6 +811,7 @@
     const onOpen = cfg?.onOpen ?? defaultOnOpen ?? null;
     btn.addEventListener('click', () => {
       togglePanel(panel, () => {
+        updateActiveDbtn(panel, tab);
         if (tab) {
           setTimeout(() => {
             setupMineTabs();
@@ -1355,30 +1372,6 @@
   async function init() {
     OC();
     if (window.YM_Desk) window.YM_Desk.deskInit();
-
-    // Move edge-back to end of body after boot
-    setTimeout(function(){
-      var eb  = document.getElementById('ym-edge-back');
-      var ebt = document.getElementById('ym-edge-back-btn');
-      if(eb)  document.body.appendChild(eb);
-      if(ebt) document.body.appendChild(ebt);
-      // Re-raise any time something is added to body
-      new MutationObserver(function(mm){
-        var moved = false;
-        mm.forEach(function(m){
-          m.addedNodes.forEach(function(n){
-            if(n.id === 'ym-edge-back' || n.id === 'ym-edge-back-btn') return;
-            if(!moved){
-              moved = true;
-              var eb2  = document.getElementById('ym-edge-back');
-              var ebt2 = document.getElementById('ym-edge-back-btn');
-              if(eb2)  document.body.appendChild(eb2);
-              if(ebt2) document.body.appendChild(ebt2);
-            }
-          });
-        });
-      }).observe(document.body, {childList:true});
-    }, 300);
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
       try {
