@@ -9,7 +9,7 @@
   const toast = (...a) => window.YM_toast(...a);
   const esc   = (...a) => window.YM_escHtml(...a);
 
-  const PK = window.YM_PROFILE_KEY || 'ym_profile_v1';
+  const PK = () => window.YM_PROFILE_KEY || 'ym_profile_v1';
   const AK = 'ym_activity_v1';
 
   function gid() {
@@ -17,10 +17,10 @@
       (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
   }
 
-  function LP() { try { return JSON.parse(localStorage.getItem(PK) || 'null'); } catch { return null; } }
+  function LP() { try { return JSON.parse(localStorage.getItem(PK()) || 'null'); } catch { return null; } }
   function SP(d) {
     const p = Object.assign({}, LP() || {}, d);
-    localStorage.setItem(PK, JSON.stringify(p));
+    localStorage.setItem(PK(), JSON.stringify(p));
     window.dispatchEvent(new CustomEvent('ym:profile-updated', { detail: p }));
     return p;
   }
