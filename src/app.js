@@ -9,7 +9,7 @@
   const toast = (...a) => window.YM_toast(...a);
   const esc   = (...a) => window.YM_escHtml(...a);
 
-  const PK = 'ym_profile_v1';
+  const PK = window.YM_PROFILE_KEY || 'ym_profile_v1';
   const AK = 'ym_activity_v1';
 
   function gid() {
