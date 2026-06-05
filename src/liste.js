@@ -141,10 +141,10 @@ function extractField(code,field){
 }
 
 const MANDATORY_SPHERES=['social.sphere.js'];
-const _isTestTheme = (localStorage.getItem('ym_theme_url')||'').includes('test');
-const _getActiveKey = () => _isTestTheme
-  ? (localStorage.getItem('ym_profile_key')||'ym_profile_test_v1').replace('profile','active_spheres')
-  : 'ym_active_spheres';
+const _getActiveKey = () => {
+  const pk = localStorage.getItem('ym_profile_key') || 'ym_profile_v1';
+  return pk.replace('ym_profile_', 'ym_active_');
+};
 
 function getActiveSpheres(){return JSON.parse(localStorage.getItem(_getActiveKey())||'[]');}
 function setActiveSpheres(arr){localStorage.setItem(_getActiveKey(),JSON.stringify(arr));}
