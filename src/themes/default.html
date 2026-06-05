@@ -5,15 +5,6 @@
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
 <script>
 window.YM_THEME_META = {"name":"Default","icon":"🏠","description":"Default YourMine theme"};
-// Debug
-setTimeout(function() {
-  var pk = localStorage.getItem('ym_profile_key') || 'ym_profile_v1';
-  var tu = localStorage.getItem('ym_theme_url') || '';
-  var d = document.createElement('div');
-  d.style.cssText = 'position:fixed;bottom:60px;left:0;right:0;z-index:99998;text-align:center;font-size:10px;color:rgba(255,200,50,.7);font-family:monospace;pointer-events:none';
-  d.textContent = '🔑 ' + pk + ' | theme:' + (tu.includes('test')?'TEST':'OTHER');
-  document.body.appendChild(d);
-}, 5000);
 
 window.YM_WALLPAPER_PRESETS = [
   {label:'Night City',   url:'https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=1400&q=80'},
