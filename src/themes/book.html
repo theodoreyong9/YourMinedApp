@@ -294,7 +294,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   // Load single book.json — all chapters in one fetch
   async function loadIndex(){
     try{
-      var r = await fetch(window.YM_BOOK_CONFIG.src, {cache:'no-store', mode:'cors'});
+      var url = window.YM_BOOK_CONFIG.src + '?t=' + Date.now();
+      var r = await fetch(url, {mode:'cors'});
       if(!r.ok) throw new Error('HTTP '+r.status);
       var book = await r.json();
       // book.chapters is the full array with text included
@@ -302,7 +303,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       // Cache all chapters immediately — already loaded
       _chapters.forEach(function(ch){ _chapterCache[ch.id] = ch; });
     }catch(e){
-      reader.innerHTML = '<p style="color:var(--text3);padding:24px;text-align:center">Impossible de charger le livre.<br><small>Vérifiez que book.json est sur le repo.</small></p>';
+      reader.innerHTML = '<p style="color:var(--text3);padding:24px;text-align:center">Impossible de charger le livre.<br><small>'+e.message+'</small></p>';
       loading.style.display = 'none';
       return;
     }
