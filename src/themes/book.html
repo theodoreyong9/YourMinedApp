@@ -5,9 +5,12 @@ window.YM_WALLPAPER_PRESETS = [];
 window.YM_NO_WIDGETS = true;
 // Book content hosted on GitHub — update RAW_BASE to your repo path
 window.YM_BOOK_CONFIG = {
-  // Single file — update path if book.json is in a subfolder
-  src: 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/book.json',
-  // Detection: chapters found by font size >= 20 + bold + keyword (Prologue/Chapitre/Chapter/Epilogue)
+  base: 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/book/',
+  books: [
+    { id: 'book',  label: 'L\'Œil et la Main',        index: 'book_index.json',  chapterPrefix: 'book_chapter_' },
+    { id: 'book2', label: 'Comment Dieu Nous Guide',   index: 'book2_index.json', chapterPrefix: 'book2_chapter_' }
+  ],
+  activeBook: 0
 };
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -150,7 +153,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 <!-- TOC -->
 <div id="book-toc">
   <div id="book-toc-header">
-    <div id="book-toc-title">L'Œil et la Main</div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+      <div id="book-toc-title">L'Œil et la Main</div>
+      <div id="book-selector" style="display:flex;gap:6px">
+        <button onclick="switchBook(0)" id="book-btn-0" style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--accent);background:rgba(196,163,90,.15);color:var(--accent);cursor:pointer;font-family:var(--font-read)">L'Œil et la Main</button>
+        <button onclick="switchBook(1)" id="book-btn-1" style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--text3);cursor:pointer;font-family:var(--font-read)">Comment Dieu Nous Guide</button>
+      </div>
+    </div>
     <button id="book-toc-close">✕</button>
   </div>
   <div id="book-toc-list"></div>
@@ -294,14 +303,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   // Load single book.json — all chapters in one fetch
   async function loadIndex(){
     try{
-      var url = window.YM_BOOK_CONFIG.src + '?t=' + Date.now();
+      var book = window.YM_BOOK_CONFIG.books[window.YM_BOOK_CONFIG.activeBook];
+      var url = window.YM_BOOK_CONFIG.base + book.index + '?t=' + Date.now();
       var r = await fetch(url, {mode:'cors'});
       if(!r.ok) throw new Error('HTTP '+r.status);
-      var book = await r.json();
-      // book.chapters is the full array with text included
-      _chapters = book.chapters;
-      // Cache all chapters immediately — already loaded
-      _chapters.forEach(function(ch){ _chapterCache[ch.id] = ch; });
+      _chapters = await r.json();
     }catch(e){
       reader.innerHTML = '<p style="color:var(--text3);padding:24px;text-align:center">Impossible de charger le livre.<br><small>'+e.message+'</small></p>';
       loading.style.display = 'none';
@@ -328,7 +334,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       if(_chapterCache[idx]){
         data = _chapterCache[idx];
       } else {
-        throw new Error('Chapter not loaded — book.json may not have loaded correctly');
+        var book = window.YM_BOOK_CONFIG.books[window.YM_BOOK_CONFIG.activeBook];
+        var chUrl = window.YM_BOOK_CONFIG.base + book.chapterPrefix + idx + '.json?t=' + Date.now();
+        var cr = await fetch(chUrl, {mode:'cors'});
+        if(!cr.ok) throw new Error('HTTP '+cr.status);
+        data = await cr.json();
+        _chapterCache[idx] = data;
       }
       loading.style.display = 'none';
       renderChapter(data);
@@ -370,6 +381,32 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
   // TOC
+  window.switchBook = function(idx){
+    if(idx === window.YM_BOOK_CONFIG.activeBook) return;
+    window.YM_BOOK_CONFIG.activeBook = idx;
+    _chapters = [];
+    _chapterCache = {};
+    _curChapter = 0;
+    _readProgress = {};
+    var books = window.YM_BOOK_CONFIG.books;
+    document.getElementById('book-toc-title').textContent = books[idx].label;
+    // Update button styles
+    books.forEach(function(b, i){
+      var btn = document.getElementById('book-btn-'+i);
+      if(!btn) return;
+      if(i === idx){
+        btn.style.border = '1px solid var(--accent)';
+        btn.style.background = 'rgba(196,163,90,.15)';
+        btn.style.color = 'var(--accent)';
+      } else {
+        btn.style.border = '1px solid var(--border)';
+        btn.style.background = 'none';
+        btn.style.color = 'var(--text3)';
+      }
+    });
+    loadIndex();
+  };
+
   function buildTOC(){
     var list = document.getElementById('book-toc-list');
     list.innerHTML = '';
