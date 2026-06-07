@@ -1,1 +1,146 @@
-[{"id": 0, "title": "Prologue", "pages": "1–1", "word_count": 461}, {"id": 1, "title": "Chapitre 1 — La genèse de l'humain", "pages": "2–16", "word_count": 8028}, {"id": 2, "title": "Chapitre 2 — La révolution du sens, de la cognition et de la société", "pages": "17–31", "word_count": 8395}, {"id": 3, "title": "Chapitre 3 — Gestion systémique des cycles d'abstraction", "pages": "32–39", "word_count": 3238}, {"id": 4, "title": "Chapitre 4 — La viscoélasticité de la valeur", "pages": "40–55", "word_count": 7857}, {"id": 5, "title": "Chapitre 5 — La théorie de la sélection vulvéenne", "pages": "56–70", "word_count": 6902}, {"id": 6, "title": "Chapitre 6 — Les cosmologies primitives comme architectures de flux", "pages": "71–92", "word_count": 11299}, {"id": 7, "title": "Chapitre 7 — Abraham et le chemin vers l'unification décentralisée", "pages": "93–101", "word_count": 4899}, {"id": 8, "title": "Chapitre 8 — L'économie divine et démocratique gréco-romaine", "pages": "102–108", "word_count": 3389}, {"id": 9, "title": "Chapitre 9 — Apocalypse des évangiles de Jésus", "pages": "109–131", "word_count": 12584}, {"id": 10, "title": "Chapitre 10 — Le Paradigme du Mariage Hermaphrodite", "pages": "132–138", "word_count": 3033}, {"id": 11, "title": "Chapitre 11 — Le consensus de compensation distribuée coranique", "pages": "139–147", "word_count": 4193}, {"id": 12, "title": "Chapitre 12 — Naissance du monde moderne", "pages": "148–159", "word_count": 6080}, {"id": 13, "title": "Chapitre 13 — 666 années d'aliénation", "pages": "160–320", "word_count": 82914}, {"id": 14, "title": "Chapitre 14 — Pour une monnaie inaliénable", "pages": "321–335", "word_count": 6399}]
+[
+  {
+    "id": 0,
+    "title": "Prologue",
+    "pages": "1–1",
+    "word_count": 461
+  },
+  {
+    "id": 1,
+    "title": "Chapitre 1 — La genèse de l'humain",
+    "pages": "2–16",
+    "word_count": 8028
+  },
+  {
+    "id": 2,
+    "title": "Chapitre 2 — La révolution du sens, de la cognition et de la société",
+    "pages": "17–31",
+    "word_count": 8395
+  },
+  {
+    "id": 3,
+    "title": "Chapitre 3 — Gestion systémique des cycles d'abstraction",
+    "pages": "32–39",
+    "word_count": 3238
+  },
+  {
+    "id": 4,
+    "title": "Chapitre 4 — La viscoélasticité de la valeur",
+    "pages": "40–55",
+    "word_count": 7857
+  },
+  {
+    "id": 5,
+    "title": "Chapitre 5 — La théorie de la sélection vulvéenne",
+    "pages": "56–70",
+    "word_count": 6902
+  },
+  {
+    "id": 6,
+    "title": "Chapitre 6 — Les cosmologies primitives comme architectures de flux",
+    "pages": "71–92",
+    "word_count": 11299
+  },
+  {
+    "id": 7,
+    "title": "Chapitre 7 — Abraham et le chemin vers l'unification décentralisée",
+    "pages": "93–101",
+    "word_count": 4899
+  },
+  {
+    "id": 8,
+    "title": "Chapitre 8 — L'économie divine et démocratique gréco-romaine",
+    "pages": "102–108",
+    "word_count": 3389
+  },
+  {
+    "id": 9,
+    "title": "Chapitre 9 — Apocalypse des évangiles de Jésus",
+    "pages": "109–131",
+    "word_count": 12584
+  },
+  {
+    "id": 10,
+    "title": "Chapitre 10 — Le Paradigme du Mariage Hermaphrodite",
+    "pages": "132–138",
+    "word_count": 3033
+  },
+  {
+    "id": 11,
+    "title": "Chapitre 11 — Le consensus de compensation distribuée coranique",
+    "pages": "139–147",
+    "word_count": 4193
+  },
+  {
+    "id": 12,
+    "title": "Chapitre 12 — Naissance du monde moderne",
+    "pages": "148–159",
+    "word_count": 6080
+  },
+  {
+    "id": 14,
+    "title": "Chapitre 14 — Pour une monnaie inaliénable",
+    "pages": "321–335",
+    "word_count": 6399
+  },
+  {
+    "id": "13",
+    "title": "Chapitre 13 — 666 années d'aliénation",
+    "word_count": 716
+  },
+  {
+    "id": "13bis",
+    "title": "Chapitre 13 — 666 années d'aliénation (bis)",
+    "word_count": 661
+  },
+  {
+    "id": "13ter",
+    "title": "Chapitre 13 — 666 années d'aliénation (ter)",
+    "word_count": 651
+  },
+  {
+    "id": "13quater",
+    "title": "Chapitre 13 — 666 années d'aliénation (quater)",
+    "word_count": 680
+  },
+  {
+    "id": "13quinquies",
+    "title": "Chapitre 13 — 666 années d'aliénation (quinquies)",
+    "word_count": 717
+  },
+  {
+    "id": "13sexies",
+    "title": "Chapitre 13 — 666 années d'aliénation (sexies)",
+    "word_count": 726
+  },
+  {
+    "id": "13septies",
+    "title": "Chapitre 13 — 666 années d'aliénation (septies)",
+    "word_count": 703
+  },
+  {
+    "id": "13octies",
+    "title": "Chapitre 13 — 666 années d'aliénation (octies)",
+    "word_count": 714
+  },
+  {
+    "id": "13novies",
+    "title": "Chapitre 13 — 666 années d'aliénation (novies)",
+    "word_count": 721
+  },
+  {
+    "id": "13decies",
+    "title": "Chapitre 13 — 666 années d'aliénation (decies)",
+    "word_count": 692
+  },
+  {
+    "id": "13undecies",
+    "title": "Chapitre 13 — 666 années d'aliénation (undecies)",
+    "word_count": 650
+  },
+  {
+    "id": "13duodecies",
+    "title": "Chapitre 13 — 666 années d'aliénation (duodecies)",
+    "word_count": 36
+  }
+]
