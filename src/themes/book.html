@@ -322,6 +322,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   async function loadChapter(idx, restoreScroll){
     if(idx < 0 || idx >= _chapters.length) return;
     _curChapter = idx;
+    // Update URL without reload
+    var book=window.YM_BOOK_CONFIG.books[window.YM_BOOK_CONFIG.activeBook];
+    var params=new URLSearchParams(window.location.search);
+    params.set('book', book.id);
+    params.set('chapter', idx);
+    history.replaceState(null,'','?'+params.toString());
     loading.style.display = 'flex';
     reader.innerHTML = '';
     content.scrollTop = 0;
@@ -599,7 +605,26 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   },0);
 
   // Init — small delay to ensure DOM elements are ready after theme injection
-  setTimeout(function(){ loadIndex(); }, 50);
+  setTimeout(function(){
+    loadIndex().then(function(){
+      // Deep link — ?book=book2&chapter=5
+      var params=new URLSearchParams(window.location.search);
+      var bookParam=params.get('book');
+      var chapterParam=params.get('chapter');
+      if(bookParam){
+        var books=window.YM_BOOK_CONFIG.books;
+        var bIdx=books.findIndex(function(b){return b.id===bookParam;});
+        if(bIdx>=0&&bIdx!==window.YM_BOOK_CONFIG.activeBook){
+          window.switchBook(bIdx);
+          return; // switchBook calls loadIndex again
+        }
+      }
+      if(chapterParam!==null){
+        var cIdx=parseInt(chapterParam,10);
+        if(!isNaN(cIdx)&&cIdx>=0&&cIdx<_chapters.length) loadChapter(cIdx);
+      }
+    });
+  }, 50);
   var obs=new MutationObserver(function(muts){muts.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if((n.id||'').indexOf('widget')>=0)n.style.cssText='display:none!important';});});});
   obs.observe(document.body,{childList:true,subtree:false});
 })();
