@@ -146,9 +146,12 @@ function render(fromSphere){
     bkBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';bkBtn.textContent='💾';panelHead.appendChild(bkBtn);
     var recBtn=document.createElement('button');recBtn.id='prof-recovery-btn';recBtn.className='ym-btn ym-btn-ghost';
     recBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';recBtn.title='Identity recovery';recBtn.textContent='🔁';panelHead.appendChild(recBtn);
+    var pubBtn=document.createElement('button');pubBtn.id='prof-publish-btn';pubBtn.className='ym-btn ym-btn-ghost';
+    pubBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';pubBtn.title='Publish your name';pubBtn.textContent='📡';panelHead.appendChild(pubBtn);
   }
   var bkBtnEl=document.getElementById('prof-backup-btn');if(bkBtnEl){bkBtnEl.onclick=openBackupOverlay;}
   var recBtnEl=document.getElementById('prof-recovery-btn');if(recBtnEl){recBtnEl.onclick=openRecoveryOverlay;}
+  var pubBtnEl=document.getElementById('prof-publish-btn');if(pubBtnEl){pubBtnEl.onclick=openPublishNameOverlay;}
   var tcArea=document.createElement('div');tcArea.id='profile-tab-content';
   tcArea.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden';body.appendChild(tcArea);
   var tabs=document.createElement('div');tabs.className='ym-tabs';
@@ -619,3 +622,69 @@ window._renderProfileView=renderPeerProfile;
 window.YM_Profile={render:render,renderFor:function(n){render(n);},showShare:showShare};
 
 })();
+
+// ── Publish Name ─────────────────────────────────────────────────────────────
+function openPublishNameOverlay(){
+  var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
+  var name=p.name||'';
+  var uuid=p.uuid||'';
+  if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
+
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML=
+    '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:24px;width:100%;max-width:340px">'+
+    '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">📡 Publish your name</div>'+
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.6">This will publish <strong style="color:var(--text)">'+name+'</strong> → <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> to your registry so others can find you by name.</div>'+
+    '<input id="pub-token" type="password" placeholder="GitHub token (repo write access)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:12px">'+
+    '<input id="pub-repo" placeholder="GitHub repo (owner/repo)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:16px">'+
+    '<div style="display:flex;gap:8px">'+
+    '<button id="pub-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
+    '<button id="pub-go" class="ym-btn ym-btn-accent" style="flex:1">Publish</button>'+
+    '</div><div id="pub-status" style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center"></div>'+
+    '</div>';
+  document.body.appendChild(ov);
+  document.getElementById('pub-cancel').onclick=function(){ov.remove();};
+
+  document.getElementById('pub-go').onclick=async function(){
+    var token=document.getElementById('pub-token').value.trim();
+    var repo=document.getElementById('pub-repo').value.trim();
+    var status=document.getElementById('pub-status');
+    if(!token||!repo){status.textContent='Token and repo required';return;}
+    status.textContent='Checking…';
+
+    var apiUrl='https://api.github.com/repos/'+repo+'/contents/name.json';
+    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
+    var sha=null;
+    var existing={};
+    try{
+      var r=await fetch(apiUrl,{headers});
+      if(r.ok){var j=await r.json();sha=j.sha;existing=JSON.parse(atob(j.content.replace(/\n/g,'')));}
+    }catch(e){}
+
+    // Rule 1: name already taken by another UUID
+    if(existing[name]&&existing[name]!==uuid){
+      status.textContent='❌ Name already taken by another identity';return;
+    }
+
+    // Rule 2: remove any previous entry for this UUID (one name per UUID)
+    Object.keys(existing).forEach(function(k){
+      if(existing[k]===uuid&&k!==name) delete existing[k];
+    });
+
+    // Rule 3: set the entry — UUID comes from local profile only
+    existing[name]=uuid;
+
+    var content=btoa(unescape(encodeURIComponent(JSON.stringify(existing,null,2))));
+    var body={message:'publish name: '+name,content};
+    if(sha)body.sha=sha;
+
+    try{
+      var res=await fetch(apiUrl,{method:'PUT',headers,body:JSON.stringify(body)});
+      if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Published successfully';setTimeout(function(){ov.remove();},1500);}
+      else{var e=await res.json();status.textContent='Error: '+(e.message||res.status);}
+    }catch(e){status.textContent='Network error';}
+  };
+}
+window.openPublishNameOverlay=openPublishNameOverlay;
+
