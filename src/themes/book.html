@@ -335,7 +335,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         data = _chapterCache[idx];
       } else {
         var book = window.YM_BOOK_CONFIG.books[window.YM_BOOK_CONFIG.activeBook];
-        var chUrl = book.chapterBase + idx + '.json?t=' + Date.now();
+        var chId = _chapters[idx].id !== undefined ? _chapters[idx].id : idx;
+        var chUrl = book.chapterBase + chId + '.json?t=' + Date.now();
         var cr = await fetch(chUrl, {mode:'cors'});
         if(!cr.ok) throw new Error('HTTP '+cr.status);
         data = await cr.json();
