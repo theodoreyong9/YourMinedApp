@@ -7,8 +7,8 @@ window.YM_NO_WIDGETS = true;
 window.YM_BOOK_CONFIG = {
   base: 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/book/',
   books: [
-    { id: 'book',  label: 'L\'Œil et la Main',        index: 'book_index.json',  chapterPrefix: 'book_chapter_' },
-    { id: 'book2', label: 'Comment Dieu Nous Guide',   index: 'book2_index.json', chapterPrefix: 'book2_chapter_' }
+    { id: 'book1', label: 'L\'Œil et la Main',       index: 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/book_index.json',  chapterBase: 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/book/book1/chapter' },
+    { id: 'book2', label: 'Comment Dieu Nous Guide',  index: 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/book2_index.json', chapterBase: 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/book/book2/chapter' }
   ],
   activeBook: 0
 };
@@ -304,7 +304,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   async function loadIndex(){
     try{
       var book = window.YM_BOOK_CONFIG.books[window.YM_BOOK_CONFIG.activeBook];
-      var url = window.YM_BOOK_CONFIG.base + book.index + '?t=' + Date.now();
+      var url = book.index + '?t=' + Date.now();
       var r = await fetch(url, {mode:'cors'});
       if(!r.ok) throw new Error('HTTP '+r.status);
       _chapters = await r.json();
@@ -335,7 +335,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         data = _chapterCache[idx];
       } else {
         var book = window.YM_BOOK_CONFIG.books[window.YM_BOOK_CONFIG.activeBook];
-        var chUrl = window.YM_BOOK_CONFIG.base + book.chapterPrefix + idx + '.json?t=' + Date.now();
+        var chUrl = book.chapterBase + idx + '.json?t=' + Date.now();
         var cr = await fetch(chUrl, {mode:'cors'});
         if(!cr.ok) throw new Error('HTTP '+cr.status);
         data = await cr.json();
