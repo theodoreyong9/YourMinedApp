@@ -2162,3 +2162,63 @@ This makes YourMine the first participation protocol that works at interplanetar
 
 *YourMine is open source and open by design. There is no central authority. Fork it, improve it, run it.*
 
+
+---
+
+## Name Registry — `name.json`
+
+Any user can publish their name to a registry via the 📡 button in the profile panel. This creates or updates a `name.json` file on the configured GitHub repo.
+
+### Format
+
+```json
+{
+  "Jean": "uuid-xxxx-xxxx",
+  "Alice": "uuid-yyyy-yyyy"
+}
+```
+
+### Rules enforced client-side
+
+- **One name per UUID** — publishing a new name automatically removes the previous entry for the same UUID.
+- **Unique names** — if the name is already taken by a different UUID, the publish is blocked.
+- **UUID from local profile only** — the UUID is read from the local profile, never from a user-editable field. You can only publish your own identity.
+
+### Limitation
+
+The `name.json` file is stored on GitHub. Anyone with a write token can modify it directly via the API. The rules above are enforced client-side only — they are a social contract, not a cryptographic guarantee.
+
+---
+
+## Book Theme — Deep Links
+
+The book theme supports direct URL access to any book and chapter:
+
+```
+yourmine-dapp.web.app?book=book2&chapter=5
+```
+
+- `book` — the book ID as defined in `YM_BOOK_CONFIG.books[].id`
+- `chapter` — the chapter index (0-based position in the index)
+
+The URL updates automatically as you navigate between chapters, making it bookmarkable and shareable.
+
+---
+
+## Theme Router — `window.YM_ROUTER`
+
+Themes can declare their own URL routing by registering a router with app.js:
+
+```js
+window.YM.registerRouter({
+  onPop(event) {
+    // Handle browser back/forward
+    // Return true to prevent app.js from handling the event
+    return true;
+  }
+});
+```
+
+App.js calls `YM_ROUTER.onPop` before its own popstate handler. If the theme returns `true`, app.js does nothing. This gives themes full control over their URL structure.
+
+Combined with `history.pushState` and `history.replaceState`, a theme can implement its own navigation without interference from the core.
