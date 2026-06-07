@@ -640,9 +640,13 @@
   /* ═══════════════════════════════════════════════════════════
    * NAVIGATION HISTORY
    * ═══════════════════════════════════════════════════════════ */
-  history.replaceState({ t: 'root', stack: [] }, '', '#');
+  history.replaceState({ t: 'root', stack: [] }, '', window.location.pathname + window.location.search + (window.location.hash || '#'));
 
   window.addEventListener('popstate', e => {
+    // Let theme router handle first if declared
+    if (window.YM_ROUTER && typeof window.YM_ROUTER.onPop === 'function') {
+      if (window.YM_ROUTER.onPop(e) === true) return;
+    }
     const state = e.state || { t: 'root', stack: [] };
     navStack.length = 0;
     (state.stack || []).forEach(s => navStack.push(s));
@@ -1318,6 +1322,7 @@
     _hasOpenPanel: () => !!_panel || sw.classList.contains('open'),
     addIconToDesktop:    (id, icon, label) => { if (window.YM_Desk) window.YM_Desk.addIcon(id, icon, label); },
     removeIconFromDesktop: id => { if (window.YM_Desk) window.YM_Desk.removeIcon(id); },
+    registerRouter(router) { window.YM_ROUTER = router; },
     activateSphereByName(n) {
       const id = n.endsWith('.sphere.js') ? n : n + '.sphere.js';
       if (window.YM_sphereRegistry && window.YM_sphereRegistry.has(id)) openSpherePanel(id);
