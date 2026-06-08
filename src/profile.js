@@ -402,6 +402,11 @@ function renderContactsTab(container){
     var box=document.createElement('div');
     box.style.cssText='background:#12121e;border:1px solid rgba(255,255,255,.12);border-radius:18px 18px 0 0;padding:20px;width:100%;max-width:500px;box-shadow:0 -8px 32px rgba(0,0,0,.6)';
     box.innerHTML='<div style="font-size:14px;font-weight:600;margin-bottom:12px">Add Contact</div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+        '<input class="ym-input" id="pc-name-input" placeholder="Search by name…" style="flex:1;font-size:12px">'+
+        '<button id="pc-name-search" class="ym-btn ym-btn-ghost" style="font-size:12px">Search</button>'+
+      '</div>'+
+      '<div id="pc-name-results" style="margin-bottom:8px"></div>'+
       '<div style="display:flex;gap:6px;margin-bottom:8px">'+
         '<input class="ym-input" id="pc-uuid-input" placeholder="Paste UUID…" style="flex:1;font-size:12px;font-family:var(--font-m)">'+
         '<button id="pc-uuid-add" class="ym-btn ym-btn-accent" style="font-size:12px">Add</button>'+
@@ -413,6 +418,32 @@ function renderContactsTab(container){
     addOverlay.appendChild(box);document.body.appendChild(addOverlay);
     addOverlay.addEventListener('click',function(e){if(e.target===addOverlay){addOverlay.remove();addOverlay=null;}});
     box.querySelector('#pc-add-close').addEventListener('click',function(){addOverlay.remove();addOverlay=null;});
+    box.querySelector('#pc-name-search').addEventListener('click',function(){
+      var query=box.querySelector('#pc-name-input').value.trim().toLowerCase();
+      var results=box.querySelector('#pc-name-results');
+      if(!query){results.innerHTML='';return;}
+      results.innerHTML='<div style="font-size:11px;color:var(--text3)">Searching…</div>';
+      var nameUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url
+        ?window.YM_REGISTRY_OVERRIDE.url.replace(/\/[^\/]+\.json.*$/,'')
+        :'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main')+'/name.json?t='+Date.now();
+      fetch(nameUrl,{mode:'cors'}).then(function(r){return r.ok?r.json():Promise.reject(r.status);}).then(function(names){
+        var matches=Object.entries(names).filter(function(e){return e[0].toLowerCase().includes(query);});
+        if(!matches.length){results.innerHTML='<div style="font-size:11px;color:var(--text3)">No match found</div>';return;}
+        results.innerHTML=matches.map(function(e){
+          return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">'+
+            '<span style="font-size:12px;color:var(--text);flex:1">'+e[0]+'</span>'+
+            '<span style="font-size:10px;color:var(--text3);font-family:monospace">'+e[1].slice(0,8)+'…</span>'+
+            '<button class="ym-btn ym-btn-accent" style="font-size:11px;padding:2px 8px" data-uuid="'+e[1]+'">Add</button>'+
+          '</div>';
+        }).join('');
+        results.querySelectorAll('button[data-uuid]').forEach(function(btn){
+          btn.addEventListener('click',function(){
+            box.querySelector('#pc-uuid-input').value=btn.dataset.uuid;
+            results.innerHTML='';
+          });
+        });
+      }).catch(function(){results.innerHTML='<div style="font-size:11px;color:var(--text3)">Could not load name registry</div>';});
+    });
     box.querySelector('#pc-uuid-add').addEventListener('click',function(){
       var uuid=box.querySelector('#pc-uuid-input').value.trim();
       var status=box.querySelector('#pc-add-status');
@@ -636,12 +667,18 @@ function openPublishNameOverlay(){
   var repoFromRegistry='';
   var m=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
   if(m)repoFromRegistry=m[1];
+  // Get token from build session (same as Build feature)
+  var buildToken=null;
+  try{var bt=sessionStorage.getItem('ym_build_token');if(bt)buildToken=JSON.parse(bt);}catch{}
+  var tokenAvailable=!!(buildToken&&buildToken.token);
   ov.innerHTML=
     '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:24px;width:100%;max-width:340px">'+
     '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">📡 Publish your name</div>'+
-    '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Your UUID <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> sera associé à ce nom dans le registry.</div>'+
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Your UUID <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> will be associated to this name in the registry.</div>'+
     '<input id="pub-name" placeholder="Your name" value="'+name+'" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:8px">'+
-    '<input id="pub-token" type="password" placeholder="GitHub token (repo write access)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:16px">'+
+    (tokenAvailable
+      ? '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>'
+      : '<input id="pub-token" type="password" placeholder="GitHub token (or connect via Build first)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:12px">')+
     (repoFromRegistry?'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Registry: <span style="color:var(--gold)">'+repoFromRegistry+'</span></div>':'')+
     '<div style="display:flex;gap:8px">'+
     '<button id="pub-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
@@ -653,12 +690,20 @@ function openPublishNameOverlay(){
 
   document.getElementById('pub-go').onclick=async function(){
     var name=document.getElementById('pub-name').value.trim();
-    var token=document.getElementById('pub-token').value.trim();
-    var repo=repoFromRegistry;
+    var tokenEl=document.getElementById('pub-token');
+    var token=(buildToken&&buildToken.token)||(tokenEl?tokenEl.value.trim():'');
+    var repo=repoFromRegistry||(buildToken&&buildToken.repo)||'';
     var status=document.getElementById('pub-status');
     if(!name){status.textContent='Name is required';return;}
-    if(!token){status.textContent='GitHub token required';return;}
+    if(!token){status.textContent='GitHub token required — connect via Build first';return;}
     if(!repo){status.textContent='No registry configured';return;}
+    // Check wallet connected
+    var pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
+    if(!pubkey){status.textContent='❌ Connect your wallet first';return;}
+    // Check score eligibility
+    status.textContent='Checking eligibility…';
+    var elig=window.YM_Build&&window.YM_Build.computeEligibility?await window.YM_Build.computeEligibility():null;
+    if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant pour publier';return;}
     status.textContent='Checking…';
 
     var apiUrl='https://api.github.com/repos/'+repo+'/contents/name.json';
