@@ -921,5 +921,5 @@ window.addEventListener('ym:switch-mine-tab',e=>{
   }
 })();
 
-window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t)};
+window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t),computeEligibility};
 })();
