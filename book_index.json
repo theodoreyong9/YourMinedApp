@@ -78,12 +78,6 @@
     "word_count": 6080
   },
   {
-    "id": 14,
-    "title": "Chapitre 14 — Pour une monnaie inaliénable",
-    "pages": "321–335",
-    "word_count": 6399
-  },
-  {
     "id": "13",
     "title": "Chapitre 13 — 666 années d'aliénation",
     "word_count": 716
@@ -142,5 +136,11 @@
     "id": "13duodecies",
     "title": "Chapitre 13 — 666 années d'aliénation (duodecies)",
     "word_count": 36
+  },
+  {
+    "id": 14,
+    "title": "Chapitre 14 — Pour une monnaie inaliénable",
+    "pages": "321–335",
+    "word_count": 6399
   }
 ]
