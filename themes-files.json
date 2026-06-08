@@ -1,11 +1,11 @@
 [
   {
-    "filename": "nasa.theme.html",
-    "name": "nasa",
+    "filename": "book.theme.html",
+    "name": "book",
     "icon": "🌍",
     "description": "",
     "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/nasa.theme.html",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/book.theme.html",
     "wip": false,
     "score": 0,
     "laps": 0,
@@ -17,46 +17,12 @@
     }
   },
   {
-    "filename": "museum.theme.html",
-    "name": "museum",
+    "filename": "zone.theme.html",
+    "name": "zone",
     "icon": "🌍",
     "description": "",
     "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/museum.theme.html",
-    "wip": false,
-    "score": 0,
-    "laps": 0,
-    "timestamp": 1700000000,
-    "merged_at": 1700000100,
-    "media": {
-      "photos": [],
-      "videos": []
-    }
-  },
-  {
-    "filename": "news.theme.html",
-    "name": "news",
-    "icon": "🌍",
-    "description": "",
-    "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/news.theme.html",
-    "wip": false,
-    "score": 0,
-    "laps": 0,
-    "timestamp": 1700000000,
-    "merged_at": 1700000100,
-    "media": {
-      "photos": [],
-      "videos": []
-    }
-  },
-  {
-    "filename": "wikipedia.theme.html",
-    "name": "wikipedia",
-    "icon": "🌍",
-    "description": "",
-    "ghAuthor": "keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/wikipedia.theme.html",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/zone.theme.html",
     "wip": false,
     "score": 0,
     "laps": 0,
