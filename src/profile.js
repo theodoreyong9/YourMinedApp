@@ -628,16 +628,21 @@ function openPublishNameOverlay(){
   var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
   var name=p.name||'';
   var uuid=p.uuid||'';
-  if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
 
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  // Derive repo from registry URL
+  var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
+  var repoFromRegistry='';
+  var m=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+  if(m)repoFromRegistry=m[1];
   ov.innerHTML=
     '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:24px;width:100%;max-width:340px">'+
     '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">📡 Publish your name</div>'+
-    '<div style="font-size:12px;color:var(--text3);margin-bottom:16px;line-height:1.6">This will publish <strong style="color:var(--text)">'+name+'</strong> → <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> to your registry so others can find you by name.</div>'+
-    '<input id="pub-token" type="password" placeholder="GitHub token (repo write access)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:12px">'+
-    '<input id="pub-repo" placeholder="GitHub repo (owner/repo)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:16px">'+
+    '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Your UUID <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> sera associé à ce nom dans le registry.</div>'+
+    '<input id="pub-name" placeholder="Your name" value="'+name+'" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:8px">'+
+    '<input id="pub-token" type="password" placeholder="GitHub token (repo write access)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:16px">'+
+    (repoFromRegistry?'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Registry: <span style="color:var(--gold)">'+repoFromRegistry+'</span></div>':'')+
     '<div style="display:flex;gap:8px">'+
     '<button id="pub-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
     '<button id="pub-go" class="ym-btn ym-btn-accent" style="flex:1">Publish</button>'+
@@ -647,10 +652,13 @@ function openPublishNameOverlay(){
   document.getElementById('pub-cancel').onclick=function(){ov.remove();};
 
   document.getElementById('pub-go').onclick=async function(){
+    var name=document.getElementById('pub-name').value.trim();
     var token=document.getElementById('pub-token').value.trim();
-    var repo=document.getElementById('pub-repo').value.trim();
+    var repo=repoFromRegistry;
     var status=document.getElementById('pub-status');
-    if(!token||!repo){status.textContent='Token and repo required';return;}
+    if(!name){status.textContent='Name is required';return;}
+    if(!token){status.textContent='GitHub token required';return;}
+    if(!repo){status.textContent='No registry configured';return;}
     status.textContent='Checking…';
 
     var apiUrl='https://api.github.com/repos/'+repo+'/contents/name.json';
