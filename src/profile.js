@@ -659,6 +659,7 @@ function openPublishNameOverlay(){
   var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
   var name=p.name||'';
   var uuid=p.uuid||'';
+  if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
 
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px';
@@ -675,7 +676,7 @@ function openPublishNameOverlay(){
     '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:24px;width:100%;max-width:340px">'+
     '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">📡 Publish your name</div>'+
     '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Your UUID <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> will be associated to this name in the registry.</div>'+
-    '<input id="pub-name" placeholder="Your name" value="'+name+'" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:8px">'+
+    '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">'+name+'</div>'+
     (tokenAvailable
       ? '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>'
       : '<input id="pub-token" type="password" placeholder="GitHub token (or connect via Build first)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:12px">')+
@@ -689,12 +690,10 @@ function openPublishNameOverlay(){
   document.getElementById('pub-cancel').onclick=function(){ov.remove();};
 
   document.getElementById('pub-go').onclick=async function(){
-    var name=document.getElementById('pub-name').value.trim();
     var tokenEl=document.getElementById('pub-token');
     var token=(buildToken&&buildToken.token)||(tokenEl?tokenEl.value.trim():'');
     var repo=repoFromRegistry||(buildToken&&buildToken.repo)||'';
     var status=document.getElementById('pub-status');
-    if(!name){status.textContent='Name is required';return;}
     if(!token){status.textContent='GitHub token required — connect via Build first';return;}
     if(!repo){status.textContent='No registry configured';return;}
     // Check wallet connected
