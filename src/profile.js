@@ -148,10 +148,13 @@ function render(fromSphere){
     recBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';recBtn.title='Identity recovery';recBtn.textContent='🔁';panelHead.appendChild(recBtn);
     var pubBtn=document.createElement('button');pubBtn.id='prof-publish-btn';pubBtn.className='ym-btn ym-btn-ghost';
     pubBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';pubBtn.title='Publish your name';pubBtn.textContent='📡';panelHead.appendChild(pubBtn);
+    var profBtn=document.createElement('button');profBtn.id='prof-profile-btn';profBtn.className='ym-btn ym-btn-ghost';
+    profBtn.style.cssText='padding:4px 8px;font-size:13px;min-height:unset';profBtn.title='Edit & publish your profile sphere';profBtn.textContent='✦';panelHead.appendChild(profBtn);
   }
   var bkBtnEl=document.getElementById('prof-backup-btn');if(bkBtnEl){bkBtnEl.onclick=openBackupOverlay;}
   var recBtnEl=document.getElementById('prof-recovery-btn');if(recBtnEl){recBtnEl.onclick=openRecoveryOverlay;}
   var pubBtnEl=document.getElementById('prof-publish-btn');if(pubBtnEl){pubBtnEl.onclick=openPublishNameOverlay;}
+  var profBtnEl=document.getElementById('prof-profile-btn');if(profBtnEl){profBtnEl.onclick=openProfileSphereEditor;}
   var tcArea=document.createElement('div');tcArea.id='profile-tab-content';
   tcArea.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden';body.appendChild(tcArea);
   var tabs=document.createElement('div');tabs.className='ym-tabs';
@@ -653,6 +656,245 @@ window._renderProfileView=renderPeerProfile;
 window.YM_Profile={render:render,renderFor:function(n){render(n);},showShare:showShare};
 
 })();
+
+// ── Profile Sphere Editor ─────────────────────────────────────────────────────
+function openProfileSphereEditor(){
+  var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
+  var uuid=p.uuid||'';
+  var name=p.name||'';
+  if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
+
+  // Load existing profile sphere config from localStorage
+  var PROF_KEY='ym_profile_sphere_'+uuid;
+  var config;
+  try{config=JSON.parse(localStorage.getItem(PROF_KEY)||'null');}catch{config=null;}
+  config=config||{
+    keywords:[],
+    bio:p.bio||'',
+    accent:'#f0a830',
+    sections:['identity','spheres','networks','bio'],
+    customCode:''
+  };
+
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.9);display:flex;flex-direction:column;overflow:hidden';
+  ov.innerHTML=
+    '<div style="display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0">'+
+    '<div style="font-size:15px;font-weight:600;color:var(--text);flex:1">✦ Profile Sphere</div>'+
+    '<button id="pse-preview" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:8px">Preview</button>'+
+    '<button id="pse-publish" class="ym-btn ym-btn-accent" style="font-size:12px;margin-right:8px">Publish</button>'+
+    '<button id="pse-close" class="ym-btn ym-btn-ghost" style="font-size:18px;padding:2px 8px">×</button>'+
+    '</div>'+
+    '<div style="flex:1;overflow-y:auto;padding:16px">'+
+
+    // Keywords
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Keywords (comma separated)</div>'+
+    '<input id="pse-keywords" class="ym-input" style="margin-bottom:12px;font-size:12px" value="'+config.keywords.join(', ')+'" placeholder="builder, circular economy, web3…">'+
+
+    // Accent color
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Accent color</div>'+
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'+
+    '<input type="color" id="pse-accent" value="'+config.accent+'" style="width:40px;height:32px;border:none;background:none;cursor:pointer;padding:0">'+
+    '<span id="pse-accent-val" style="font-size:12px;color:var(--text3)">'+config.accent+'</span>'+
+    '</div>'+
+
+    // Sections order
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sections order</div>'+
+    '<div id="pse-sections" style="margin-bottom:12px"></div>'+
+
+    // Custom code
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Custom JS (optional — renderPanel override)</div>'+
+    '<textarea id="pse-code" style="width:100%;box-sizing:border-box;height:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;margin-bottom:12px;resize:vertical" placeholder="// function renderPanel(container, profile){ ... }">'+config.customCode+'</textarea>'+
+
+    // Token for publish
+    '<div id="pse-token-wrap">'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">GitHub token</div>'+
+    '<input id="pse-token" type="password" class="ym-input" style="margin-bottom:4px;font-size:12px" placeholder="Token (or connect via Build)">'+
+    '</div>'+
+
+    '<div id="pse-status" style="font-size:11px;color:var(--text3);text-align:center;min-height:16px"></div>'+
+    '</div>';
+
+  document.body.appendChild(ov);
+
+  // Check build token
+  try{var bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
+    if(bt&&bt.token){ov.querySelector('#pse-token-wrap').innerHTML='<div style="font-size:11px;color:var(--gold);margin-bottom:8px">✓ Using GitHub token from Build</div>';}
+  }catch{}
+
+  // Accent color live update
+  ov.querySelector('#pse-accent').addEventListener('input',function(){
+    ov.querySelector('#pse-accent-val').textContent=this.value;
+  });
+
+  // Sections drag-to-reorder (simple up/down buttons)
+  function renderSections(){
+    var sec=ov.querySelector('#pse-sections');
+    sec.innerHTML='';
+    config.sections.forEach(function(s,i){
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
+      row.innerHTML='<span style="flex:1;font-size:12px;color:var(--text)">'+s+'</span>'+
+        '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-up>↑</button>'+
+        '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-dn>↓</button>'+
+        '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-del>×</button>';
+      row.querySelector('[data-up]').onclick=function(){if(i>0){config.sections.splice(i-1,0,config.sections.splice(i,1)[0]);renderSections();}};
+      row.querySelector('[data-dn]').onclick=function(){if(i<config.sections.length-1){config.sections.splice(i+1,0,config.sections.splice(i,1)[0]);renderSections();}};
+      row.querySelector('[data-del]').onclick=function(){config.sections.splice(i,1);renderSections();};
+      sec.appendChild(row);
+    });
+    // Add section button
+    var addRow=document.createElement('div');
+    addRow.style.cssText='display:flex;gap:6px;margin-top:4px';
+    addRow.innerHTML='<input id="pse-add-sec" class="ym-input" style="flex:1;font-size:12px" placeholder="Add section name…">'+
+      '<button class="ym-btn ym-btn-ghost" id="pse-add-sec-btn" style="font-size:12px">+</button>';
+    sec.appendChild(addRow);
+    addRow.querySelector('#pse-add-sec-btn').onclick=function(){
+      var v=addRow.querySelector('#pse-add-sec').value.trim();
+      if(v){config.sections.push(v);renderSections();}
+    };
+  }
+  renderSections();
+
+  // Collect config from form
+  function collectConfig(){
+    return {
+      uuid:uuid,
+      name:name,
+      keywords:ov.querySelector('#pse-keywords').value.split(',').map(function(k){return k.trim();}).filter(Boolean),
+      bio:p.bio||'',
+      pubkey:p.pubkey||'',
+      spheres:p.spheres||[],
+      accent:ov.querySelector('#pse-accent').value,
+      sections:config.sections.slice(),
+      customCode:ov.querySelector('#pse-code').value
+    };
+  }
+
+  // Close
+  ov.querySelector('#pse-close').onclick=function(){ov.remove();};
+
+  // Preview
+  ov.querySelector('#pse-preview').onclick=function(){
+    var cfg=collectConfig();
+    localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
+    ov.remove();
+    // Open profile panel in visitor mode
+    window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel({...p, _profileConfig:cfg, _visitorPreview:true});
+  };
+
+  // Publish
+  ov.querySelector('#pse-publish').onclick=async function(){
+    var cfg=collectConfig();
+    localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
+    var status=ov.querySelector('#pse-status');
+    var tokenEl=ov.querySelector('#pse-token');
+    var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
+    var token=(bt&&bt.token)||(tokenEl?tokenEl.value.trim():'');
+    if(!token){status.textContent='GitHub token required';return;}
+
+    // Wallet check
+    var pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
+    if(!pubkey){status.textContent='❌ Connect your wallet first';return;}
+    var elig=window.YM_Build&&window.YM_Build.computeEligibility?await window.YM_Build.computeEligibility():null;
+    if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant';return;}
+
+    // Derive repo
+    var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
+    var repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+    var repo=repoMatch?repoMatch[1]:(bt&&bt.repo)||'';
+    if(!repo){status.textContent='No registry configured';return;}
+
+    status.textContent='Generating profile sphere…';
+
+    // Generate monprofile.profile.js
+    var sphereCode=_generateProfileSphere(cfg);
+    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
+    var apiBase='https://api.github.com/repos/'+repo+'/contents/';
+
+    // Push monprofile.profile.js
+    var sphereUrl=apiBase+uuid+'.profile.js';
+    var sphereSha=null;
+    try{var sr=await fetch(sphereUrl,{headers});if(sr.ok){var sj=await sr.json();sphereSha=sj.sha;}}catch{}
+    var sphereContent=btoa(unescape(encodeURIComponent(sphereCode)));
+    var sphereBody={message:'publish profile: '+name,content:sphereContent};
+    if(sphereSha)sphereBody.sha=sphereSha;
+    var sphereRes=await fetch(sphereUrl,{method:'PUT',headers,body:JSON.stringify(sphereBody)});
+    if(!sphereRes.ok){var e=await sphereRes.json();status.textContent='Error: '+(e.message||sphereRes.status);return;}
+
+    var rawSphereUrl='https://raw.githubusercontent.com/'+repo+'/main/'+uuid+'.profile.js';
+
+    // Update profile.json
+    var profileJsonUrl=apiBase+'profile.json';
+    var profileSha=null;
+    var profiles=[];
+    try{var pr=await fetch(profileJsonUrl,{headers});if(pr.ok){var pj=await pr.json();profileSha=pj.sha;profiles=JSON.parse(atob(pj.content.replace(/\n/g,'')));}}catch{}
+    profiles=profiles.filter(function(x){return x.uuid!==uuid;});
+    profiles.push({uuid,name,keywords:cfg.keywords,bio:cfg.bio,pubkey:pubkey,spheres:cfg.spheres,accent:cfg.accent,profileSphere:rawSphereUrl,ts:Date.now()});
+    var profileContent=btoa(unescape(encodeURIComponent(JSON.stringify(profiles,null,2))));
+    var profileBody={message:'update profile.json: '+name,content:profileContent};
+    if(profileSha)profileBody.sha=profileSha;
+    var profileRes=await fetch(profileJsonUrl,{method:'PUT',headers,body:JSON.stringify(profileBody)});
+    if(!profileRes.ok){var e2=await profileRes.json();status.textContent='Error updating profile.json: '+(e2.message||profileRes.status);return;}
+
+    status.style.color='var(--gold)';status.textContent='✓ Profile published';
+    setTimeout(function(){ov.remove();},1500);
+  };
+}
+
+// Generate the profile sphere JS code
+function _generateProfileSphere(cfg){
+  return `// ${cfg.name}.profile.js — generated by YourMine
+// Profile sphere for ${cfg.name} (${cfg.uuid})
+(function(){
+'use strict';
+var _cfg=${JSON.stringify(cfg,null,2)};
+window.YM_S['${cfg.uuid}.profile.js']={
+  name:'${cfg.name}',
+  icon:'✦',
+  category:'Profile',
+  description:'${cfg.name}\\\'s profile',
+  author:'${cfg.uuid}',
+  isProfileSphere:true,
+  activate:function(ctx){},
+  deactivate:function(){},
+  renderPanel:function(container){
+    ${cfg.customCode||'_defaultRenderProfile(container,_cfg);'}
+  },
+  profileSection:function(){}
+};
+})();
+
+function _defaultRenderProfile(container,cfg){
+  var profile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
+  container.innerHTML='';
+  container.style.cssText='padding:16px;overflow-y:auto';
+  // Accent
+  var accent=cfg.accent||'#f0a830';
+  // Sections in order
+  cfg.sections.forEach(function(sec){
+    if(sec==='identity'){
+      var av=profile.avatar?'<img src="'+profile.avatar+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover">':'<div style="width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:32px">'+(profile.name||'?').charAt(0)+'</div>';
+      container.innerHTML+='<div style="text-align:center;margin-bottom:16px">'+av+'<div style="font-size:18px;font-weight:700;margin-top:8px;color:'+accent+'">'+profile.name+'</div></div>';
+    }else if(sec==='bio'&&profile.bio){
+      container.innerHTML+='<div style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:12px">'+profile.bio+'</div>';
+    }else if(sec==='keywords'&&cfg.keywords&&cfg.keywords.length){
+      container.innerHTML+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+cfg.keywords.map(function(k){return '<span style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid '+accent+';color:'+accent+'">'+k+'</span>';}).join('')+'</div>';
+    }else if(sec==='spheres'&&cfg.spheres&&cfg.spheres.length){
+      container.innerHTML+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.3);margin-bottom:6px">Spheres</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+cfg.spheres.map(function(s){return '<span style="font-size:11px;padding:3px 10px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.6)">'+s.replace('.sphere.js','')+'</span>';}).join('')+'</div>';
+    }else if(sec==='networks'){
+      var state;try{state=JSON.parse(localStorage.getItem('ym_social_v1')||'{}');}catch{state={};}
+      var nets=state.networks||[];
+      if(nets.length){container.innerHTML+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.3);margin-bottom:6px">Networks</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">'+nets.map(function(n){return '<span style="font-size:11px;padding:3px 10px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.6)">'+n.id+' '+n.handle+'</span>';}).join('')+'</div>';}
+    }else{
+      container.innerHTML+='<div style="font-size:12px;color:rgba(255,255,255,.3);margin-bottom:8px">'+sec+'</div>';
+    }
+  });
+}
+`;
+}
+window.openProfileSphereEditor=openProfileSphereEditor;
+
 
 // ── Publish Name ─────────────────────────────────────────────────────────────
 function openPublishNameOverlay(){
