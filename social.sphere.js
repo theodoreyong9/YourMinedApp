@@ -569,25 +569,6 @@ window.YM_S['social.sphere.js'] = {
     const networks=state.networks||[];
     const prof=(_ctx&&_ctx.loadProfile&&_ctx.loadProfile())||{};
 
-    const ident = document.createElement('div');
-    ident.innerHTML =
-      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
-      +'<div id="soc-pav" style="width:64px;height:64px;border-radius:50%;background:var(--surface3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;overflow:hidden;flex-shrink:0">'
-      +(prof.avatar?'<img src="'+prof.avatar+'" style="width:100%;height:100%;object-fit:cover">':'&#128100;')
-      +'</div>'
-      +'<div style="flex:1;display:flex;flex-direction:column;gap:6px">'
-      +'<input class="ym-input" id="soc-name" placeholder="Display name" value="'+(prof.name||'')+'" style="font-size:12px">'
-      +'<input class="ym-input" id="soc-site" placeholder="Website" value="'+(prof.site||'')+'" style="font-size:12px">'
-      +'</div></div>'
-      +'<textarea class="ym-input" id="soc-bio" placeholder="Short bio" style="height:52px;font-size:12px;margin-bottom:8px">'+(prof.bio||'')+'</textarea>';
-    container.appendChild(ident);
-
-    ident.querySelector('#soc-pav').addEventListener('click',()=>{
-      const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
-      inp.onchange=()=>{const r=new FileReader();r.onload=e=>{_ctx?.saveProfile?.({avatar:e.target.result});ident.querySelector('#soc-pav').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';};r.readAsDataURL(inp.files[0]);};
-      inp.click();
-    });
-
     const netTitle = document.createElement('div');
     netTitle.style.cssText='font-family:var(--font-d,monospace);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;margin-top:4px';
     netTitle.textContent='Social Networks';
