@@ -702,7 +702,9 @@ function openProfileSphereEditor(){
 
     // Sections order
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sections order</div>'+
-    '<div id="pse-sections" style="margin-bottom:12px"></div>'+
+    '<div id="pse-sections" style="margin-bottom:8px"></div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;margin-top:4px;text-transform:uppercase;letter-spacing:.1em">Spheres</div>'+
+    '<div id="pse-spheres" style="margin-bottom:12px"></div>'+
 
     // Custom code
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Custom JS (optional — renderPanel override)</div>'+
@@ -734,25 +736,55 @@ function openProfileSphereEditor(){
     var sec=ov.querySelector('#pse-sections');
     sec.innerHTML='';
     config.sections.forEach(function(s,i){
-      var isAuto=(config.autoOpen||[]).includes(s);
       var row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
+      row.style.cssText='display:flex;align-items:center;gap:4px;padding:5px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
       row.innerHTML='<span style="flex:1;font-size:12px;color:var(--text)">'+s+'</span>'
-        +'<span class="ao-sec" title="Auto-open in visitor view" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(isAuto?'var(--gold)':'rgba(255,255,255,.12)')+';color:'+(isAuto?'var(--gold)':'var(--text3)')+';cursor:pointer">auto</span>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-up>↑</button>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-dn>↓</button>';
+        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-up>↑</button>'
+        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-dn>↓</button>';
       row.querySelector('[data-up]').onclick=function(){if(i>0){config.sections.splice(i-1,0,config.sections.splice(i,1)[0]);renderSections();}};
       row.querySelector('[data-dn]').onclick=function(){if(i<config.sections.length-1){config.sections.splice(i+1,0,config.sections.splice(i,1)[0]);renderSections();}};
-      row.querySelector('.ao-sec').onclick=function(){
-        config.autoOpen=config.autoOpen||[];
-        if(config.autoOpen.includes(s)){config.autoOpen=config.autoOpen.filter(function(x){return x!==s;});}
-        else{config.autoOpen.push(s);}
-        renderSections();
-      };
       sec.appendChild(row);
     });
   }
+
+  function renderSpheresConfig(){
+    var spEl=ov.querySelector('#pse-spheres');
+    if(!spEl) return;
+    spEl.innerHTML='';
+    config.sphereConfig=config.sphereConfig||{};
+    var activeSpheres=p.spheres||[];
+    if(!activeSpheres.length){
+      spEl.innerHTML='<div style="font-size:11px;color:var(--text3)">No active spheres</div>';
+      return;
+    }
+    activeSpheres.forEach(function(id,i){
+      var sc=config.sphereConfig[id]||{visible:true,autoOpen:false};
+      config.sphereConfig[id]=sc;
+      var label=id.replace('.sphere.js','');
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:4px;padding:5px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
+      row.innerHTML='<span style="flex:1;font-size:12px;color:'+(sc.visible?'var(--text)':'var(--text3)')+'">'+label+'</span>'
+        +'<span class="sp-visible" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(sc.visible?'var(--accent)':'rgba(255,255,255,.12)')+';color:'+(sc.visible?'var(--accent)':'var(--text3)')+';cursor:pointer">show</span>'
+        +'<span class="sp-auto" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(sc.autoOpen?'var(--gold)':'rgba(255,255,255,.12)')+';color:'+(sc.autoOpen?'var(--gold)':'var(--text3)')+';cursor:pointer">auto</span>'
+        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-up>↑</button>'
+        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-dn>↓</button>';
+      row.querySelector('.sp-visible').onclick=function(){
+        sc.visible=!sc.visible;renderSpheresConfig();
+      };
+      row.querySelector('.sp-auto').onclick=function(){
+        sc.autoOpen=!sc.autoOpen;renderSpheresConfig();
+      };
+      row.querySelector('[data-up]').onclick=function(){
+        if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}
+      };
+      row.querySelector('[data-dn]').onclick=function(){
+        if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}
+      };
+      spEl.appendChild(row);
+    });
+  }
   renderSections();
+  renderSpheresConfig();
 
   // Collect config from form
   function collectConfig(){
@@ -765,6 +797,8 @@ function openProfileSphereEditor(){
       spheres:p.spheres||[],
       accent:ov.querySelector('#pse-accent').value,
       sections:config.sections.slice(),
+      sphereConfig:config.sphereConfig||{},
+      sphereOrder:p.spheres||[],
       autoOpen:config.autoOpen||[],
       customCode:ov.querySelector('#pse-code').value
     };
@@ -903,7 +937,38 @@ function _generateProfileSphere(cfg){
     '  isProfileSphere:true,',
     '  activate:function(){},',
     '  deactivate:function(){},',
-    '  renderPanel:function(container){' + body + '},',
+    '  renderPanel:function(container){',
+    '    (function(){' + body + '})();',
+    '    // ── Priority layer — spheres always injected after custom code ──',
+    '    var _sc=cfg.sphereConfig||{};',
+    '    var _so=cfg.sphereOrder||cfg.spheres||[];',
+    '    var _hasSection=_so.some(function(id){var s=_sc[id];return !s||s.visible!==false;});',
+    '    if(_hasSection){',
+    '      var _wrap=document.createElement("div");',
+    '      _wrap.style.cssText="border-top:1px solid rgba(255,255,255,.06);margin-top:8px";',
+    '      _so.forEach(function(id){',
+    '        var sc=_sc[id]||{visible:true,autoOpen:false};',
+    '        if(sc.visible===false) return;',
+    '        var sphere=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(id);',
+    '        if(!sphere||typeof sphere.profileSection!=="function") return;',
+    '        var hdr=document.createElement("div");',
+    '        hdr.style.cssText="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);cursor:pointer";',
+    '        var label=id.replace(".sphere.js","");',
+    '        hdr.innerHTML="<span style=\\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);flex:1\\">"+label+"</span><span style=\\"font-size:11px;color:var(--text3)\\">▼</span>";',
+    '        var body2=document.createElement("div");',
+    '        body2.style.cssText="padding:12px 14px;display:none";',
+    '        var open2=sc.autoOpen||false;',
+    '        function toggle2(){open2=!open2;body2.style.display=open2?"block":"none";hdr.querySelector("span:last-child").textContent=open2?"▲":"▼";}',
+    '        if(open2){body2.style.display="block";hdr.querySelector("span:last-child")&&(hdr.querySelector("span:last-child").textContent="▲");}',
+    '        hdr.addEventListener("click",toggle2);',
+    '        try{sphere.profileSection(body2);}catch(e){}',
+    '        var acc=document.createElement("div");acc.style.cssText="border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px";',
+    '        acc.appendChild(hdr);acc.appendChild(body2);',
+    '        _wrap.appendChild(acc);',
+    '      });',
+    '      container.appendChild(_wrap);',
+    '    }',
+    '  },',
     '  profileSection:function(){}',
     '};',
     '})();'
