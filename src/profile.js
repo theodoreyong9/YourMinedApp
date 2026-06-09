@@ -142,20 +142,12 @@ function render(fromSphere){
   body.style.cssText='display:flex;flex-direction:column;height:100%;padding:0';
   var panelHead=document.getElementById('panel-profile');
   panelHead=panelHead&&panelHead.querySelector('.panel-head');
-  if(panelHead&&!panelHead.querySelector('#prof-backup-btn')){
-    var bkBtn=document.createElement('button');bkBtn.id='prof-backup-btn';bkBtn.className='ym-btn ym-btn-ghost';
-    bkBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';bkBtn.textContent='💾';panelHead.appendChild(bkBtn);
-    var recBtn=document.createElement('button');recBtn.id='prof-recovery-btn';recBtn.className='ym-btn ym-btn-ghost';
-    recBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';recBtn.title='Identity recovery';recBtn.textContent='🔁';panelHead.appendChild(recBtn);
-    var pubBtn=document.createElement('button');pubBtn.id='prof-publish-btn';pubBtn.className='ym-btn ym-btn-ghost';
-    pubBtn.style.cssText='padding:4px 8px;font-size:14px;min-height:unset';pubBtn.title='Publish your name';pubBtn.textContent='📡';panelHead.appendChild(pubBtn);
-    var profBtn=document.createElement('button');profBtn.id='prof-profile-btn';profBtn.className='ym-btn ym-btn-ghost';
-    profBtn.style.cssText='padding:4px 8px;font-size:13px;min-height:unset';profBtn.title='Edit & publish your profile sphere';profBtn.textContent='✦';panelHead.appendChild(profBtn);
+  if(panelHead&&!panelHead.querySelector('#prof-menu-btn')){
+    var menuBtn=document.createElement('button');menuBtn.id='prof-menu-btn';menuBtn.className='ym-btn ym-btn-ghost';
+    menuBtn.style.cssText='padding:4px 10px;font-size:16px;min-height:unset';menuBtn.textContent='⚙';panelHead.appendChild(menuBtn);
   }
-  var bkBtnEl=document.getElementById('prof-backup-btn');if(bkBtnEl){bkBtnEl.onclick=openBackupOverlay;}
-  var recBtnEl=document.getElementById('prof-recovery-btn');if(recBtnEl){recBtnEl.onclick=openRecoveryOverlay;}
-  var pubBtnEl=document.getElementById('prof-publish-btn');if(pubBtnEl){pubBtnEl.onclick=openPublishNameOverlay;}
-  var profBtnEl=document.getElementById('prof-profile-btn');if(profBtnEl){profBtnEl.onclick=openProfileSphereEditor;}
+  var menuBtnEl=document.getElementById('prof-menu-btn');
+  if(menuBtnEl){menuBtnEl.onclick=function(){_openProfileMenu();};}
   var tcArea=document.createElement('div');tcArea.id='profile-tab-content';
   tcArea.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden';body.appendChild(tcArea);
   var tabs=document.createElement('div');tabs.className='ym-tabs';
@@ -680,14 +672,6 @@ function openProfileSphereEditor(){
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.9);display:flex;flex-direction:column;overflow:hidden';
   ov.innerHTML=
-    '<div style="display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0">'+
-    '<div style="font-size:15px;font-weight:600;color:var(--text);flex:1">✦ Profile Sphere</div>'+
-    '<button id="pse-before" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px">Before</button>'+
-    '<button id="pse-after" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px">After</button>'+
-    '<button id="pse-unpublish" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px;color:var(--red,#e84040);border-color:rgba(232,64,64,.3)">Unpublish</button>'+
-    '<button id="pse-publish" class="ym-btn ym-btn-accent" style="font-size:12px;margin-right:8px">Publish</button>'+
-    '<button id="pse-close" class="ym-btn ym-btn-ghost" style="font-size:18px;padding:2px 8px">×</button>'+
-    '</div>'+
     '<div style="flex:1;overflow-y:auto;padding:16px">'+
 
     // Keywords
@@ -720,7 +704,21 @@ function openProfileSphereEditor(){
     '<input id="pse-token" type="password" class="ym-input" style="margin-bottom:4px;font-size:12px" placeholder="Token (or connect via Build)">'+
     '</div>'+
 
-    '<div id="pse-status" style="font-size:11px;color:var(--text3);text-align:center;min-height:16px"></div>'+
+    '<div id="pse-token-wrap"></div>'+
+    '<div id="pse-status" style="font-size:11px;color:var(--text3);text-align:center;min-height:14px;margin-top:4px"></div>'+
+    '</div>'+
+    // Bottom toolbar
+    '<div style="border-top:1px solid rgba(255,255,255,.08);padding:12px 16px;flex-shrink:0">'+
+    '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">✦ Profile Sphere</div>'+
+    '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+    '<button id="pse-before" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1">Before</button>'+
+    '<button id="pse-after" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1">After</button>'+
+    '<button id="pse-unpublish" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1;color:var(--red,#e84040);border-color:rgba(232,64,64,.3)">Unpublish</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px">'+
+    '<button id="pse-close" class="ym-btn ym-btn-ghost" style="font-size:13px;flex:1">Cancel</button>'+
+    '<button id="pse-publish" class="ym-btn ym-btn-accent" style="font-size:13px;flex:2">Publish</button>'+
+    '</div>'+
     '</div>';
 
   document.body.appendChild(ov);
@@ -1021,7 +1019,93 @@ function _generateProfileSphere(cfg){
 window.openProfileSphereEditor=openProfileSphereEditor;
 
 
-// ── Publish Name ─────────────────────────────────────────────────────────────
+// ── Profile Menu ──────────────────────────────────────────────────────────────
+function _openProfileMenu(){
+  document.getElementById('prof-menu-sheet')?.remove();
+  var sheet=document.createElement('div');sheet.id='prof-menu-sheet';
+  sheet.style.cssText='position:fixed;inset:0;z-index:2500;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center';
+  var box=document.createElement('div');
+  box.style.cssText='background:var(--bg2,#1a1a2e);border-radius:14px 14px 0 0;padding:16px;width:100%;max-width:400px';
+
+  var items=[
+    {icon:'👤',label:'Edit identity',sub:'Avatar, name, bio, website',fn:openIdentityEditor},
+    {icon:'💾',label:'Backup',sub:'Export your identity',fn:function(){sheet.remove();openBackupOverlay();}},
+    {icon:'🔁',label:'Recovery',sub:'P2P identity recovery',fn:function(){sheet.remove();openRecoveryOverlay();}},
+    {icon:'📡',label:'Publish name',sub:'Link your name to your UUID',fn:function(){sheet.remove();openPublishNameOverlay();}},
+    {icon:'✦', label:'Profile sphere',sub:'Customize your public profile',fn:function(){sheet.remove();openProfileSphereEditor();}},
+  ];
+
+  box.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;text-align:center">Profile</div>';
+  items.forEach(function(item){
+    var row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:12px;padding:12px 8px;cursor:pointer;border-radius:8px;';
+    row.innerHTML='<span style="font-size:22px;width:32px;text-align:center">'+item.icon+'</span>'
+      +'<div><div style="font-size:13px;color:var(--text)">'+item.label+'</div>'
+      +'<div style="font-size:11px;color:var(--text3)">'+item.sub+'</div></div>';
+    row.addEventListener('click',function(){sheet.remove();item.fn();});
+    row.addEventListener('mouseenter',function(){this.style.background='rgba(255,255,255,.04)';});
+    row.addEventListener('mouseleave',function(){this.style.background='';});
+    box.appendChild(row);
+  });
+
+  var cancelBtn=document.createElement('button');
+  cancelBtn.className='ym-btn ym-btn-ghost';cancelBtn.style.cssText='width:100%;margin-top:12px;font-size:13px';
+  cancelBtn.textContent='Cancel';cancelBtn.onclick=function(){sheet.remove();};
+  box.appendChild(cancelBtn);
+  sheet.appendChild(box);
+  sheet.addEventListener('click',function(e){if(e.target===sheet)sheet.remove();});
+  document.body.appendChild(sheet);
+}
+window._openProfileMenu=_openProfileMenu;
+
+// ── Identity Editor ───────────────────────────────────────────────────────────
+function openIdentityEditor(){
+  var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML=
+    '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:20px;width:100%;max-width:340px">'+
+    '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:16px">👤 Edit identity</div>'+
+    // Avatar
+    '<div style="display:flex;justify-content:center;margin-bottom:12px">'+
+    '<div id="id-av" style="width:72px;height:72px;border-radius:50%;background:var(--surface3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;overflow:hidden">'
+    +(p.avatar?'<img src="'+p.avatar+'" style="width:100%;height:100%;object-fit:cover">':'&#128100;')+
+    '</div></div>'+
+    '<input id="id-name" class="ym-input" placeholder="Display name" value="'+(p.name||'')+'" style="margin-bottom:8px;font-size:13px">'+
+    '<textarea id="id-bio" class="ym-input" placeholder="Short bio" style="height:60px;font-size:13px;margin-bottom:8px">'+(p.bio||'')+'</textarea>'+
+    '<input id="id-site" class="ym-input" placeholder="Website" value="'+(p.site||'')+'" style="margin-bottom:16px;font-size:13px">'+
+    '<div style="display:flex;gap:8px">'+
+    '<button id="id-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
+    '<button id="id-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
+    '</div></div>';
+  document.body.appendChild(ov);
+
+  ov.querySelector('#id-av').addEventListener('click',function(){
+    var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+    inp.onchange=function(){var r=new FileReader();r.onload=function(e){
+      window.YM&&window.YM.saveProfile&&window.YM.saveProfile({avatar:e.target.result});
+      ov.querySelector('#id-av').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';
+    };r.readAsDataURL(inp.files[0]);};
+    inp.click();
+  });
+  ov.querySelector('#id-cancel').onclick=function(){ov.remove();};
+  ov.querySelector('#id-save').onclick=function(){
+    window.YM&&window.YM.saveProfile&&window.YM.saveProfile({
+      name:ov.querySelector('#id-name').value,
+      bio:ov.querySelector('#id-bio').value,
+      site:ov.querySelector('#id-site').value
+    });
+    // Broadcast to social if active
+    if(window.YM_sphereRegistry&&window.YM_sphereRegistry.get('social.sphere.js')){
+      try{window.YM_sphereRegistry.get('social.sphere.js').broadcastPresence&&window.YM_sphereRegistry.get('social.sphere.js').broadcastPresence();}catch{}
+    }
+    window.YM_toast&&window.YM_toast('Identity saved','success');
+    ov.remove();
+  };
+}
+window.openIdentityEditor=openIdentityEditor;
+
+
 function openPublishNameOverlay(){
   var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
   var name=p.name||'';
