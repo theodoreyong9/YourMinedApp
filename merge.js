@@ -50,8 +50,17 @@ async function extractSphereMetadata(filename, codeUrl, forkOwner) {
     const icon     = extractSphereField(code, 'icon')     || '⬡';
     const category = extractSphereField(code, 'category') || 'Other';
     const description = extractSphereField(code, 'description') || '';
+    const cardGif        = extractSphereField(code, 'cardGif')        || null;
+    const cardBackground = extractSphereField(code, 'cardBackground') || null;
+    const desktopGif     = extractSphereField(code, 'desktopGif')     || null;
+    const fullscreen     = extractSphereField(code, 'fullscreen')     || false;
     console.log('Metadata extracted from', filename, '—', name, icon, category);
-    return { name, icon, category, description };
+    const meta = { name, icon, category, description };
+    if(cardGif)        meta.cardGif = cardGif;
+    if(cardBackground) meta.cardBackground = cardBackground;
+    if(desktopGif)     meta.desktopGif = desktopGif;
+    if(fullscreen)     meta.fullscreen = true;
+    return meta;
   } catch(e) {
     console.warn('Could not extract metadata from', filename, ':', e.message);
     return {
