@@ -2,8 +2,9 @@
   const NAME = 'test.sphere.js';
   const GRID_W = 40;
   const GRID_H = 40;
-  const TICK_MS = 120; // ~8fps — good for P2P
+  const TICK_MS = 120;
   const INITIAL_LENGTH = 4;
+  const GIF = 'https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif';
 
   const COLORS = {
     0: { stroke: '#08e0f8', glow: 'rgba(8,224,248,0.5)'  },
@@ -22,9 +23,12 @@
   window.YM_S = window.YM_S || {};
   window.YM_S[NAME] = {
     name: 'Neon Duel',
-    icon: '⚔️',
+    icon: GIF,
     category: 'Games',
     description: 'Neon Snake Battle — solo or up to 4 players P2P.',
+    fullscreen: true,
+    cardGif: GIF,
+    desktopGif: GIF,
 
     broadcastData() {
       const mySnake = this.snakes[this.mySlot];
@@ -35,7 +39,7 @@
     activate(ctx) {
       this.ctx = ctx;
       this._hardReset();
-      if (ctx.addIconToDesktop) ctx.addIconToDesktop(NAME, this.icon, this.name);
+      if (ctx.addIconToDesktop) ctx.addIconToDesktop(NAME, this.desktopGif || this.icon, this.name);
       ctx.onReceive((type, data, peerId) => {
         if (type === 'sn:invited')  this._onInvited(data, peerId);
         if (type === 'sn:joined')   this._onJoined(data, peerId);
@@ -53,7 +57,6 @@
       }, 500);
     },
 
-    // ── State ───────────────────────────────────────────────────
     _hardReset() {
       clearInterval(this._ticker);
       this._ticker = null;
@@ -62,14 +65,13 @@
       this.isHost = false;
       this.mySlot = -1;
       this.lobby = [];
-      this.snakes = {};   // slot → {cells:[{x,y}], dir, alive, peerId, score}
-      this.foods = [];    // [{x,y}]
+      this.snakes = {};
+      this.foods = [];
       this.winner = null;
       this._pendingDir = null;
       if (this.view) this._render();
     },
 
-    // ── Solo ────────────────────────────────────────────────────
     _startSolo() {
       this.isSolo = true;
       this.isHost = false;
@@ -82,7 +84,6 @@
       this._ticker = setInterval(() => this._tick(), TICK_MS);
     },
 
-    // ── Lobby ───────────────────────────────────────────────────
     _createLobby() {
       this.isHost = true;
       this.mySlot = 0;
@@ -101,9 +102,7 @@
       this._render();
     },
 
-    _snap() {
-      return this.lobby.map(p => ({ slot: p.slot, name: p.name, ready: p.ready }));
-    },
+    _snap() { return this.lobby.map(p => ({ slot: p.slot, name: p.name, ready: p.ready })); },
 
     _broadcastLobby() {
       this.lobby.forEach(p => {
@@ -116,9 +115,7 @@
       this.isHost = false;
       this.mySlot = data.slot;
       this.phase = 'lobby';
-      this.lobby = (data.snapshot||[]).map(s => ({
-        ...s, peerId: s.slot === 0 ? peerId : null
-      }));
+      this.lobby = (data.snapshot||[]).map(s => ({...s, peerId: s.slot === 0 ? peerId : null}));
       this.ctx.send('sn:joined', { slot: this.mySlot, name: 'Player '+(this.mySlot+1) }, peerId);
       this.ctx.toast('Invited to Snake Battle!', 'info');
       this.ctx.openPanel();
@@ -134,21 +131,16 @@
 
     _onLobbySync(data, peerId) {
       if (!this.isHost) {
-        this.lobby = data.snapshot.map(s => ({
-          ...s, peerId: this.lobby.find(l => l.slot === s.slot)?.peerId || null
-        }));
+        this.lobby = data.snapshot.map(s => ({...s, peerId: this.lobby.find(l => l.slot === s.slot)?.peerId || null}));
         this._render();
       }
     },
 
-    // ── Ready ───────────────────────────────────────────────────
     _setReady() {
       const me = this.lobby.find(p => p.slot === this.mySlot);
       if (me) me.ready = true;
-      if (this.isHost) {
-        this._broadcastLobby();
-        this._checkAllReady();
-      } else {
+      if (this.isHost) { this._broadcastLobby(); this._checkAllReady(); }
+      else {
         const host = this.lobby.find(p => p.slot === 0);
         if (host?.peerId) this.ctx.send('sn:ready', { slot: this.mySlot }, host.peerId);
       }
@@ -169,20 +161,13 @@
       if (this.lobby.every(p => p.ready)) this._launch();
     },
 
-    // ── Launch ──────────────────────────────────────────────────
     _launch() {
       const snapshot = this._snap();
-      // Host generates initial foods: N foods for N players
       this.foods = [];
       for (let i = 0; i < this.lobby.length; i++) this.foods.push(this._spawnFood());
-      // Init all snakes
       snapshot.forEach(p => this._initSnake(p.slot, this.lobby.find(l=>l.slot===p.slot)?.peerId||null));
-      // Broadcast start
       this.lobby.forEach(p => {
-        if (p.peerId) this.ctx.send('sn:start', {
-          snapshot,
-          foods: this.foods
-        }, p.peerId);
+        if (p.peerId) this.ctx.send('sn:start', { snapshot, foods: this.foods }, p.peerId);
       });
       this.phase = 'playing';
       this._pendingDir = null;
@@ -203,7 +188,6 @@
       const sp = STARTS[slot];
       const cells = [];
       for (let i = 0; i < INITIAL_LENGTH; i++) {
-        const nx = this._nextPos(sp.x, sp.y, this._opposite(sp.dir));
         cells.push({ x: sp.x - this._dx(sp.dir)*i, y: sp.y - this._dy(sp.dir)*i });
       }
       this.snakes[slot] = { cells, dir: sp.dir, alive: true, peerId, score: 0 };
@@ -213,7 +197,6 @@
     _dy(dir){ return dir==='down'?1:dir==='up'?-1:0; },
     _opposite(dir){ return {up:'down',down:'up',left:'right',right:'left'}[dir]; },
 
-    // ── Countdown ───────────────────────────────────────────────
     _countdown(n) {
       this._render(n);
       if (n === 0) { this._startTicker(); return; }
@@ -225,31 +208,21 @@
       this._ticker = setInterval(() => this._tick(), TICK_MS);
     },
 
-    // ── Game tick ───────────────────────────────────────────────
     _tick() {
       if (this.phase !== 'playing') return;
       const me = this.snakes[this.mySlot];
       if (!me?.alive) return;
-
-      // Apply direction
       if (this._pendingDir && !this._isOpposite(me.dir, this._pendingDir)) {
         me.dir = this._pendingDir;
         this._pendingDir = null;
       }
-
-      // Move my snake
       const head = me.cells[0];
       const next = this._nextPos(head.x, head.y, me.dir);
-
-      // Broadcast my move
       this.lobby.forEach(p => {
-        if (p.peerId) this.ctx.send('sn:move', {
-          slot: this.mySlot, dir: me.dir, head: next
-        }, p.peerId);
+        if (p.peerId) this.ctx.send('sn:move', { slot: this.mySlot, dir: me.dir, head: next }, p.peerId);
       });
-
       this._applyMove(this.mySlot, next, me.dir);
-      this._drawCanvas(); // only redraw canvas — HTML unchanged
+      this._drawCanvas();
       this._checkOver();
     },
 
@@ -257,14 +230,11 @@
       const snake = this.snakes[slot];
       if (!snake?.alive) return;
       snake.dir = dir;
-
-      // Wall collision
       if (next.x<0||next.x>=GRID_W||next.y<0||next.y>=GRID_H) {
         snake.alive = false;
         if (slot === this.mySlot) this._broadcastDead(slot);
         return;
       }
-      // Snake collision (all snakes)
       for (const s of Object.values(this.snakes)) {
         if (s.cells.some(c => c.x===next.x && c.y===next.y)) {
           snake.alive = false;
@@ -272,32 +242,20 @@
           return;
         }
       }
-
-      // Move: add head
       snake.cells.unshift({ x: next.x, y: next.y });
-
-      // Food?
       const fi = this.foods.findIndex(f => f.x===next.x && f.y===next.y);
       if (fi !== -1) {
         snake.score++;
-        // Update score in DOM without re-render
         const scoreEl = document.getElementById('sn-score-'+slot);
         if(scoreEl) scoreEl.textContent = snake.score;
-        // Replace food — only host spawns new food to stay in sync
         if (this.isHost || this.isSolo) {
           const newFood = this._spawnFood();
           this.foods[fi] = newFood;
-          // Broadcast new food position
           this.lobby.forEach(p => {
             if (p.peerId) this.ctx.send('sn:food', { index: fi, food: newFood }, p.peerId);
           });
-        } else {
-          this.foods.splice(fi, 1);
-        }
-        // Don't remove tail — snake grew
-      } else {
-        snake.cells.pop(); // remove tail — no growth
-      }
+        } else { this.foods.splice(fi, 1); }
+      } else { snake.cells.pop(); }
     },
 
     _onMove(data, peerId) {
@@ -367,7 +325,6 @@
       catch(e) { return []; }
     },
 
-    // ── Food spawning ───────────────────────────────────────────
     _spawnFood() {
       let f, tries = 0;
       do {
@@ -380,7 +337,6 @@
       return f;
     },
 
-    // ── Reset ───────────────────────────────────────────────────
     _resetGame() {
       this.lobby.forEach(p => {
         if (p.peerId) this.ctx.send('sn:reset', {}, p.peerId);
@@ -400,36 +356,26 @@
       this._render();
     },
 
-    // ── Utils ───────────────────────────────────────────────────
-    _nextPos(x, y, dir) {
-      return { x: x+this._dx(dir), y: y+this._dy(dir) };
-    },
+    _nextPos(x, y, dir) { return { x: x+this._dx(dir), y: y+this._dy(dir) }; },
     _isOpposite(a, b) {
       return (a==='up'&&b==='down')||(a==='down'&&b==='up')||
              (a==='left'&&b==='right')||(a==='right'&&b==='left');
     },
     _setDir(dir) { this._pendingDir = dir; },
 
-    // ── Render ──────────────────────────────────────────────────
-
     _drawCanvas() {
       const cw = this._cw, ch = this._ch, cell = this._cell;
       if (!cw) return;
-      // Draw canvas
       requestAnimationFrame(() => {
         const cv = document.getElementById('sn-cv');
         if (!cv) return;
         const c = cv.getContext('2d');
         c.fillStyle = '#02020a';
         c.fillRect(0,0,cw,ch);
-
-        // Grid
         c.strokeStyle = 'rgba(8,224,248,0.03)';
         c.lineWidth = 0.5;
         for (let x=0;x<=GRID_W;x++){c.beginPath();c.moveTo(x*cell,0);c.lineTo(x*cell,ch);c.stroke();}
         for (let y=0;y<=GRID_H;y++){c.beginPath();c.moveTo(0,y*cell);c.lineTo(cw,y*cell);c.stroke();}
-
-        // Snakes — continuous neon line
         Object.entries(this.snakes).forEach(([slot,s]) => {
           if(!s.cells.length) return;
           const col = COLORS[slot]||COLORS[0];
@@ -440,15 +386,12 @@
           c.lineJoin = 'round';
           c.shadowColor = col.glow;
           c.shadowBlur = cell * 1.2;
-          // Draw body as continuous path
           c.beginPath();
           s.cells.forEach((pt, i) => {
-            const px = (pt.x + 0.5) * cell;
-            const py = (pt.y + 0.5) * cell;
+            const px = (pt.x + 0.5) * cell, py = (pt.y + 0.5) * cell;
             if(i === 0) c.moveTo(px, py); else c.lineTo(px, py);
           });
           c.stroke();
-          // Head — bright white dot
           if(s.alive) {
             const h = s.cells[0];
             c.fillStyle = '#ffffff';
@@ -461,8 +404,6 @@
           c.globalAlpha = 1;
           c.shadowBlur = 0;
         });
-
-        // Food
         this.foods.forEach(f => {
           c.fillStyle = '#f0a830';
           c.shadowColor = 'rgba(240,168,48,.9)';
@@ -472,27 +413,10 @@
           c.fill();
           c.shadowBlur = 0;
         });
-
-
-
-        // Countdown overlay
-        if (countdown !== undefined && countdown > 0) {
-          c.fillStyle = 'rgba(0,0,0,.65)';
-          c.fillRect(0,0,cw,ch);
-          c.fillStyle = '#f0a830';
-          c.font = `bold ${Math.floor(cw/4)}px monospace`;
-          c.textAlign = 'center';
-          c.textBaseline = 'middle';
-          c.shadowColor = 'rgba(240,168,48,.8)';
-          c.shadowBlur = 24;
-          c.fillText(String(countdown), cw/2, ch/2);
-          c.shadowBlur = 0;
-        }
-      })
+      });
     },
 
     _wireTap() {
-      // Wire tap on the panel body level — not on canvas which gets recreated
       if(this._tapWired) return;
       this._tapWired = true;
       const panel = this.view;
@@ -510,25 +434,16 @@
         if(!snake || !snake.cells[0]) return;
         const head = snake.cells[0];
         const curDir = snake.dir;
-        const dx = tapGX - head.x;
-        const dy = tapGY - head.y;
-        // Pick best direction that isn't opposite to current
-        // Prefer dominant axis but fall back to other axis if dominant would reverse
+        const dx = tapGX - head.x, dy = tapGY - head.y;
         const hDir = dx > 0 ? 'right' : 'left';
         const vDir = dy > 0 ? 'down' : 'up';
         const hOk = !S._isOpposite(curDir, hDir);
         const vOk = !S._isOpposite(curDir, vDir);
         let dir;
-        if(hOk && vOk) {
-          // Both valid — pick dominant axis
-          dir = Math.abs(dx) > Math.abs(dy) ? hDir : vDir;
-        } else if(hOk) {
-          dir = hDir;
-        } else if(vOk) {
-          dir = vDir;
-        } else {
-          return; // nowhere to go
-        }
+        if(hOk && vOk) { dir = Math.abs(dx) > Math.abs(dy) ? hDir : vDir; }
+        else if(hOk) { dir = hDir; }
+        else if(vOk) { dir = vDir; }
+        else { return; }
         S._setDir(dir);
       };
       panel.addEventListener('touchstart', e => {
@@ -561,17 +476,15 @@
 
     _render(countdown) {
       if (!this.view) return;
-      const size = Math.min(this.view.clientWidth||320, 360);
+      const size = Math.min(this.view.clientWidth||window.innerWidth||320, window.innerWidth||360);
       const cell = Math.floor(size/GRID_W);
       const cw = cell*GRID_W, ch = cell*GRID_H;
-      // Store for _drawCanvas
       this._cell = cell; this._cw = cw; this._ch = ch;
 
       const css = `<style>
-        .sn{display:flex;flex-direction:column;align-items:center;padding:12px;gap:10px;height:100%;font-family:'JetBrains Mono',monospace;color:#e4e6f4;overflow-y:auto}
+        .sn{display:flex;flex-direction:column;align-items:center;padding:12px;gap:10px;height:100%;font-family:'JetBrains Mono',monospace;color:#e4e6f4;overflow-y:auto;box-sizing:border-box}
         .sn h1{font-size:20px;letter-spacing:.3em;color:#08e0f8;text-shadow:0 0 20px rgba(8,224,248,.5);margin:0}
         .sn-status{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);text-align:center}
-        .sn-status b{color:#08e0f8}
         .sn-btn{padding:11px 20px;border-radius:8px;font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border:none;font-weight:700;transition:all .15s;text-align:center}
         .sn-btn.cyan{background:rgba(8,224,248,.12);color:#08e0f8;border:1px solid rgba(8,224,248,.3)}
         .sn-btn.ghost{background:rgba(255,255,255,.05);color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.1)}
@@ -579,8 +492,7 @@
         .sn-btn:active{opacity:.7}
         .sn-row{display:flex;gap:8px;width:100%}
         .sn-row .sn-btn{flex:1}
-        .sn-cv{border:1px solid rgba(8,224,248,.18);border-radius:4px;background:#02020a;display:block;box-shadow:0 0 20px rgba(8,224,248,.06)}
-
+        .sn-cv{border:1px solid rgba(8,224,248,.18);border-radius:4px;background:#02020a;display:block;box-shadow:0 0 20px rgba(8,224,248,.06);max-width:100%}
         .sn-scores{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
         .sn-score{font-size:10px;display:flex;align-items:center;gap:5px}
         .sn-dot{width:8px;height:8px;border-radius:50%}
@@ -593,103 +505,66 @@
 
       let b = `${css}<div class="sn">`;
 
-      // ── MENU ──
       if (this.phase === 'menu') {
-        b += `<h1>SNAKE</h1>
+        b += `<h1>⚔️ NEON DUEL</h1>
           <div class="sn-status">Choose your mode</div>
           <div class="sn-row">
             <button class="sn-btn cyan" onclick="window.YM_S['${NAME}']._startSolo()">🐍 Solo</button>
             <button class="sn-btn ghost" onclick="window.YM_S['${NAME}']._createLobby()">⚔️ Battle</button>
           </div>`;
       }
-
-      // ── LOBBY ──
       else if (this.phase === 'lobby') {
         const me = this.lobby.find(p => p.slot === this.mySlot);
         const iAmReady = me?.ready;
         const allReady = this.lobby.length >= 2 && this.lobby.every(p => p.ready);
-
-        b += `<h1>LOBBY</h1>`;
-        b += `<div class="sn-lobby">`;
+        b += `<h1>LOBBY</h1><div class="sn-lobby">`;
         this.lobby.forEach(p => {
           const col = COLORS[p.slot]?.stroke || '#fff';
-          b += `<div class="sn-player">
-            <div class="sn-dot" style="background:${col};box-shadow:0 0 5px ${col}"></div>
-            <div style="flex:1;font-size:12px">${p.name}${p.slot===this.mySlot?' <span style="opacity:.4">(you)</span>':''}</div>
-            <div class="sn-badge ${p.ready?'ready':'wait'}">${p.ready?'READY':'WAITING'}</div>
-          </div>`;
+          b += `<div class="sn-player"><div class="sn-dot" style="background:${col};box-shadow:0 0 5px ${col}"></div><div style="flex:1;font-size:12px">${p.name}${p.slot===this.mySlot?' <span style="opacity:.4">(you)</span>':''}</div><div class="sn-badge ${p.ready?'ready':'wait'}">${p.ready?'READY':'WAITING'}</div></div>`;
         });
         b += `</div>`;
-
         if (this.isHost && this.lobby.length < 4) {
           b += `<div class="sn-status" style="font-size:9px;opacity:.35">${this.lobby.length}/4 — invite from peer profiles</div>`;
         }
-
         b += `<div class="sn-row">`;
-        if (!iAmReady) {
-          b += `<button class="sn-btn green" onclick="window.YM_S['${NAME}']._setReady()">✓ I'm Ready</button>`;
-        } else {
-          b += `<div class="sn-btn ghost" style="opacity:.35;pointer-events:none">✓ Ready</div>`;
-        }
-        b += `<button class="sn-btn ghost" onclick="window.YM_S['${NAME}']._hardReset()">← Back</button>`;
-        b += `</div>`;
-
-        if (this.isHost && allReady) {
-          b += `<button class="sn-btn cyan" style="width:100%" onclick="window.YM_S['${NAME}']._launch()">🚀 LAUNCH</button>`;
-        }
+        if (!iAmReady) b += `<button class="sn-btn green" onclick="window.YM_S['${NAME}']._setReady()">✓ I'm Ready</button>`;
+        else b += `<div class="sn-btn ghost" style="opacity:.35;pointer-events:none">✓ Ready</div>`;
+        b += `<button class="sn-btn ghost" onclick="window.YM_S['${NAME}']._hardReset()">← Back</button></div>`;
+        if (this.isHost && allReady) b += `<button class="sn-btn cyan" style="width:100%" onclick="window.YM_S['${NAME}']._launch()">🚀 LAUNCH</button>`;
       }
-
-      // ── PLAYING / COUNTDOWN / OVER ──
       else {
-        // Scores bar
         if (Object.keys(this.snakes).length) {
           b += `<div class="sn-scores">`;
           Object.entries(this.snakes).forEach(([slot, s]) => {
             const col = COLORS[slot]?.stroke || '#fff';
             const label = parseInt(slot)===this.mySlot ? 'You' : (this.lobby.find(p=>p.slot===parseInt(slot))?.name||'P'+(parseInt(slot)+1));
-            b += `<div class="sn-score">
-              <div class="sn-dot" style="background:${col};${!s.alive?'opacity:.3':''}"></div>
-              <span id="sn-score-${slot}" style="${!s.alive?'opacity:.3':''}">${label}: ${s.score}${!s.alive?' 💀':''}</span>
-            </div>`;
+            b += `<div class="sn-score"><div class="sn-dot" style="background:${col};${!s.alive?'opacity:.3':''}"></div><span id="sn-score-${slot}" style="${!s.alive?'opacity:.3':''}">${label}: ${s.score}${!s.alive?' 💀':''}</span></div>`;
           });
           b += `</div>`;
         }
-
-        // Status
         if (this.phase === 'over') {
           if (this.isSolo) {
-            const score = this.snakes[0]?.score||0;
-            b += `<div class="sn-status" style="font-size:16px;color:#ff4560">💀 GAME OVER — Score: ${score}</div>`;
+            b += `<div class="sn-status" style="font-size:16px;color:#ff4560">💀 GAME OVER — Score: ${this.snakes[0]?.score||0}</div>`;
           } else {
             const isWin = this.winner === this.mySlot;
             b += `<div class="sn-status" style="font-size:16px;color:${isWin?'#08e0f8':'#ff4560'}">${isWin?'🏆 YOU WIN':'💀 YOU LOST'}</div>`;
           }
-          // History on game over
-          if(this.phase === 'over') {
-            const hist = this._getHistory().slice(0,5);
-            const best = this.ctx.storage?.get('snake_best') || '0';
-            if(hist.length) {
-              b += `<div style="width:100%;background:rgba(255,255,255,.03);border-radius:10px;padding:10px 12px;border:1px solid rgba(255,255,255,.06)">`;
-              b += `<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em">RECENT SCORES</span><span style="font-size:9px;color:#08e0f8;font-family:monospace">BEST: ${best}</span></div>`;
-              hist.forEach((h,i) => {
-                const d = new Date(h.date);
-                const ds = d.toLocaleDateString('fr',{month:'short',day:'numeric'});
-                b += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:rgba(255,255,255,.4)">${ds} · ${h.solo?'solo':'multi'}</span><span style="color:${i===0?'#08e0f8':'rgba(255,255,255,.5)'};font-family:monospace">${h.score}</span></div>`;
-              });
-              b += `</div>`;
-            }
+          const hist = this._getHistory().slice(0,5);
+          const best = this.ctx.storage?.get('snake_best') || '0';
+          if(hist.length) {
+            b += `<div style="width:100%;background:rgba(255,255,255,.03);border-radius:10px;padding:10px 12px;border:1px solid rgba(255,255,255,.06)">`;
+            b += `<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em">RECENT SCORES</span><span style="font-size:9px;color:#08e0f8;font-family:monospace">BEST: ${best}</span></div>`;
+            hist.forEach((h,i) => {
+              const d = new Date(h.date);
+              const ds = d.toLocaleDateString('fr',{month:'short',day:'numeric'});
+              b += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:rgba(255,255,255,.4)">${ds} · ${h.solo?'solo':'multi'}</span><span style="color:${i===0?'#08e0f8':'rgba(255,255,255,.5)'};font-family:monospace">${h.score}</span></div>`;
+            });
+            b += `</div>`;
           }
         } else if (countdown !== undefined && countdown > 0) {
           b += `<div class="sn-status" style="font-size:36px;color:#f0a830;text-shadow:0 0 20px rgba(240,168,48,.6)">${countdown}</div>`;
         }
-
-        // Canvas
         b += `<canvas id="sn-cv" class="sn-cv" width="${cw}" height="${ch}" style="width:${cw}px;height:${ch}px;touch-action:none;cursor:pointer"></canvas>`;
-
-        // D-pad
-        // No dpad — tap canvas to steer (see canvas touch handler below)
-
-        // Over buttons
         if (this.phase === 'over') {
           b += `<div class="sn-row">
             <button class="sn-btn cyan" onclick="window.YM_S['${NAME}']._startSolo()">Solo</button>
@@ -697,134 +572,81 @@
           </div>`;
         }
       }
-
       b += `</div>`;
       this.view.innerHTML = b;
 
-      // Tap to steer — wired here so getBoundingClientRect works correctly
-
-
-      // Draw canvas
       requestAnimationFrame(() => {
         const cv = document.getElementById('sn-cv');
         if (!cv) return;
         const c = cv.getContext('2d');
         c.fillStyle = '#02020a';
         c.fillRect(0,0,cw,ch);
-
-        // Grid
         c.strokeStyle = 'rgba(8,224,248,0.03)';
         c.lineWidth = 0.5;
         for (let x=0;x<=GRID_W;x++){c.beginPath();c.moveTo(x*cell,0);c.lineTo(x*cell,ch);c.stroke();}
         for (let y=0;y<=GRID_H;y++){c.beginPath();c.moveTo(0,y*cell);c.lineTo(cw,y*cell);c.stroke();}
-
-        // Snakes — continuous neon line
         Object.entries(this.snakes).forEach(([slot,s]) => {
           if(!s.cells.length) return;
           const col = COLORS[slot]||COLORS[0];
           c.globalAlpha = s.alive ? 1 : 0.2;
-          c.strokeStyle = col.stroke;
-          c.lineWidth = cell * 0.7;
-          c.lineCap = 'round';
-          c.lineJoin = 'round';
-          c.shadowColor = col.glow;
-          c.shadowBlur = cell * 1.2;
-          // Draw body as continuous path
+          c.strokeStyle = col.stroke; c.lineWidth = cell * 0.7;
+          c.lineCap = 'round'; c.lineJoin = 'round';
+          c.shadowColor = col.glow; c.shadowBlur = cell * 1.2;
           c.beginPath();
           s.cells.forEach((pt, i) => {
-            const px = (pt.x + 0.5) * cell;
-            const py = (pt.y + 0.5) * cell;
-            if(i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+            const px=(pt.x+0.5)*cell, py=(pt.y+0.5)*cell;
+            if(i===0) c.moveTo(px,py); else c.lineTo(px,py);
           });
           c.stroke();
-          // Head — bright white dot
           if(s.alive) {
-            const h = s.cells[0];
-            c.fillStyle = '#ffffff';
-            c.shadowColor = col.glow;
-            c.shadowBlur = cell * 2;
-            c.beginPath();
-            c.arc((h.x+0.5)*cell, (h.y+0.5)*cell, cell*0.45, 0, Math.PI*2);
-            c.fill();
+            const h=s.cells[0];
+            c.fillStyle='#ffffff'; c.shadowColor=col.glow; c.shadowBlur=cell*2;
+            c.beginPath(); c.arc((h.x+0.5)*cell,(h.y+0.5)*cell,cell*0.45,0,Math.PI*2); c.fill();
           }
-          c.globalAlpha = 1;
-          c.shadowBlur = 0;
+          c.globalAlpha=1; c.shadowBlur=0;
         });
-
-        // Food
         this.foods.forEach(f => {
-          c.fillStyle = '#f0a830';
-          c.shadowColor = 'rgba(240,168,48,.9)';
-          c.shadowBlur = 10;
-          c.beginPath();
-          c.arc((f.x+.5)*cell, (f.y+.5)*cell, cell*.42, 0, Math.PI*2);
-          c.fill();
-          c.shadowBlur = 0;
+          c.fillStyle='#f0a830'; c.shadowColor='rgba(240,168,48,.9)'; c.shadowBlur=10;
+          c.beginPath(); c.arc((f.x+.5)*cell,(f.y+.5)*cell,cell*.42,0,Math.PI*2); c.fill();
+          c.shadowBlur=0;
         });
-
-
-
-        // Countdown overlay
         if (countdown !== undefined && countdown > 0) {
-          c.fillStyle = 'rgba(0,0,0,.65)';
-          c.fillRect(0,0,cw,ch);
-          c.fillStyle = '#f0a830';
-          c.font = `bold ${Math.floor(cw/4)}px monospace`;
-          c.textAlign = 'center';
-          c.textBaseline = 'middle';
-          c.shadowColor = 'rgba(240,168,48,.8)';
-          c.shadowBlur = 24;
-          c.fillText(String(countdown), cw/2, ch/2);
-          c.shadowBlur = 0;
+          c.fillStyle='rgba(0,0,0,.65)'; c.fillRect(0,0,cw,ch);
+          c.fillStyle='#f0a830'; c.font=`bold ${Math.floor(cw/4)}px monospace`;
+          c.textAlign='center'; c.textBaseline='middle';
+          c.shadowColor='rgba(240,168,48,.8)'; c.shadowBlur=24;
+          c.fillText(String(countdown),cw/2,ch/2); c.shadowBlur=0;
         }
       });
     },
 
-    // ── Profile section ──────────────────────────────────────────
     profileSection(container) {
       const best = this.ctx.storage?.get('snake_best') || '0';
       const hist = this._getHistory().slice(0, 10);
-      // Gather near/contact scores from broadcastData
       const nears = [];
       try {
         const nearMap = window.YM_Social?._nearUsers;
-        if(nearMap) nearMap.forEach((peer, uuid) => {
+        if(nearMap) nearMap.forEach((peer) => {
           const bd = peer.broadcastData;
           if(bd?.snake_score !== undefined) {
-            nears.push({ name: peer.profile?.name || uuid.slice(0,8), score: bd.snake_score, best: bd.snake_best || 0 });
+            nears.push({ name: peer.profile?.name || '?', score: bd.snake_score, best: bd.snake_best || 0 });
           }
         });
         nears.sort((a,b) => b.best - a.best);
       } catch(e) {}
-
       let html = `<div style="padding:14px;display:flex;flex-direction:column;gap:12px">`;
-      html += `<div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:22px">⚔️</span>
-        <div style="text-align:right"><div style="font-size:20px;font-weight:700;color:#08e0f8;font-family:monospace">${best}</div><div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em">BEST SCORE</div></div>
-      </div>`;
-
+      html += `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:22px">⚔️</span><div style="text-align:right"><div style="font-size:20px;font-weight:700;color:#08e0f8;font-family:monospace">${best}</div><div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em">BEST SCORE</div></div></div>`;
       if(nears.length) {
-        html += `<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.06)">`;
-        html += `<div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em;margin-bottom:8px">NEAR & CONTACTS</div>`;
-        nears.forEach(n => {
-          html += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <span style="color:rgba(255,255,255,.5)">${n.name}</span>
-            <span style="font-family:monospace;color:#a855f7">${n.best}</span>
-          </div>`;
-        });
+        html += `<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.06)"><div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em;margin-bottom:8px">NEAR & CONTACTS</div>`;
+        nears.forEach(n => { html += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:rgba(255,255,255,.5)">${n.name}</span><span style="font-family:monospace;color:#a855f7">${n.best}</span></div>`; });
         html += `</div>`;
       }
-
       if(hist.length) {
-        html += `<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.06)">`;
-        html += `<div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em;margin-bottom:8px">HISTORY</div>`;
+        html += `<div style="background:rgba(255,255,255,.03);border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.06)"><div style="font-size:9px;color:rgba(255,255,255,.3);letter-spacing:.1em;margin-bottom:8px">HISTORY</div>`;
         hist.forEach((h,i) => {
           const d = new Date(h.date);
           const ds = d.toLocaleDateString('fr',{month:'short',day:'numeric'});
-          html += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-            <span style="color:rgba(255,255,255,.4)">${ds} · ${h.solo?'solo':'multi'}</span>
-            <span style="font-family:monospace;color:${i===0?'#08e0f8':'rgba(255,255,255,.5)'}">${h.score}</span>
-          </div>`;
+          html += `<div style="display:flex;justify-content:space-between;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04)"><span style="color:rgba(255,255,255,.4)">${ds} · ${h.solo?'solo':'multi'}</span><span style="font-family:monospace;color:${i===0?'#08e0f8':'rgba(255,255,255,.5)'}">${h.score}</span></div>`;
         });
         html += `</div>`;
       }
@@ -832,27 +654,10 @@
       container.innerHTML = html;
     },
 
-    // ── Peer section ──────────────────────────────────────────────
     peerSection(container, peerCtx) {
       const self = this;
       const canInvite = self.isHost && self.phase === 'lobby' && self.lobby.length < 4;
-      container.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.05)">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:22px">🐍</span>
-            <div>
-              <div style="font-size:12px;font-weight:700;color:#fff">Snake Battle</div>
-              <div style="font-size:9px;opacity:.5;margin-top:1px">${canInvite?'Invite to your lobby':'Create a lobby first'}</div>
-            </div>
-          </div>
-          <button style="padding:6px 14px;font-size:10px;letter-spacing:.08em;font-weight:700;font-family:monospace;cursor:${canInvite?'pointer':'default'};border-radius:6px;
-            background:${canInvite?'rgba(8,224,248,.12)':'rgba(255,255,255,.04)'};
-            color:${canInvite?'#08e0f8':'rgba(255,255,255,.25)'};
-            border:1px solid ${canInvite?'rgba(8,224,248,.3)':'rgba(255,255,255,.08)'}">
-            INVITE
-          </button>
-        </div>`;
-
+      container.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.05)"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">🐍</span><div><div style="font-size:12px;font-weight:700;color:#fff">Snake Battle</div><div style="font-size:9px;opacity:.5;margin-top:1px">${canInvite?'Invite to your lobby':'Create a lobby first'}</div></div></div><button style="padding:6px 14px;font-size:10px;letter-spacing:.08em;font-weight:700;font-family:monospace;cursor:${canInvite?'pointer':'default'};border-radius:6px;background:${canInvite?'rgba(8,224,248,.12)':'rgba(255,255,255,.04)'};color:${canInvite?'#08e0f8':'rgba(255,255,255,.25)'};border:1px solid ${canInvite?'rgba(8,224,248,.3)':'rgba(255,255,255,.08)'}">INVITE</button></div>`;
       if (canInvite) {
         container.querySelector('button').onclick = () => {
           const peerId = peerCtx.peerId || peerCtx.uuid;
