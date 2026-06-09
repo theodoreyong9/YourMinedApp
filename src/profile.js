@@ -684,6 +684,7 @@ function openProfileSphereEditor(){
     '<div style="font-size:15px;font-weight:600;color:var(--text);flex:1">✦ Profile Sphere</div>'+
     '<button id="pse-before" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px">Before</button>'+
     '<button id="pse-after" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px">After</button>'+
+    '<button id="pse-unpublish" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px;color:var(--red,#e84040);border-color:rgba(232,64,64,.3)">Unpublish</button>'+
     '<button id="pse-publish" class="ym-btn ym-btn-accent" style="font-size:12px;margin-right:8px">Publish</button>'+
     '<button id="pse-close" class="ym-btn ym-btn-ghost" style="font-size:18px;padding:2px 8px">×</button>'+
     '</div>'+
@@ -707,8 +708,11 @@ function openProfileSphereEditor(){
     '<div id="pse-spheres" style="margin-bottom:12px"></div>'+
 
     // Custom code
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Custom JS (optional — renderPanel override)</div>'+
-    '<textarea id="pse-code" style="width:100%;box-sizing:border-box;height:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;margin-bottom:12px;resize:vertical" placeholder="// function renderPanel(container, profile){ ... }">'+config.customCode+'</textarea>'+
+    '<div style="display:flex;align-items:center;margin-bottom:4px">'+
+    '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;flex:1">Custom JS (optional — renderPanel body)</div>'+
+    '<button id="pse-copy-prompt" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:2px 8px">✦ Copy Prompt</button>'+
+    '</div>'+
+    '<textarea id="pse-code" style="width:100%;box-sizing:border-box;height:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;margin-bottom:12px;resize:vertical" placeholder="// renderPanel body — or paste a full sphere (window.YM_S[...])">'+config.customCode+'</textarea>'+
 
     // Token for publish
     '<div id="pse-token-wrap">'+
@@ -806,6 +810,43 @@ function openProfileSphereEditor(){
 
   // Close
   ov.querySelector('#pse-close').onclick=function(){ov.remove();};
+
+  // Copy AI Prompt button
+  ov.querySelector('#pse-copy-prompt').onclick=function(){
+    var prompt='yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(prompt).then(function(){window.YM_toast&&window.YM_toast('Prompt copied — paste it in your AI','success');});
+    }else{
+      var ta=document.createElement('textarea');ta.value=prompt;ta.style.cssText='position:fixed;opacity:0';
+      document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
+      window.YM_toast&&window.YM_toast('Prompt copied — paste it in your AI','success');
+    }
+  };
+
+  // Unpublish — remove from profile.json
+  ov.querySelector('#pse-unpublish').onclick=async function(){
+    var status=ov.querySelector('#pse-status');
+    var tokenEl=ov.querySelector('#pse-token');
+    var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
+    var token=(bt&&bt.token)||(tokenEl?tokenEl.value.trim():'');
+    if(!token){status.textContent='GitHub token required';return;}
+    var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
+    var repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+    var repo=repoMatch?repoMatch[1]:(bt&&bt.repo)||'';
+    if(!repo){status.textContent='No registry configured';return;}
+    status.textContent='Removing…';
+    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
+    var profileJsonUrl='https://api.github.com/repos/'+repo+'/contents/profile.json';
+    var sha=null,profiles=[];
+    try{var pr=await fetch(profileJsonUrl,{headers});if(pr.ok){var pj=await pr.json();sha=pj.sha;profiles=JSON.parse(atob(pj.content.replace(/\n/g,'')));}}catch{}
+    profiles=profiles.filter(function(x){return x.uuid!==uuid;});
+    var content=btoa(unescape(encodeURIComponent(JSON.stringify(profiles,null,2))));
+    var body={message:'remove profile: '+name,content};
+    if(sha)body.sha=sha;
+    var res=await fetch(profileJsonUrl,{method:'PUT',headers,body:JSON.stringify(body)});
+    if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Profile removed';setTimeout(function(){ov.remove();},1200);}
+    else{var e=await res.json();status.textContent='Error: '+(e.message||res.status);}
+  };
 
   // Before — visitor view of classic profile
   ov.querySelector('#pse-before').onclick=function(){
@@ -919,7 +960,10 @@ function openProfileSphereEditor(){
 // Generate the profile sphere JS code
 function _generateProfileSphere(cfg){
   if(cfg.customCode&&cfg.customCode.includes('window.YM_S[')){
-    return cfg.customCode;
+    // Extract renderPanel body from full sphere code
+    var _bodyMatch=cfg.customCode.match(/renderPanel\s*:\s*function\s*\(container\)\s*\{([\s\S]*?)\},\s*profileSection/);
+    var _extractedBody=_bodyMatch?_bodyMatch[1]:'/* custom code unparseable - using default */';
+    cfg=Object.assign({},cfg,{customCode:_extractedBody});
   }
   // Default body — use classic visitor layout via _renderProfileView
   var defaultBody = 'if(window._renderProfileView){var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};window._renderProfileView(p,container);return;}';
