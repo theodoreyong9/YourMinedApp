@@ -2221,3 +2221,65 @@ window.YM.registerRouter({
 ```
 
 App.js calls `YM_ROUTER.onPop` before its own popstate handler. Combined with `history.pushState` and `history.replaceState`, a theme can implement its own navigation without interference from the core.
+
+---
+
+## Profile Sphere — Custom Public Profile
+
+Any user can design and publish a custom public profile via the ⚙ menu in the profile panel → "Profile sphere".
+
+### Editor features
+- **Accent color** — applied to all generated elements
+- **Keywords** — searchable tags shown in the Social Search tab
+- **Spheres config** — per-sphere: visible/hidden in public profile, auto-open, order (design visibility, independent from system activation)
+- **Sections order** — visible only when custom code is present
+- **Before/After** — preview classic vs custom layout before publishing
+- **Copy Prompt** — copies the YourMine AI prompt to clipboard
+- **Unpublish** — removes the entry from `profile.json`
+
+### Published files
+- `uuid.profile.js` — the sphere code, hosted on the registry repo
+- Entry in `profile.json` — uuid, name, keywords, spheres, accent, profileSphere URL, score
+
+### Custom code field
+Paste the body of `renderPanel(container)` directly. Variables available:
+- `cfg` — your config (accent, keywords, sections, sphereConfig, autoOpen…)
+- `container` — the panel DOM element
+- `window.YM.getProfile()` — your live profile data
+
+The sphere layer (sphere accordions) is always injected **after** your custom code, in the order and visibility you defined. It is priority and cannot be overridden by code.
+
+### Two levels of sphere visibility
+- **System visibility** — sphere active or not in the interface (bureau, liste). Managed by app.js/liste.js
+- **Design visibility** — sphere shown or hidden in the public profile view. Managed by `cfg.sphereConfig[id].visible`
+
+---
+
+## Sphere Card Customization
+
+Spheres can declare visual properties for their card in the liste:
+
+```js
+window.YM_S['mysphere.sphere.js'] = {
+  name: 'My Sphere',
+  cardBackground: 'https://...image.jpg',  // watermark behind the card
+  cardGif: 'https://...anim.gif',           // animated gif as card background
+  fullscreen: true,                          // open in fullscreen panel
+  ...
+}
+```
+
+- `cardBackground` — shown at 12% opacity, blurred, as a stylized watermark
+- `cardGif` — shown at 18% opacity as animated background
+- `fullscreen` — when true, the sphere panel opens edge-to-edge
+
+---
+
+## Profile Menu (⚙)
+
+Single button in the profile panel header opens a bottom sheet with:
+- **Edit identity** — avatar, name, bio, website
+- **Backup** — export identity as JSON
+- **Recovery** — P2P identity recovery
+- **Publish name** — link name → UUID in name.json
+- **Profile sphere** — design and publish custom public profile
