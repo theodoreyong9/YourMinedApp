@@ -69,7 +69,10 @@
     "timestamp": 1777741079,
     "merged_at": 1777741104,
     "burnSlot": 456713132,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.js"
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.js",
+    "icon": "https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif",
+"cardGif": "https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif",
+"fullscreen": true
   },
   {
     "filename": "meteo.sphere.js",
@@ -94,5 +97,17 @@
     "merged_at": 1777741104,
     "burnSlot": 456713132,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/clock.sphere.js"
+  },
+{
+    "filename": "poker.sphere.js",
+    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+    "ghAuthor": "Keanuji",
+    "last_committer": "Keanuji",
+    "score": 0.030993,
+    "laps": 2903156,
+    "timestamp": 1777741079,
+    "merged_at": 1777741104,
+    "burnSlot": 456713132,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/poker.sphere.js"
   }
 ]
