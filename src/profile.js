@@ -647,6 +647,8 @@ function _renderPeerAccordion(container,sphereFile,ctx){
 
 window._renderProfileView=renderPeerProfile;
 window.YM_Profile={render:render,renderFor:function(n){render(n);},showShare:showShare};
+window.openBackupOverlay=openBackupOverlay;
+window.openRecoveryOverlay=openRecoveryOverlay;
 
 })();
 
