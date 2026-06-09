@@ -1050,7 +1050,7 @@ function _openProfileMenu(){
     row.innerHTML='<span style="font-size:22px;width:32px;text-align:center">'+item.icon+'</span>'
       +'<div><div style="font-size:13px;color:var(--text)">'+item.label+'</div>'
       +'<div style="font-size:11px;color:var(--text3)">'+item.sub+'</div></div>';
-    row.addEventListener('click',function(){sheet.remove();item.fn();});
+    row.addEventListener('click',function(){sheet.remove();setTimeout(function(){item.fn();},50);});
     row.addEventListener('mouseenter',function(){this.style.background='rgba(255,255,255,.04)';});
     row.addEventListener('mouseleave',function(){this.style.background='';});
     box.appendChild(row);
