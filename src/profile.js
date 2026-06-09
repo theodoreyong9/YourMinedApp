@@ -685,9 +685,11 @@ function openProfileSphereEditor(){
     '<span id="pse-accent-val" style="font-size:12px;color:var(--text3)">'+config.accent+'</span>'+
     '</div>'+
 
-    // Sections order
+    // Sections order — only relevant for custom code
+    '<div id="pse-sections-wrap" style="display:'+(config.customCode?'block':'none')+'">'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sections order</div>'+
     '<div id="pse-sections" style="margin-bottom:8px"></div>'+
+    '</div>'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;margin-top:4px;text-transform:uppercase;letter-spacing:.1em">Spheres</div>'+
     '<div id="pse-spheres" style="margin-bottom:12px"></div>'+
 
@@ -727,6 +729,12 @@ function openProfileSphereEditor(){
   try{var bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
     if(bt&&bt.token){ov.querySelector('#pse-token-wrap').innerHTML='<div style="font-size:11px;color:var(--gold);margin-bottom:8px">✓ Using GitHub token from Build</div>';}
   }catch{}
+
+  // Show sections order only when custom code is present
+  ov.querySelector('#pse-code').addEventListener('input',function(){
+    var wrap=ov.querySelector('#pse-sections-wrap');
+    if(wrap) wrap.style.display=this.value.trim()?'block':'none';
+  });
 
   // Accent color live update
   ov.querySelector('#pse-accent').addEventListener('input',function(){
@@ -1003,7 +1011,7 @@ function _generateProfileSphere(cfg){
     '        function toggle2(){open2=!open2;body2.style.display=open2?"block":"none";hdr.querySelector("span:last-child").textContent=open2?"▲":"▼";}',
     '        if(open2){body2.style.display="block";hdr.querySelector("span:last-child")&&(hdr.querySelector("span:last-child").textContent="▲");}',
     '        hdr.addEventListener("click",toggle2);',
-    '        try{sphere.profileSection(body2);}catch(e){}',
+    '        try{var _pr=window.YM&&window.YM.getProfile?window.YM.getProfile():{};if(typeof sphere.peerSection==="function"){sphere.peerSection(body2,{uuid:_pr.uuid,isNear:true,isReciproc:true,profile:_pr});}else if(typeof sphere.profileSection==="function"){sphere.profileSection(body2);}}catch(e){}',
     '        var acc=document.createElement("div");acc.style.cssText="border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px";',
     '        acc.appendChild(hdr);acc.appendChild(body2);',
     '        _wrap.appendChild(acc);',
