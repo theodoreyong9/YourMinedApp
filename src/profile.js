@@ -54,7 +54,21 @@ function renderSphereProfiles(container,fromSphere){
     var iconHtml=iconIsUrl?'<img src="'+s.icon+'" style="width:24px;height:24px;border-radius:4px;object-fit:contain">':'<span style="font-size:20px">'+((s&&s.icon)||'⬡')+'</span>';
     var hdr=document.createElement('div');
     hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;-webkit-user-select:none';
-    hdr.innerHTML=iconHtml+'<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);flex:1">'+label+'</span><span style="font-size:11px;color:var(--text3)">▼</span>';
+    var AUTOOPEN_KEY='ym_sphere_autoopen';
+    function getAutoOpen(){try{return JSON.parse(localStorage.getItem(AUTOOPEN_KEY)||'[]');}catch{return[];}}
+    function setAutoOpen(arr){localStorage.setItem(AUTOOPEN_KEY,JSON.stringify(arr));}
+    var isAutoOpen=getAutoOpen().includes(name);
+    hdr.innerHTML=iconHtml+'<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);flex:1">'+label+'</span>'
+      +'<span class="ao-toggle" title="Auto-open" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(isAutoOpen?'var(--accent)':'rgba(255,255,255,.15)')+';color:'+(isAutoOpen?'var(--accent)':'var(--text3)')+';margin-right:4px;cursor:pointer">auto</span>'
+      +'<span style="font-size:11px;color:var(--text3)">▼</span>';
+    hdr.querySelector('.ao-toggle').addEventListener('click',function(e){
+      e.stopPropagation();
+      var list=getAutoOpen();
+      if(list.includes(name)){list=list.filter(function(x){return x!==name;});}else{list.push(name);}
+      setAutoOpen(list);
+      this.style.borderColor=list.includes(name)?'var(--accent)':'rgba(255,255,255,.15)';
+      this.style.color=list.includes(name)?'var(--accent)':'var(--text3)';
+    });
     var content=document.createElement('div');content.style.cssText='padding:12px 14px;display:none;background:var(--surface)';
     var open=false;
     function openAcc(){
@@ -127,6 +141,7 @@ function renderSphereProfiles(container,fromSphere){
     hdr.addEventListener('click',function(){open=!open;if(open)openAcc();else{content.style.display='none';hdr.querySelector('span:last-child').textContent='▼';}});
     wrap.appendChild(hdr);wrap.appendChild(content);container.appendChild(wrap);
     if(fromSphere&&name===fromSphere&&s&&s.profileSection){requestAnimationFrame(function(){openAcc();wrap.scrollIntoView({behavior:'smooth',block:'start'});});}
+    else if(getAutoOpen().includes(name)){requestAnimationFrame(function(){openAcc();});}
   });
 }
 
@@ -752,7 +767,7 @@ function openProfileSphereEditor(){
     sec.appendChild(addRow);
     addRow.querySelector('#pse-add-sec-btn').onclick=function(){
       var v=addRow.querySelector('#pse-add-sec').value.trim();
-      if(v){config.sections.push(v);renderSections();}
+      if(v){config.sections.push(v);addRow.querySelector('#pse-add-sec').value='';renderSections();}
     };
   }
   renderSections();
@@ -889,48 +904,45 @@ function _generateProfileSphere(cfg){
   if(cfg.customCode&&cfg.customCode.includes('window.YM_S[')){
     return cfg.customCode;
   }
-  var body=cfg.customCode||'_defaultRenderProfile(container,_cfg);';
-  var cfgJson=JSON.stringify(cfg);
-  var sphereId=cfg.uuid+'.profile.js';
-  // Build code using array join to avoid template literal issues
+  var body = cfg.customCode || [
+    'var profile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};',
+    'container.innerHTML="";container.style.cssText="padding:16px;overflow-y:auto";',
+    'var accent=cfg.accent||"#f0a830";',
+    '(cfg.sections||[]).forEach(function(sec){',
+    '  if(sec==="identity"){',
+    '    var av=profile.avatar?"<img src=\'"+profile.avatar+"\' style=\'width:72px;height:72px;border-radius:50%;object-fit:cover\'>"',
+    '      :"<div style=\'width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:32px;color:"+accent+"\'>"+(profile.name||"?").charAt(0)+"</div>";',
+    '    container.innerHTML+="<div style=\'text-align:center;padding:20px 16px 12px;border-bottom:1px solid rgba(255,255,255,.06)\'>"+av+"<div style=\'font-size:18px;font-weight:700;margin-top:10px;color:"+accent+"\'>"+profile.name+"</div></div>";',
+    '  } else if(sec==="bio"&&profile.bio){',
+    '    container.innerHTML+="<div style=\'padding:12px 16px;font-size:13px;color:rgba(255,255,255,.7);line-height:1.6;border-bottom:1px solid rgba(255,255,255,.06)\'>"+profile.bio+"</div>";',
+    '  } else if(sec==="keywords"&&cfg.keywords&&cfg.keywords.length){',
+    '    container.innerHTML+="<div style=\'padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)\'><div style=\'font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.3);margin-bottom:8px\'>Topics</div><div style=\'display:flex;flex-wrap:wrap;gap:6px\'>"+cfg.keywords.map(function(k){return "<span style=\'font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid "+accent+";color:"+accent+"\'>"+k+"</span>";}).join("")+"</div></div>";',
+    '  } else if(sec==="spheres"&&cfg.spheres&&cfg.spheres.length){',
+    '    container.innerHTML+="<div style=\'padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)\'><div style=\'font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.3);margin-bottom:8px\'>Spheres</div><div style=\'display:flex;flex-wrap:wrap;gap:6px\'>"+cfg.spheres.map(function(s){return "<span style=\'font-size:11px;padding:3px 10px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.5)\'>"+s.replace(".sphere.js","")+"</span>";}).join("")+"</div></div>";',
+    '  } else if(sec==="networks"){',
+    '    var st;try{st=JSON.parse(localStorage.getItem("ym_social_v1")||"{}");}catch(e){st={};}',
+    '    var nets=st.networks||[];',
+    '    if(nets.length){container.innerHTML+="<div style=\'padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)\'><div style=\'font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.3);margin-bottom:8px\'>Networks</div><div style=\'display:flex;flex-wrap:wrap;gap:6px\'>"+nets.map(function(n){return "<span style=\'font-size:11px;padding:3px 10px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.5)\'>"+n.id+" "+n.handle+"</span>";}).join("")+"</div></div>";}',
+    '  }',
+    '});'
+  ].join('\n');
+
+  var cfgJson = JSON.stringify(cfg);
+  var sphereId = cfg.uuid + '.profile.js';
   return [
     '(function(){',
-    'var _cfg='+cfgJson+';',
-    'window.YM_S['+JSON.stringify(sphereId)+']=Object.assign({},{',
-    '  name:'+JSON.stringify(cfg.name)+',',
+    'var cfg=' + cfgJson + ';',
+    'window.YM_S[' + JSON.stringify(sphereId) + ']={',
+    '  name:' + JSON.stringify(cfg.name) + ',',
     '  icon:"\u2746",',
     '  category:"Profile",',
-    '  description:'+JSON.stringify(cfg.name+"s profile")+',',
-    '  author:'+JSON.stringify(cfg.uuid)+',',
     '  isProfileSphere:true,',
     '  activate:function(){},',
     '  deactivate:function(){},',
-    '  renderPanel:function(container){'+body+'},',
+    '  renderPanel:function(container){' + body + '},',
     '  profileSection:function(){}',
-    '});',
-    '})();',
-    'function _defaultRenderProfile(container,cfg){',
-    '  var profile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};',
-    '  container.innerHTML="";',
-    '  container.style.cssText="padding:16px;overflow-y:auto";',
-    '  var accent=cfg.accent||"#f0a830";',
-    '  (cfg.sections||[]).forEach(function(sec){',
-    '    if(sec==="identity"){',
-    '      var av=profile.avatar?"<img src=\""+profile.avatar+"\" style=\"width:72px;height:72px;border-radius:50%;object-fit:cover\">":"<div style=\"width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:32px;color:"+accent+"\">"+((profile.name||"?").charAt(0))+"</div>";',
-    '      container.innerHTML+="<div style=\"text-align:center;padding:20px 16px 12px;border-bottom:1px solid rgba(255,255,255,.06)\">"+av+"<div style=\"font-size:18px;font-weight:700;margin-top:10px;color:"+accent+"\">"+profile.name+"</div></div>";',
-    '    }else if(sec==="bio"&&profile.bio){',
-    '      container.innerHTML+="<div style=\"padding:12px 16px;font-size:13px;color:rgba(255,255,255,.7);line-height:1.6;border-bottom:1px solid rgba(255,255,255,.06)\">"+profile.bio+"</div>";',
-    '    }else if(sec==="keywords"&&cfg.keywords&&cfg.keywords.length){',
-    '      container.innerHTML+="<div style=\"padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)\"><div style=\"font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.3);margin-bottom:8px\">Topics</div><div style=\"display:flex;flex-wrap:wrap;gap:6px\">"+cfg.keywords.map(function(k){return "<span style=\"font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid "+accent+";color:"+accent+"\">"+k+"</span>";}).join("")+"</div></div>";',
-    '    }else if(sec==="spheres"&&cfg.spheres&&cfg.spheres.length){',
-    '      container.innerHTML+="<div style=\"padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)\"><div style=\"font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.3);margin-bottom:8px\">Spheres</div><div style=\"display:flex;flex-wrap:wrap;gap:6px\">"+cfg.spheres.map(function(s){return "<span style=\"font-size:11px;padding:3px 10px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.5)\">"+s.replace(".sphere.js","")+"</span>";}).join("")+"</div></div>";',
-    '    }else if(sec==="networks"){',
-    '      var st;try{st=JSON.parse(localStorage.getItem("ym_social_v1")||"{}");}catch(e){st={};}',
-    '      var nets=st.networks||[];',
-    '      if(nets.length){container.innerHTML+="<div style=\"padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06)\"><div style=\"font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:rgba(255,255,255,.3);margin-bottom:8px\">Networks</div><div style=\"display:flex;flex-wrap:wrap;gap:6px\">"+nets.map(function(n){return "<span style=\"font-size:11px;padding:3px 10px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.5)\">"+n.id+" "+n.handle+"</span>";}).join("")+"</div></div>";}',
-    '    }',
-    '  });',
-    '}'
+    '};',
+    '})();'
   ].join('\n');
 }
 window.openProfileSphereEditor=openProfileSphereEditor;
