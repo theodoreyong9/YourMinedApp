@@ -790,26 +790,30 @@ function openProfileSphereEditor(){
     },400);
   };
 
-  // After — custom sphere preview
   ov.querySelector('#pse-after').onclick=function(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
     var code=_generateProfileSphere(cfg);
+    // Replace placeholder uuid with real uuid in custom code
+    code=code.replace(/xxxx-xxxx-xxxx-xxxx/g,cfg.uuid);
     try{
       (new Function(code))();
+      // Find the sphere — try real uuid first, then any new profile sphere
       var sphereId=cfg.uuid+'.profile.js';
       var s=window.YM_S[sphereId];
+      if(!s){
+        // Fallback — find any isProfileSphere in YM_S
+        Object.keys(window.YM_S).forEach(function(k){
+          if(window.YM_S[k].isProfileSphere&&!s) s=window.YM_S[sphereId=k];
+        });
+      }
       if(!s){ov.querySelector('#pse-status').textContent='Generation failed';return;}
       if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId,s);
       ov.style.display='none';
       window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
-      // Reopen editor when panel closes
       var _check=setInterval(function(){
         var panel=document.getElementById('panel-sphere');
-        if(!panel||!panel.classList.contains('open')){
-          clearInterval(_check);
-          ov.style.display='flex';
-        }
+        if(!panel||!panel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
       },400);
     }catch(e){
       ov.querySelector('#pse-status').textContent='Error: '+e.message;
