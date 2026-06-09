@@ -1085,9 +1085,26 @@ function renderList(body){
     const card=document.createElement('div');
     card.className='ym-card';
     card.dataset.sphere=sphere.fileName;
-    card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s'+(active?';border-color:var(--accent-dim)':'');
+    card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s;position:relative;overflow:hidden'+(active?';border-color:var(--accent-dim)':'');
 
-    card.innerHTML=
+    // ── background watermark / gif ──────────────────────────────────────
+    if(sphere.cardBackground||sphere.cardGif){
+      const bg=document.createElement('div');
+      bg.style.cssText='position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;border-radius:inherit';
+      if(sphere.cardGif){
+        bg.innerHTML='<img src="'+sphere.cardGif+'" style="width:100%;height:100%;object-fit:cover;opacity:.18;filter:saturate(1.4)">';
+      } else {
+        bg.style.background='url('+sphere.cardBackground+') center/cover no-repeat';
+        bg.style.opacity='.12';
+        bg.style.filter='saturate(1.2) blur(1px)';
+      }
+      card.appendChild(bg);
+    }
+    // Make content above background
+    const cardInner=document.createElement('div');
+    cardInner.style.cssText='position:relative;z-index:1';
+
+    cardInner.innerHTML=
       '<div style="display:flex;align-items:center;gap:12px">'+
         '<div class="sphere-icon-el" style="flex-shrink:0;line-height:1">'+iconHtml+'</div>'+
         '<div style="flex:1;min-width:0">'+
@@ -1105,6 +1122,8 @@ function renderList(body){
         '</div>'+
         '<div style="font-size:18px;color:var(--text3);flex-shrink:0;transition:transform .2s" data-chevron>›</div>'+
       '</div>';
+
+    card.appendChild(cardInner);
 
     // ── inline action bar ──
     const bar=_buildSphereActionBar(sphere,active,card,()=>_openSphereCard,(v)=>{_openSphereCard=v;});
