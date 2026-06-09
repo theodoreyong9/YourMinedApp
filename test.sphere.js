@@ -23,12 +23,12 @@
   window.YM_S = window.YM_S || {};
   window.YM_S[NAME] = {
     name: 'Neon Duel',
-    icon: GIF,
+    icon: 'https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif',
     category: 'Games',
     description: 'Neon Snake Battle — solo or up to 4 players P2P.',
     fullscreen: true,
-    cardGif: GIF,
-    desktopGif: GIF,
+    cardGif: 'https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif',
+    desktopGif: 'https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif',
 
     broadcastData() {
       const mySnake = this.snakes[this.mySlot];
