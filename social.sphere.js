@@ -1013,6 +1013,8 @@ async function renderSearchTab(el){
       try{const r=await fetch(url+'?t='+Date.now(),{mode:'cors'});if(r.ok){const data=await r.json();if(Array.isArray(data))allProfiles=allProfiles.concat(data);}}catch{}
     }
     const seen={};allProfiles=allProfiles.filter(p=>{if(seen[p.uuid])return false;seen[p.uuid]=true;return true;});
+    // Sort by score descending
+    allProfiles.sort((a,b)=>(b.score||0)-(a.score||0));
     const filtered=allProfiles.filter(p=>{
       if(sphereFilters.length){if(!sphereFilters.some(sf=>(p.spheres||[]).includes(sf)))return false;}
       if(!query) return true;
