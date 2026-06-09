@@ -794,20 +794,27 @@ function openProfileSphereEditor(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
     var code=_generateProfileSphere(cfg);
-    // Replace placeholder uuid with real uuid in custom code
+    // Replace placeholder uuid with real uuid
     code=code.replace(/xxxx-xxxx-xxxx-xxxx/g,cfg.uuid);
-    try{
-      (new Function(code))();
-      // Find the sphere — try real uuid first, then any new profile sphere
-      var sphereId=cfg.uuid+'.profile.js';
+
+    // Inject via script tag — more reliable than new Function
+    var sphereId=cfg.uuid+'.profile.js';
+    document.getElementById('pse-preview-script')?.remove();
+    var script=document.createElement('script');
+    script.id='pse-preview-script';
+    script.textContent=code;
+    document.head.appendChild(script);
+
+    // Small delay for script to execute
+    setTimeout(function(){
       var s=window.YM_S[sphereId];
       if(!s){
-        // Fallback — find any isProfileSphere in YM_S
-        Object.keys(window.YM_S).forEach(function(k){
-          if(window.YM_S[k].isProfileSphere&&!s) s=window.YM_S[sphereId=k];
+        // Fallback — any profile sphere
+        Object.keys(window.YM_S||{}).forEach(function(k){
+          if(window.YM_S[k].isProfileSphere&&!s){s=window.YM_S[k];sphereId=k;}
         });
       }
-      if(!s){ov.querySelector('#pse-status').textContent='Generation failed';return;}
+      if(!s){ov.querySelector('#pse-status').textContent='Generation failed — check console';return;}
       if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId,s);
       ov.style.display='none';
       window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
@@ -815,9 +822,7 @@ function openProfileSphereEditor(){
         var panel=document.getElementById('panel-sphere');
         if(!panel||!panel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
       },400);
-    }catch(e){
-      ov.querySelector('#pse-status').textContent='Error: '+e.message;
-    }
+    },100);
   };
 
   // Publish
