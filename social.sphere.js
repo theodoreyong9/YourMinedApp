@@ -1,1201 +1,1066 @@
-// profile.js — YourMine Profile Panel
+// social.sphere.js — YourMine Social Sphere
 (function(){
 'use strict';
+window.YM_S = window.YM_S || {};
 
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function getContacts(){try{return JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{return[];}}
-function getFavorites(){try{return JSON.parse(localStorage.getItem('ym_fav_contacts')||'[]');}catch{return[];}}
-function setFavorites(arr){localStorage.setItem('ym_fav_contacts',JSON.stringify(arr));}
-function isFav(uuid){return getFavorites().includes(uuid);}
-function toggleFav(uuid){var f=getFavorites();var i=f.indexOf(uuid);if(i>=0)f.splice(i,1);else f.push(uuid);setFavorites(f);}
+const GOSSIP_TTL = 15 * 60 * 1000;
+const NEAR_RADIUS = 100;
+const HEARTBEAT_INTERVAL = 5000; // 5s full profile broadcast
+const NEAR_TIMEOUT = 15000;      // 15s sans heartbeat = parti
+const SOCIAL_KEY = 'ym_social_v1';
+const CONTACTS_KEY = 'ym_contacts_v1';
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let _ctx = null;
+let _nearUsers = new Map();   // uuid → {profile, ts, peerId}
+let _gossipCache = new Map(); // uuid → {profile, ts}
+let _watchId = null;
+let _myCoords = null;
 
 
-// ── SPHERE VISIBILITY ─────────────────────────────────────────────────────────
-var VISIBILITY_KEY='ym_sphere_visibility';
-function getVisibility(){try{return JSON.parse(localStorage.getItem(VISIBILITY_KEY)||'{}');}catch{return{};}}
-function setVisibility(obj){localStorage.setItem(VISIBILITY_KEY,JSON.stringify(obj));}
-function getSphereVisibility(name){return getVisibility()[name]||'all';}
-function setSphereVisibility(name,val){var v=getVisibility();v[name]=val;setVisibility(v);}
-window.YM_getSphereVisibility=getSphereVisibility;
-window.YM_canSeeSphere=function(sphereName,peerUUID){
-  var vis=getSphereVisibility(sphereName);
-  if(vis==='all')return true;
-  if(vis==='contacts')return getContacts().some(function(c){return c.uuid===peerUUID;});
-  if(Array.isArray(vis))return vis.includes(peerUUID);
-  return true;
+let _heartbeatTimer = null;
+let _cleanTimer = null;
+let _refreshNear = null;
+
+// ── STORAGE ────────────────────────────────────────────────────────────────
+function loadState(){ try{return JSON.parse(localStorage.getItem(SOCIAL_KEY)||'{}')}catch{return{}} }
+function saveState(d){ localStorage.setItem(SOCIAL_KEY, JSON.stringify({...loadState(),...d})) }
+function loadContacts(){ try{return JSON.parse(localStorage.getItem(CONTACTS_KEY)||'[]')}catch{return[]} }
+function saveContacts(c){ localStorage.setItem(CONTACTS_KEY, JSON.stringify(c)) }
+function getContact(uuid){ return loadContacts().find(c=>c.uuid===uuid) }
+function addContact(profile){
+  const contacts=loadContacts();
+  if(!contacts.find(c=>c.uuid===profile.uuid)){
+    contacts.push({uuid:profile.uuid, name:profile.name||'', nickname:'', addedAt:Date.now(), profile});
+    saveContacts(contacts);
+  }
+}
+function updateNickname(uuid, nickname){
+  const contacts=loadContacts();
+  const c=contacts.find(c=>c.uuid===uuid);
+  if(c){c.nickname=nickname;saveContacts(contacts);}
+}
+
+// ── GEO ────────────────────────────────────────────────────────────────────
+function startGeo(){
+  if(!navigator.geolocation) return;
+  _watchId = navigator.geolocation.watchPosition(pos=>{
+    _myCoords={lat:pos.coords.latitude, lng:pos.coords.longitude, acc:pos.coords.accuracy};
+  }, null, {enableHighAccuracy:true,maximumAge:5000,timeout:10000});
+}
+function stopGeo(){
+  if(_watchId!==null){navigator.geolocation.clearWatch(_watchId);_watchId=null;}
+}
+function haversine(lat1,lng1,lat2,lng2){
+  const R=6371000,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ── ICE SERVERS (STUN + TURN publics gratuits) ────────────────────────────
+// Un seul paquet contient tout : identité, coords, réseaux sociaux, sphères
+function buildProfilePacket(){
+  const p = _ctx?.loadProfile?.() ?? {};
+  const state = loadState();
+  const contactUUIDs = loadContacts().map(c=>c.uuid);
+  // Collecte les données broadcastées par chaque sphère active
+  const extraData={};
+  if(window.YM_sphereRegistry){
+    window.YM_sphereRegistry.forEach((sphere)=>{
+      if(typeof sphere.broadcastData==='function'){
+        try{Object.assign(extraData,sphere.broadcastData());}catch(e){}
+      }
+    });
+  }
+  return {
+    uuid:     p.uuid,
+    name:     p.name,
+    bio:      p.bio,
+    avatar:   p.avatar,
+    site:     p.site,
+    spheres:  p.spheres || [],
+    pubkey:   p.pubkey,
+    lat:      _myCoords?.lat,
+    lng:      _myCoords?.lng,
+    networks: (state.networks || []).map(n => ({id:n.id, handle:n.handle})),
+    contacts: contactUUIDs,
+    ...extraData,
+    ts:       Date.now()
+  };
+}
+
+// ── HEARTBEAT ──────────────────────────────────────────────────────────────
+function broadcastPresence(){
+  if(!_ctx) return;
+  _ctx.send('social:presence', buildProfilePacket());
+}
+
+function startHeartbeat(){
+  stopHeartbeat();
+  broadcastPresence(); // immédiat
+  _heartbeatTimer = setInterval(broadcastPresence, HEARTBEAT_INTERVAL);
+}
+function stopHeartbeat(){
+  if(_heartbeatTimer){clearInterval(_heartbeatTimer);_heartbeatTimer=null;}
+}
+
+// ── PRESENCE HANDLER ──────────────────────────────────────────────────────
+function handlePresence(data, peerId){
+  if(!data?.uuid) return;
+  const myUUID = _ctx?.loadProfile?.()?.uuid;
+  if(data.uuid === myUUID) return;
+
+  const ts = Date.now();
+  let isNear = false;
+  if(_myCoords && data.lat && data.lng){
+    isNear = haversine(_myCoords.lat, _myCoords.lng, data.lat, data.lng) <= NEAR_RADIUS;
+  } else {
+    isNear = true; // même room P2P = assez proche pour les tests
+  }
+
+  if(isNear){
+    const wasNew=!_nearUsers.has(data.uuid);
+    _nearUsers.set(data.uuid, {profile:data, ts, peerId});
+    _gossipCache.set(data.uuid, {profile:data, ts});
+    if(wasNew){
+      if(_ctx) _ctx.setNotification?.(_nearUsers.size);
+      _incTabBadge('Near'); // badge sur l'onglet Near
+    }
+    _refreshNear?.();
+    // Met à jour le contact stocké si on l'a
+    const contact=getContact(data.uuid);
+    if(contact){
+      const contacts=loadContacts();
+      const c=contacts.find(x=>x.uuid===data.uuid);
+      if(c){c.profile=data;saveContacts(contacts);}
+    }
+    return;
+  }
+
+  // Gossip : pas proche mais dans la room
+  if(!_nearUsers.has(data.uuid) && !getContact(data.uuid)){
+    _gossipCache.set(data.uuid, {profile:data, ts});
+  }
+}
+
+// ── CLEANUP ────────────────────────────────────────────────────────────────
+function cleanGossip(){
+  const now = Date.now();
+  for(const [uuid,entry] of _gossipCache){
+    if(now - entry.ts > GOSSIP_TTL) _gossipCache.delete(uuid);
+  }
+  // Expire les users "near" qui n'ont pas envoyé de heartbeat depuis NEAR_TIMEOUT
+  let changed = false;
+  for(const [uuid,entry] of _nearUsers){
+    if(now - entry.ts > NEAR_TIMEOUT){ _nearUsers.delete(uuid); changed = true; }
+  }
+  if(changed){
+    if(_ctx) _ctx.setNotification?.(_nearUsers.size || 0);
+    _refreshNear?.();
+  }
+}
+
+// ── VOICE CALLS ──────────────────────────────────────────────────────────────
+// ── VOICE CALL ────────────────────────────────────────────────────────────────
+
+
+
+function _getPeerId(uuid){
+  return _nearUsers.get(uuid)?.peerId||null;
+}
+
+
+function isReciprocal(uuid){
+  if(!getContact(uuid)) return false;
+  const myUUID=_ctx?.loadProfile?.()?.uuid;
+  if(!myUUID) return false;
+  const theirContacts=_nearUsers.get(uuid)?.profile?.contacts||[];
+  return theirContacts.includes(myUUID);
+}
+
+
+// ── SYSTÈME DE DEMANDES D'INTERACTION (pile centralisée) ──────────────────────
+const _interactionQueue=[];
+let _interactionActive=false;
+
+function _pushInteraction(opts){
+  _interactionQueue.push(opts);
+  if(!_interactionActive) _nextInteraction();
+}
+
+function _nextInteraction(){
+  if(!_interactionQueue.length){_interactionActive=false;return;}
+  _interactionActive=true;
+  const opts=_interactionQueue[0];
+  _showInteractionUI(opts,
+    ()=>{_interactionQueue.shift();_interactionActive=false;opts.onAccept?.();_nextInteraction();},
+    ()=>{_interactionQueue.shift();_interactionActive=false;opts.onDecline?.();_nextInteraction();}
+  );
+}
+
+function _showInteractionUI(opts,onAccept,onDecline){
+  document.getElementById('ym-interaction-ui')?.remove();
+  const profile=opts.profile||{};
+  const av=profile.avatar
+    ?`<img src="${profile.avatar}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;margin-bottom:8px">`
+    :`<div style="width:48px;height:48px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto 8px">${profile.name?.charAt(0)||'👤'}</div>`;
+  const queueLen=_interactionQueue.length;
+  const ui=document.createElement('div');
+  ui.id='ym-interaction-ui';
+  ui.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--r);padding:16px 20px;min-width:260px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.7);text-align:center';
+  ui.innerHTML=`
+    ${queueLen>1?`<div style="font-size:9px;color:var(--text3);margin-bottom:8px">${queueLen} pending interactions</div>`:''}
+    ${av}
+    <div style="font-weight:600;font-size:14px;margin-bottom:2px">${profile.name||'Unknown'}</div>
+    <div style="font-size:13px;color:var(--accent);margin-bottom:4px">${opts.icon||''} ${opts.label||''}</div>
+    ${opts.sublabel?`<div style="font-size:11px;color:var(--text3);margin-bottom:12px">${opts.sublabel}</div>`:'<div style="height:12px"></div>'}
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button id="int-decline" style="width:52px;height:52px;border-radius:50%;background:#e84040;border:none;font-size:22px;cursor:pointer">✕</button>
+      <button id="int-accept" style="width:52px;height:52px;border-radius:50%;background:#30e880;border:none;font-size:22px;cursor:pointer">✓</button>
+    </div>`;
+  document.body.appendChild(ui);
+  ui.querySelector('#int-accept').addEventListener('click',onAccept);
+  ui.querySelector('#int-decline').addEventListener('click',onDecline);
+}
+
+
+// ── QR SCANNER ────────────────────────────────────────────────────────────────
+function generateQR(uuid, container){
+  if(!window.QRCode) return;
+  container.innerHTML='';
+  new window.QRCode(container,{text:'yourmine://contact/'+uuid,width:120,height:120,correctLevel:QRCode.CorrectLevel.M});
+}
+
+function startQRScanner(container, onResult){
+  container.innerHTML=`<div style="position:relative;width:100%;max-width:260px;margin:0 auto">
+    <video id="qr-video" style="width:100%;border-radius:var(--r-sm)" autoplay playsinline muted></video>
+    <canvas id="qr-canvas" style="display:none"></canvas>
+    <div style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px">Point your camera at a YourMine QR code</div>
+    <button class="ym-btn ym-btn-ghost" id="qr-cancel" style="width:100%;margin-top:6px;font-size:11px">Cancel</button>
+  </div>`;
+
+  let stream=null;
+  let animFrame=null;
+
+  container.querySelector('#qr-cancel').addEventListener('click',()=>{
+    stop();onResult(null);
+  });
+
+  function stop(){
+    if(animFrame)cancelAnimationFrame(animFrame);
+    stream?.getTracks().forEach(t=>t.stop());
+    stream=null;
+  }
+
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(s=>{
+    stream=s;
+    const video=container.querySelector('#qr-video');
+    const canvas=container.querySelector('#qr-canvas');
+    video.srcObject=s;
+    video.play();
+
+    if('BarcodeDetector' in window){
+      const detector=new BarcodeDetector({formats:['qr_code']});
+      async function detect(){
+        if(video.readyState===video.HAVE_ENOUGH_DATA){
+          try{
+            const codes=await detector.detect(video);
+            if(codes.length){stop();onResult(codes[0].rawValue);return;}
+          }catch{}
+        }
+        animFrame=requestAnimationFrame(detect);
+      }
+      animFrame=requestAnimationFrame(detect);
+    }else{
+      const script=document.createElement('script');
+      script.src='https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
+      script.onload=()=>{
+        const ctx=canvas.getContext('2d');
+        function scan(){
+          if(video.readyState===video.HAVE_ENOUGH_DATA){
+            canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+            ctx.drawImage(video,0,0,canvas.width,canvas.height);
+            const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+            const code=window.jsQR?.(img.data,img.width,img.height);
+            if(code){stop();onResult(code.data);return;}
+          }
+          animFrame=requestAnimationFrame(scan);
+        }
+        animFrame=requestAnimationFrame(scan);
+      };
+      document.head.appendChild(script);
+    }
+  }).catch(()=>{
+    container.innerHTML=`<div class="ym-notice error">Camera access denied</div>`;
+    onResult(null);
+  });
+}
+
+// ── RÉSEAUX SOCIAUX ───────────────────────────────────────────────────────────
+const FEED_NETWORKS = [
+  {id:'mastodon',  label:'Mastodon',     hint:'@user@instance.social'},
+  {id:'bluesky',   label:'Bluesky',      hint:'@handle.bsky.social'},
+  {id:'github',    label:'GitHub',       hint:'@username'},
+  {id:'paragraph', label:'Paragraph.xyz',hint:'paragraph.xyz/@handle'},
+  {id:'medium',    label:'Medium',       hint:'@username'},
+  {id:'reddit',    label:'Reddit',       hint:'u/username'},
+  {id:'substack',  label:'Substack',     hint:'username.substack.com'},
+  {id:'devto',     label:'Dev.to',       hint:'@username'},
+  {id:'hashnode',  label:'Hashnode',     hint:'@username'},
+];
+
+const PROFILE_ONLY_NETWORKS = [
+  {id:'x',         label:'X',            hint:'@username'},
+  {id:'linkedin',  label:'LinkedIn',     hint:'linkedin.com/in/handle'},
+  {id:'instagram', label:'Instagram',    hint:'@username'},
+  {id:'youtube',   label:'YouTube',      hint:'@channel'},
+  {id:'twitch',    label:'Twitch',       hint:'@username'},
+  {id:'tiktok',    label:'TikTok',       hint:'@username'},
+];
+
+const ALL_NETWORKS=[...FEED_NETWORKS,...PROFILE_ONLY_NETWORKS];
+
+function extractImage(html){
+  if(!html) return null;
+  const m=html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?m[1]:null;
+}
+function extractText(html){
+  return html?html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';
+}
+async function fetchFeedItems(networks){
+  const items = [];
+  for(const n of networks.filter(n=>FEED_NETWORKS.find(f=>f.id===n.id))){
+    try{
+      if(n.id==='mastodon' && n.handle){
+        const [user,instance] = n.handle.replace('@','').split('@');
+        if(instance){
+          const acc = await (await fetch(`https://${instance}/api/v1/accounts/lookup?acct=${user}`)).json();
+          const posts = await (await fetch(`https://${instance}/api/v1/accounts/${acc.id}/statuses?limit=5`)).json();
+          posts.forEach(p=>{
+            const img=p.media_attachments?.find(a=>a.type==='image')?.url||extractImage(p.content);
+            const txt=extractText(p.content);
+            items.push({network:'Mastodon',author:acc.display_name||acc.username,
+              title:'',text:txt,image:img,ts:new Date(p.created_at).getTime(),url:p.url});
+          });
+        }
+      }
+      if(n.id==='bluesky' && n.handle){
+        const handle = n.handle.replace('@','');
+        const data = await (await fetch(`https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${handle}&limit=5`)).json();
+        (data.feed||[]).forEach(f=>{
+          const post=f.post?.record;
+          const img=f.post?.embed?.images?.[0]?.thumb||f.post?.embed?.thumbnail;
+          if(post?.text) items.push({network:'Bluesky',author:handle,title:'',text:post.text,image:img||null,
+            ts:new Date(post.createdAt).getTime(),url:`https://bsky.app/profile/${handle}`});
+        });
+      }
+      if(n.id==='github' && n.handle){
+        const user=n.handle.replace('@','');
+        const events=await(await fetch(`https://api.github.com/users/${user}/events/public?per_page=5`)).json();
+        events.filter(e=>e.type==='PushEvent').forEach(e=>{
+          const msg=e.payload?.commits?.[0]?.message||'pushed';
+          items.push({network:'GitHub',author:user,title:'',text:msg,image:null,
+            ts:new Date(e.created_at).getTime(),url:`https://github.com/${user}`});
+        });
+      }
+      if(n.id==='medium' && n.handle){
+        const user=n.handle.replace('@','');
+        try{
+          const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://medium.com/feed/@'+user)}`);
+          if(!r.ok) throw new Error('skip');
+          const d=await r.json();
+          if(d.status==='ok')(d.items||[]).slice(0,5).forEach(p=>items.push({network:'Medium',author:user,
+            title:p.title,text:extractText(p.content||p.description||''),
+            image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+            ts:new Date(p.pubDate).getTime(),url:p.link}));
+        }catch{}
+      }
+      if(n.id==='substack' && n.handle){
+        const host=n.handle.includes('.')?n.handle:`${n.handle}.substack.com`;
+        try{
+          const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://'+host+'/feed')}`);
+          if(!r.ok) throw new Error('skip');
+          const d=await r.json();
+          if(d.status==='ok')(d.items||[]).slice(0,5).forEach(p=>items.push({network:'Substack',author:host,
+            title:p.title,text:extractText(p.content||p.description||''),
+            image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+            ts:new Date(p.pubDate).getTime(),url:p.link}));
+        }catch{}
+      }
+      if(n.id==='paragraph' && n.handle){
+        const handle=n.handle.replace('paragraph.xyz/','').replace('@','');
+        try{
+          const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent('https://paragraph.xyz/@'+handle+'/rss')}`);
+          if(!r.ok) throw new Error('skip');
+          const d=await r.json();
+          if(d.status==='ok'&&d.items?.length){
+            d.items.slice(0,5).forEach(p=>items.push({network:'Paragraph',author:handle,
+              title:p.title,text:extractText(p.content||p.description||''),
+              image:p.thumbnail||extractImage(p.content)||extractImage(p.description),
+              ts:new Date(p.pubDate).getTime(),url:p.link}));
+          }
+        }catch{}
+      }
+      if(n.id==='devto' && n.handle){
+        const user=n.handle.replace('@','');
+        const posts=await(await fetch(`https://dev.to/api/articles?username=${user}&per_page=5`)).json();
+        if(Array.isArray(posts)) posts.forEach(p=>items.push({network:'Dev.to',author:user,
+          title:p.title,text:p.description||'',image:p.cover_image||p.social_image||null,
+          ts:new Date(p.published_at).getTime(),url:p.url}));
+      }
+      if(n.id==='hashnode' && n.handle){
+        const user=n.handle.replace('@','');
+        const r=await fetch('https://gql.hashnode.com/',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({query:`{user(username:"${user}"){posts(page:1,pageSize:5){nodes{title,url,publishedAt,brief,coverImage{url}}}}}`})});
+        const d=await r.json();
+        (d.data?.user?.posts?.nodes||[]).forEach(p=>items.push({network:'Hashnode',author:user,
+          title:p.title,text:p.brief||'',image:p.coverImage?.url||null,
+          ts:new Date(p.publishedAt).getTime(),url:p.url}));
+      }
+      if(n.id==='reddit' && n.handle){
+        const user=n.handle.replace('u/','').replace('@','');
+        const r=await fetch(`https://www.reddit.com/user/${user}/submitted.json?limit=5`);
+        const d=await r.json();
+        (d.data?.children||[]).forEach(c=>{
+          const post=c.data;
+          const img=post.thumbnail&&post.thumbnail.startsWith('http')?post.thumbnail:null;
+          items.push({network:'Reddit',author:user,title:post.title,text:post.selftext?.slice(0,200)||'',image:img,
+            ts:post.created_utc*1000,url:`https://reddit.com${post.permalink}`});
+        });
+      }
+    }catch{}
+  }
+  return items.sort((a,b)=>b.ts-a.ts);
+}
+
+// ── SPHERE DEFINITION ────────────────────────────────────────────────────────
+let _onPeerJoin=null;
+let _onVisibility=null;
+
+window.YM_S['social.sphere.js'] = {
+  name:'Social',
+  icon:'🌐',
+  category:'Communication',
+  description:'Near discovery, contacts, social feeds, voice calls',
+  author:'theodoreyong9',
+  emit:['name','bio','avatar','site','lat','lng','networks'],
+  receive:['name','bio','avatar','site','spheres','networks'],
+  statuses:['online','away','busy'],
+
+  async activate(ctx){
+    _ctx = ctx;
+
+    _refreshNear=()=>{
+      const panel=_getSocialPanel();
+      if(!panel) return;
+      const content=panel.querySelector('#social-tab-content');
+      if(!content) return;
+      const tab=panel.querySelector('.ym-tab.active')?.dataset?.tab;
+      if(tab==='Near') renderNearTab(content);
+      else if(tab==='Feed') renderFeedTab(content);
+    };
+
+    startGeo();
+    startHeartbeat();
+
+    _onPeerJoin=()=>setTimeout(broadcastPresence, 300);
+    window.addEventListener('ym:peer-join', _onPeerJoin);
+
+    ctx.onReceive(async(type,data,peerId)=>{
+      if(type==='social:presence') handlePresence(data, peerId);
+      else if(type==='social:presence-req') broadcastPresence();
+    });
+
+    _cleanTimer = setInterval(cleanGossip, 5000);
+
+    _onVisibility=()=>{
+      if(!document.hidden){startHeartbeat();broadcastPresence();}
+    };
+    document.addEventListener('visibilitychange', _onVisibility);
+  },
+
+  deactivate(){
+    stopGeo();
+    stopHeartbeat();
+    if(_cleanTimer){clearInterval(_cleanTimer);_cleanTimer=null;}
+    if(_onPeerJoin){window.removeEventListener('ym:peer-join',_onPeerJoin);_onPeerJoin=null;}
+    if(_onVisibility){document.removeEventListener('visibilitychange',_onVisibility);_onVisibility=null;}
+    window.YM_Call?.hangUp();
+    _nearUsers.clear();_gossipCache.clear();
+    _ctx=null;
+  },
+
+  renderPanel(container){
+    _panelHistory.length=0;
+    container.style.cssText='display:flex;flex-direction:column;height:100%';
+    container.innerHTML='';
+
+    const TABS=['Near','Feed','Search'];
+    let curIdx=0;
+
+    // Slider horizontal
+    const slider=document.createElement('div');
+    slider.id='social-tab-content';
+    slider.style.cssText='flex:1;overflow:hidden;position:relative';
+
+    const track=document.createElement('div');
+    track.style.cssText='display:flex;height:100%;transition:transform .25s ease;will-change:transform';
+    slider.appendChild(track);
+
+    TABS.forEach(()=>{
+      const pane=document.createElement('div');
+      pane.style.cssText='flex:0 0 100%;width:100%;height:100%;overflow-y:auto;padding:14px';
+      track.appendChild(pane);
+    });
+
+    const tabs=document.createElement('div');tabs.className='ym-tabs';
+    tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);border-bottom:none;margin:0;flex-shrink:0';
+
+    function goTab(idx,animate=true){
+      curIdx=idx;
+      track.style.transition=animate?'transform .25s ease':'none';
+      track.style.transform='translateX(-'+idx*100+'%)';
+      tabs.querySelectorAll('.ym-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+      const pane=track.children[idx];
+      pane.innerHTML='';
+      if(idx===0){_ctx?.setNotification?.(0);renderNearTab(pane);}
+      else if(idx===1)renderFeedTab(pane);
+      else if(idx===2)renderSearchTab(pane);
+    }
+
+    // Swipe horizontal
+    let sx=0,sy=0,sw=false;
+    slider.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY;sw=true;},{passive:true});
+    slider.addEventListener('pointerup',e=>{
+      if(!sw)return;sw=false;
+      const dx=e.clientX-sx,dy=e.clientY-sy;
+      if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.2){
+        const next=dx<0?Math.min(curIdx+1,TABS.length-1):Math.max(curIdx-1,0);
+        if(next!==curIdx)goTab(next);
+      }
+    },{passive:true});
+    slider.addEventListener('pointercancel',()=>{sw=false;});
+
+    TABS.forEach((t,i)=>{
+      const tab=document.createElement('div');
+      tab.className='ym-tab'+(i===0?' active':'');
+      tab.dataset.tab=t;tab.textContent=t;
+      tab.addEventListener('click',()=>goTab(i));
+      tabs.appendChild(tab);
+    });
+
+    // _refreshNear pointe vers le bon pane
+    _refreshNear=()=>{
+      if(curIdx===0){
+        const pane=track.children[0];
+        renderNearTab(pane);
+      }
+    };
+
+    container.appendChild(slider);
+    container.appendChild(tabs);
+    if(_ctx)_ctx.setNotification?.(0);
+    goTab(0,false);
+  },
+
+  profileSection(container){
+    const state=loadState();
+    const networks=state.networks||[];
+    const prof=(_ctx&&_ctx.loadProfile&&_ctx.loadProfile())||{};
+
+    const netTitle = document.createElement('div');
+    netTitle.style.cssText='font-family:var(--font-d,monospace);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;margin-top:4px';
+    netTitle.textContent='Social Networks';
+    container.appendChild(netTitle);
+
+    ALL_NETWORKS.forEach(n=>{
+      const saved = networks.find(x=>x.id===n.id);
+      const hasFeed = !!FEED_NETWORKS.find(f=>f.id===n.id);
+      const row = document.createElement('div');
+      row.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;overflow:hidden';
+      const header = document.createElement('div');
+      header.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;background:rgba(255,255,255,.02)';
+      header.innerHTML=`
+        <span style="font-size:11px;color:${saved?.handle?'var(--accent)':'var(--text2)'};flex:1">${n.label}${saved?.handle?' · <span style="color:var(--text3);font-size:10px">'+saved.handle+'</span>':''}</span>
+        ${hasFeed?'<span style="font-size:9px;color:var(--green)">feed</span>':''}
+        <span style="font-size:10px;color:var(--text3)">${saved?.handle?'✓':'+'}</span>
+      `;
+      row.appendChild(header);
+      const body = document.createElement('div');
+      body.style.cssText='display:none;padding:8px 10px;border-top:1px solid var(--border)';
+      const inp = document.createElement('input');
+      inp.className='ym-input';inp.placeholder=n.hint;inp.value=saved?.handle||'';inp.style.fontSize='11px';
+      body.appendChild(inp);
+      row.appendChild(body);
+      header.addEventListener('click',()=>{
+        const open=body.style.display!=='none';
+        body.style.display=open?'none':'block';
+        if(!open)inp.focus();
+      });
+      inp.addEventListener('change',()=>{
+        const cur=loadState().networks||[];
+        const idx=cur.findIndex(x=>x.id===n.id);
+        if(inp.value.trim()){if(idx>=0)cur[idx].handle=inp.value.trim();else cur.push({id:n.id,handle:inp.value.trim()});}
+        else{if(idx>=0)cur.splice(idx,1);}
+        saveState({networks:cur});
+        broadcastPresence();
+        const lbl=header.querySelector('span');
+        lbl.innerHTML=`${n.label}${inp.value.trim()?' · <span style="color:var(--text3);font-size:10px">'+inp.value.trim()+'</span>':''}`;
+        header.querySelector('span:last-child').textContent=inp.value.trim()?'✓':'+';
+        header.querySelector('span:first-child').style.color=inp.value.trim()?'var(--accent)':'var(--text2)';
+        body.style.display='none';
+      });
+      container.appendChild(row);
+    });
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className='ym-btn ym-btn-accent';saveBtn.style.cssText='width:100%;margin-top:14px';
+    saveBtn.textContent='Save identity';
+    saveBtn.addEventListener('click',()=>{
+      _ctx?.saveProfile?.({name:ident.querySelector('#soc-name').value,bio:ident.querySelector('#soc-bio').value,site:ident.querySelector('#soc-site').value});
+      broadcastPresence();
+      window.YM_toast?.('Social profile saved','success');
+    });
+    container.appendChild(saveBtn);
+  },
+
+  getTabBadges(){
+    return {Near:_nearUsers.size, Contacts:0, Feed:0, Search:0};
+  },
+
+  peerSection(container, ctx){
+    const{uuid,isNear,isReciproc}=ctx;
+    if(isNear&&isReciproc){
+      const btn=document.createElement('button');
+      btn.className='ym-btn ym-btn-ghost';
+      btn.style.cssText='width:100%;font-size:12px;color:var(--cyan);border-color:rgba(34,211,238,.3)';
+      btn.textContent='📞 Voice Call';
+      btn.addEventListener('click',()=>window.YM_Call?.startVoiceCall(uuid));
+      container.appendChild(btn);
+    }else{
+      const info=document.createElement('div');
+      info.style.cssText='font-size:11px;color:var(--text3);text-align:center;padding:4px';
+      info.textContent=isNear?'Add each other as contacts to call':'Not nearby';
+      container.appendChild(info);
+    }
+  }
 };
 
-// ── SPHERES TAB ───────────────────────────────────────────────────────────────
-function renderSphereProfiles(container,fromSphere){
-  container.style.cssText='flex:1;overflow-y:auto;padding:12px 16px';
-  container.innerHTML='';
+// Compteurs de badges par onglet
+const _tabBadges={Near:0,Contacts:0,Feed:0,Search:0};
 
-  // Re-render if a sphere activates after profile is open
-  var _sphereListener=function(){
-    if(container.isConnected) renderSphereProfiles(container,null);
-  };
-  window.addEventListener('ym:sphere-activated',_sphereListener,{once:false});
-  // Clean up when container is removed
-  var _obs=new MutationObserver(function(){
-    if(!document.body.contains(container)){
-      window.removeEventListener('ym:sphere-activated',_sphereListener);
-      _obs.disconnect();
-    }
-  });
-  _obs.observe(document.body,{childList:true,subtree:true});
-  var p=window.YM&&window.YM.getProfile&&window.YM.getProfile();
-  var active=(p&&p.spheres)||[];
-  if(!active.length){container.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No active spheres</div>';return;}
-  active.forEach(function(name){
-    var s=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(name);
-    var wrap=document.createElement('div');wrap.style.cssText='margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden';
-    var label=name.replace('.sphere.js','');
-    var iconIsUrl=s&&s.icon&&(s.icon.indexOf('http')===0||s.icon.indexOf('/')===0);
-    var iconHtml=iconIsUrl?'<img src="'+s.icon+'" style="width:24px;height:24px;border-radius:4px;object-fit:contain">':'<span style="font-size:20px">'+((s&&s.icon)||'⬡')+'</span>';
-    var hdr=document.createElement('div');
-    hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;-webkit-user-select:none';
-    hdr.innerHTML=iconHtml+'<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);flex:1">'+label+'</span><span style="font-size:11px;color:var(--text3)">▼</span>';
-    var content=document.createElement('div');content.style.cssText='padding:12px 14px;display:none;background:var(--surface)';
-    var open=false;
-    function openAcc(){
-      open=true;content.style.display='';hdr.querySelector('span:last-child').textContent='▲';
-      if(!content.children.length){
-        // ── Visibilité ──────────────────────────────────────────────
-        var visRow=document.createElement('div');
-        visRow.style.cssText='margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)';
-        var curVis=getSphereVisibility(name);
-        var contacts=getContacts();
-        visRow.innerHTML=
-          '<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">Qui peut voir cette sphère active</div>'+
-          '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
-            '<button class="ym-btn vis-pill '+(curVis==='all'?'ym-btn-accent':'ym-btn-ghost')+'" data-vis="all" style="font-size:10px;padding:4px 10px">Tous</button>'+
-            '<button class="ym-btn vis-pill '+(curVis==='contacts'?'ym-btn-accent':'ym-btn-ghost')+'" data-vis="contacts" style="font-size:10px;padding:4px 10px">Contacts</button>'+
-            (contacts.length?'<button class="ym-btn vis-pill '+(Array.isArray(curVis)?'ym-btn-accent':'ym-btn-ghost')+'" data-vis="custom" style="font-size:10px;padding:4px 10px">Sélection</button>':'')+'</div>'+
-          '<div id="vis-custom-'+name.replace(/\./g,'_')+'" style="display:'+(Array.isArray(curVis)?'block':'none')+'">'+
-            (contacts.map(function(c){
-              var isSelected=Array.isArray(curVis)&&curVis.includes(c.uuid);
-              var cname=(c.nickname||(c.profile&&c.profile.name)||c.uuid.slice(0,8));
-              return'<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer"><input type="checkbox" data-uuid="'+c.uuid+'" '+(isSelected?'checked':'')+'>'+esc(cname)+'</label>';
-            }).join(''))+
-          '</div>';
-
-        visRow.querySelectorAll('.vis-pill').forEach(function(btn){
-          btn.addEventListener('click',function(){
-            var val=this.dataset.vis;
-            if(val==='custom'){
-              var customDiv=visRow.querySelector('#vis-custom-'+name.replace(/\./g,'_'));
-              customDiv.style.display=customDiv.style.display==='none'?'block':'none';
-              var checked=Array.from(customDiv.querySelectorAll('input:checked')).map(function(i){return i.dataset.uuid;});
-              setSphereVisibility(name,checked.length?checked:'contacts');
-            }else{
-              setSphereVisibility(name,val);
-              var customDiv=visRow.querySelector('#vis-custom-'+name.replace(/\./g,'_'));
-              if(customDiv)customDiv.style.display='none';
-            }
-            visRow.querySelectorAll('.vis-pill').forEach(function(b){
-              var curV=getSphereVisibility(name);
-              var match=(b.dataset.vis==='custom'&&Array.isArray(curV))||(b.dataset.vis===curV);
-              b.className='ym-btn vis-pill '+(match?'ym-btn-accent':'ym-btn-ghost');
-              b.style.cssText='font-size:10px;padding:4px 10px';
-            });
-          });
-        });
-
-        var customDiv=visRow.querySelector('#vis-custom-'+name.replace(/\./g,'_'));
-        if(customDiv){
-          customDiv.querySelectorAll('input[type=checkbox]').forEach(function(cb){
-            cb.addEventListener('change',function(){
-              var checked=Array.from(customDiv.querySelectorAll('input:checked')).map(function(i){return i.dataset.uuid;});
-              setSphereVisibility(name,checked.length?checked:[]);
-            });
-          });
-        }
-
-        content.appendChild(visRow);
-
-        // FIX: use a dedicated subcontainer so sphere's innerHTML= can't overwrite the visibility toggle
-        if(s&&typeof s.profileSection==='function'){
-          var profileSubContainer=document.createElement('div');
-          content.appendChild(profileSubContainer);
-          try{s.profileSection(profileSubContainer);}
-          catch(e){profileSubContainer.innerHTML='<div style="color:var(--text3);font-size:11px">'+e.message+'</div>';}
-        }else if(!s){
-          content.innerHTML+='<div style="color:var(--text2);font-size:12px">Active</div>';
-        }
-      }
-    }
-    hdr.addEventListener('click',function(){open=!open;if(open)openAcc();else{content.style.display='none';hdr.querySelector('span:last-child').textContent='▼';}});
-    wrap.appendChild(hdr);wrap.appendChild(content);container.appendChild(wrap);
-    if(fromSphere&&name===fromSphere&&s&&s.profileSection){requestAnimationFrame(function(){openAcc();wrap.scrollIntoView({behavior:'smooth',block:'start'});});}
-
-  });
+function _getSocialPanel(){
+  const body=document.getElementById('panel-sphere-body');
+  if(!body) return null;
+  return body.querySelector('#social-tab-content') ? body : null;
 }
 
-function render(fromSphere){
-  var body=document.getElementById('panel-profile-body');
-  var LP=window.YM&&window.YM.getProfile;
-  var SP=window.YM&&window.YM.saveProfile;
-  if(!body||!LP||!SP) return;
-  var panelEl=document.getElementById('panel-profile');
-  if(panelEl){panelEl.style.zIndex='302';if(!panelEl.classList.contains('open'))panelEl.classList.add('open');}
-  body.innerHTML='';
-  body.style.cssText='display:flex;flex-direction:column;height:100%;padding:0';
-  var panelHead=document.getElementById('panel-profile');
-  panelHead=panelHead&&panelHead.querySelector('.panel-head');
-  if(panelHead&&!panelHead.querySelector('#prof-menu-btn')){
-    var menuBtn=document.createElement('button');menuBtn.id='prof-menu-btn';menuBtn.className='ym-btn ym-btn-ghost';
-    menuBtn.style.cssText='padding:4px 10px;font-size:16px;min-height:unset';menuBtn.textContent='⚙';panelHead.appendChild(menuBtn);
-  }
-  var menuBtnEl=document.getElementById('prof-menu-btn');
-  if(menuBtnEl){menuBtnEl.onclick=function(){_openProfileMenu();};}
-  var tcArea=document.createElement('div');tcArea.id='profile-tab-content';
-  tcArea.style.cssText='flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden';body.appendChild(tcArea);
-  var tabs=document.createElement('div');tabs.className='ym-tabs';
-  tabs.style.cssText='border-top:1px solid rgba(232,160,32,.12);border-bottom:none;margin:0;flex-shrink:0';body.appendChild(tabs);
-  var TABS=[['contacts','Contacts'],['sph','⬡ Spheres']];
-  function goTab(id){
-    tabs.querySelectorAll('.ym-tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===id);});
-    tcArea.innerHTML='';tcArea.style.overflow='hidden';
-    if(id==='contacts'){renderContactsTab(tcArea);}
-    else if(id==='sph'){renderSphereProfiles(tcArea,fromSphere);fromSphere=null;}
-  }
-  TABS.forEach(function(tabDef,i){
-    var t=document.createElement('div');t.className='ym-tab'+(i===0?' active':'');t.dataset.tab=tabDef[0];t.textContent=tabDef[1];
-    t.addEventListener('click',function(){goTab(tabDef[0]);});tabs.appendChild(t);
-  });
-  goTab(fromSphere?'sph':'contacts');
+function _incTabBadge(tab){
+  _tabBadges[tab]=(_tabBadges[tab]||0)+1;
+  _updateTabBadgeUI(tab);
+}
+function _clearTabBadge(tab){
+  _tabBadges[tab]=0;
+  _updateTabBadgeUI(tab);
+}
+function _updateTabBadgeUI(tab){
+  const panel=_getSocialPanel();
+  const t=panel?.querySelector(`.ym-tab[data-tab="${tab}"]`);
+  if(!t) return;
+  let badge=t.querySelector('.ym-tab-badge');
+  const count=_tabBadges[tab]||0;
+  if(count>0){
+    if(!badge){badge=document.createElement('span');badge.className='ym-tab-badge';t.appendChild(badge);}
+    badge.textContent=count;
+  }else if(badge){badge.remove();}
+}
+function renderSocialTabInto(content,tab){
+  content.innerHTML='';
+  if(tab==='Near')      renderNearTab(content);
+  else if(tab==='Feed') renderFeedTab(content);
+  else if(tab==='Search') renderSearchTab(content);
 }
 
-function _buildBackupData(){
-  var LP=window.YM&&window.YM.getProfile;
-  var data={_version:1,_date:new Date().toISOString(),profile:LP?LP():null,
-    contacts:JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]'),sphereConfigs:{}};
-  for(var i=0;i<localStorage.length;i++){
-    var k=localStorage.key(i);
-    if(k&&k.startsWith('ym_')&&k!=='ym_wallet_v1'){
-      try{data.sphereConfigs[k]=JSON.parse(localStorage.getItem(k));}
-      catch(e){data.sphereConfigs[k]=localStorage.getItem(k);}
-    }
-  }
-  return data;
-}
+// ── NEAR TAB ──────────────────────────────────────────────────────────────────
+function renderNearTab(el){
+  _clearTabBadge('Near');
+  const near=[..._nearUsers.values()];
+  const myUUID=_ctx?.loadProfile?.()?.uuid;
+  const gossip=[..._gossipCache.values()]
+    .filter(g=>!_nearUsers.has(g.profile.uuid)&&g.profile.uuid!==myUUID)
+    .slice(0,10);
 
-function _restoreBackupData(data){
-  var SP=window.YM&&window.YM.saveProfile;
-  if(!data||data._version!==1)throw new Error('Format invalide');
-  if(data.profile){
-    var curP=window.YM&&window.YM.getProfile&&window.YM.getProfile();
-    if(curP&&curP.uuid)data.profile.uuid=curP.uuid;
-    if(SP)SP(data.profile);
-  }
-  if(data.contacts)localStorage.setItem('ym_contacts_v1',JSON.stringify(data.contacts));
-  if(data.sphereConfigs){
-    Object.keys(data.sphereConfigs).forEach(function(k){
-      if(k==='ym_wallet_v1'||k==='ym_profile_v1')return;
-      var v=data.sphereConfigs[k];
-      localStorage.setItem(k,typeof v==='string'?v:JSON.stringify(v));
-    });
-  }
-}
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--text3)">Within ${NEAR_RADIUS}m · ${near.length} online</div>
+      <div style="margin-left:auto;font-size:10px;color:var(--text3)">${_myCoords?'📍':'🌐'} ${_myCoords?(_myCoords.lat.toFixed(3)+','+_myCoords.lng.toFixed(3)):'P2P room'}</div>
+    </div>
+  `;
 
-function openRecoveryOverlay(){
-  var p=window.YM&&window.YM.getProfile&&window.YM.getProfile();
-  if(!p)return;
-  var myNewUUID=p.uuid;
-  var overlay=document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
-  var box=document.createElement('div');
-  box.style.cssText='background:var(--surface2,#12121e);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:var(--r-lg,16px);padding:20px;max-width:340px;width:90vw;max-height:90vh;overflow-y:auto';
-
-  // Two modes — SEND (I need recovery) or RECEIVE (I help someone)
-  box.innerHTML=
-    '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px">Identity Recovery</div>'+
-    '<div style="display:flex;gap:8px;margin-bottom:18px">'+
-      '<button class="ym-btn rec-tab '+(true?'ym-btn-accent':'ym-btn-ghost')+'" data-tab="send" style="flex:1;font-size:11px">I need recovery</button>'+
-      '<button class="ym-btn rec-tab ym-btn-ghost" data-tab="receive" style="flex:1;font-size:11px">Help someone</button>'+
-    '</div>'+
-    '<div id="rec-send-panel">'+
-      '<div class="ym-notice info" style="font-size:11px;margin-bottom:14px">Enter the UUID of a contact who knew your old identity. They will see your new UUID and can restore it.</div>'+
-      '<input class="ym-input" id="rec-contact-uuid" placeholder="Contact UUID…" style="width:100%;font-size:11px;font-family:var(--font-m);margin-bottom:8px">'+
-      '<div id="rec-send-status" style="font-size:11px;min-height:16px;margin-bottom:8px"></div>'+
-      '<button class="ym-btn ym-btn-accent" id="rec-send-btn" style="width:100%">Send recovery request</button>'+
-    '</div>'+
-    '<div id="rec-receive-panel" style="display:none">'+
-      '<div class="ym-notice info" style="font-size:11px;margin-bottom:14px">If someone sent you a recovery request, their new UUID appears below. Choose who they are in your contacts to restore their identity.</div>'+
-      '<div id="rec-requests-list"></div>'+
-    '</div>'+
-    '<button class="ym-btn ym-btn-ghost" id="rec-close" style="width:100%;font-size:11px;margin-top:12px">Close</button>';
-
-  overlay.appendChild(box);document.body.appendChild(overlay);
-
-  // Tab switching
-  box.querySelectorAll('.rec-tab').forEach(function(tab){
-    tab.addEventListener('click',function(){
-      box.querySelectorAll('.rec-tab').forEach(function(t){t.className='ym-btn rec-tab ym-btn-ghost';t.style.flex='1';t.style.fontSize='11px';});
-      this.className='ym-btn rec-tab ym-btn-accent';this.style.flex='1';this.style.fontSize='11px';
-      var t=this.dataset.tab;
-      document.getElementById('rec-send-panel').style.display=t==='send'?'':'none';
-      document.getElementById('rec-receive-panel').style.display=t==='receive'?'':'none';
-      if(t==='receive') _renderRecoveryRequests();
-    });
-  });
-
-  // SEND — store recovery request locally keyed by contact UUID
-  // When contact opens their receive panel they'll see pending requests
-  var RECOVERY_KEY='ym_recovery_requests';
-  function getRecoveryRequests(){try{return JSON.parse(localStorage.getItem(RECOVERY_KEY)||'[]');}catch{return[];}}
-  function saveRecoveryRequests(arr){localStorage.setItem(RECOVERY_KEY,JSON.stringify(arr));}
-
-  document.getElementById('rec-send-btn').addEventListener('click',function(){
-    var contactUUID=(document.getElementById('rec-contact-uuid').value||'').trim();
-    var status=document.getElementById('rec-send-status');
-    if(!contactUUID){status.textContent='Enter a UUID';status.style.color='var(--red,#e84040)';return;}
-    // Store request: {contactUUID, myNewUUID, timestamp}
-    // When the contact opens their receive panel they check for requests addressed to them
-    // We send via P2P if peer is near, otherwise store for manual check
-    var req={from:myNewUUID,to:contactUUID,ts:Date.now()};
-    if(window.YM_P2P&&window.YM_P2P.sendTo){
-      window.YM_P2P.sendTo(contactUUID,{sphere:'social.sphere.js',type:'identity:recovery-request',data:req});
-    }
-    // Also store locally in case peer is offline
-    var stored=getRecoveryRequests();
-    stored=stored.filter(function(r){return r.to!==contactUUID;});
-    stored.push(req);
-    saveRecoveryRequests(stored);
-    status.textContent='Request sent ✓';status.style.color='var(--green,#30e880)';
-  });
-
-  // RECEIVE — show pending requests addressed to me
-  function _renderRecoveryRequests(){
-    var list=document.getElementById('rec-requests-list');
-    list.innerHTML='';
-    var allReqs=getRecoveryRequests().filter(function(r){return r.to===myNewUUID;});
-    // Also check incoming P2P requests stored in ym_recovery_incoming
-    var incoming=[];try{incoming=JSON.parse(localStorage.getItem('ym_recovery_incoming')||'[]');}catch{}
-    var reqs=allReqs.concat(incoming);
-    if(!reqs.length){
-      list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">No pending requests</div>';
-      return;
-    }
-    var contacts=window.YM&&window.YM.getProfile&&window.YM.getProfile()||{};
-    var contactList=[];try{contactList=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{}
-    reqs.forEach(function(req){
-      var row=document.createElement('div');
-      row.style.cssText='padding:12px;border:1px solid var(--border);border-radius:var(--r-sm,8px);margin-bottom:8px';
-      row.innerHTML=
-        '<div style="font-size:10px;color:var(--text3);font-family:var(--font-m);word-break:break-all;margin-bottom:10px">New UUID: '+req.from+'</div>'+
-        '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Who is this person in your contacts?</div>'+
-        '<select class="ym-input rec-contact-select" style="width:100%;font-size:11px;margin-bottom:8px">'+
-          '<option value="">— Choose a contact —</option>'+
-          contactList.map(function(c){
-            var name=c.nickname||(c.profile&&c.profile.name)||c.uuid.slice(0,8);
-            return'<option value="'+c.uuid+'">'+name+'</option>';
-          }).join('')+
-        '</select>'+
-        '<button class="ym-btn ym-btn-accent rec-confirm-btn" style="width:100%;font-size:11px">Restore identity</button>';
-
-      row.querySelector('.rec-confirm-btn').addEventListener('click',function(){
-        var oldUUID=row.querySelector('.rec-contact-select').value;
-        if(!oldUUID){return;}
-        // Send back the old UUID to the requester via P2P
-        if(window.YM_P2P&&window.YM_P2P.sendTo){
-          window.YM_P2P.sendTo(req.from,{sphere:'social.sphere.js',type:'identity:recovery-response',data:{oldUUID:oldUUID,newUUID:req.from}});
-        }
-        // Update contact list — replace old UUID with new UUID
-        var updated=contactList.map(function(c){
-          if(c.uuid===oldUUID){c.uuid=req.from;if(c.profile)c.profile.uuid=req.from;}
-          return c;
-        });
-        localStorage.setItem('ym_contacts_v1',JSON.stringify(updated));
-        // Remove request
-        var remaining=getRecoveryRequests().filter(function(r){return r.from!==req.from;});
-        saveRecoveryRequests(remaining);
-        row.innerHTML='<div style="color:var(--green,#30e880);font-size:12px">Identity restored ✓</div>';
-        if(window.YM_toast)window.YM_toast('Identity restored','success');
-      });
-      list.appendChild(row);
-    });
-  }
-
-  // Listen for incoming recovery requests via P2P
-  window.addEventListener('ym:p2p-data',function onRecovery(e){
-    var msg=e.detail&&e.detail.msg;
-    if(!msg||msg.sphere!=='social.sphere.js')return;
-    if(msg.type==='identity:recovery-request'&&msg.data.to===myNewUUID){
-      var inc=[];try{inc=JSON.parse(localStorage.getItem('ym_recovery_incoming')||'[]');}catch{}
-      inc=inc.filter(function(r){return r.from!==msg.data.from;});
-      inc.push(msg.data);
-      localStorage.setItem('ym_recovery_incoming',JSON.stringify(inc));
-    }
-    if(msg.type==='identity:recovery-response'&&msg.data.newUUID===myNewUUID){
-      // Restore old UUID
-      var SP=window.YM&&window.YM.saveProfile;
-      if(SP){var prof=p;prof.uuid=msg.data.oldUUID;SP(prof);}
-      if(window.YM_toast)window.YM_toast('Your identity has been restored','success');
-      window.removeEventListener('ym:p2p-data',onRecovery);
-      overlay.remove();
-    }
-  });
-
-  box.querySelector('#rec-close').addEventListener('click',function(){overlay.remove();});
-  overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
-}
-
-function openBackupOverlay(){
-  var overlay=document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
-  var box=document.createElement('div');
-  box.style.cssText='background:var(--surface2,#12121e);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:var(--r-lg,16px);padding:20px;max-width:320px;width:90vw;max-height:90vh;overflow-y:auto';
-  box.innerHTML='<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Backup / Restore</div>'+
-    '<div class="ym-notice info" style="font-size:11px;margin-bottom:14px">Export ou import un fichier JSON contenant ton profil, tes contacts, les sphères et leurs configurations. <b>L\'UUID ne peut pas être restauré (non-transférable).</b></div>'+
-    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">'+
-      '<button class="ym-btn ym-btn-accent" id="bk-dl" style="width:100%">⬇ Télécharger la sauvegarde</button>'+
-      '<button class="ym-btn ym-btn-ghost" id="bk-ul" style="width:100%">⬆ Importer une sauvegarde</button>'+
-      '<input type="file" id="bk-file" accept=".json,application/json" style="display:none">'+
-    '</div>'+
-    '<div id="bk-st" class="ym-notice" style="display:none;margin-bottom:8px"></div>'+
-    '<button class="ym-btn ym-btn-ghost" id="bk-close" style="width:100%;font-size:11px">Fermer</button>';
-  overlay.appendChild(box);document.body.appendChild(overlay);
-  function st(msg,type){var e=box.querySelector('#bk-st');e.textContent=msg;e.className='ym-notice '+(type||'info');e.style.display='flex';}
-  box.querySelector('#bk-dl').addEventListener('click',function(){
-    try{var data=_buildBackupData();var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-      var a=document.createElement('a');a.href=URL.createObjectURL(blob);
-      a.download='yourmine-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(a.href);
-      st('Sauvegarde téléchargée ✓','success');}catch(e){st(e.message,'error');}
-  });
-  box.querySelector('#bk-ul').addEventListener('click',function(){box.querySelector('#bk-file').click();});
-  box.querySelector('#bk-file').addEventListener('change',function(){
-    var file=this.files[0];if(!file)return;
-    var reader=new FileReader();
-    reader.onload=function(ev){
-      try{var data=JSON.parse(ev.target.result);_restoreBackupData(data);
-        st('Restauré ✓ (UUID conservé)','success');
-        setTimeout(function(){render();if(window.YM_Liste&&window.YM_Liste._forceRefresh)window.YM_Liste._forceRefresh();if(window.YM_Desk)window.YM_Desk.renderDesk();},50);
-      }catch(e){st('Erreur : '+e.message,'error');}
-    };reader.readAsText(file);
-  });
-  box.querySelector('#bk-close').addEventListener('click',function(){overlay.remove();});
-  overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
-}
-
-function renderContactsTab(container){
-  container.style.cssText='display:flex;flex-direction:column;height:100%;overflow:hidden';
-  var sphereBar=document.createElement('div');
-  sphereBar.style.cssText='flex-shrink:0;padding:8px 16px 4px;border-bottom:1px solid var(--border);overflow-x:auto;white-space:nowrap;display:flex;gap:6px;-webkit-overflow-scrolling:touch';
-  container.appendChild(sphereBar);
-  var listWrap=document.createElement('div');listWrap.style.cssText='flex:1;overflow-y:auto;padding:8px 16px 4px';container.appendChild(listWrap);
-  var searchBar=document.createElement('div');
-  searchBar.style.cssText='border-top:1px solid var(--border);padding:8px 16px 6px;flex-shrink:0;display:flex;gap:6px;align-items:center';
-  searchBar.innerHTML='<button id="pc-add-btn" class="ym-btn ym-btn-accent" style="padding:4px 10px;font-size:18px;line-height:1;flex-shrink:0" title="Add contact">+</button>'+
-    '<input class="ym-input" id="pcs" placeholder="Search contacts…" style="flex:1;font-size:11px">'+
-    '<button id="fav-btn" class="ym-btn ym-btn-ghost" style="padding:4px 10px;font-size:16px">☆</button>';
-  container.appendChild(searchBar);
-  var addOverlay=null;
-  searchBar.querySelector('#pc-add-btn').addEventListener('click',function(){
-    if(addOverlay){addOverlay.remove();addOverlay=null;return;}
-    addOverlay=document.createElement('div');
-    addOverlay.style.cssText='position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.82);display:flex;align-items:flex-end;justify-content:center';
-    var box=document.createElement('div');
-    box.style.cssText='background:#12121e;border:1px solid rgba(255,255,255,.12);border-radius:18px 18px 0 0;padding:20px;width:100%;max-width:500px;box-shadow:0 -8px 32px rgba(0,0,0,.6)';
-    box.innerHTML='<div style="font-size:14px;font-weight:600;margin-bottom:12px">Add Contact</div>'+
-      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
-        '<input class="ym-input" id="pc-name-input" placeholder="Search by name…" style="flex:1;font-size:12px">'+
-        '<button id="pc-name-search" class="ym-btn ym-btn-ghost" style="font-size:12px">Search</button>'+
-      '</div>'+
-      '<div id="pc-name-results" style="margin-bottom:8px"></div>'+
-      '<div style="display:flex;gap:6px;margin-bottom:8px">'+
-        '<input class="ym-input" id="pc-uuid-input" placeholder="Paste UUID…" style="flex:1;font-size:12px;font-family:var(--font-m)">'+
-        '<button id="pc-uuid-add" class="ym-btn ym-btn-accent" style="font-size:12px">Add</button>'+
-        '<button id="pc-qr-btn" class="ym-btn ym-btn-ghost" style="padding:6px 10px;font-size:16px">📷</button>'+
-      '</div>'+
-      '<div id="pc-add-status" style="font-size:11px;min-height:16px"></div>'+
-      '<div id="pc-qr-container" style="display:none;margin-top:10px"></div>'+
-      '<button id="pc-add-close" class="ym-btn ym-btn-ghost" style="width:100%;margin-top:12px;font-size:12px">Cancel</button>';
-    addOverlay.appendChild(box);document.body.appendChild(addOverlay);
-    addOverlay.addEventListener('click',function(e){if(e.target===addOverlay){addOverlay.remove();addOverlay=null;}});
-    box.querySelector('#pc-add-close').addEventListener('click',function(){addOverlay.remove();addOverlay=null;});
-    box.querySelector('#pc-name-search').addEventListener('click',function(){
-      var query=box.querySelector('#pc-name-input').value.trim().toLowerCase();
-      var results=box.querySelector('#pc-name-results');
-      if(!query){results.innerHTML='';return;}
-      results.innerHTML='<div style="font-size:11px;color:var(--text3)">Searching…</div>';
-      var nameUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url
-        ?window.YM_REGISTRY_OVERRIDE.url.replace(/\/[^\/]+\.json.*$/,'')
-        :'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main')+'/name.json?t='+Date.now();
-      fetch(nameUrl,{mode:'cors'}).then(function(r){return r.ok?r.json():Promise.reject(r.status);}).then(function(names){
-        var matches=Object.entries(names).filter(function(e){return e[0].toLowerCase().includes(query);});
-        if(!matches.length){results.innerHTML='<div style="font-size:11px;color:var(--text3)">No match found</div>';return;}
-        results.innerHTML=matches.map(function(e){
-          return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">'+
-            '<span style="font-size:12px;color:var(--text);flex:1">'+e[0]+'</span>'+
-            '<span style="font-size:10px;color:var(--text3);font-family:monospace">'+e[1].slice(0,8)+'…</span>'+
-            '<button class="ym-btn ym-btn-accent" style="font-size:11px;padding:2px 8px" data-uuid="'+e[1]+'">Add</button>'+
-          '</div>';
-        }).join('');
-        results.querySelectorAll('button[data-uuid]').forEach(function(btn){
-          btn.addEventListener('click',function(){
-            box.querySelector('#pc-uuid-input').value=btn.dataset.uuid;
-            results.innerHTML='';
-          });
-        });
-      }).catch(function(){results.innerHTML='<div style="font-size:11px;color:var(--text3)">Could not load name registry</div>';});
-    });
-    box.querySelector('#pc-uuid-add').addEventListener('click',function(){
-      var uuid=box.querySelector('#pc-uuid-input').value.trim();
-      var status=box.querySelector('#pc-add-status');
-      if(!uuid){status.textContent='Enter a UUID';status.style.color='#e84040';return;}
-      addContactByUUID(uuid,function(msg,ok){
-        status.textContent=msg;status.style.color=ok?'#30e880':'#e84040';
-        if(ok){renderList(searchBar.querySelector('#pcs').value.toLowerCase());buildSphereBar();setTimeout(function(){if(addOverlay){addOverlay.remove();addOverlay=null;}},800);}
-      });
-    });
-    box.querySelector('#pc-qr-btn').addEventListener('click',function(){
-      var qrC=box.querySelector('#pc-qr-container');
-      if(qrC.style.display==='none'){qrC.style.display='block';qrC.innerHTML='';
-        startQRScanner(qrC,function(result){if(result){box.querySelector('#pc-uuid-input').value=result;qrC.style.display='none';}else{qrC.style.display='none';}});
-      }else{qrC.style.display='none';qrC.innerHTML='';}
-    });
-  });
-  var showFavOnly=false,q='',activeSphere='';
-  function buildSphereBar(){
-    sphereBar.innerHTML='';
-    var contacts=getContacts();
-    var mySpheres=(window.YM&&window.YM.getProfile&&window.YM.getProfile().spheres)||[];
-    var sphereCounts={};
-    contacts.forEach(function(c){(c.profile&&c.profile.spheres||[]).filter(function(s){return mySpheres.includes(s);}).forEach(function(s){sphereCounts[s]=(sphereCounts[s]||0)+1;});});
-    var sphereList=Object.keys(sphereCounts).sort(function(a,b){return sphereCounts[b]-sphereCounts[a];});
-    if(!sphereList.length){sphereBar.style.display='none';return;}
-    sphereBar.style.display='flex';
-    var allPill=document.createElement('span');allPill.className='pill'+(activeSphere?'':' active');allPill.style.cssText='cursor:pointer;flex-shrink:0';allPill.textContent='All';
-    allPill.addEventListener('click',function(){activeSphere='';buildSphereBar();renderList(q);});sphereBar.appendChild(allPill);
-    sphereList.forEach(function(sName){
-      var sObj=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sName);
-      var icon=(sObj&&sObj.icon)||'⬡';var label=sName.replace('.sphere.js','');
-      var pill=document.createElement('span');pill.className='pill'+(activeSphere===sName?' active':'');
-      pill.style.cssText='cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:4px';
-      pill.innerHTML=icon+' '+esc(label)+' <span style="font-size:9px;opacity:.6">('+sphereCounts[sName]+')</span>';
-      pill.addEventListener('click',function(){activeSphere=activeSphere===sName?'':sName;buildSphereBar();renderList(q);});
-      sphereBar.appendChild(pill);
-    });
-  }
-  function renderList(query){
-    q=query||'';listWrap.innerHTML='';
-    var contacts=getContacts();
-    var filtered=contacts;
-    if(showFavOnly)filtered=filtered.filter(function(c){return isFav(c.uuid);});
-    if(q)filtered=filtered.filter(function(c){return((c.nickname||(c.profile&&c.profile.name)||c.uuid).toLowerCase()).indexOf(q)>=0;});
-    if(activeSphere)filtered=filtered.filter(function(c){return((c.profile&&c.profile.spheres)||[]).includes(activeSphere);});
-    if(!filtered.length){listWrap.innerHTML='<div style="color:var(--text3);font-size:12px;padding:8px 0">No contacts'+(showFavOnly?' in favorites':'')+'</div>';return;}
-    filtered.forEach(function(c){
-      var prof=c.profile||{uuid:c.uuid,name:c.nickname||'Unknown'};
-      var fav=isFav(c.uuid);
-      var isNear=!!(window.YM_Social&&window.YM_Social._nearUsers&&window.YM_Social._nearUsers.has(c.uuid));
-      var isReciproc=!!(window.YM_Social&&window.YM_Social.isReciprocal&&window.YM_Social.isReciprocal(c.uuid));
-      var canCall=isNear&&isReciproc;
-      var hasMsg=!!(window.YM_sphereRegistry&&window.YM_sphereRegistry.has('messenger.sphere.js'));
-      var card=document.createElement('div');card.className='ym-card';card.style.cssText='cursor:pointer;margin-bottom:8px';
-      var avImg='<img src="'+prof.avatar+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">';
-      var avFb='<div style="width:40px;height:40px;border-radius:50%;background:var(--surface3,rgba(255,255,255,.05));display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">'+((prof.name&&prof.name.charAt(0))||'👤')+'</div>';
-      var av=prof.avatar?avImg:avFb;
-      var actions='<div style="display:flex;align-items:center;gap:12px;flex-shrink:0">'+
-        (canCall?'<button data-call style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1">📞</button>':'')+
-        (hasMsg?'<button data-msg style="background:none;border:none;font-size:20px;cursor:pointer;padding:0;line-height:1">💬</button>':'')+
-        '<span data-fav style="font-size:20px;cursor:pointer;color:'+(fav?'var(--accent)':'var(--text3)')+';line-height:1">'+(fav?'★':'☆')+'</span>'+
-        '<button data-del style="background:none;border:none;width:24px;height:24px;border-radius:50%;background:var(--surface3,rgba(255,255,255,.05));border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;color:var(--text3);flex-shrink:0">×</button>'+
-      '</div>';
-      card.innerHTML='<div data-contact-header style="display:flex;align-items:center;gap:10px;cursor:pointer">'+av+
-        '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px">'+(c.nickname||prof.name||'Anonymous')+'</div>'+
-        (prof.bio?'<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(prof.bio)+'</div>':'')+
-        '</div>'+actions+'</div>';
-      card.querySelector('[data-fav]').addEventListener('click',function(e){e.stopPropagation();toggleFav(c.uuid);renderList(q);});
-      card.querySelector('[data-del]').addEventListener('click',function(e){
-        e.stopPropagation();localStorage.setItem('ym_contacts_v1',JSON.stringify(getContacts().filter(function(x){return x.uuid!==c.uuid;})));renderList(q);buildSphereBar();
-      });
-      var msgBtn=card.querySelector('[data-msg]');
-      if(msgBtn){msgBtn.addEventListener('click',function(e){e.stopPropagation();if(window.YM_Messenger&&window.YM_Messenger.openConv)window.YM_Messenger.openConv(c.uuid);if(window.YM&&window.YM.openSpherePanel)window.YM.openSpherePanel('messenger.sphere.js');});}
-      var callBtn=card.querySelector('[data-call]');
-      if(callBtn){callBtn.addEventListener('click',function(e){e.stopPropagation();if(window.YM_Social&&window.YM_Social.startVoiceCall)window.YM_Social.startVoiceCall(c.uuid);});}
-      card.addEventListener('click',function(e){
-        if(e.target.closest('[data-contact-header]')&&!e.target.closest('[data-fav]')&&!e.target.closest('[data-del]')&&!e.target.closest('[data-msg]')&&!e.target.closest('[data-call]')){
-          if(window.YM&&window.YM.openProfilePanel)window.YM.openProfilePanel(prof);
-        }
-      });
-      listWrap.appendChild(card);
-    });
-  }
-  buildSphereBar();renderList();
-  searchBar.querySelector('#pcs').addEventListener('input',function(e){renderList(e.target.value.toLowerCase());});
-  searchBar.querySelector('#fav-btn').addEventListener('click',function(){
-    showFavOnly=!showFavOnly;var btn=searchBar.querySelector('#fav-btn');
-    btn.style.color=showFavOnly?'var(--accent)':'var(--text3)';btn.textContent=showFavOnly?'★':'☆';
-    renderList(searchBar.querySelector('#pcs').value.toLowerCase());
-  });
-}
-
-function addContactByUUID(uuid,cb){
-  uuid=(uuid||'').trim();if(!uuid){if(cb)cb('Enter a UUID',false);return;}
-  var all=getContacts();if(all.find(function(c){return c.uuid===uuid;})){if(cb)cb('Already in contacts',false);return;}
-  var near=window.YM_Social&&window.YM_Social._nearUsers;var profile=null;
-  if(near&&near.has(uuid)){var u=near.get(uuid);profile=u.profile||{uuid:uuid,name:''};}
-  all.push({uuid:uuid,nickname:'',profile:profile||{uuid:uuid,name:''}});
-  localStorage.setItem('ym_contacts_v1',JSON.stringify(all));if(cb)cb('Added ✓',true);
-}
-
-function startQRScanner(container,onResult){
-  container.innerHTML='<div style="display:flex;gap:6px;align-items:center;padding:4px 0">'+
-    '<input type="file" id="qr-file-input" accept="image/*" style="display:none">'+
-    '<button id="qr-gallery-btn" class="ym-btn ym-btn-ghost" style="flex:1;font-size:11px">🖼 Image QR</button>'+
-    '<button id="qr-camera-btn" class="ym-btn ym-btn-ghost" style="flex:1;font-size:11px">📷 Caméra live</button></div>'+
-    '<div id="qr-video-wrap" style="display:none;margin-top:6px">'+
-    '<video id="qr-video" autoplay playsinline muted style="width:100%;border-radius:8px;max-height:160px;object-fit:cover"></video>'+
-    '<canvas id="qr-canvas" style="display:none"></canvas>'+
-    '<div id="qr-scan-msg" style="font-size:10px;color:var(--text3);text-align:center;margin-top:4px">Pointez le QR code vers la caméra…</div></div>';
-  function extractUUID(raw){if(!raw)return null;var m=raw.match(/yourmine:\/\/(?:contact|profile)\/([a-f0-9-]{36})/i);if(m)return m[1];m=raw.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);if(m)return m[1];return null;}
-  function scanFile(file){if(!file)return;if(window.BarcodeDetector){createImageBitmap(file).then(function(img){return new BarcodeDetector({formats:['qr_code']}).detect(img);}).then(function(res){onResult(extractUUID(res[0]&&res[0].rawValue));}).catch(function(){onResult(null);});}else{onResult(null);}}
-  var fi=container.querySelector('#qr-file-input');container.querySelector('#qr-gallery-btn').addEventListener('click',function(){fi.click();});fi.addEventListener('change',function(){scanFile(this.files[0]);});
-  var _stream=null;
-  container.querySelector('#qr-camera-btn').addEventListener('click',function(){
-    var wrap=container.querySelector('#qr-video-wrap');if(wrap.style.display!=='none'){wrap.style.display='none';if(_stream){_stream.getTracks().forEach(function(t){t.stop();});_stream=null;}return;}
-    if(!navigator.mediaDevices){onResult(null);return;}wrap.style.display='block';
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(stream){
-      _stream=stream;var video=wrap.querySelector('#qr-video'),canvas=wrap.querySelector('#qr-canvas'),msg=wrap.querySelector('#qr-scan-msg');video.srcObject=stream;
-      function tick(){if(!video.videoWidth){requestAnimationFrame(tick);return;}canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);
-        if(window.BarcodeDetector){new BarcodeDetector({formats:['qr_code']}).detect(canvas).then(function(res){if(res.length){stream.getTracks().forEach(function(t){t.stop();});onResult(extractUUID(res[0].rawValue));}else requestAnimationFrame(tick);}).catch(function(){requestAnimationFrame(tick);});}
-        else{msg.textContent='BarcodeDetector non supporté';}}requestAnimationFrame(tick);
-    }).catch(function(e){wrap.querySelector('#qr-scan-msg').textContent='Caméra refusée : '+e.message;});
-  });
-  var _obs=new MutationObserver(function(){if(!document.body.contains(container)){if(_stream){_stream.getTracks().forEach(function(t){t.stop();});}  _obs.disconnect();}});
-  _obs.observe(document.body,{childList:true,subtree:true});
-}
-
-function showShare(){
-  var p=window.YM&&window.YM.getProfile&&window.YM.getProfile();if(!p||!p.uuid)return;
-  var overlay=document.getElementById('ym-share-overlay');if(overlay){overlay.remove();return;}
-  overlay=document.createElement('div');overlay.id='ym-share-overlay';
-  overlay.style.cssText='position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
-  var box=document.createElement('div');
-  box.style.cssText='background:var(--surface2,#12121e);border:1px solid var(--accent);border-radius:var(--r-lg,16px);padding:24px;text-align:center;max-width:280px;width:90vw';
-  box.innerHTML='<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:16px">Share profile</div>'+
-    '<div id="share-qr-box" style="display:flex;justify-content:center;margin-bottom:12px"></div>'+
-    '<div style="font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all;margin-bottom:12px">'+p.uuid+'</div>'+
-    '<div style="display:flex;gap:8px"><button class="ym-btn ym-btn-ghost" id="share-copy-btn" style="flex:1;font-size:11px">⧉ Copy UUID</button>'+
-    '<button class="ym-btn ym-btn-ghost" id="share-close-btn" style="font-size:11px">✕</button></div>';
-  overlay.appendChild(box);document.body.appendChild(overlay);
-  var qrEl=box.querySelector('#share-qr-box');
-  function doQR(){new window.QRCode(qrEl,{text:'yourmine://contact/'+p.uuid,width:140,height:140,correctLevel:QRCode.CorrectLevel.M});}
-  if(window.QRCode)doQR();else{var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';s.onload=doQR;document.head.appendChild(s);}
-  box.querySelector('#share-copy-btn').addEventListener('click',function(){if(navigator.clipboard)navigator.clipboard.writeText(p.uuid);if(window.YM_toast)window.YM_toast('UUID copied','success');});
-  box.querySelector('#share-close-btn').addEventListener('click',function(){overlay.remove();});
-  overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
-}
-
-function renderPeerProfile(container,profile){
-  container.innerHTML='';container.style.cssText='flex:1;overflow-y:auto;padding:16px';
-  var isContact=false;
-  try{var contacts=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');isContact=contacts.some(function(c){return c.uuid===profile.uuid;});}catch(e){}
-  var isNear=!!(window.YM_Social&&window.YM_Social._nearUsers&&window.YM_Social._nearUsers.has(profile.uuid));
-  var isReciproc=!!(window.YM_Social&&window.YM_Social.isReciprocal&&window.YM_Social.isReciprocal(profile.uuid));
-  var contactBar=document.createElement('div');
-  if(isContact){
-    contactBar.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:var(--r-sm,8px)';
-    contactBar.innerHTML='<span style="color:#30e880;font-size:12px;flex:1">✓ In contacts</span>';
-    var rmBtn=document.createElement('button');rmBtn.className='ym-btn ym-btn-ghost';rmBtn.style.cssText='padding:4px 10px;font-size:11px;min-height:unset;color:#e84040';rmBtn.textContent='Remove';
-    rmBtn.addEventListener('click',function(){try{var all=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');localStorage.setItem('ym_contacts_v1',JSON.stringify(all.filter(function(c){return c.uuid!==profile.uuid;})));}catch(e){}if(window.YM_toast)window.YM_toast('Contact removed','info');renderPeerProfile(container,profile);});
-    contactBar.appendChild(rmBtn);
+  if(!near.length){
+    el.innerHTML+=`<div style="text-align:center;padding:20px 0;color:var(--text3);font-size:12px">No one nearby right now…</div>`;
   }else{
-    var addBtn=document.createElement('button');addBtn.className='ym-btn ym-btn-accent';addBtn.style.cssText='width:100%;margin-bottom:12px';addBtn.textContent='+ Add Contact';
-    addBtn.addEventListener('click',function(){try{var all=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');if(!all.find(function(c){return c.uuid===profile.uuid;})){all.push({uuid:profile.uuid,nickname:'',profile:profile});localStorage.setItem('ym_contacts_v1',JSON.stringify(all));}}catch(e){}if(window.YM_toast)window.YM_toast('Contact added','success');renderPeerProfile(container,profile);});
-    contactBar.appendChild(addBtn);
+    near.forEach(u=>{
+      el.appendChild(userCard(u.profile,'near',()=>{
+        addContact(u.profile);window.YM_toast?.('Contact added','success');renderNearTab(el);
+      }));
+    });
   }
-  container.appendChild(contactBar);
-  var rawSite=profile.site||'';var siteUrl=rawSite&&!rawSite.startsWith('http')?'https://'+rawSite:rawSite;
-  var av=profile.avatar?'<img src="'+profile.avatar+'" style="width:72px;height:72px;border-radius:50%;object-fit:cover">':'<div style="width:72px;height:72px;border-radius:50%;background:var(--surface3,rgba(255,255,255,.05));display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto">'+(profile.name&&profile.name.charAt(0)||'👤')+'</div>';
-  var ident=document.createElement('div');ident.style.cssText='text-align:center;padding:12px 0 16px';
-  ident.innerHTML='<div style="margin-bottom:8px">'+av+'</div><div style="font-size:18px;font-weight:600;margin-bottom:4px">'+(profile.name||'Anonymous')+'</div>'+
-    (profile.bio?'<div style="font-size:13px;color:var(--text2);max-width:280px;margin:0 auto 4px">'+profile.bio+'</div>':'')+
-    (siteUrl?'<a href="'+siteUrl+'" target="_blank" rel="noopener" style="font-size:11px;color:var(--cyan)">'+rawSite+'</a>':'')+
-    (isNear?'<div style="font-size:10px;color:#30e880;margin-top:6px">● Nearby</div>':'');
-  container.appendChild(ident);
-  if(profile.networks&&profile.networks.length){var nets=document.createElement('div');nets.className='ym-card';nets.style.cssText='margin-bottom:10px';nets.innerHTML='<div class="ym-card-title">Social Networks</div><div style="display:flex;flex-wrap:wrap;gap:4px">'+profile.networks.map(function(n){return'<span class="pill">'+n.id+' '+n.handle+'</span>';}).join('')+'</div>';container.appendChild(nets);}
-  if(profile.pubkey){var wallet=document.createElement('div');wallet.className='ym-card';wallet.style.cssText='margin-bottom:10px';wallet.innerHTML='<div class="ym-card-title">Wallet</div><div style="font-family:var(--font-m);font-size:9px;color:var(--text3);word-break:break-all">'+profile.pubkey+'</div>';container.appendChild(wallet);}
-  if(profile.spheres&&profile.spheres.length){
-    var mySpheres=(window.YM&&window.YM.getProfile&&window.YM.getProfile().spheres)||[];
-    var shared=profile.spheres.filter(function(s){return mySpheres.includes(s);});
-    var others=profile.spheres.filter(function(s){return!mySpheres.includes(s);});
-    var ctx={uuid:profile.uuid,isNear:isNear,isReciproc:isReciproc};
-    if(shared.length){var st2=document.createElement('div');st2.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin:12px 0 6px';st2.textContent='Spheres in common';container.appendChild(st2);shared.forEach(function(sf){_renderPeerAccordion(container,sf,ctx);});}
-    if(others.length){var ot=document.createElement('div');ot.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';ot.textContent='Other spheres';container.appendChild(ot);
-      others.forEach(function(sphereFile){var sphereName=sphereFile.replace('.sphere.js','');var sphereObj=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sphereFile);var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm,8px);margin-bottom:6px;cursor:pointer;opacity:.7';var icon=(sphereObj&&sphereObj.icon)||'⬡';row.innerHTML='<span style="font-size:16px">'+icon+'</span><span style="font-size:12px;flex:1">'+sphereName+'</span><span style="font-size:11px;color:var(--accent)">↗ Find</span>';row.addEventListener('click',function(){if(window.YM_Liste&&window.YM_Liste._searchAndOpen)window.YM_Liste._searchAndOpen(sphereName);if(window.YM&&window.YM.openPanel)window.YM.openPanel('panel-spheres');});container.appendChild(row);});
+
+  if(gossip.length){
+    const gossipHdr=document.createElement('div');
+    gossipHdr.style.cssText='font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:12px 0 6px;border-top:1px solid var(--border);margin-top:8px';
+    gossipHdr.textContent='Nearby (via others)';
+    el.appendChild(gossipHdr);
+    gossip.forEach(g=>{
+      el.appendChild(userCard(g.profile,'gossip',()=>{
+        addContact(g.profile);window.YM_toast?.('Contact added','success');renderNearTab(el);
+      }));
+    });
+  }
+}
+
+// ── CONTACTS TAB ──────────────────────────────────────────────────────────────
+function renderContactsTab(el){
+  _clearTabBadge('Contacts');
+  const contacts=loadContacts();
+  el.innerHTML='';
+
+  const addSection=document.createElement('div');addSection.className='ym-card';addSection.style.marginBottom='12px';
+  addSection.innerHTML=`
+    <div class="ym-card-title">Add contact</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input class="ym-input" id="pc-name-input" placeholder="Search by name…" style="flex:1;font-size:12px">
+      <button id="pc-name-search" class="ym-btn ym-btn-ghost" style="font-size:12px">Search</button>
+    </div>
+    <div id="pc-name-results" style="margin-bottom:6px"></div>
+    <div style="display:flex;gap:8px;margin-bottom:0">
+      <button class="ym-btn ym-btn-ghost" id="scan-qr-btn" style="padding:0 10px;font-size:16px;flex-shrink:0" title="Scan QR">📷</button>
+      <input class="ym-input" id="add-uuid-input" placeholder="UUID…" style="flex:1">
+      <button class="ym-btn ym-btn-accent" id="add-uuid-btn" style="flex-shrink:0">Add</button>
+    </div>
+    <div id="qr-scanner-container" style="display:none;margin-top:10px"></div>`;
+  el.appendChild(addSection);
+
+  // Name search
+  addSection.querySelector('#pc-name-search').addEventListener('click',()=>{
+    const query=addSection.querySelector('#pc-name-input').value.trim().toLowerCase();
+    const results=addSection.querySelector('#pc-name-results');
+    if(!query){results.innerHTML='';return;}
+    results.innerHTML='<div style="font-size:11px;color:var(--text3)">Searching…</div>';
+    const nameUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url
+      ?window.YM_REGISTRY_OVERRIDE.url.replace(/\/[^\/]+\.json.*$/,'')
+      :'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main')+'/name.json?t='+Date.now();
+    fetch(nameUrl,{mode:'cors'}).then(r=>r.ok?r.json():Promise.reject()).then(names=>{
+      const matches=Object.entries(names).filter(e=>e[0].toLowerCase().includes(query));
+      if(!matches.length){results.innerHTML='<div style="font-size:11px;color:var(--text3)">No match</div>';return;}
+      results.innerHTML=matches.map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="font-size:12px;color:var(--text);flex:1">${e[0]}</span><span style="font-size:10px;color:var(--text3);font-family:monospace">${e[1].slice(0,8)}…</span><button class="ym-btn ym-btn-accent" style="font-size:11px;padding:2px 8px" data-uuid="${e[1]}">Add</button></div>`).join('');
+      results.querySelectorAll('[data-uuid]').forEach(btn=>{
+        btn.addEventListener('click',()=>{addSection.querySelector('#add-uuid-input').value=btn.dataset.uuid;results.innerHTML='';});
+      });
+    }).catch(()=>{results.innerHTML='<div style="font-size:11px;color:var(--text3)">Could not load registry</div>';});
+  });
+
+  addSection.querySelector('#add-uuid-btn')?.addEventListener('click',()=>{
+    const uuid=addSection.querySelector('#add-uuid-input')?.value?.trim();
+    if(!uuid){window.YM_toast?.('Enter a UUID','error');return;}
+    addContact({uuid,name:'Unknown',addedVia:'uuid'});
+    window.YM_toast?.('Contact added','success');
+    addSection.querySelector('#add-uuid-input').value='';
+    renderContactsTab(el);
+  });
+  addSection.querySelector('#scan-qr-btn')?.addEventListener('click',()=>{
+    const sc=addSection.querySelector('#qr-scanner-container');
+    if(sc.style.display!=='none'){sc.style.display='none';sc.innerHTML='';return;}
+    sc.style.display='block';
+    startQRScanner(sc,uuid=>{
+      sc.style.display='none';sc.innerHTML='';
+      if(!uuid){window.YM_toast?.('No QR detected','warn');return;}
+      const m=uuid.match(/yourmine:\/\/contact\/([a-f0-9-]{36})/);
+      addContact({uuid:m?m[1]:uuid,name:'Unknown',addedVia:'qr'});
+      window.YM_toast?.('Contact added via QR','success');
+      renderContactsTab(el);
+    });
+  });
+
+  const searchInput=document.createElement('input');
+  searchInput.className='ym-input';searchInput.id='contacts-search';
+  searchInput.placeholder='Search contacts…';searchInput.style.marginBottom='10px';
+  el.appendChild(searchInput);
+
+  const listEl=document.createElement('div');el.appendChild(listEl);
+
+  function renderFiltered(q=''){
+    const filtered=contacts.filter(c=>{
+      const n=(c.nickname||c.profile?.name||c.uuid).toLowerCase();
+      return !q||n.includes(q.toLowerCase());
+    });
+    listEl.innerHTML='';
+    if(!filtered.length){listEl.innerHTML=`<div style="color:var(--text3);font-size:12px;padding:8px">No contacts yet</div>`;return;}
+    filtered.forEach(c=>{
+      const profile=c.profile||{uuid:c.uuid,name:c.nickname||c.name||'Unknown'};
+      const card=document.createElement('div');card.className='ym-card';
+      card.style.cssText='cursor:pointer;position:relative';
+      const delX=document.createElement('div');
+      delX.style.cssText='position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;color:var(--text3);z-index:2';
+      delX.textContent='×';
+      delX.addEventListener('click',e=>{e.stopPropagation();saveContacts(loadContacts().filter(x=>x.uuid!==c.uuid));renderContactsTab(el);});
+      card.appendChild(delX);
+      const avatar=profile.avatar?`<img src="${profile.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`:`<div style="width:36px;height:36px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:16px">${profile.name?.charAt(0)||'👤'}</div>`;
+      const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;padding-right:24px';
+      row.innerHTML=`<div style="flex-shrink:0">${avatar}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${c.nickname||profile.name||'Anonymous'}</div>
+          ${profile.bio?`<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${profile.bio}</div>`:''}
+        </div>`;
+      card.appendChild(row);
+      const nickWrap=document.createElement('div');nickWrap.style.marginTop='8px';
+      const nickInput=document.createElement('input');
+      nickInput.className='ym-input';nickInput.style.fontSize='11px';
+      nickInput.placeholder='Set nickname…';nickInput.value=c.nickname||'';
+      nickInput.addEventListener('click',e=>e.stopPropagation());
+      nickInput.addEventListener('pointerdown',e=>e.stopPropagation());
+      nickInput.addEventListener('change',e=>{
+        e.stopPropagation();
+        updateNickname(c.uuid,nickInput.value);
+        window.YM_toast?.('Nickname saved','success');
+        renderContactsTab(el);
+      });
+      nickWrap.appendChild(nickInput);card.appendChild(nickWrap);
+      if(profile.networks?.length){
+        const nets=document.createElement('div');nets.style.cssText='margin-top:6px;display:flex;flex-wrap:wrap;gap:4px';
+        profile.networks.forEach(n=>{const p=document.createElement('span');p.className='pill';p.textContent=n.id+' '+n.handle;nets.appendChild(p);});
+        card.appendChild(nets);
+      }
+      if(_nearUsers.has(profile.uuid)&&isReciprocal(profile.uuid)){
+        const callBtn=document.createElement('button');callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:8px;font-size:12px';
+        callBtn.textContent='📞 Voice Call';
+        callBtn.addEventListener('click',e=>{e.stopPropagation();window.YM_Call?.startVoiceCall(profile.uuid);});
+        card.appendChild(callBtn);
+      }
+      card.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
+      listEl.appendChild(card);
+    });
+  }
+  renderFiltered();
+  searchInput.addEventListener('input',e=>renderFiltered(e.target.value));
+}
+
+// ── FEED TAB ──────────────────────────────────────────────────────────────────
+function renderFeedTab(el){
+  el.innerHTML='';
+  const tabs=['Nearby','Contacts'];
+  let currentIdx=0;
+
+  const subTabs=document.createElement('div');subTabs.className='ym-tabs';
+  const feedContent=document.createElement('div');
+  feedContent.style.cssText='flex:1;overflow:hidden;position:relative';
+
+  let swipeX=0,swipeY=0,swiping=false;
+  feedContent.addEventListener('pointerdown',e=>{swipeX=e.clientX;swipeY=e.clientY;swiping=true;},{passive:true});
+  feedContent.addEventListener('pointerup',e=>{
+    if(!swiping)return;swiping=false;
+    const dx=e.clientX-swipeX,dy=e.clientY-swipeY;
+    if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.5){
+      const next=dx>0?Math.min(currentIdx+1,tabs.length-1):Math.max(currentIdx-1,0);
+      if(next!==currentIdx){currentIdx=next;switchTab(next);}
+    }
+  },{passive:true});
+
+  function switchTab(idx){
+    currentIdx=idx;
+    subTabs.querySelectorAll('.ym-tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+    feedContent.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Loading…</div>';
+    if(tabs[idx]==='Nearby'){
+      loadFeedForUsers([..._nearUsers.values()].map(u=>u.profile),feedContent);
+    }else{
+      const contacts=(()=>{try{return JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{return[];}})();
+      loadFeedForUsers(contacts.map(c=>c.profile).filter(Boolean),feedContent);
     }
   }
-}
 
-function _renderPeerAccordion(container,sphereFile,ctx){
-  var sphereName=sphereFile.replace('.sphere.js','');
-  var sphereObj=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sphereFile);
-  var icon=(sphereObj&&sphereObj.icon)||'⬡';
-  var wrap=document.createElement('div');wrap.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm,8px);margin-bottom:6px';
-  var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;background:rgba(255,255,255,.02)';
-  hdr.innerHTML='<span style="font-size:16px">'+icon+'</span><span style="font-size:12px;font-weight:600;flex:1">'+sphereName+'</span><span class="acc-arrow" style="font-size:10px;color:var(--text3)">›</span>';
-  var body=document.createElement('div');body.style.cssText='display:none;padding:10px 12px;border-top:1px solid var(--border)';
-  hdr.addEventListener('click',function(){
-    var open=body.style.display!=='none';body.style.display=open?'none':'block';hdr.querySelector('.acc-arrow').textContent=open?'›':'⌄';
-    if(!open&&!body.children.length){if(sphereObj&&typeof sphereObj.peerSection==='function'){try{sphereObj.peerSection(body,ctx);}catch(e){body.innerHTML='<div style="color:var(--text3);font-size:11px">'+e.message+'</div>';}}else{body.innerHTML='<div style="font-size:11px;color:var(--text2)">'+(sphereObj&&sphereObj.description||'No interactions available')+'</div>';}}
+  tabs.forEach((t,i)=>{
+    const tab=document.createElement('div');
+    tab.className='ym-tab'+(i===0?' active':'');
+    tab.dataset.tab=t;tab.textContent=t;
+    tab.addEventListener('click',()=>switchTab(i));
+    subTabs.appendChild(tab);
   });
-  wrap.appendChild(hdr);wrap.appendChild(body);container.appendChild(wrap);
+
+  el.appendChild(subTabs);
+  el.appendChild(feedContent);
+  switchTab(0);
 }
 
-window._renderProfileView=renderPeerProfile;
-window.YM_Profile={render:render,renderFor:function(n){render(n);},showShare:showShare};
+async function loadFeedForUsers(profiles,container){
+  container.innerHTML='';
+  if(!profiles.length){
+    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No profiles yet</div>`;
+    return;
+  }
+
+  const feedProfiles=profiles.filter(p=>(p.networks||[]).some(n=>FEED_NETWORKS.find(f=>f.id===n.id)));
+  if(!feedProfiles.length){
+    container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No public social networks in these profiles</div>`;
+    return;
+  }
+
+  for(const profile of feedProfiles){
+    const networks=(profile.networks||[]).filter(n=>FEED_NETWORKS.find(f=>f.id===n.id));
+    if(!networks.length) continue;
+
+    const banner=document.createElement('div');
+    banner.style.cssText='position:sticky;top:0;z-index:10;background:rgba(8,8,15,.92);backdrop-filter:blur(8px);padding:8px 0 6px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:4px';
+    const av=profile.avatar?`<img src="${profile.avatar}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`:`<div style="width:32px;height:32px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${profile.name?.charAt(0)||'👤'}</div>`;
+    banner.innerHTML=`${av}<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;color:var(--text)">${profile.name||'Anonymous'}</div><div style="font-size:10px;color:var(--text3)">${networks.map(n=>n.id).join(' · ')}</div></div><span style="font-size:10px;color:var(--accent)">›</span>`;
+    banner.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
+    container.appendChild(banner);
+
+    const feedWrap=document.createElement('div');feedWrap.style.marginBottom='16px';
+    feedWrap.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:6px 0">Loading…</div>`;
+    container.appendChild(feedWrap);
+
+    fetchFeedItems(networks).then(items=>{
+      feedWrap.innerHTML='';
+      if(!items.length){
+        feedWrap.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:6px 0;text-align:center">No posts found</div>`;
+        return;
+      }
+      items.slice(0,10).forEach(item=>{
+        const card=document.createElement('div');card.className='ym-card';card.style.cssText='cursor:pointer;margin-bottom:8px';
+        const excerpt=item.text?(item.text.slice(0,180)+(item.text.length>180?'…':'')):'';
+        card.innerHTML=`
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span class="pill" style="font-size:9px">${item.network}</span>
+            <span style="font-size:9px;color:var(--text3);margin-left:auto">${new Date(item.ts).toLocaleDateString()}</span>
+          </div>
+          ${item.image?`<img src="${item.image}" style="width:100%;border-radius:var(--r-sm);margin-bottom:8px;max-height:180px;object-fit:cover" loading="lazy" onerror="this.style.display='none'">`:''}
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.4">${item.title||''}</div>
+          ${excerpt?`<div style="font-size:12px;color:var(--text2);line-height:1.5">${excerpt}</div>`:''}
+        `;
+        if(item.url) card.addEventListener('click',()=>window.open(item.url,'_blank'));
+        feedWrap.appendChild(card);
+      });
+    }).catch(()=>{
+      feedWrap.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:6px 0;text-align:center">Could not load feed</div>`;
+    });
+  }
+}
+
+// ── SEARCH TAB ────────────────────────────────────────────────────────────────
+async function renderSearchTab(el){
+  el.innerHTML='';
+  const form=document.createElement('div');form.style.cssText='margin-bottom:12px';
+  form.innerHTML=
+    '<input id="srch-query" class="ym-input" placeholder="Search by keyword, name…" style="margin-bottom:8px;font-size:13px">'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="srch-sphere-filters"></div>'+
+    '<button class="ym-btn ym-btn-accent" id="srch-go" style="width:100%;font-size:13px">Search</button>';
+  el.appendChild(form);
+  const resultsEl=document.createElement('div');el.appendChild(resultsEl);
+
+  let sphereFilters=[];
+  const filterWrap=form.querySelector('#srch-sphere-filters');
+  if(window.YM_sphereRegistry){
+    window.YM_sphereRegistry.forEach((s,id)=>{
+      if(s.isProfileSphere||id==='social.sphere.js') return;
+      const pill=document.createElement('button');
+      pill.className='ym-btn ym-btn-ghost';
+      pill.style.cssText='font-size:10px;padding:2px 10px;border-radius:20px';
+      pill.textContent=id.replace('.sphere.js','');
+      pill.dataset.active='0';
+      pill.addEventListener('click',()=>{
+        const active=pill.dataset.active==='1';
+        pill.dataset.active=active?'0':'1';
+        pill.style.background=active?'':'rgba(240,168,48,.15)';
+        pill.style.borderColor=active?'':'var(--gold)';
+        pill.style.color=active?'':'var(--gold)';
+        if(active) sphereFilters=sphereFilters.filter(s=>s!==id);
+        else sphereFilters.push(id);
+      });
+      filterWrap.appendChild(pill);
+    });
+  }
+
+  form.querySelector('#srch-go').addEventListener('click',async()=>{
+    const query=form.querySelector('#srch-query').value.trim().toLowerCase();
+    resultsEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Searching…</div>';
+    const registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
+    const repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+    const urls=['https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/profile.json'];
+    if(repoMatch&&repoMatch[1]!=='theodoreyong9/YourMinedApp') urls.unshift('https://raw.githubusercontent.com/'+repoMatch[1]+'/main/profile.json');
+    let allProfiles=[];
+    for(const url of urls){
+      try{const r=await fetch(url+'?t='+Date.now(),{mode:'cors'});if(r.ok){const data=await r.json();if(Array.isArray(data))allProfiles=allProfiles.concat(data);}}catch{}
+    }
+    const seen={};allProfiles=allProfiles.filter(p=>{if(seen[p.uuid])return false;seen[p.uuid]=true;return true;});
+    // Sort by score descending
+    allProfiles.sort((a,b)=>(b.score||0)-(a.score||0));
+    const filtered=allProfiles.filter(p=>{
+      if(sphereFilters.length){if(!sphereFilters.some(sf=>(p.spheres||[]).includes(sf)))return false;}
+      if(!query) return true;
+      return (p.name||'').toLowerCase().includes(query)||(p.keywords||[]).join(' ').toLowerCase().includes(query)||(p.bio||'').toLowerCase().includes(query);
+    });
+    resultsEl.innerHTML='';
+    if(!filtered.length){resultsEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">No profiles found</div>';return;}
+    filtered.forEach(profile=>{
+      const card=document.createElement('div');card.className='ym-card';card.style.cursor='pointer';
+      const accent=profile.accent||'#f0a830';
+      card.innerHTML=
+        `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:${accent}">${(profile.name||'?').charAt(0).toUpperCase()}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;color:var(--text)">${profile.name||'Anonymous'}</div>
+            ${profile.bio?`<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${profile.bio}</div>`:''}
+          </div>
+        </div>`+
+        (profile.keywords?.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${profile.keywords.slice(0,5).map(k=>`<span style="font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid ${accent};color:${accent};opacity:.7">${k}</span>`).join('')}</div>`:'')+
+        (profile.spheres?.length?`<div style="display:flex;flex-wrap:wrap;gap:4px">${profile.spheres.slice(0,4).map(s=>`<span style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.5)">${s.replace('.sphere.js','')}</span>`).join('')}</div>`:'');
+      card.addEventListener('click',()=>{
+        if(profile.profileSphere&&!window.YM_S[profile.uuid+'.profile.js']){
+          const s=document.createElement('script');s.src=profile.profileSphere+'?t='+Date.now();document.head.appendChild(s);
+          s.onload=()=>window.YM?.openProfilePanel?.(profile);
+        }else window.YM?.openProfilePanel?.(profile);
+      });
+      resultsEl.appendChild(card);
+    });
+  });
+}
+
+// Stack de navigation interne — plus utilisée, gardée vide
+const _panelHistory=[];
+
+window.YM_Social = {
+  openProfile(uuid){
+    const near=_nearUsers.get(uuid);
+    const contact=getContact(uuid);
+    const profile=near?.profile||contact?.profile||{uuid,name:'Unknown'};
+    if(!profile) return;
+    window.YM?.openProfilePanel?.(profile);
+  },
+  isReciprocal,
+  get _nearUsers(){return _nearUsers;},
+  get _contacts(){return loadContacts().map(c=>c.uuid);}
+};
+
+// ── USER CARD ──────────────────────────────────────────────────────────────────
+function userCard(profile,type,onAdd){
+  const card=document.createElement('div');card.className='ym-card';card.style.cursor='pointer';
+  const isContact=!!getContact(profile.uuid);
+  card.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:28px;flex-shrink:0">${profile.avatar?`<img src="${profile.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`:profile.name?.charAt(0)||'👤'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px">${profile.name||'Anonymous'}</div>
+        ${profile.bio?`<div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${profile.bio}</div>`:''}
+      </div>
+      ${onAdd&&!isContact?`<button class="ym-btn ym-btn-ghost" style="padding:4px 10px;font-size:12px;min-height:unset" data-add>+</button>`:''}
+      ${isContact&&type==='near'?'<span style="font-size:10px;color:var(--green)">✓</span>':''}
+    </div>
+  `;
+  card.querySelector('[data-add]')?.addEventListener('click',e=>{e.stopPropagation();onAdd?.();});
+  card.addEventListener('click',e=>{if(!e.target.closest('[data-add]'))window.YM_Social?.openProfile?.(profile.uuid);});
+  return card;
+}
 
 })();
-
-// ── Profile Sphere Editor ─────────────────────────────────────────────────────
-function openProfileSphereEditor(){
-  var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
-  var uuid=p.uuid||'';
-  var name=p.name||'';
-  if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
-
-  // Load existing profile sphere config from localStorage
-  var PROF_KEY='ym_profile_sphere_'+uuid;
-  var config;
-  try{config=JSON.parse(localStorage.getItem(PROF_KEY)||'null');}catch{config=null;}
-  config=config||{
-    keywords:[],
-    bio:p.bio||'',
-    accent:'#f0a830',
-    sections:['identity','spheres','networks','bio'],
-    customCode:''
-  };
-
-  var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.9);display:flex;flex-direction:column;overflow:hidden';
-  ov.innerHTML=
-    '<div style="flex:1;overflow-y:auto;padding:16px">'+
-
-    // Keywords
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Keywords (comma separated)</div>'+
-    '<input id="pse-keywords" class="ym-input" style="margin-bottom:12px;font-size:12px" value="'+config.keywords.join(', ')+'" placeholder="builder, circular economy, web3…">'+
-
-    // Accent color
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Accent color</div>'+
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'+
-    '<input type="color" id="pse-accent" value="'+config.accent+'" style="width:40px;height:32px;border:none;background:none;cursor:pointer;padding:0">'+
-    '<span id="pse-accent-val" style="font-size:12px;color:var(--text3)">'+config.accent+'</span>'+
-    '</div>'+
-
-    // Sections order — only relevant for custom code
-    '<div id="pse-sections-wrap" style="display:'+(config.customCode?'block':'none')+'">'+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sections order</div>'+
-    '<div id="pse-sections" style="margin-bottom:8px"></div>'+
-    '</div>'+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;margin-top:4px;text-transform:uppercase;letter-spacing:.1em">Spheres</div>'+
-    '<div id="pse-spheres" style="margin-bottom:12px"></div>'+
-
-    // Custom code
-    '<div style="display:flex;align-items:center;margin-bottom:4px">'+
-    '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;flex:1">Custom JS (optional — renderPanel body)</div>'+
-    '<button id="pse-copy-prompt" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:2px 8px">✦ Copy Prompt</button>'+
-    '</div>'+
-    '<textarea id="pse-code" style="width:100%;box-sizing:border-box;height:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;margin-bottom:12px;resize:vertical" placeholder="// renderPanel body — or paste a full sphere (window.YM_S[...])">'+config.customCode+'</textarea>'+
-
-    // Token for publish
-    '<div id="pse-token-wrap">'+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">GitHub token</div>'+
-    '<input id="pse-token" type="password" class="ym-input" style="margin-bottom:4px;font-size:12px" placeholder="Token (or connect via Build)">'+
-    '</div>'+
-
-    '<div id="pse-token-wrap"></div>'+
-    '<div id="pse-status" style="font-size:11px;color:var(--text3);text-align:center;min-height:14px;margin-top:4px"></div>'+
-    '</div>'+
-    // Bottom toolbar
-    '<div style="border-top:1px solid rgba(255,255,255,.08);padding:12px 16px;flex-shrink:0">'+
-    '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">✦ Profile Sphere</div>'+
-    '<div style="display:flex;gap:6px;margin-bottom:6px">'+
-    '<button id="pse-before" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1">Before</button>'+
-    '<button id="pse-after" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1">After</button>'+
-    '<button id="pse-unpublish" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1;color:var(--red,#e84040);border-color:rgba(232,64,64,.3)">Unpublish</button>'+
-    '</div>'+
-    '<div style="display:flex;gap:6px">'+
-    '<button id="pse-close" class="ym-btn ym-btn-ghost" style="font-size:13px;flex:1">Cancel</button>'+
-    '<button id="pse-publish" class="ym-btn ym-btn-accent" style="font-size:13px;flex:2">Publish</button>'+
-    '</div>'+
-    '</div>';
-
-  document.body.appendChild(ov);
-
-  // Check build token
-  try{var bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
-    if(bt&&bt.token){ov.querySelector('#pse-token-wrap').innerHTML='<div style="font-size:11px;color:var(--gold);margin-bottom:8px">✓ Using GitHub token from Build</div>';}
-  }catch{}
-
-  // Show sections order only when custom code is present
-  ov.querySelector('#pse-code').addEventListener('input',function(){
-    var wrap=ov.querySelector('#pse-sections-wrap');
-    if(wrap) wrap.style.display=this.value.trim()?'block':'none';
-  });
-
-  // Accent color live update
-  ov.querySelector('#pse-accent').addEventListener('input',function(){
-    ov.querySelector('#pse-accent-val').textContent=this.value;
-  });
-
-  // Sections drag-to-reorder (simple up/down buttons)
-  function renderSections(){
-    var sec=ov.querySelector('#pse-sections');
-    sec.innerHTML='';
-    config.sections.forEach(function(s,i){
-      var row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:4px;padding:5px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
-      row.innerHTML='<span style="flex:1;font-size:12px;color:var(--text)">'+s+'</span>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-up>↑</button>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-dn>↓</button>';
-      row.querySelector('[data-up]').onclick=function(){if(i>0){config.sections.splice(i-1,0,config.sections.splice(i,1)[0]);renderSections();}};
-      row.querySelector('[data-dn]').onclick=function(){if(i<config.sections.length-1){config.sections.splice(i+1,0,config.sections.splice(i,1)[0]);renderSections();}};
-      sec.appendChild(row);
-    });
-  }
-
-  function renderSpheresConfig(){
-    var spEl=ov.querySelector('#pse-spheres');
-    if(!spEl) return;
-    spEl.innerHTML='';
-    config.sphereConfig=config.sphereConfig||{};
-    var activeSpheres=p.spheres||[];
-    if(!activeSpheres.length){
-      spEl.innerHTML='<div style="font-size:11px;color:var(--text3)">No active spheres</div>';
-      return;
-    }
-    activeSpheres.forEach(function(id,i){
-      var sc=config.sphereConfig[id]||{visible:true,autoOpen:false};
-      config.sphereConfig[id]=sc;
-      var label=id.replace('.sphere.js','');
-      var row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:4px;padding:5px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
-      row.innerHTML='<span style="flex:1;font-size:12px;color:'+(sc.visible?'var(--text)':'var(--text3)')+'">'+label+'</span>'
-        +'<span class="sp-visible" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(sc.visible?'var(--accent)':'rgba(255,255,255,.12)')+';color:'+(sc.visible?'var(--accent)':'var(--text3)')+';cursor:pointer">show</span>'
-        +'<span class="sp-auto" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(sc.autoOpen?'var(--gold)':'rgba(255,255,255,.12)')+';color:'+(sc.autoOpen?'var(--gold)':'var(--text3)')+';cursor:pointer">auto</span>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-up>↑</button>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-dn>↓</button>';
-      row.querySelector('.sp-visible').onclick=function(){
-        sc.visible=!sc.visible;renderSpheresConfig();
-      };
-      row.querySelector('.sp-auto').onclick=function(){
-        sc.autoOpen=!sc.autoOpen;renderSpheresConfig();
-      };
-      row.querySelector('[data-up]').onclick=function(){
-        if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}
-      };
-      row.querySelector('[data-dn]').onclick=function(){
-        if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}
-      };
-      spEl.appendChild(row);
-    });
-  }
-  renderSections();
-  renderSpheresConfig();
-
-  // Collect config from form
-  function collectConfig(){
-    return {
-      uuid:uuid,
-      name:name,
-      keywords:ov.querySelector('#pse-keywords').value.split(',').map(function(k){return k.trim();}).filter(Boolean),
-      bio:p.bio||'',
-      pubkey:p.pubkey||'',
-      spheres:p.spheres||[],
-      accent:ov.querySelector('#pse-accent').value,
-      sections:config.sections.slice(),
-      sphereConfig:config.sphereConfig||{},
-      sphereOrder:p.spheres||[],
-      autoOpen:config.autoOpen||[],
-      customCode:ov.querySelector('#pse-code').value
-    };
-  }
-
-  // Close
-  ov.querySelector('#pse-close').onclick=function(){ov.remove();};
-
-  // Copy AI Prompt button
-  ov.querySelector('#pse-copy-prompt').onclick=function(){
-    var prompt='yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
-    if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(prompt).then(function(){window.YM_toast&&window.YM_toast('Prompt copied — paste it in your AI','success');});
-    }else{
-      var ta=document.createElement('textarea');ta.value=prompt;ta.style.cssText='position:fixed;opacity:0';
-      document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();
-      window.YM_toast&&window.YM_toast('Prompt copied — paste it in your AI','success');
-    }
-  };
-
-  // Unpublish — remove from profile.json
-  ov.querySelector('#pse-unpublish').onclick=async function(){
-    var status=ov.querySelector('#pse-status');
-    var tokenEl=ov.querySelector('#pse-token');
-    var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
-    var token=(bt&&bt.token)||(tokenEl?tokenEl.value.trim():'');
-    if(!token){status.textContent='GitHub token required';return;}
-    var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
-    var repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
-    var repo=repoMatch?repoMatch[1]:(bt&&bt.repo)||'';
-    if(!repo){status.textContent='No registry configured';return;}
-    status.textContent='Removing…';
-    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
-    var profileJsonUrl='https://api.github.com/repos/'+repo+'/contents/profile.json';
-    var sha=null,profiles=[];
-    try{var pr=await fetch(profileJsonUrl,{headers});if(pr.ok){var pj=await pr.json();sha=pj.sha;profiles=JSON.parse(atob(pj.content.replace(/\n/g,'')));}}catch{}
-    profiles=profiles.filter(function(x){return x.uuid!==uuid;});
-    var content=btoa(unescape(encodeURIComponent(JSON.stringify(profiles,null,2))));
-    var body={message:'remove profile: '+name,content};
-    if(sha)body.sha=sha;
-    var res=await fetch(profileJsonUrl,{method:'PUT',headers,body:JSON.stringify(body)});
-    if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Profile removed';setTimeout(function(){ov.remove();},1200);}
-    else{var e=await res.json();status.textContent='Error: '+(e.message||res.status);}
-  };
-
-  // Before — visitor view of classic profile
-  ov.querySelector('#pse-before').onclick=function(){
-    ov.style.display='none';
-    var myProfile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
-    window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel(myProfile);
-    // Reopen editor when panel closes
-    var _check=setInterval(function(){
-      var panel=document.getElementById('panel-profile-view')||document.getElementById('panel-sphere');
-      if(!panel||!panel.classList.contains('open')){
-        clearInterval(_check);
-        ov.style.display='flex';
-      }
-    },400);
-  };
-
-  ov.querySelector('#pse-after').onclick=function(){
-    var cfg=collectConfig();
-    localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
-    var code=_generateProfileSphere(cfg);
-    // Replace placeholder uuid with real uuid
-    code=code.replace(/xxxx-xxxx-xxxx-xxxx/g,cfg.uuid);
-
-    // Inject via script tag — more reliable than new Function
-    var sphereId=cfg.uuid+'.profile.js';
-    document.getElementById('pse-preview-script')?.remove();
-    var script=document.createElement('script');
-    script.id='pse-preview-script';
-    script.textContent=code;
-    document.head.appendChild(script);
-
-    // Small delay for script to execute
-    setTimeout(function(){
-      var s=window.YM_S[sphereId];
-      if(!s){
-        // Fallback — any profile sphere
-        Object.keys(window.YM_S||{}).forEach(function(k){
-          if(window.YM_S[k].isProfileSphere&&!s){s=window.YM_S[k];sphereId=k;}
-        });
-      }
-      if(!s){ov.querySelector('#pse-status').textContent='Generation failed — check console';return;}
-      if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId,s);
-      ov.style.display='none';
-      window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
-      var _check=setInterval(function(){
-        var panel=document.getElementById('panel-sphere');
-        if(!panel||!panel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
-      },400);
-    },100);
-  };
-
-  // Publish
-  ov.querySelector('#pse-publish').onclick=async function(){
-    var cfg=collectConfig();
-    localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
-    var status=ov.querySelector('#pse-status');
-    var tokenEl=ov.querySelector('#pse-token');
-    var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
-    var token=(bt&&bt.token)||(tokenEl?tokenEl.value.trim():'');
-    if(!token){status.textContent='GitHub token required';return;}
-
-    // Wallet check
-    var pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
-    if(!pubkey){status.textContent='❌ Connect your wallet first';return;}
-    var elig=window.YM_Build&&window.YM_Build.computeEligibility?await window.YM_Build.computeEligibility():null;
-    if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant';return;}
-
-    // Derive repo
-    var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
-    var repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
-    var repo=repoMatch?repoMatch[1]:(bt&&bt.repo)||'';
-    if(!repo){status.textContent='No registry configured';return;}
-
-    status.textContent='Generating profile sphere…';
-
-    // Generate monprofile.profile.js
-    var sphereCode=_generateProfileSphere(cfg);
-    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
-    var apiBase='https://api.github.com/repos/'+repo+'/contents/';
-
-    // Push monprofile.profile.js
-    var sphereUrl=apiBase+uuid+'.profile.js';
-    var sphereSha=null;
-    try{var sr=await fetch(sphereUrl,{headers});if(sr.ok){var sj=await sr.json();sphereSha=sj.sha;}}catch{}
-    var sphereContent=btoa(unescape(encodeURIComponent(sphereCode)));
-    var sphereBody={message:'publish profile: '+name,content:sphereContent};
-    if(sphereSha)sphereBody.sha=sphereSha;
-    var sphereRes=await fetch(sphereUrl,{method:'PUT',headers,body:JSON.stringify(sphereBody)});
-    if(!sphereRes.ok){var e=await sphereRes.json();status.textContent='Error: '+(e.message||sphereRes.status);return;}
-
-    var rawSphereUrl='https://raw.githubusercontent.com/'+repo+'/main/'+uuid+'.profile.js';
-
-    // Update profile.json
-    var profileJsonUrl=apiBase+'profile.json';
-    var profileSha=null;
-    var profiles=[];
-    try{var pr=await fetch(profileJsonUrl,{headers});if(pr.ok){var pj=await pr.json();profileSha=pj.sha;profiles=JSON.parse(atob(pj.content.replace(/\n/g,'')));}}catch{}
-    profiles=profiles.filter(function(x){return x.uuid!==uuid;});
-    profiles.push({uuid,name,keywords:cfg.keywords,bio:cfg.bio,pubkey:pubkey,spheres:cfg.spheres,accent:cfg.accent,profileSphere:rawSphereUrl,ts:Date.now()});
-    var profileContent=btoa(unescape(encodeURIComponent(JSON.stringify(profiles,null,2))));
-    var profileBody={message:'update profile.json: '+name,content:profileContent};
-    if(profileSha)profileBody.sha=profileSha;
-    var profileRes=await fetch(profileJsonUrl,{method:'PUT',headers,body:JSON.stringify(profileBody)});
-    if(!profileRes.ok){var e2=await profileRes.json();status.textContent='Error updating profile.json: '+(e2.message||profileRes.status);return;}
-
-    status.style.color='var(--gold)';status.textContent='✓ Profile published';
-    setTimeout(function(){ov.remove();},1500);
-  };
-}
-
-// Generate the profile sphere JS code
-function _generateProfileSphere(cfg){
-  if(cfg.customCode&&cfg.customCode.includes('window.YM_S[')){
-    // Extract renderPanel body from full sphere code
-    var _bodyMatch=cfg.customCode.match(/renderPanel\s*:\s*function\s*\(container\)\s*\{([\s\S]*?)\},\s*profileSection/);
-    var _extractedBody=_bodyMatch?_bodyMatch[1]:'/* custom code unparseable - using default */';
-    cfg=Object.assign({},cfg,{customCode:_extractedBody});
-  }
-  // Default body — use classic visitor layout via _renderProfileView
-  var defaultBody = 'if(window._renderProfileView){var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};window._renderProfileView(p,container);return;}';
-  var body = cfg.customCode || defaultBody;
-
-  var cfgJson = JSON.stringify(cfg);
-  var sphereId = cfg.uuid + '.profile.js';
-  return [
-    '(function(){',
-    'var cfg=' + cfgJson + ';',
-    'window.YM_S[' + JSON.stringify(sphereId) + ']={',
-    '  name:' + JSON.stringify(cfg.name) + ',',
-    '  icon:"\u2746",',
-    '  category:"Profile",',
-    '  isProfileSphere:true,',
-    '  activate:function(){},',
-    '  deactivate:function(){},',
-    '  renderPanel:function(container){',
-    '    (function(){' + body + '})();',
-    '    // ── Priority layer — spheres always injected after custom code ──',
-    '    var _sc=cfg.sphereConfig||{};',
-    '    var _so=cfg.sphereOrder||cfg.spheres||[];',
-    '    var _hasSection=_so.some(function(id){var s=_sc[id];return !s||s.visible!==false;});',
-    '    if(_hasSection){',
-    '      var _wrap=document.createElement("div");',
-    '      _wrap.style.cssText="border-top:1px solid rgba(255,255,255,.06);margin-top:8px";',
-    '      _so.forEach(function(id){',
-    '        var sc=_sc[id]||{visible:true,autoOpen:false};',
-    '        if(sc.visible===false) return;',
-    '        var sphere=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(id);',
-    '        if(!sphere||typeof sphere.profileSection!=="function") return;',
-    '        var hdr=document.createElement("div");',
-    '        hdr.style.cssText="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);cursor:pointer";',
-    '        var label=id.replace(".sphere.js","");',
-    '        hdr.innerHTML="<span style=\\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);flex:1\\">"+label+"</span><span style=\\"font-size:11px;color:var(--text3)\\">▼</span>";',
-    '        var body2=document.createElement("div");',
-    '        body2.style.cssText="padding:12px 14px;display:none";',
-    '        var open2=sc.autoOpen||false;',
-    '        function toggle2(){open2=!open2;body2.style.display=open2?"block":"none";hdr.querySelector("span:last-child").textContent=open2?"▲":"▼";}',
-    '        if(open2){body2.style.display="block";hdr.querySelector("span:last-child")&&(hdr.querySelector("span:last-child").textContent="▲");}',
-    '        hdr.addEventListener("click",toggle2);',
-    '        try{var _pr=window.YM&&window.YM.getProfile?window.YM.getProfile():{};if(typeof sphere.peerSection==="function"){sphere.peerSection(body2,{uuid:_pr.uuid,isNear:true,isReciproc:true,profile:_pr});}else if(typeof sphere.profileSection==="function"){sphere.profileSection(body2);}}catch(e){}',
-    '        var acc=document.createElement("div");acc.style.cssText="border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px";',
-    '        acc.appendChild(hdr);acc.appendChild(body2);',
-    '        _wrap.appendChild(acc);',
-    '      });',
-    '      container.appendChild(_wrap);',
-    '    }',
-    '  },',
-    '  profileSection:function(){}',
-    '};',
-    '})();'
-  ].join('\n');
-}
-window.openProfileSphereEditor=openProfileSphereEditor;
-
-
-// ── Profile Menu ──────────────────────────────────────────────────────────────
-function _openProfileMenu(){
-  document.getElementById('prof-menu-sheet')?.remove();
-  var sheet=document.createElement('div');sheet.id='prof-menu-sheet';
-  sheet.style.cssText='position:fixed;inset:0;z-index:2500;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center';
-  var box=document.createElement('div');
-  box.style.cssText='background:var(--bg2,#1a1a2e);border-radius:14px 14px 0 0;padding:16px;width:100%;max-width:400px';
-
-  var items=[
-    {icon:'👤',label:'Edit identity',sub:'Avatar, name, bio, website',fn:openIdentityEditor},
-    {icon:'💾',label:'Backup',sub:'Export your identity',fn:function(){sheet.remove();openBackupOverlay();}},
-    {icon:'🔁',label:'Recovery',sub:'P2P identity recovery',fn:function(){sheet.remove();openRecoveryOverlay();}},
-    {icon:'📡',label:'Publish name',sub:'Link your name to your UUID',fn:function(){sheet.remove();openPublishNameOverlay();}},
-    {icon:'✦', label:'Profile sphere',sub:'Customize your public profile',fn:function(){sheet.remove();openProfileSphereEditor();}},
-  ];
-
-  box.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;text-align:center">Profile</div>';
-  items.forEach(function(item){
-    var row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:12px;padding:12px 8px;cursor:pointer;border-radius:8px;';
-    row.innerHTML='<span style="font-size:22px;width:32px;text-align:center">'+item.icon+'</span>'
-      +'<div><div style="font-size:13px;color:var(--text)">'+item.label+'</div>'
-      +'<div style="font-size:11px;color:var(--text3)">'+item.sub+'</div></div>';
-    row.addEventListener('click',function(){sheet.remove();item.fn();});
-    row.addEventListener('mouseenter',function(){this.style.background='rgba(255,255,255,.04)';});
-    row.addEventListener('mouseleave',function(){this.style.background='';});
-    box.appendChild(row);
-  });
-
-  var cancelBtn=document.createElement('button');
-  cancelBtn.className='ym-btn ym-btn-ghost';cancelBtn.style.cssText='width:100%;margin-top:12px;font-size:13px';
-  cancelBtn.textContent='Cancel';cancelBtn.onclick=function(){sheet.remove();};
-  box.appendChild(cancelBtn);
-  sheet.appendChild(box);
-  sheet.addEventListener('click',function(e){if(e.target===sheet)sheet.remove();});
-  document.body.appendChild(sheet);
-}
-window._openProfileMenu=_openProfileMenu;
-
-// ── Identity Editor ───────────────────────────────────────────────────────────
-function openIdentityEditor(){
-  var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
-  var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px';
-  ov.innerHTML=
-    '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:20px;width:100%;max-width:340px">'+
-    '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:16px">👤 Edit identity</div>'+
-    // Avatar
-    '<div style="display:flex;justify-content:center;margin-bottom:12px">'+
-    '<div id="id-av" style="width:72px;height:72px;border-radius:50%;background:var(--surface3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;overflow:hidden">'
-    +(p.avatar?'<img src="'+p.avatar+'" style="width:100%;height:100%;object-fit:cover">':'&#128100;')+
-    '</div></div>'+
-    '<input id="id-name" class="ym-input" placeholder="Display name" value="'+(p.name||'')+'" style="margin-bottom:8px;font-size:13px">'+
-    '<textarea id="id-bio" class="ym-input" placeholder="Short bio" style="height:60px;font-size:13px;margin-bottom:8px">'+(p.bio||'')+'</textarea>'+
-    '<input id="id-site" class="ym-input" placeholder="Website" value="'+(p.site||'')+'" style="margin-bottom:16px;font-size:13px">'+
-    '<div style="display:flex;gap:8px">'+
-    '<button id="id-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
-    '<button id="id-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
-    '</div></div>';
-  document.body.appendChild(ov);
-
-  ov.querySelector('#id-av').addEventListener('click',function(){
-    var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
-    inp.onchange=function(){var r=new FileReader();r.onload=function(e){
-      window.YM&&window.YM.saveProfile&&window.YM.saveProfile({avatar:e.target.result});
-      ov.querySelector('#id-av').innerHTML='<img src="'+e.target.result+'" style="width:100%;height:100%;object-fit:cover">';
-    };r.readAsDataURL(inp.files[0]);};
-    inp.click();
-  });
-  ov.querySelector('#id-cancel').onclick=function(){ov.remove();};
-  ov.querySelector('#id-save').onclick=function(){
-    window.YM&&window.YM.saveProfile&&window.YM.saveProfile({
-      name:ov.querySelector('#id-name').value,
-      bio:ov.querySelector('#id-bio').value,
-      site:ov.querySelector('#id-site').value
-    });
-    // Broadcast to social if active
-    if(window.YM_sphereRegistry&&window.YM_sphereRegistry.get('social.sphere.js')){
-      try{window.YM_sphereRegistry.get('social.sphere.js').broadcastPresence&&window.YM_sphereRegistry.get('social.sphere.js').broadcastPresence();}catch{}
-    }
-    window.YM_toast&&window.YM_toast('Identity saved','success');
-    ov.remove();
-  };
-}
-window.openIdentityEditor=openIdentityEditor;
-
-
-function openPublishNameOverlay(){
-  var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
-  var name=p.name||'';
-  var uuid=p.uuid||'';
-  if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
-
-  var ov=document.createElement('div');
-  ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px';
-  // Derive repo from registry URL
-  var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
-  var repoFromRegistry='';
-  var m=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
-  if(m)repoFromRegistry=m[1];
-  // Get token from build session (same as Build feature)
-  var buildToken=null;
-  try{var bt=sessionStorage.getItem('ym_build_token');if(bt)buildToken=JSON.parse(bt);}catch{}
-  var tokenAvailable=!!(buildToken&&buildToken.token);
-  ov.innerHTML=
-    '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:24px;width:100%;max-width:340px">'+
-    '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">📡 Publish your name</div>'+
-    '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Your UUID <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> will be associated to this name in the registry.</div>'+
-    '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">'+name+'</div>'+
-    (tokenAvailable
-      ? '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>'
-      : '<input id="pub-token" type="password" placeholder="GitHub token (or connect via Build first)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:12px">')+
-    (repoFromRegistry?'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Registry: <span style="color:var(--gold)">'+repoFromRegistry+'</span></div>':'')+
-    '<div style="display:flex;gap:8px">'+
-    '<button id="pub-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
-    '<button id="pub-go" class="ym-btn ym-btn-accent" style="flex:1">Publish</button>'+
-    '</div><div id="pub-status" style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center"></div>'+
-    '</div>';
-  document.body.appendChild(ov);
-  document.getElementById('pub-cancel').onclick=function(){ov.remove();};
-
-  document.getElementById('pub-go').onclick=async function(){
-    var tokenEl=document.getElementById('pub-token');
-    var token=(buildToken&&buildToken.token)||(tokenEl?tokenEl.value.trim():'');
-    var repo=repoFromRegistry||(buildToken&&buildToken.repo)||'';
-    var status=document.getElementById('pub-status');
-    if(!token){status.textContent='GitHub token required — connect via Build first';return;}
-    if(!repo){status.textContent='No registry configured';return;}
-    // Check wallet connected
-    var pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
-    if(!pubkey){status.textContent='❌ Connect your wallet first';return;}
-    // Check score eligibility
-    status.textContent='Checking eligibility…';
-    var elig=window.YM_Build&&window.YM_Build.computeEligibility?await window.YM_Build.computeEligibility():null;
-    if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant pour publier';return;}
-    status.textContent='Checking…';
-
-    var apiUrl='https://api.github.com/repos/'+repo+'/contents/name.json';
-    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
-    var sha=null;
-    var existing={};
-    try{
-      var r=await fetch(apiUrl,{headers});
-      if(r.ok){var j=await r.json();sha=j.sha;existing=JSON.parse(atob(j.content.replace(/\n/g,'')));}
-    }catch(e){}
-
-    // Rule 1: name already taken by another UUID
-    if(existing[name]&&existing[name]!==uuid){
-      status.textContent='❌ Name already taken by another identity';return;
-    }
-
-    // Rule 2: remove any previous entry for this UUID (one name per UUID)
-    Object.keys(existing).forEach(function(k){
-      if(existing[k]===uuid&&k!==name) delete existing[k];
-    });
-
-    // Rule 3: set the entry — UUID comes from local profile only
-    existing[name]=uuid;
-
-    var content=btoa(unescape(encodeURIComponent(JSON.stringify(existing,null,2))));
-    var body={message:'publish name: '+name,content};
-    if(sha)body.sha=sha;
-
-    try{
-      var res=await fetch(apiUrl,{method:'PUT',headers,body:JSON.stringify(body)});
-      if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Published successfully';setTimeout(function(){ov.remove();},1500);}
-      else{var e=await res.json();status.textContent='Error: '+(e.message||res.status);}
-    }catch(e){status.textContent='Network error';}
-  };
-}
-window.openPublishNameOverlay=openPublishNameOverlay;
-
