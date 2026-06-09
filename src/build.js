@@ -201,6 +201,13 @@ function renderFlow(buildContent){
           buildContent.appendChild(backWrap5);
         }
       ));
+      // 1.5 Custom Profile
+      wrap.appendChild(_flowBtn(
+        '<span style="font-size:20px">✦</span><div><div style="font-size:13px;color:var(--text)">Custom Profile</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Design and publish your profile sphere</div></div>',
+        ()=>{
+          if(window.openProfileSphereEditor) window.openProfileSphereEditor();
+        }
+      ));
       buildContent.appendChild(wrap);
       buildContent.appendChild(_flowBack(buildContent, renderFlow));
     }
