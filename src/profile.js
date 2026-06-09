@@ -54,21 +54,7 @@ function renderSphereProfiles(container,fromSphere){
     var iconHtml=iconIsUrl?'<img src="'+s.icon+'" style="width:24px;height:24px;border-radius:4px;object-fit:contain">':'<span style="font-size:20px">'+((s&&s.icon)||'⬡')+'</span>';
     var hdr=document.createElement('div');
     hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;-webkit-user-select:none';
-    var AUTOOPEN_KEY='ym_sphere_autoopen';
-    function getAutoOpen(){try{return JSON.parse(localStorage.getItem(AUTOOPEN_KEY)||'[]');}catch{return[];}}
-    function setAutoOpen(arr){localStorage.setItem(AUTOOPEN_KEY,JSON.stringify(arr));}
-    var isAutoOpen=getAutoOpen().includes(name);
-    hdr.innerHTML=iconHtml+'<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);flex:1">'+label+'</span>'
-      +'<span class="ao-toggle" title="Auto-open" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(isAutoOpen?'var(--accent)':'rgba(255,255,255,.15)')+';color:'+(isAutoOpen?'var(--accent)':'var(--text3)')+';margin-right:4px;cursor:pointer">auto</span>'
-      +'<span style="font-size:11px;color:var(--text3)">▼</span>';
-    hdr.querySelector('.ao-toggle').addEventListener('click',function(e){
-      e.stopPropagation();
-      var list=getAutoOpen();
-      if(list.includes(name)){list=list.filter(function(x){return x!==name;});}else{list.push(name);}
-      setAutoOpen(list);
-      this.style.borderColor=list.includes(name)?'var(--accent)':'rgba(255,255,255,.15)';
-      this.style.color=list.includes(name)?'var(--accent)':'var(--text3)';
-    });
+    hdr.innerHTML=iconHtml+'<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);flex:1">'+label+'</span><span style="font-size:11px;color:var(--text3)">▼</span>';
     var content=document.createElement('div');content.style.cssText='padding:12px 14px;display:none;background:var(--surface)';
     var open=false;
     function openAcc(){
@@ -141,7 +127,7 @@ function renderSphereProfiles(container,fromSphere){
     hdr.addEventListener('click',function(){open=!open;if(open)openAcc();else{content.style.display='none';hdr.querySelector('span:last-child').textContent='▼';}});
     wrap.appendChild(hdr);wrap.appendChild(content);container.appendChild(wrap);
     if(fromSphere&&name===fromSphere&&s&&s.profileSection){requestAnimationFrame(function(){openAcc();wrap.scrollIntoView({behavior:'smooth',block:'start'});});}
-    else if(getAutoOpen().includes(name)){requestAnimationFrame(function(){openAcc();});}
+
   });
 }
 
@@ -748,18 +734,23 @@ function openProfileSphereEditor(){
     var sec=ov.querySelector('#pse-sections');
     sec.innerHTML='';
     config.sections.forEach(function(s,i){
+      var isAuto=(config.autoOpen||[]).includes(s);
       var row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
-      row.innerHTML='<span style="flex:1;font-size:12px;color:var(--text)">'+s+'</span>'+
-        '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-up>↑</button>'+
-        '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-dn>↓</button>'+
-        '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-del>×</button>';
+      row.innerHTML='<span style="flex:1;font-size:12px;color:var(--text)">'+s+'</span>'
+        +'<span class="ao-sec" title="Auto-open in visitor view" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(isAuto?'var(--gold)':'rgba(255,255,255,.12)')+';color:'+(isAuto?'var(--gold)':'var(--text3)')+';cursor:pointer">auto</span>'
+        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-up>↑</button>'
+        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-dn>↓</button>';
       row.querySelector('[data-up]').onclick=function(){if(i>0){config.sections.splice(i-1,0,config.sections.splice(i,1)[0]);renderSections();}};
       row.querySelector('[data-dn]').onclick=function(){if(i<config.sections.length-1){config.sections.splice(i+1,0,config.sections.splice(i,1)[0]);renderSections();}};
-      
+      row.querySelector('.ao-sec').onclick=function(){
+        config.autoOpen=config.autoOpen||[];
+        if(config.autoOpen.includes(s)){config.autoOpen=config.autoOpen.filter(function(x){return x!==s;});}
+        else{config.autoOpen.push(s);}
+        renderSections();
+      };
       sec.appendChild(row);
     });
-
   }
   renderSections();
 
@@ -774,6 +765,7 @@ function openProfileSphereEditor(){
       spheres:p.spheres||[],
       accent:ov.querySelector('#pse-accent').value,
       sections:config.sections.slice(),
+      autoOpen:config.autoOpen||[],
       customCode:ov.querySelector('#pse-code').value
     };
   }
