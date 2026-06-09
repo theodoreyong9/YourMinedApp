@@ -681,7 +681,8 @@ function openProfileSphereEditor(){
   ov.innerHTML=
     '<div style="display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0">'+
     '<div style="font-size:15px;font-weight:600;color:var(--text);flex:1">✦ Profile Sphere</div>'+
-    '<button id="pse-preview" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:8px">Preview</button>'+
+    '<button id="pse-before" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px">Before</button>'+
+    '<button id="pse-after" class="ym-btn ym-btn-ghost" style="font-size:12px;margin-right:6px">After</button>'+
     '<button id="pse-publish" class="ym-btn ym-btn-accent" style="font-size:12px;margin-right:8px">Publish</button>'+
     '<button id="pse-close" class="ym-btn ym-btn-ghost" style="font-size:18px;padding:2px 8px">×</button>'+
     '</div>'+
@@ -774,59 +775,30 @@ function openProfileSphereEditor(){
   // Close
   ov.querySelector('#pse-close').onclick=function(){ov.remove();};
 
-  // Preview — before/after
-  var _previewMode='after';
-  function _doPreview(){
+  // Before — open classic profile panel
+  ov.querySelector('#pse-before').onclick=function(){
+    window.YM&&window.YM.openPanel&&window.YM.openPanel('panel-profile');
+  };
+
+  // After — generate sphere, register in registry, open sphere panel
+  ov.querySelector('#pse-after').onclick=function(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
-
-    // Create preview overlay
-    document.getElementById('pse-preview-ov')?.remove();
-    var pov=document.createElement('div');
-    pov.id='pse-preview-ov';
-    pov.style.cssText='position:fixed;inset:0;z-index:4000;background:var(--bg,#08080f);display:flex;flex-direction:column;overflow:hidden';
-
-    // Header
-    var ph=document.createElement('div');
-    ph.style.cssText='display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;gap:8px';
-    ph.innerHTML='<div style="font-size:12px;color:var(--text3);flex:1">Preview — <span style="color:var(--gold)">'+(_previewMode==='after'?'Custom sphere':'Classic profile')+'</span></div>';
-    var closeBtn=document.createElement('button');
-    closeBtn.className='ym-btn ym-btn-ghost';closeBtn.style.cssText='font-size:12px;padding:4px 12px';
-    closeBtn.textContent='← Editor';
-    closeBtn.onclick=function(){pov.remove();};
-    var toggleBtn=document.createElement('button');
-    toggleBtn.className='ym-btn ym-btn-ghost';toggleBtn.style.cssText='font-size:12px;padding:4px 12px';
-    toggleBtn.textContent=_previewMode==='after'?'Show Before':'Show After';
-    toggleBtn.onclick=function(){_previewMode=_previewMode==='after'?'before':'after';pov.remove();_doPreview();};
-    ph.appendChild(toggleBtn);ph.appendChild(closeBtn);
-    pov.appendChild(ph);
-
-    // Content
-    var pc=document.createElement('div');
-    pc.style.cssText='flex:1;overflow-y:auto';
-    pov.appendChild(pc);
-    document.body.appendChild(pov);
-
-    if(_previewMode==='after'){
-      // Render custom sphere
-      var code=_generateProfileSphere(cfg);
-      try{
-        delete window.YM_S[cfg.uuid+'.profile.js'];
-        (new Function(code))();
-        var sphere=window.YM_S[cfg.uuid+'.profile.js'];
-        if(sphere&&sphere.renderPanel) sphere.renderPanel(pc);
-        else pc.innerHTML='<div style="padding:20px;color:var(--text3)">No renderPanel found</div>';
-      }catch(e){
-        pc.innerHTML='<div style="padding:20px;color:var(--red)">Error: '+e.message+'</div>';
-      }
-    }else{
-      // Render classic profile
-      if(window.YM_Profile&&window.YM_Profile.render) window.YM_Profile.render(pc);
-      else pc.innerHTML='<div style="padding:20px;color:var(--text3)">Classic profile</div>';
+    var code=_generateProfileSphere(cfg);
+    try{
+      // Eval to register in YM_S
+      (new Function(code))();
+      var sphereId=cfg.uuid+'.profile.js';
+      var s=window.YM_S[sphereId];
+      if(!s){ov.querySelector('#pse-status').textContent='Generation failed';return;}
+      // Register directly in sphereRegistry so openSpherePanel finds it
+      if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId, s);
+      // Open sphere panel
+      window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
+    }catch(e){
+      ov.querySelector('#pse-status').textContent='Error: '+e.message;
     }
-  }
-
-  ov.querySelector('#pse-preview').onclick=_doPreview;
+  };
 
   // Publish
   ov.querySelector('#pse-publish').onclick=async function(){
