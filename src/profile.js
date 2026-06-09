@@ -775,26 +775,42 @@ function openProfileSphereEditor(){
   // Close
   ov.querySelector('#pse-close').onclick=function(){ov.remove();};
 
-  // Before — open classic profile panel
+  // Before — visitor view of classic profile
   ov.querySelector('#pse-before').onclick=function(){
-    window.YM&&window.YM.openPanel&&window.YM.openPanel('panel-profile');
+    ov.style.display='none';
+    var myProfile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
+    window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel(myProfile);
+    // Reopen editor when panel closes
+    var _check=setInterval(function(){
+      var panel=document.getElementById('panel-profile-view')||document.getElementById('panel-sphere');
+      if(!panel||!panel.classList.contains('open')){
+        clearInterval(_check);
+        ov.style.display='flex';
+      }
+    },400);
   };
 
-  // After — generate sphere, register in registry, open sphere panel
+  // After — custom sphere preview
   ov.querySelector('#pse-after').onclick=function(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
     var code=_generateProfileSphere(cfg);
     try{
-      // Eval to register in YM_S
       (new Function(code))();
       var sphereId=cfg.uuid+'.profile.js';
       var s=window.YM_S[sphereId];
       if(!s){ov.querySelector('#pse-status').textContent='Generation failed';return;}
-      // Register directly in sphereRegistry so openSpherePanel finds it
-      if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId, s);
-      // Open sphere panel
+      if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId,s);
+      ov.style.display='none';
       window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
+      // Reopen editor when panel closes
+      var _check=setInterval(function(){
+        var panel=document.getElementById('panel-sphere');
+        if(!panel||!panel.classList.contains('open')){
+          clearInterval(_check);
+          ov.style.display='flex';
+        }
+      },400);
     }catch(e){
       ov.querySelector('#pse-status').textContent='Error: '+e.message;
     }
