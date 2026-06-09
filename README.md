@@ -2226,32 +2226,127 @@ App.js calls `YM_ROUTER.onPop` before its own popstate handler. Combined with `h
 
 ## Profile Sphere — Custom Public Profile
 
-Any user can design and publish a custom public profile via the ⚙ menu in the profile panel → "Profile sphere".
+The profile sphere is a hypersphere — a fully customizable public profile, linked to your UUID, published on your registry and searchable by others.
 
-### Editor features
-- **Accent color** — applied to all generated elements
-- **Keywords** — searchable tags shown in the Social Search tab
-- **Spheres config** — per-sphere: visible/hidden in public profile, auto-open, order (design visibility, independent from system activation)
-- **Sections order** — visible only when custom code is present
-- **Before/After** — preview classic vs custom layout before publishing
-- **Copy Prompt** — copies the YourMine AI prompt to clipboard
-- **Unpublish** — removes the entry from `profile.json`
+Access: ⚙ menu in the profile panel → **Profile sphere**
 
-### Published files
-- `uuid.profile.js` — the sphere code, hosted on the registry repo
-- Entry in `profile.json` — uuid, name, keywords, spheres, accent, profileSphere URL, score
+---
 
-### Custom code field
-Paste the body of `renderPanel(container)` directly. Variables available:
-- `cfg` — your config (accent, keywords, sections, sphereConfig, autoOpen…)
-- `container` — the panel DOM element
-- `window.YM.getProfile()` — your live profile data
+### What gets published
 
-The sphere layer (sphere accordions) is always injected **after** your custom code, in the order and visibility you defined. It is priority and cannot be overridden by code.
+Two files are written to your registry repo:
 
-### Two levels of sphere visibility
-- **System visibility** — sphere active or not in the interface (bureau, liste). Managed by app.js/liste.js
-- **Design visibility** — sphere shown or hidden in the public profile view. Managed by `cfg.sphereConfig[id].visible`
+**`uuid.profile.js`** — the sphere code that runs when someone views your profile
+**`profile.json`** — a registry entry containing:
+```json
+{
+  "uuid": "your-uuid",
+  "name": "Jean",
+  "keywords": ["circular economy", "builder"],
+  "bio": "Short bio",
+  "pubkey": "solana-pubkey",
+  "spheres": ["social.sphere.js"],
+  "accent": "#f0a830",
+  "profileSphere": "https://raw.githubusercontent.com/.../uuid.profile.js",
+  "ts": 1234567890
+}
+```
+
+---
+
+### Editor — no code mode
+
+Without custom code, the visitor sees the classic profile layout (`_renderProfileView`).
+
+Configure:
+- **Accent color** — hex color applied throughout
+- **Keywords** — comma-separated, searchable in Social → Search tab
+- **Spheres** — per-sphere toggles:
+  - `show` — visible or hidden in the public profile (design visibility)
+  - `auto` — accordion opens automatically when visitor arrives
+  - `↑ ↓` — reorder
+
+> **Design visibility ≠ System visibility.** A sphere can be active on your bureau but hidden in your public profile. These are independent.
+
+---
+
+### Editor — custom code mode
+
+The **Custom JS** field accepts the body of `renderPanel(container)`.
+
+Available variables at runtime:
+```js
+cfg        // your published config — see structure below
+container  // the DOM element to render into
+window.YM.getProfile()  // your live profile data (name, bio, avatar, spheres…)
+```
+
+Full `cfg` structure:
+```js
+{
+  uuid: "your-uuid",
+  name: "Jean",
+  bio: "...",
+  accent: "#f0a830",
+  keywords: ["builder", "circular economy"],
+  spheres: ["social.sphere.js"],          // active spheres at publish time
+  sections: ["identity","bio","keywords"], // section order (custom code only)
+  sphereConfig: {
+    "social.sphere.js": { visible: true, autoOpen: false }
+  },
+  sphereOrder: ["social.sphere.js"],       // display order
+  autoOpen: [],                            // sections to auto-open
+  customCode: "..."
+}
+```
+
+**Minimal example:**
+```js
+var profile = window.YM.getProfile();
+var accent = cfg.accent || '#f0a830';
+container.innerHTML = '';
+container.style.cssText = 'overflow-y:auto;padding:20px';
+container.innerHTML =
+  '<div style="text-align:center;font-size:24px;font-weight:700;color:' + accent + '">'
+  + profile.name + '</div>'
+  + '<div style="color:rgba(255,255,255,.5);margin-top:8px">' + (profile.bio||'') + '</div>';
+```
+
+**Full example** — see `jean.profile.js` in the repo.
+
+---
+
+### Priority layer — always applied after your code
+
+Regardless of what your custom code renders, the active spheres are **always injected after** as expandable accordions, in the order and visibility you defined in the editor.
+
+This layer:
+- Uses `peerSection(container, ctx)` from each sphere — the visitor view, not the owner view
+- Respects `cfg.sphereConfig[id].visible` and `cfg.sphereConfig[id].autoOpen`
+- Cannot be overridden by code
+
+This guarantees that all public spheres are always present in the visitor view.
+
+---
+
+### Before / After preview
+
+- **Before** — opens the classic profile panel as a visitor would see it without a custom sphere
+- **After** — injects your generated sphere code and opens it live
+- The editor stays open behind — close the panel to return
+
+---
+
+### Publish requirements
+
+Same flow as Build:
+1. Wallet connected
+2. Score eligible (`computeEligibility`)
+3. GitHub token (from Build session or entered manually)
+
+### Unpublish
+
+Removes the entry from `profile.json`. The `uuid.profile.js` file remains on the repo but is no longer referenced.
 
 ---
 
