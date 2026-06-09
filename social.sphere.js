@@ -444,6 +444,7 @@ window.YM_S['social.sphere.js'] = {
   category:'Communication',
   description:'Near discovery, contacts, social feeds, voice calls',
   author:'theodoreyong9',
+  cardBackground:'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/assets/social-bg.jpg',
   emit:['name','bio','avatar','site','lat','lng','networks'],
   receive:['name','bio','avatar','site','spheres','networks'],
   statuses:['online','away','busy'],
@@ -614,15 +615,7 @@ window.YM_S['social.sphere.js'] = {
       container.appendChild(row);
     });
 
-    const saveBtn = document.createElement('button');
-    saveBtn.className='ym-btn ym-btn-accent';saveBtn.style.cssText='width:100%;margin-top:14px';
-    saveBtn.textContent='Save identity';
-    saveBtn.addEventListener('click',()=>{
-      _ctx?.saveProfile?.({name:ident.querySelector('#soc-name').value,bio:ident.querySelector('#soc-bio').value,site:ident.querySelector('#soc-site').value});
-      broadcastPresence();
-      window.YM_toast?.('Social profile saved','success');
-    });
-    container.appendChild(saveBtn);
+
   },
 
   getTabBadges(){
