@@ -756,19 +756,10 @@ function openProfileSphereEditor(){
         '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 4px" data-del>×</button>';
       row.querySelector('[data-up]').onclick=function(){if(i>0){config.sections.splice(i-1,0,config.sections.splice(i,1)[0]);renderSections();}};
       row.querySelector('[data-dn]').onclick=function(){if(i<config.sections.length-1){config.sections.splice(i+1,0,config.sections.splice(i,1)[0]);renderSections();}};
-      row.querySelector('[data-del]').onclick=function(){config.sections.splice(i,1);renderSections();};
+      
       sec.appendChild(row);
     });
-    // Add section button
-    var addRow=document.createElement('div');
-    addRow.style.cssText='display:flex;gap:6px;margin-top:4px';
-    addRow.innerHTML='<input id="pse-add-sec" class="ym-input" style="flex:1;font-size:12px" placeholder="Add section name…">'+
-      '<button class="ym-btn ym-btn-ghost" id="pse-add-sec-btn" style="font-size:12px">+</button>';
-    sec.appendChild(addRow);
-    addRow.querySelector('#pse-add-sec-btn').onclick=function(){
-      var v=addRow.querySelector('#pse-add-sec').value.trim();
-      if(v){config.sections.push(v);addRow.querySelector('#pse-add-sec').value='';renderSections();}
-    };
+
   }
   renderSections();
 
