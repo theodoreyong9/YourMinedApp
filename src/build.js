@@ -185,6 +185,22 @@ function renderFlow(buildContent){
           buildContent.appendChild(backWrap4);
         }
       ));
+      // 1.4 Update Score
+      wrap.appendChild(_flowBtn(
+        '<span style="font-size:20px">◈</span><div><div style="font-size:13px;color:var(--text)">Update Score</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Publish your current wallet score to rank.json</div></div>',
+        ()=>{
+          buildContent.innerHTML='';
+          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+          const scrollArea=document.createElement('div');
+          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;padding:24px 16px';
+          buildContent.appendChild(scrollArea);
+          _renderUpdateScore(scrollArea);
+          const backWrap5=document.createElement('div');
+          backWrap5.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
+          backWrap5.appendChild(_flowBack(buildContent, renderFlow));
+          buildContent.appendChild(backWrap5);
+        }
+      ));
       buildContent.appendChild(wrap);
       buildContent.appendChild(_flowBack(buildContent, renderFlow));
     }
@@ -922,4 +938,69 @@ window.addEventListener('ym:switch-mine-tab',e=>{
 })();
 
 window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t),computeEligibility};
+
+// ── Update Score ──────────────────────────────────────────────────────────────
+async function _renderUpdateScore(container){
+  const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
+  const state=window._mineState||{};
+  const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
+  const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
+  const p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
+  const token=_getToken();
+
+  container.innerHTML=
+    '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">◈ Update Score</div>'+
+    (pubkey
+      ?'<div style="background:rgba(240,168,48,.08);border:1px solid rgba(240,168,48,.15);border-radius:10px;padding:12px;margin-bottom:16px">'+
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Wallet</div>'+
+        '<div style="font-size:12px;color:var(--gold);font-family:monospace;word-break:break-all">'+pubkey+'</div>'+
+        '<div style="display:flex;gap:16px;margin-top:10px">'+
+        '<div><div style="font-size:10px;color:var(--text3)">Score</div><div style="font-size:18px;font-weight:700;color:var(--text)">'+claimable+'</div></div>'+
+        '<div><div style="font-size:10px;color:var(--text3)">Laps</div><div style="font-size:18px;font-weight:700;color:var(--text)">'+curLaps+'</div></div>'+
+        '</div></div>'
+      :'<div style="color:var(--red);font-size:13px;margin-bottom:12px">❌ Connect your wallet first</div>')+
+    (!token?'<input id="score-token" type="password" class="ym-input" placeholder="GitHub token" style="margin-bottom:12px;font-size:12px">':
+      '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>')+
+    '<button id="score-go" class="ym-btn ym-btn-accent" style="width:100%" '+(pubkey?'':'disabled')+'>Publish Score</button>'+
+    '<div id="score-status" style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center"></div>';
+
+  container.querySelector('#score-go')?.addEventListener('click', async()=>{
+    const status=container.querySelector('#score-status');
+    const tok=token||(container.querySelector('#score-token')?.value?.trim()||'');
+    if(!tok){status.textContent='GitHub token required';return;}
+    if(!pubkey){status.textContent='Connect your wallet first';return;}
+
+    // Eligibility check
+    const elig=await computeEligibility();
+    if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant';return;}
+
+    const repo=_getRepo(tok);
+    if(!repo){status.textContent='No registry configured';return;}
+
+    status.textContent='Publishing…';
+    const headers={'Authorization':'token '+tok,'Content-Type':'application/json'};
+    const apiUrl='https://api.github.com/repos/'+repo+'/contents/rank.json';
+    let sha=null,ranks=[];
+    try{const r=await fetch(apiUrl,{headers});if(r.ok){const j=await r.json();sha=j.sha;ranks=JSON.parse(atob(j.content.replace(/\n/g,'')));}}catch{}
+    ranks=ranks.filter(x=>x.pubkey!==pubkey);
+    ranks.push({uuid:p.uuid,name:p.name,pubkey,score:claimable,laps:curLaps,ts:Date.now()});
+    ranks.sort((a,b)=>b.score-a.score);
+    const content=btoa(unescape(encodeURIComponent(JSON.stringify(ranks,null,2))));
+    const body={message:'update rank: '+(p.name||pubkey.slice(0,8)),content};
+    if(sha)body.sha=sha;
+    const res=await fetch(apiUrl,{method:'PUT',headers,body:JSON.stringify(body)});
+    if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Score published to rank.json';}
+    else{const e=await res.json();status.textContent='Error: '+(e.message||res.status);}
+  });
+}
+
+function _getToken(){
+  try{const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');return bt?.token||null;}catch{return null;}
+}
+function _getRepo(token){
+  const registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
+  const m=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+  if(m) return m[1];
+  try{const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');return bt?.repo||null;}catch{return null;}
+}
 })();
