@@ -1056,6 +1056,16 @@
     });
     _currentSphereId = id;
 
+    // Fullscreen for spheres that declare it
+    const _spPanel = document.getElementById('panel-sphere');
+    if(_spPanel){
+      if(s.fullscreen){
+        _spPanel.classList.add('ym-panel--fullscreen');
+      } else {
+        _spPanel.classList.remove('ym-panel--fullscreen');
+      }
+    }
+
     openPanel('panel-sphere');
     log('open', { sphere: id });
   }
@@ -1316,6 +1326,13 @@
   /* ═══════════════════════════════════════════════════════════
    * window.YM — API publique
    * ═══════════════════════════════════════════════════════════ */
+  // Inject fullscreen CSS for spheres
+  (function(){
+    const st=document.createElement('style');
+    st.textContent='#panel-sphere.ym-panel--fullscreen{position:fixed!important;inset:0!important;z-index:1999!important;border-radius:0!important;max-height:100dvh!important;height:100dvh!important;width:100vw!important;}';
+    document.head.appendChild(st);
+  })();
+
   window.YM = {
     toast, openPanel, closePanel: reducePanel, openSwitcher, closeSwitcher,
     openSpherePanel, openProfilePanel, activateSphere, deactivateSphere,
