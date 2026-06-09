@@ -774,13 +774,48 @@ function openProfileSphereEditor(){
   // Close
   ov.querySelector('#pse-close').onclick=function(){ov.remove();};
 
-  // Preview
+  // Preview — toggle before/after
+  var _previewMode = 'after';
   ov.querySelector('#pse-preview').onclick=function(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
-    ov.remove();
-    // Open profile panel in visitor mode
-    window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel({...p, _profileConfig:cfg, _visitorPreview:true});
+    if(_previewMode==='after'){
+      // After — custom sphere
+      var code=_generateProfileSphere(cfg);
+      try{
+        delete window.YM_S[cfg.uuid+'.profile.js'];
+        (new Function(code))();
+        ov.style.display='none';
+        var sphereId=cfg.uuid+'.profile.js';
+        if(window.YM_S[sphereId]){
+          window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
+        }
+        // Add back button to return to editor
+        var backBtn=document.createElement('button');
+        backBtn.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:4000;font-size:12px;padding:8px 20px';
+        backBtn.className='ym-btn ym-btn-accent';
+        backBtn.textContent='← Back to editor';
+        backBtn.id='pse-back-btn';
+        document.body.appendChild(backBtn);
+        backBtn.onclick=function(){ov.style.display='flex';backBtn.remove();};
+      }catch(e){
+        ov.querySelector('#pse-status').textContent='Code error: '+e.message;
+      }
+    }else{
+      // Before — classic profile
+      ov.style.display='none';
+      var backBtn2=document.createElement('button');
+      backBtn2.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:4000;font-size:12px;padding:8px 20px';
+      backBtn2.className='ym-btn ym-btn-ghost';
+      backBtn2.textContent='← Back to editor';
+      backBtn2.id='pse-back-btn';
+      document.body.appendChild(backBtn2);
+      window.YM&&window.YM.openPanel&&window.YM.openPanel('panel-profile');
+      backBtn2.onclick=function(){ov.style.display='flex';backBtn2.remove();};
+    }
+    // Toggle mode
+    _previewMode=_previewMode==='after'?'before':'after';
+    ov.querySelector('#pse-preview').textContent=_previewMode==='after'?'Preview After':'Preview Before';
   };
 
   // Publish
