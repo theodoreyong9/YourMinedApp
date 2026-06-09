@@ -774,49 +774,59 @@ function openProfileSphereEditor(){
   // Close
   ov.querySelector('#pse-close').onclick=function(){ov.remove();};
 
-  // Preview — toggle before/after
-  var _previewMode = 'after';
-  ov.querySelector('#pse-preview').onclick=function(){
+  // Preview — before/after
+  var _previewMode='after';
+  function _doPreview(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
+
+    // Create preview overlay
+    document.getElementById('pse-preview-ov')?.remove();
+    var pov=document.createElement('div');
+    pov.id='pse-preview-ov';
+    pov.style.cssText='position:fixed;inset:0;z-index:4000;background:var(--bg,#08080f);display:flex;flex-direction:column;overflow:hidden';
+
+    // Header
+    var ph=document.createElement('div');
+    ph.style.cssText='display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;gap:8px';
+    ph.innerHTML='<div style="font-size:12px;color:var(--text3);flex:1">Preview — <span style="color:var(--gold)">'+(_previewMode==='after'?'Custom sphere':'Classic profile')+'</span></div>';
+    var closeBtn=document.createElement('button');
+    closeBtn.className='ym-btn ym-btn-ghost';closeBtn.style.cssText='font-size:12px;padding:4px 12px';
+    closeBtn.textContent='← Editor';
+    closeBtn.onclick=function(){pov.remove();};
+    var toggleBtn=document.createElement('button');
+    toggleBtn.className='ym-btn ym-btn-ghost';toggleBtn.style.cssText='font-size:12px;padding:4px 12px';
+    toggleBtn.textContent=_previewMode==='after'?'Show Before':'Show After';
+    toggleBtn.onclick=function(){_previewMode=_previewMode==='after'?'before':'after';pov.remove();_doPreview();};
+    ph.appendChild(toggleBtn);ph.appendChild(closeBtn);
+    pov.appendChild(ph);
+
+    // Content
+    var pc=document.createElement('div');
+    pc.style.cssText='flex:1;overflow-y:auto';
+    pov.appendChild(pc);
+    document.body.appendChild(pov);
+
     if(_previewMode==='after'){
-      // After — custom sphere
+      // Render custom sphere
       var code=_generateProfileSphere(cfg);
       try{
         delete window.YM_S[cfg.uuid+'.profile.js'];
         (new Function(code))();
-        ov.style.display='none';
-        var sphereId=cfg.uuid+'.profile.js';
-        if(window.YM_S[sphereId]){
-          window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
-        }
-        // Add back button to return to editor
-        var backBtn=document.createElement('button');
-        backBtn.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:4000;font-size:12px;padding:8px 20px';
-        backBtn.className='ym-btn ym-btn-accent';
-        backBtn.textContent='← Back to editor';
-        backBtn.id='pse-back-btn';
-        document.body.appendChild(backBtn);
-        backBtn.onclick=function(){ov.style.display='flex';backBtn.remove();};
+        var sphere=window.YM_S[cfg.uuid+'.profile.js'];
+        if(sphere&&sphere.renderPanel) sphere.renderPanel(pc);
+        else pc.innerHTML='<div style="padding:20px;color:var(--text3)">No renderPanel found</div>';
       }catch(e){
-        ov.querySelector('#pse-status').textContent='Code error: '+e.message;
+        pc.innerHTML='<div style="padding:20px;color:var(--red)">Error: '+e.message+'</div>';
       }
     }else{
-      // Before — classic profile
-      ov.style.display='none';
-      var backBtn2=document.createElement('button');
-      backBtn2.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:4000;font-size:12px;padding:8px 20px';
-      backBtn2.className='ym-btn ym-btn-ghost';
-      backBtn2.textContent='← Back to editor';
-      backBtn2.id='pse-back-btn';
-      document.body.appendChild(backBtn2);
-      window.YM&&window.YM.openPanel&&window.YM.openPanel('panel-profile');
-      backBtn2.onclick=function(){ov.style.display='flex';backBtn2.remove();};
+      // Render classic profile
+      if(window.YM_Profile&&window.YM_Profile.render) window.YM_Profile.render(pc);
+      else pc.innerHTML='<div style="padding:20px;color:var(--text3)">Classic profile</div>';
     }
-    // Toggle mode
-    _previewMode=_previewMode==='after'?'before':'after';
-    ov.querySelector('#pse-preview').textContent=_previewMode==='after'?'Preview After':'Preview Before';
-  };
+  }
+
+  ov.querySelector('#pse-preview').onclick=_doPreview;
 
   // Publish
   ov.querySelector('#pse-publish').onclick=async function(){
