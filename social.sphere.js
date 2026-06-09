@@ -179,16 +179,11 @@ function isReciprocal(uuid){
 }
 
 
-
-
-
 // ── SYSTÈME DE DEMANDES D'INTERACTION (pile centralisée) ──────────────────────
-// Toute demande (appel, partage, etc.) s'empile et est affichée l'une après l'autre
 const _interactionQueue=[];
 let _interactionActive=false;
 
 function _pushInteraction(opts){
-  // opts: {type, profile, icon, label, sublabel, onAccept, onDecline}
   _interactionQueue.push(opts);
   if(!_interactionActive) _nextInteraction();
 }
@@ -237,7 +232,6 @@ function generateQR(uuid, container){
 }
 
 function startQRScanner(container, onResult){
-  // Utilise BarcodeDetector si disponible (Chrome/Android), sinon jsQR comme fallback
   container.innerHTML=`<div style="position:relative;width:100%;max-width:260px;margin:0 auto">
     <video id="qr-video" style="width:100%;border-radius:var(--r-sm)" autoplay playsinline muted></video>
     <canvas id="qr-canvas" style="display:none"></canvas>
@@ -278,7 +272,6 @@ function startQRScanner(container, onResult){
       }
       animFrame=requestAnimationFrame(detect);
     }else{
-      // Fallback : charge jsQR dynamiquement
       const script=document.createElement('script');
       script.src='https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
       script.onload=()=>{
@@ -304,7 +297,6 @@ function startQRScanner(container, onResult){
 }
 
 // ── RÉSEAUX SOCIAUX ───────────────────────────────────────────────────────────
-// Réseaux avec API publique extractible sans auth/PKCE → feed actif
 const FEED_NETWORKS = [
   {id:'mastodon',  label:'Mastodon',     hint:'@user@instance.social'},
   {id:'bluesky',   label:'Bluesky',      hint:'@handle.bsky.social'},
@@ -317,7 +309,6 @@ const FEED_NETWORKS = [
   {id:'hashnode',  label:'Hashnode',     hint:'@username'},
 ];
 
-// Réseaux affichés dans le profil partagé mais sans extraction de feed (OAuth requis)
 const PROFILE_ONLY_NETWORKS = [
   {id:'x',         label:'X',            hint:'@username'},
   {id:'linkedin',  label:'LinkedIn',     hint:'linkedin.com/in/handle'},
@@ -329,13 +320,11 @@ const PROFILE_ONLY_NETWORKS = [
 
 const ALL_NETWORKS=[...FEED_NETWORKS,...PROFILE_ONLY_NETWORKS];
 
-// Extrait la première image d'un contenu HTML
 function extractImage(html){
   if(!html) return null;
   const m=html.match(/<img[^>]+src=["']([^"']+)["']/i);
   return m?m[1]:null;
 }
-// Extrait le texte d'un contenu HTML
 function extractText(html){
   return html?html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim():'';
 }
@@ -507,7 +496,7 @@ window.YM_S['social.sphere.js'] = {
     container.style.cssText='display:flex;flex-direction:column;height:100%';
     container.innerHTML='';
 
-    const TABS=['Near','Feed'];
+    const TABS=['Near','Feed','Search'];
     let curIdx=0;
 
     // Slider horizontal
@@ -537,6 +526,7 @@ window.YM_S['social.sphere.js'] = {
       pane.innerHTML='';
       if(idx===0){_ctx?.setNotification?.(0);renderNearTab(pane);}
       else if(idx===1)renderFeedTab(pane);
+      else if(idx===2)renderSearchTab(pane);
     }
 
     // Swipe horizontal
@@ -579,7 +569,6 @@ window.YM_S['social.sphere.js'] = {
     const networks=state.networks||[];
     const prof=(_ctx&&_ctx.loadProfile&&_ctx.loadProfile())||{};
 
-    // ── Identité ────────────────────────────────────────────
     const ident = document.createElement('div');
     ident.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'
@@ -599,7 +588,6 @@ window.YM_S['social.sphere.js'] = {
       inp.click();
     });
 
-    // ── Réseaux sociaux en accordéon ────────────────────────
     const netTitle = document.createElement('div');
     netTitle.style.cssText='font-family:var(--font-d,monospace);font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:8px;margin-top:4px';
     netTitle.textContent='Social Networks';
@@ -610,8 +598,6 @@ window.YM_S['social.sphere.js'] = {
       const hasFeed = !!FEED_NETWORKS.find(f=>f.id===n.id);
       const row = document.createElement('div');
       row.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px;overflow:hidden';
-
-      // Header cliquable
       const header = document.createElement('div');
       header.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;background:rgba(255,255,255,.02)';
       header.innerHTML=`
@@ -620,15 +606,12 @@ window.YM_S['social.sphere.js'] = {
         <span style="font-size:10px;color:var(--text3)">${saved?.handle?'✓':'+'}</span>
       `;
       row.appendChild(header);
-
-      // Champ déroulant
       const body = document.createElement('div');
       body.style.cssText='display:none;padding:8px 10px;border-top:1px solid var(--border)';
       const inp = document.createElement('input');
       inp.className='ym-input';inp.placeholder=n.hint;inp.value=saved?.handle||'';inp.style.fontSize='11px';
       body.appendChild(inp);
       row.appendChild(body);
-
       header.addEventListener('click',()=>{
         const open=body.style.display!=='none';
         body.style.display=open?'none':'block';
@@ -641,18 +624,15 @@ window.YM_S['social.sphere.js'] = {
         else{if(idx>=0)cur.splice(idx,1);}
         saveState({networks:cur});
         broadcastPresence();
-        // Met à jour le header
         const lbl=header.querySelector('span');
         lbl.innerHTML=`${n.label}${inp.value.trim()?' · <span style="color:var(--text3);font-size:10px">'+inp.value.trim()+'</span>':''}`;
         header.querySelector('span:last-child').textContent=inp.value.trim()?'✓':'+';
         header.querySelector('span:first-child').style.color=inp.value.trim()?'var(--accent)':'var(--text2)';
         body.style.display='none';
       });
-
       container.appendChild(row);
     });
 
-    // ── Save en bas ────────────────────────────────────────
     const saveBtn = document.createElement('button');
     saveBtn.className='ym-btn ym-btn-accent';saveBtn.style.cssText='width:100%;margin-top:14px';
     saveBtn.textContent='Save identity';
@@ -665,10 +645,9 @@ window.YM_S['social.sphere.js'] = {
   },
 
   getTabBadges(){
-    return {Near:_nearUsers.size, Contacts:0, Feed:0};
+    return {Near:_nearUsers.size, Contacts:0, Feed:0, Search:0};
   },
 
-  // Hook appelé par profile.js dans la fiche d'un pair
   peerSection(container, ctx){
     const{uuid,isNear,isReciproc}=ctx;
     if(isNear&&isReciproc){
@@ -688,13 +667,11 @@ window.YM_S['social.sphere.js'] = {
 };
 
 // Compteurs de badges par onglet
-const _tabBadges={Near:0,Contacts:0,Feed:0};
+const _tabBadges={Near:0,Contacts:0,Feed:0,Search:0};
 
 function _getSocialPanel(){
-  // Le panel social est dans panel-sphere-body
   const body=document.getElementById('panel-sphere-body');
   if(!body) return null;
-  // Vérifie que c'est bien le panel social (contient social-tab-content)
   return body.querySelector('#social-tab-content') ? body : null;
 }
 
@@ -721,6 +698,7 @@ function renderSocialTabInto(content,tab){
   content.innerHTML='';
   if(tab==='Near')      renderNearTab(content);
   else if(tab==='Feed') renderFeedTab(content);
+  else if(tab==='Search') renderSearchTab(content);
 }
 
 // ── NEAR TAB ──────────────────────────────────────────────────────────────────
@@ -749,7 +727,6 @@ function renderNearTab(el){
     });
   }
 
-  // Gossip — profils découverts indirectement
   if(gossip.length){
     const gossipHdr=document.createElement('div');
     gossipHdr.style.cssText='font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:12px 0 6px;border-top:1px solid var(--border);margin-top:8px';
@@ -769,10 +746,14 @@ function renderContactsTab(el){
   const contacts=loadContacts();
   el.innerHTML='';
 
-  // Add contact au-dessus de search
   const addSection=document.createElement('div');addSection.className='ym-card';addSection.style.marginBottom='12px';
   addSection.innerHTML=`
     <div class="ym-card-title">Add contact</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <input class="ym-input" id="pc-name-input" placeholder="Search by name…" style="flex:1;font-size:12px">
+      <button id="pc-name-search" class="ym-btn ym-btn-ghost" style="font-size:12px">Search</button>
+    </div>
+    <div id="pc-name-results" style="margin-bottom:6px"></div>
     <div style="display:flex;gap:8px;margin-bottom:0">
       <button class="ym-btn ym-btn-ghost" id="scan-qr-btn" style="padding:0 10px;font-size:16px;flex-shrink:0" title="Scan QR">📷</button>
       <input class="ym-input" id="add-uuid-input" placeholder="UUID…" style="flex:1">
@@ -781,16 +762,35 @@ function renderContactsTab(el){
     <div id="qr-scanner-container" style="display:none;margin-top:10px"></div>`;
   el.appendChild(addSection);
 
-  el.querySelector('#add-uuid-btn')?.addEventListener('click',()=>{
-    const uuid=el.querySelector('#add-uuid-input')?.value?.trim();
+  // Name search
+  addSection.querySelector('#pc-name-search').addEventListener('click',()=>{
+    const query=addSection.querySelector('#pc-name-input').value.trim().toLowerCase();
+    const results=addSection.querySelector('#pc-name-results');
+    if(!query){results.innerHTML='';return;}
+    results.innerHTML='<div style="font-size:11px;color:var(--text3)">Searching…</div>';
+    const nameUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url
+      ?window.YM_REGISTRY_OVERRIDE.url.replace(/\/[^\/]+\.json.*$/,'')
+      :'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main')+'/name.json?t='+Date.now();
+    fetch(nameUrl,{mode:'cors'}).then(r=>r.ok?r.json():Promise.reject()).then(names=>{
+      const matches=Object.entries(names).filter(e=>e[0].toLowerCase().includes(query));
+      if(!matches.length){results.innerHTML='<div style="font-size:11px;color:var(--text3)">No match</div>';return;}
+      results.innerHTML=matches.map(e=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="font-size:12px;color:var(--text);flex:1">${e[0]}</span><span style="font-size:10px;color:var(--text3);font-family:monospace">${e[1].slice(0,8)}…</span><button class="ym-btn ym-btn-accent" style="font-size:11px;padding:2px 8px" data-uuid="${e[1]}">Add</button></div>`).join('');
+      results.querySelectorAll('[data-uuid]').forEach(btn=>{
+        btn.addEventListener('click',()=>{addSection.querySelector('#add-uuid-input').value=btn.dataset.uuid;results.innerHTML='';});
+      });
+    }).catch(()=>{results.innerHTML='<div style="font-size:11px;color:var(--text3)">Could not load registry</div>';});
+  });
+
+  addSection.querySelector('#add-uuid-btn')?.addEventListener('click',()=>{
+    const uuid=addSection.querySelector('#add-uuid-input')?.value?.trim();
     if(!uuid){window.YM_toast?.('Enter a UUID','error');return;}
     addContact({uuid,name:'Unknown',addedVia:'uuid'});
     window.YM_toast?.('Contact added','success');
-    el.querySelector('#add-uuid-input').value='';
+    addSection.querySelector('#add-uuid-input').value='';
     renderContactsTab(el);
   });
-  el.querySelector('#scan-qr-btn')?.addEventListener('click',()=>{
-    const sc=el.querySelector('#qr-scanner-container');
+  addSection.querySelector('#scan-qr-btn')?.addEventListener('click',()=>{
+    const sc=addSection.querySelector('#qr-scanner-container');
     if(sc.style.display!=='none'){sc.style.display='none';sc.innerHTML='';return;}
     sc.style.display='block';
     startQRScanner(sc,uuid=>{
@@ -803,7 +803,6 @@ function renderContactsTab(el){
     });
   });
 
-  // Search
   const searchInput=document.createElement('input');
   searchInput.className='ym-input';searchInput.id='contacts-search';
   searchInput.placeholder='Search contacts…';searchInput.style.marginBottom='10px';
@@ -822,15 +821,11 @@ function renderContactsTab(el){
       const profile=c.profile||{uuid:c.uuid,name:c.nickname||c.name||'Unknown'};
       const card=document.createElement('div');card.className='ym-card';
       card.style.cssText='cursor:pointer;position:relative';
-
-      // Croix remove dans le coin
       const delX=document.createElement('div');
       delX.style.cssText='position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--surface3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;color:var(--text3);z-index:2';
       delX.textContent='×';
       delX.addEventListener('click',e=>{e.stopPropagation();saveContacts(loadContacts().filter(x=>x.uuid!==c.uuid));renderContactsTab(el);});
       card.appendChild(delX);
-
-      // Avatar + nom
       const avatar=profile.avatar?`<img src="${profile.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`:`<div style="width:36px;height:36px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:16px">${profile.name?.charAt(0)||'👤'}</div>`;
       const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;padding-right:24px';
       row.innerHTML=`<div style="flex-shrink:0">${avatar}</div>
@@ -839,8 +834,6 @@ function renderContactsTab(el){
           ${profile.bio?`<div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${profile.bio}</div>`:''}
         </div>`;
       card.appendChild(row);
-
-      // Nickname input — stopPropagation pour éviter d'ouvrir le profil
       const nickWrap=document.createElement('div');nickWrap.style.marginTop='8px';
       const nickInput=document.createElement('input');
       nickInput.className='ym-input';nickInput.style.fontSize='11px';
@@ -854,14 +847,11 @@ function renderContactsTab(el){
         renderContactsTab(el);
       });
       nickWrap.appendChild(nickInput);card.appendChild(nickWrap);
-
-      // Réseaux connus
       if(profile.networks?.length){
         const nets=document.createElement('div');nets.style.cssText='margin-top:6px;display:flex;flex-wrap:wrap;gap:4px';
         profile.networks.forEach(n=>{const p=document.createElement('span');p.className='pill';p.textContent=n.id+' '+n.handle;nets.appendChild(p);});
         card.appendChild(nets);
       }
-      // Appel vocal si contact proche ET réciproque
       if(_nearUsers.has(profile.uuid)&&isReciprocal(profile.uuid)){
         const callBtn=document.createElement('button');callBtn.className='ym-btn ym-btn-cyan';callBtn.style.cssText='width:100%;margin-top:8px;font-size:12px';
         callBtn.textContent='📞 Voice Call';
@@ -886,14 +876,12 @@ function renderFeedTab(el){
   const feedContent=document.createElement('div');
   feedContent.style.cssText='flex:1;overflow:hidden;position:relative';
 
-  // Swipe horizontal
   let swipeX=0,swipeY=0,swiping=false;
   feedContent.addEventListener('pointerdown',e=>{swipeX=e.clientX;swipeY=e.clientY;swiping=true;},{passive:true});
   feedContent.addEventListener('pointerup',e=>{
     if(!swiping)return;swiping=false;
     const dx=e.clientX-swipeX,dy=e.clientY-swipeY;
     if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.5){
-      // Glisser droite → aller à Contacts (idx+1) ; gauche → Nearby (idx-1)
       const next=dx>0?Math.min(currentIdx+1,tabs.length-1):Math.max(currentIdx-1,0);
       if(next!==currentIdx){currentIdx=next;switchTab(next);}
     }
@@ -931,19 +919,16 @@ async function loadFeedForUsers(profiles,container){
     return;
   }
 
-  // Filtre les profils avec des réseaux feed
   const feedProfiles=profiles.filter(p=>(p.networks||[]).some(n=>FEED_NETWORKS.find(f=>f.id===n.id)));
   if(!feedProfiles.length){
     container.innerHTML=`<div style="text-align:center;padding:24px;color:var(--text3);font-size:12px">No public social networks in these profiles</div>`;
     return;
   }
 
-  // Charge le feed de chaque profil séparément pour les bandeaux
   for(const profile of feedProfiles){
     const networks=(profile.networks||[]).filter(n=>FEED_NETWORKS.find(f=>f.id===n.id));
     if(!networks.length) continue;
 
-    // Bandeau profil sticky + cliquable
     const banner=document.createElement('div');
     banner.style.cssText='position:sticky;top:0;z-index:10;background:rgba(8,8,15,.92);backdrop-filter:blur(8px);padding:8px 0 6px;cursor:pointer;display:flex;align-items:center;gap:10px;margin-bottom:4px';
     const av=profile.avatar?`<img src="${profile.avatar}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">`:`<div style="width:32px;height:32px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${profile.name?.charAt(0)||'👤'}</div>`;
@@ -951,12 +936,10 @@ async function loadFeedForUsers(profiles,container){
     banner.addEventListener('click',()=>window.YM_Social?.openProfile?.(profile.uuid));
     container.appendChild(banner);
 
-    // Placeholder loading
     const feedWrap=document.createElement('div');feedWrap.style.marginBottom='16px';
     feedWrap.innerHTML=`<div style="color:var(--text3);font-size:11px;padding:6px 0">Loading…</div>`;
     container.appendChild(feedWrap);
 
-    // Charge en parallèle
     fetchFeedItems(networks).then(items=>{
       feedWrap.innerHTML='';
       if(!items.length){
@@ -965,7 +948,6 @@ async function loadFeedForUsers(profiles,container){
       }
       items.slice(0,10).forEach(item=>{
         const card=document.createElement('div');card.className='ym-card';card.style.cssText='cursor:pointer;margin-bottom:8px';
-        // Extrait de texte
         const excerpt=item.text?(item.text.slice(0,180)+(item.text.length>180?'…':'')):'';
         card.innerHTML=`
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
@@ -985,6 +967,83 @@ async function loadFeedForUsers(profiles,container){
   }
 }
 
+// ── SEARCH TAB ────────────────────────────────────────────────────────────────
+async function renderSearchTab(el){
+  el.innerHTML='';
+  const form=document.createElement('div');form.style.cssText='margin-bottom:12px';
+  form.innerHTML=
+    '<input id="srch-query" class="ym-input" placeholder="Search by keyword, name…" style="margin-bottom:8px;font-size:13px">'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="srch-sphere-filters"></div>'+
+    '<button class="ym-btn ym-btn-accent" id="srch-go" style="width:100%;font-size:13px">Search</button>';
+  el.appendChild(form);
+  const resultsEl=document.createElement('div');el.appendChild(resultsEl);
+
+  let sphereFilters=[];
+  const filterWrap=form.querySelector('#srch-sphere-filters');
+  if(window.YM_sphereRegistry){
+    window.YM_sphereRegistry.forEach((s,id)=>{
+      if(s.isProfileSphere||id==='social.sphere.js') return;
+      const pill=document.createElement('button');
+      pill.className='ym-btn ym-btn-ghost';
+      pill.style.cssText='font-size:10px;padding:2px 10px;border-radius:20px';
+      pill.textContent=id.replace('.sphere.js','');
+      pill.dataset.active='0';
+      pill.addEventListener('click',()=>{
+        const active=pill.dataset.active==='1';
+        pill.dataset.active=active?'0':'1';
+        pill.style.background=active?'':'rgba(240,168,48,.15)';
+        pill.style.borderColor=active?'':'var(--gold)';
+        pill.style.color=active?'':'var(--gold)';
+        if(active) sphereFilters=sphereFilters.filter(s=>s!==id);
+        else sphereFilters.push(id);
+      });
+      filterWrap.appendChild(pill);
+    });
+  }
+
+  form.querySelector('#srch-go').addEventListener('click',async()=>{
+    const query=form.querySelector('#srch-query').value.trim().toLowerCase();
+    resultsEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Searching…</div>';
+    const registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
+    const repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+    const urls=['https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/profile.json'];
+    if(repoMatch&&repoMatch[1]!=='theodoreyong9/YourMinedApp') urls.unshift('https://raw.githubusercontent.com/'+repoMatch[1]+'/main/profile.json');
+    let allProfiles=[];
+    for(const url of urls){
+      try{const r=await fetch(url+'?t='+Date.now(),{mode:'cors'});if(r.ok){const data=await r.json();if(Array.isArray(data))allProfiles=allProfiles.concat(data);}}catch{}
+    }
+    const seen={};allProfiles=allProfiles.filter(p=>{if(seen[p.uuid])return false;seen[p.uuid]=true;return true;});
+    const filtered=allProfiles.filter(p=>{
+      if(sphereFilters.length){if(!sphereFilters.some(sf=>(p.spheres||[]).includes(sf)))return false;}
+      if(!query) return true;
+      return (p.name||'').toLowerCase().includes(query)||(p.keywords||[]).join(' ').toLowerCase().includes(query)||(p.bio||'').toLowerCase().includes(query);
+    });
+    resultsEl.innerHTML='';
+    if(!filtered.length){resultsEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">No profiles found</div>';return;}
+    filtered.forEach(profile=>{
+      const card=document.createElement('div');card.className='ym-card';card.style.cursor='pointer';
+      const accent=profile.accent||'#f0a830';
+      card.innerHTML=
+        `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:${accent}">${(profile.name||'?').charAt(0).toUpperCase()}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;color:var(--text)">${profile.name||'Anonymous'}</div>
+            ${profile.bio?`<div style="font-size:11px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${profile.bio}</div>`:''}
+          </div>
+        </div>`+
+        (profile.keywords?.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px">${profile.keywords.slice(0,5).map(k=>`<span style="font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid ${accent};color:${accent};opacity:.7">${k}</span>`).join('')}</div>`:'')+
+        (profile.spheres?.length?`<div style="display:flex;flex-wrap:wrap;gap:4px">${profile.spheres.slice(0,4).map(s=>`<span style="font-size:10px;padding:2px 8px;background:rgba(255,255,255,.05);border-radius:20px;color:rgba(255,255,255,.5)">${s.replace('.sphere.js','')}</span>`).join('')}</div>`:'');
+      card.addEventListener('click',()=>{
+        if(profile.profileSphere&&!window.YM_S[profile.uuid+'.profile.js']){
+          const s=document.createElement('script');s.src=profile.profileSphere+'?t='+Date.now();document.head.appendChild(s);
+          s.onload=()=>window.YM?.openProfilePanel?.(profile);
+        }else window.YM?.openProfilePanel?.(profile);
+      });
+      resultsEl.appendChild(card);
+    });
+  });
+}
+
 // Stack de navigation interne — plus utilisée, gardée vide
 const _panelHistory=[];
 
@@ -997,7 +1056,8 @@ window.YM_Social = {
     window.YM?.openProfilePanel?.(profile);
   },
   isReciprocal,
-  get _nearUsers(){return _nearUsers;}
+  get _nearUsers(){return _nearUsers;},
+  get _contacts(){return loadContacts().map(c=>c.uuid);}
 };
 
 // ── USER CARD ──────────────────────────────────────────────────────────────────
