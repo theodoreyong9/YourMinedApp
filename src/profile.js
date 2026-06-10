@@ -809,26 +809,32 @@ function openProfileSphereEditor(){
   // Unpublish — remove from profile.json
   ov.querySelector('#pse-unpublish').onclick=async function(){
     var status=ov.querySelector('#pse-status');
-    var tokenEl=ov.querySelector('#pse-token');
     var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
-    var token=(bt&&bt.token)||(tokenEl?tokenEl.value.trim():'');
+    var token=(bt&&bt.token)||'';
+    var usernameU=(bt&&bt.username)||'';
+    var pubkeyU=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
     if(!token){status.textContent='GitHub token required';return;}
-    var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
-    var repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
-    var repo=repoMatch?repoMatch[1]:(bt&&bt.repo)||'';
-    if(!repo){status.textContent='No registry configured';return;}
-    status.textContent='Removing…';
-    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
-    var profileJsonUrl='https://api.github.com/repos/'+repo+'/contents/profile.json';
-    var sha=null,profiles=[];
-    try{var pr=await fetch(profileJsonUrl,{headers});if(pr.ok){var pj=await pr.json();sha=pj.sha;profiles=JSON.parse(atob(pj.content.replace(/\n/g,'')));}}catch{}
-    profiles=profiles.filter(function(x){return x.uuid!==uuid;});
-    var content=btoa(unescape(encodeURIComponent(JSON.stringify(profiles,null,2))));
-    var body={message:'remove profile: '+name,content};
-    if(sha)body.sha=sha;
-    var res=await fetch(profileJsonUrl,{method:'PUT',headers,body:JSON.stringify(body)});
-    if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Profile removed';setTimeout(function(){ov.remove();},1200);}
-    else{var e=await res.json();status.textContent='Error: '+(e.message||res.status);}
+    if(!usernameU){status.textContent='GitHub username required — reconnect via Build';return;}
+    if(!pubkeyU){status.textContent='Wallet required';return;}
+    status.textContent='Signing…';
+    var nonceU=window._ymUuid?window._ymUuid():(Date.now().toString(36));
+    var tsU=Math.floor(Date.now()/1000);
+    var sigU='';
+    if(window.YM_Mine_sign){
+      try{
+        var msgU=JSON.stringify({action:'unpublish_profile',filename:'profile.json',wallet:pubkeyU,nonce:nonceU,timestamp:tsU,uuid:uuid});
+        var s=await window.YM_Mine_sign(msgU);sigU=btoa(String.fromCharCode(...Array.from(s)));
+      }catch(e){status.textContent='Signature failed';return;}
+    }
+    var evU={action:'unpublish_profile',filename:'profile.json',wallet:pubkeyU,signature:sigU,nonce:nonceU,timestamp:tsU,profileEntry:{uuid,remove:true}};
+    try{
+      status.textContent='Fork…';await _ymEnsureFork(token,usernameU);
+      status.textContent='Push…';await _ymGhPush(token,usernameU,'events/'+nonceU+'.json',JSON.stringify(evU,null,2),'unpublish: '+name);
+      await new Promise(function(r){setTimeout(r,1500);});
+      status.textContent='PR…';var prU=await _ymOpenPR(token,usernameU);
+      status.style.color='var(--gold)';
+      status.innerHTML='⏳ <a href="'+prU.html_url+'" target="_blank" style="color:var(--cyan)">↗ Unpublish PR submitted</a>';
+    }catch(e){status.textContent='Error: '+e.message;}
   };
 
   // Before — visitor view of classic profile
