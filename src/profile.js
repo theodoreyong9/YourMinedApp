@@ -904,39 +904,52 @@ function openProfileSphereEditor(){
     if(!repo){status.textContent='No registry configured';return;}
 
     status.textContent='Generating profile sphere…';
-
-    // Generate monprofile.profile.js
     var sphereCode=_generateProfileSphere(cfg);
-    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
-    var apiBase='https://api.github.com/repos/'+repo+'/contents/';
+    var rawSphereUrl='https://raw.githubusercontent.com/'+username+'/YourMinedApp/main/'+uuid+'.profile.js';
 
-    // Push monprofile.profile.js
-    var sphereUrl=apiBase+uuid+'.profile.js';
-    var sphereSha=null;
-    try{var sr=await fetch(sphereUrl,{headers});if(sr.ok){var sj=await sr.json();sphereSha=sj.sha;}}catch{}
-    var sphereContent=btoa(unescape(encodeURIComponent(sphereCode)));
-    var sphereBody={message:'publish profile: '+name,content:sphereContent};
-    if(sphereSha)sphereBody.sha=sphereSha;
-    var sphereRes=await fetch(sphereUrl,{method:'PUT',headers,body:JSON.stringify(sphereBody)});
-    if(!sphereRes.ok){var e=await sphereRes.json();status.textContent='Error: '+(e.message||sphereRes.status);return;}
+    // Sign event
+    var nonce=window._ymUuid?window._ymUuid():(Date.now().toString(36)+Math.random().toString(36).slice(2));
+    var ts=Math.floor(Date.now()/1000);
+    var sigB64='';
+    if(window.YM_Mine_sign){
+      try{
+        var msg=JSON.stringify({action:'profile',filename:uuid+'.profile.js',nonce,timestamp:ts});
+        var sig=await window.YM_Mine_sign(msg);
+        sigB64=btoa(String.fromCharCode(...Array.from(sig)));
+      }catch(e){status.textContent='Signature failed';return;}
+    }
 
-    var rawSphereUrl='https://raw.githubusercontent.com/'+repo+'/main/'+uuid+'.profile.js';
+    var ev={
+      action:'profile',
+      filename:uuid+'.profile.js',
+      wallet:pubkey,
+      signature:sigB64,
+      nonce,timestamp:ts,
+      codeUrl:rawSphereUrl,
+      profileEntry:{
+        uuid,name,
+        keywords:cfg.keywords||[],
+        bio:cfg.bio||'',
+        pubkey:pubkey,
+        spheres:cfg.spheres||[],
+        accent:cfg.accent||'',
+        profileSphere:rawSphereUrl
+      }
+    };
 
-    // Update profile.json
-    var profileJsonUrl=apiBase+'profile.json';
-    var profileSha=null;
-    var profiles=[];
-    try{var pr=await fetch(profileJsonUrl,{headers});if(pr.ok){var pj=await pr.json();profileSha=pj.sha;profiles=JSON.parse(atob(pj.content.replace(/\n/g,'')));}}catch{}
-    profiles=profiles.filter(function(x){return x.uuid!==uuid;});
-    profiles.push({uuid,name,keywords:cfg.keywords,bio:cfg.bio,pubkey:pubkey,spheres:cfg.spheres,accent:cfg.accent,profileSphere:rawSphereUrl,ts:Date.now()});
-    var profileContent=btoa(unescape(encodeURIComponent(JSON.stringify(profiles,null,2))));
-    var profileBody={message:'update profile.json: '+name,content:profileContent};
-    if(profileSha)profileBody.sha=profileSha;
-    var profileRes=await fetch(profileJsonUrl,{method:'PUT',headers,body:JSON.stringify(profileBody)});
-    if(!profileRes.ok){var e2=await profileRes.json();status.textContent='Error updating profile.json: '+(e2.message||profileRes.status);return;}
-
-    status.style.color='var(--gold)';status.textContent='✓ Profile published';
-    setTimeout(function(){ov.remove();},1500);
+    try{
+      status.textContent='Fork…';
+      await _ymEnsureFork(token,username);
+      // Push sphere code to fork
+      status.textContent='Push…';
+      await _ymGhPush(token,username,uuid+'.profile.js',sphereCode,'profile: '+name);
+      await _ymGhPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
+      await new Promise(function(r){setTimeout(r,1500);});
+      status.textContent='PR…';
+      var pr=await _ymOpenPR(token,username);
+      status.style.color='var(--gold)';
+      status.innerHTML='⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ Profile PR submitted</a>';
+    }catch(e2){status.textContent='Error: '+e2.message;}
   };
 }
 
@@ -1091,6 +1104,42 @@ function openIdentityEditor(){
 window.openIdentityEditor=openIdentityEditor;
 
 
+// ── PR helpers ────────────────────────────────────────────────────────────────
+async function _ymGhAPI(token,path,method,body){
+  var r=await fetch('https://api.github.com'+path,{method:method||'GET',headers:{'Authorization':'token '+token,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  return r.json();
+}
+function _ymRegistryRepo(){
+  var url=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
+  var m=url.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+  return m?m[1]:'theodoreyong9/YourMinedApp';
+}
+async function _ymEnsureFork(token,username){
+  var repo=_ymRegistryRepo();
+  var repoName=repo.split('/')[1];
+  var f=await _ymGhAPI(token,'/repos/'+username+'/'+repoName);
+  if(f.full_name)return;
+  await _ymGhAPI(token,'/repos/'+repo+'/forks','POST',{});
+  await new Promise(function(r){setTimeout(r,3000);});
+}
+async function _ymGhPush(token,username,path,content,msg){
+  var repoName=_ymRegistryRepo().split('/')[1];
+  var encoded=btoa(unescape(encodeURIComponent(content)));
+  var existing=await _ymGhAPI(token,'/repos/'+username+'/'+repoName+'/contents/'+path);
+  var body={message:msg,content:encoded};
+  if(existing.sha)body.sha=existing.sha;
+  return _ymGhAPI(token,'/repos/'+username+'/'+repoName+'/contents/'+path,'PUT',body);
+}
+async function _ymOpenPR(token,username){
+  var repo=_ymRegistryRepo();
+  return _ymGhAPI(token,'/repos/'+repo+'/pulls','POST',{
+    title:'YourMine publish — '+username,
+    head:username+':main',base:'main',
+    body:'Automated publish from YourMine PWA'
+  });
+}
+window._ymUuid=function(){return([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,function(c){return(c^crypto.getRandomValues(new Uint8Array(1))[0]&15>>c/4).toString(16);});};
+
 function openPublishNameOverlay(){
   var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
   var name=p.name||'';
@@ -1141,37 +1190,36 @@ function openPublishNameOverlay(){
     if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant pour publier';return;}
     status.textContent='Checking…';
 
-    var apiUrl='https://api.github.com/repos/'+repo+'/contents/name.json';
-    var headers={'Authorization':'token '+token,'Content-Type':'application/json'};
-    var sha=null;
-    var existing={};
-    try{
-      var r=await fetch(apiUrl,{headers});
-      if(r.ok){var j=await r.json();sha=j.sha;existing=JSON.parse(atob(j.content.replace(/\n/g,'')));}
-    }catch(e){}
-
-    // Rule 1: name already taken by another UUID
-    if(existing[name]&&existing[name]!==uuid){
-      status.textContent='❌ Name already taken by another identity';return;
+    // Sign event
+    var nonce2=window._ymUuid?window._ymUuid():(Date.now().toString(36)+Math.random().toString(36).slice(2));
+    var ts2=Math.floor(Date.now()/1000);
+    var sigB64b='';
+    if(window.YM_Mine_sign){
+      try{
+        var msg2=JSON.stringify({action:'name',filename:'name.json',wallet:pubkey,nonce:nonce2,timestamp:ts2});
+        var sig2=await window.YM_Mine_sign(msg2);
+        sigB64b=btoa(String.fromCharCode(...Array.from(sig2)));
+      }catch(e){status.textContent='Signature failed';return;}
     }
 
-    // Rule 2: remove any previous entry for this UUID (one name per UUID)
-    Object.keys(existing).forEach(function(k){
-      if(existing[k]===uuid&&k!==name) delete existing[k];
-    });
-
-    // Rule 3: set the entry — UUID comes from local profile only
-    existing[name]=uuid;
-
-    var content=btoa(unescape(encodeURIComponent(JSON.stringify(existing,null,2))));
-    var body={message:'publish name: '+name,content};
-    if(sha)body.sha=sha;
+    var ev2={
+      action:'name',filename:'name.json',
+      wallet:pubkey,signature:sigB64b,
+      nonce:nonce2,timestamp:ts2,
+      nameEntry:{name,uuid}
+    };
 
     try{
-      var res=await fetch(apiUrl,{method:'PUT',headers,body:JSON.stringify(body)});
-      if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Published successfully';setTimeout(function(){ov.remove();},1500);}
-      else{var e=await res.json();status.textContent='Error: '+(e.message||res.status);}
-    }catch(e){status.textContent='Network error';}
+      status.textContent='Fork…';
+      await _ymEnsureFork(token,username);
+      status.textContent='Push…';
+      await _ymGhPush(token,username,'events/'+nonce2+'.json',JSON.stringify(ev2,null,2),'name: '+name);
+      await new Promise(function(r){setTimeout(r,1500);});
+      status.textContent='PR…';
+      var pr2=await _ymOpenPR(token,username);
+      status.style.color='var(--gold)';
+      status.innerHTML='⏳ <a href="'+pr2.html_url+'" target="_blank" style="color:var(--cyan)">↗ Name PR submitted</a>';
+    }catch(e){status.textContent='Error: '+e.message;}
   };
 }
 window.openPublishNameOverlay=openPublishNameOverlay;
