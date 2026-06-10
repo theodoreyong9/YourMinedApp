@@ -231,43 +231,6 @@ async function updateNameRegistry(files, ghActor, walletPubkey) {
   }
 }
 
-// ── RANK REGISTRY (rank.json) ─────────────────────────────────────────────────
-async function updateRankRegistry(files, ghActor, walletPubkey) {
-  const rankFiles = files.filter(f => f.filename === 'rank.json');
-  if (!rankFiles.length) return;
-
-  for (const { wallet, score, laps, timestamp, rankEntry } of rankFiles) {
-    if (!wallet || !score) {
-      console.warn('rank.json update rejected — missing wallet or score');
-      continue;
-    }
-    if (!rankEntry || !rankEntry.uuid) {
-      console.warn('rank.json update rejected — missing rankEntry or uuid');
-      continue;
-    }
-
-    let rankJson = [];
-    try { rankJson = JSON.parse(fs.readFileSync('rank.json', 'utf8')); } catch(e) {}
-
-    // One entry per pubkey
-    const idx = rankJson.findIndex(r => r.pubkey === wallet);
-    const entry = {
-      uuid:   rankEntry.uuid,
-      name:   rankEntry.name || '',
-      pubkey: wallet,
-      score:  parseFloat((score || 0).toFixed(6)),
-      laps:   parseFloat((laps  || 0).toFixed(6)),
-      ts:     timestamp || Math.floor(Date.now() / 1000)
-    };
-    if (idx >= 0) rankJson[idx] = entry;
-    else rankJson.push(entry);
-
-    rankJson.sort((a, b) => (b.score || 0) - (a.score || 0));
-    fs.writeFileSync('rank.json', JSON.stringify(rankJson, null, 2));
-    console.log('Rank updated:', entry.name, 'score:', score, '— wallet:', wallet);
-  }
-}
-
 // ── PROFILE REGISTRY (profile.json) ──────────────────────────────────────────
 async function updateProfileRegistry(files, ghActor, walletPubkey) {
   const profileJsonFiles = files.filter(f => f.filename === 'profile.json');
@@ -307,6 +270,27 @@ async function updateProfileRegistry(files, ghActor, walletPubkey) {
   }
 }
 
+// ── RANK — auto-rebuilt from files.json ──────────────────────────────────────
+function rebuildRankJson() {
+  let filesJson = [];
+  try { filesJson = JSON.parse(fs.readFileSync('files.json', 'utf8')); } catch(e) { return; }
+  const byWallet = {};
+  filesJson.forEach(f => {
+    if (!f.author || !f.score) return;
+    if (!byWallet[f.author] || f.score > byWallet[f.author].score) {
+      byWallet[f.author] = {
+        pubkey:   f.author,
+        ghAuthor: f.ghAuthor || '',
+        score:    f.score,
+        laps:     f.laps || 0
+      };
+    }
+  });
+  const rank = Object.values(byWallet).sort((a, b) => b.score - a.score);
+  fs.writeFileSync('rank.json', JSON.stringify(rank, null, 2));
+  console.log('rank.json rebuilt — ' + rank.length + ' wallet(s)');
+}
+
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 async function main() {
   const validationPath = '/tmp/validation_result.json';
@@ -338,17 +322,48 @@ async function main() {
     }
   }
 
+  // Score update — updates score across all registries for this wallet
+  const scoreUpdateFile = files.find(f => f.action === 'score_update');
+  if (scoreUpdateFile) {
+    const { wallet, score, laps } = scoreUpdateFile;
+    const registries = ['files.json', 'themes-files.json', 'name.json', 'profile.json'];
+    for (const reg of registries) {
+      if (!fs.existsSync(reg)) continue;
+      try {
+        let data = JSON.parse(fs.readFileSync(reg, 'utf8'));
+        if (!Array.isArray(data)) continue;
+        let updated = false;
+        data = data.map(entry => {
+          if (entry.author === wallet || entry.pubkey === wallet) {
+            updated = true;
+            return { ...entry, score: parseFloat(score.toFixed(6)), laps: parseFloat(laps.toFixed(6)) };
+          }
+          return entry;
+        });
+        if (updated) {
+          fs.writeFileSync(reg, JSON.stringify(data, null, 2));
+          console.log('Score updated in ' + reg + ' for wallet ' + wallet.slice(0, 8) + '…');
+        }
+      } catch(e) { console.warn('Could not update ' + reg + ':', e.message); }
+    }
+    run('git add files.json themes-files.json name.json profile.json');
+    run('git commit -m "bot: score_update @' + ghActor + '"');
+    run('git push origin main');
+    return;
+  }
+
   await updateSpheresJson(files, ghActor, forkOwner);
   await updateThemesJson(files, ghActor, forkOwner);
   await updateProfileSpheres(files, ghActor, forkOwner, walletPubkey);
   await updateNameRegistry(files, ghActor, walletPubkey);
   await updateProfileRegistry(files, ghActor, walletPubkey);
-  await updateRankRegistry(files, ghActor, walletPubkey);
+  rebuildRankJson();
 
   const changedFiles = ['files.json', 'themes-files.json', 'events/'];
   if(files.some(f=>f.filename&&f.filename.endsWith('.profile.js'))) changedFiles.push('*.profile.js');
   if(files.some(f=>f.filename==='name.json')) changedFiles.push('name.json');
   if(files.some(f=>f.filename==='profile.json')) changedFiles.push('profile.json');
+  changedFiles.push('rank.json');
 
   run('git add ' + changedFiles.join(' '));
   run('git commit -m "bot: merge @' + ghActor + ' — registries updated"');
