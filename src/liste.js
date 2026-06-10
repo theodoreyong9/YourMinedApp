@@ -1076,6 +1076,13 @@ function renderList(body){
     const slice=filtered.slice(start,start+PAGE_SIZE);
     slice.forEach(sphere=>{
     const active=isSphereActive(sphere.fileName);
+    // Enrich with live YM_S properties if sphere is loaded
+    const liveSphere = window.YM_S && window.YM_S[sphere.fileName];
+    if(liveSphere){
+      if(liveSphere.cardGif && !sphere.cardGif) sphere = Object.assign({}, sphere, {cardGif: liveSphere.cardGif});
+      if(liveSphere.cardBackground && !sphere.cardBackground) sphere = Object.assign({}, sphere, {cardBackground: liveSphere.cardBackground});
+      if(liveSphere.icon && sphere.icon === '⬡') sphere = Object.assign({}, sphere, {icon: liveSphere.icon});
+    }
     const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
     const siteUrl=sphere.siteUrl||null;
     const iconIsUrl=sphere.icon&&(sphere.icon.startsWith('http')||sphere.icon.startsWith('/'));
