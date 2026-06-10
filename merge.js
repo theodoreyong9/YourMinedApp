@@ -100,6 +100,10 @@ async function updateSpheresJson(files, ghActor, forkOwner) {
       timestamp: timestamp || Math.floor(Date.now() / 1000),
       merged_at: Math.floor(Date.now() / 1000)
     };
+    if(meta.cardGif)        entry.cardGif = meta.cardGif;
+    if(meta.cardBackground) entry.cardBackground = meta.cardBackground;
+    if(meta.desktopGif)     entry.desktopGif = meta.desktopGif;
+    if(meta.fullscreen)     entry.fullscreen = true;
     if (transferTo) entry.owner = transferTo;
     else if (idx >= 0 && filesJson[idx].owner) entry.owner = filesJson[idx].owner;
 
@@ -168,6 +172,141 @@ async function updateThemesJson(files, ghActor, forkOwner) {
   fs.writeFileSync('themes-files.json', JSON.stringify(themesJson, null, 2));
 }
 
+// ── PROFILE SPHERES (.profile.js) ────────────────────────────────────────────
+async function updateProfileSpheres(files, ghActor, forkOwner, walletPubkey) {
+  const profileFiles = files.filter(f => f.filename && f.filename.endsWith('.profile.js'));
+  if (!profileFiles.length) return;
+
+  for (const { filename, codeUrl, wallet, score, laps, timestamp } of profileFiles) {
+    // Validate — same rules as spheres
+    if (!wallet || !score) {
+      console.warn('Profile sphere rejected — missing wallet or score:', filename);
+      continue;
+    }
+    const forkRepo = BASE_REPO.split('/')[1];
+    const effectiveUrl = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + forkRepo + '/main/' + filename);
+
+    // Fetch and copy .profile.js to main repo
+    const r = await fetch(effectiveUrl + '?t=' + Date.now(), {
+      headers: { 'Authorization': 'token ' + GITHUB_TOKEN }
+    });
+    if (!r.ok) { console.warn('Could not fetch', filename); continue; }
+    const code = await r.text();
+    fs.writeFileSync(filename, code);
+    console.log('Profile sphere merged:', filename, '— wallet:', wallet, 'score:', score);
+  }
+}
+
+// ── NAME REGISTRY (name.json) ─────────────────────────────────────────────────
+async function updateNameRegistry(files, ghActor, walletPubkey) {
+  const nameFiles = files.filter(f => f.filename === 'name.json');
+  if (!nameFiles.length) return;
+
+  for (const { filename, wallet, score, laps, timestamp, nameEntry } of nameFiles) {
+    if (!wallet || !score) {
+      console.warn('name.json update rejected — missing wallet or score');
+      continue;
+    }
+    if (!nameEntry || !nameEntry.name || !nameEntry.uuid) {
+      console.warn('name.json update rejected — missing name or uuid in nameEntry');
+      continue;
+    }
+
+    // Load existing name.json
+    let nameJson = {};
+    try { nameJson = JSON.parse(fs.readFileSync('name.json', 'utf8')); } catch(e) {}
+
+    // Rules: one name per uuid, unique name
+    const { name, uuid } = nameEntry;
+    if (nameJson[name] && nameJson[name] !== uuid) {
+      console.warn('name.json update rejected — name already taken:', name);
+      continue;
+    }
+    // Remove old entry for this uuid
+    Object.keys(nameJson).forEach(k => { if (nameJson[k] === uuid && k !== name) delete nameJson[k]; });
+    nameJson[name] = uuid;
+
+    fs.writeFileSync('name.json', JSON.stringify(nameJson, null, 2));
+    console.log('Name registry updated:', name, '->', uuid, '— wallet:', wallet, 'score:', score);
+  }
+}
+
+// ── RANK REGISTRY (rank.json) ─────────────────────────────────────────────────
+async function updateRankRegistry(files, ghActor, walletPubkey) {
+  const rankFiles = files.filter(f => f.filename === 'rank.json');
+  if (!rankFiles.length) return;
+
+  for (const { wallet, score, laps, timestamp, rankEntry } of rankFiles) {
+    if (!wallet || !score) {
+      console.warn('rank.json update rejected — missing wallet or score');
+      continue;
+    }
+    if (!rankEntry || !rankEntry.uuid) {
+      console.warn('rank.json update rejected — missing rankEntry or uuid');
+      continue;
+    }
+
+    let rankJson = [];
+    try { rankJson = JSON.parse(fs.readFileSync('rank.json', 'utf8')); } catch(e) {}
+
+    // One entry per pubkey
+    const idx = rankJson.findIndex(r => r.pubkey === wallet);
+    const entry = {
+      uuid:   rankEntry.uuid,
+      name:   rankEntry.name || '',
+      pubkey: wallet,
+      score:  parseFloat((score || 0).toFixed(6)),
+      laps:   parseFloat((laps  || 0).toFixed(6)),
+      ts:     timestamp || Math.floor(Date.now() / 1000)
+    };
+    if (idx >= 0) rankJson[idx] = entry;
+    else rankJson.push(entry);
+
+    rankJson.sort((a, b) => (b.score || 0) - (a.score || 0));
+    fs.writeFileSync('rank.json', JSON.stringify(rankJson, null, 2));
+    console.log('Rank updated:', entry.name, 'score:', score, '— wallet:', wallet);
+  }
+}
+
+// ── PROFILE REGISTRY (profile.json) ──────────────────────────────────────────
+async function updateProfileRegistry(files, ghActor, walletPubkey) {
+  const profileJsonFiles = files.filter(f => f.filename === 'profile.json');
+  if (!profileJsonFiles.length) return;
+
+  for (const { filename, wallet, score, laps, timestamp, profileEntry } of profileJsonFiles) {
+    if (!wallet || !score) {
+      console.warn('profile.json update rejected — missing wallet or score');
+      continue;
+    }
+    if (!profileEntry || !profileEntry.uuid) {
+      console.warn('profile.json update rejected — missing profileEntry or uuid');
+      continue;
+    }
+
+    // Load existing profile.json
+    let profileJson = [];
+    try { profileJson = JSON.parse(fs.readFileSync('profile.json', 'utf8')); } catch(e) {}
+
+    // Replace or add entry — one entry per uuid
+    const idx = profileJson.findIndex(p => p.uuid === profileEntry.uuid);
+    const entry = {
+      ...profileEntry,
+      pubkey: wallet,
+      score: parseFloat((score || 0).toFixed(6)),
+      laps: parseFloat((laps || 0).toFixed(6)),
+      ts: timestamp || Math.floor(Date.now() / 1000)
+    };
+    if (idx >= 0) profileJson[idx] = entry;
+    else profileJson.push(entry);
+
+    // Sort by score descending
+    profileJson.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    fs.writeFileSync('profile.json', JSON.stringify(profileJson, null, 2));
+    console.log('Profile registry updated:', profileEntry.name, '— wallet:', wallet, 'score:', score);
+  }
+}
+
 // ── MAIN ──────────────────────────────────────────────────────────────────────
 async function main() {
   const validationPath = '/tmp/validation_result.json';
@@ -201,9 +340,18 @@ async function main() {
 
   await updateSpheresJson(files, ghActor, forkOwner);
   await updateThemesJson(files, ghActor, forkOwner);
+  await updateProfileSpheres(files, ghActor, forkOwner, walletPubkey);
+  await updateNameRegistry(files, ghActor, walletPubkey);
+  await updateProfileRegistry(files, ghActor, walletPubkey);
+  await updateRankRegistry(files, ghActor, walletPubkey);
 
-  run('git add files.json themes-files.json events/');
-  run('git commit -m "bot: merge @' + ghActor + ' — files.json + themes-files.json updated"');
+  const changedFiles = ['files.json', 'themes-files.json', 'events/'];
+  if(files.some(f=>f.filename&&f.filename.endsWith('.profile.js'))) changedFiles.push('*.profile.js');
+  if(files.some(f=>f.filename==='name.json')) changedFiles.push('name.json');
+  if(files.some(f=>f.filename==='profile.json')) changedFiles.push('profile.json');
+
+  run('git add ' + changedFiles.join(' '));
+  run('git commit -m "bot: merge @' + ghActor + ' — registries updated"');
   run('git push https://x-access-token:' + GITHUB_TOKEN + '@github.com/' + BASE_REPO + '.git main');
   console.log('Pushed to main');
 
