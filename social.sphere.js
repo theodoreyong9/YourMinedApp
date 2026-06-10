@@ -980,19 +980,47 @@ async function renderSearchTab(el){
     resultsEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">Searching…</div>';
     const registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
     const repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
-    const urls=['https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/profile.json'];
-    if(repoMatch&&repoMatch[1]!=='theodoreyong9/YourMinedApp') urls.unshift('https://raw.githubusercontent.com/'+repoMatch[1]+'/main/profile.json');
-    let allProfiles=[];
-    for(const url of urls){
-      try{const r=await fetch(url+'?t='+Date.now(),{mode:'cors'});if(r.ok){const data=await r.json();if(Array.isArray(data))allProfiles=allProfiles.concat(data);}}catch{}
+    const base=repoMatch?'https://raw.githubusercontent.com/'+repoMatch[1]+'/main':'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main';
+    const baseDefault='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main';
+    const t='?t='+Date.now();
+
+    // Fetch name.json (name search) and profile.json (keyword search) in parallel
+    const bases=base===baseDefault?[base]:[base,baseDefault];
+    const [namesResults, profilesResults] = await Promise.all([
+      Promise.allSettled(bases.map(b=>fetch(b+'/name.json'+t,{mode:'cors'}).then(r=>r.ok?r.json():{}))),
+      Promise.allSettled(bases.map(b=>fetch(b+'/profile.json'+t,{mode:'cors'}).then(r=>r.ok?r.json():[])))
+    ]);
+
+    // Merge names from all registries
+    let allNames={};
+    namesResults.forEach(r=>{if(r.status==='fulfilled')Object.assign(allNames,r.value);});
+
+    // Merge profiles from all registries, deduplicate by uuid
+    let byUuid={};
+    profilesResults.forEach(r=>{
+      if(r.status==='fulfilled'&&Array.isArray(r.value)){
+        r.value.forEach(p=>{if(p.uuid&&!byUuid[p.uuid])byUuid[p.uuid]=p;});
+      }
+    });
+
+    // Add entries from name.json that aren't in profile.json
+    if(query){
+      Object.entries(allNames).forEach(([name,uuid])=>{
+        if(!byUuid[uuid]) byUuid[uuid]={uuid,name,keywords:[],score:0};
+      });
     }
-    const seen={};allProfiles=allProfiles.filter(p=>{if(seen[p.uuid])return false;seen[p.uuid]=true;return true;});
-    // Sort by score descending
+
+    let allProfiles=Object.values(byUuid);
     allProfiles.sort((a,b)=>(b.score||0)-(a.score||0));
+
     const filtered=allProfiles.filter(p=>{
       if(sphereFilters.length){if(!sphereFilters.some(sf=>(p.spheres||[]).includes(sf)))return false;}
       if(!query) return true;
-      return (p.name||'').toLowerCase().includes(query)||(p.keywords||[]).join(' ').toLowerCase().includes(query)||(p.bio||'').toLowerCase().includes(query);
+      // Name match — from name.json or profile.json
+      const nameMatch=(p.name||'').toLowerCase().includes(query);
+      // Keyword match — from profile.json only
+      const kwMatch=(p.keywords||[]).join(' ').toLowerCase().includes(query);
+      return nameMatch||kwMatch;
     });
     resultsEl.innerHTML='';
     if(!filtered.length){resultsEl.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:12px">No profiles found</div>';return;}
