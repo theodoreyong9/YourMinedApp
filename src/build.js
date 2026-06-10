@@ -954,6 +954,8 @@ async function _renderUpdateScore(container){
   const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
   const p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
   const token=_getToken();
+  const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
+  const username=bt?.username||'';
 
   container.innerHTML=
     '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">◈ Update Score</div>'+
@@ -968,7 +970,7 @@ async function _renderUpdateScore(container){
       :'<div style="color:var(--red);font-size:13px;margin-bottom:12px">❌ Connect your wallet first</div>')+
     (!token?'<input id="score-token" type="password" class="ym-input" placeholder="GitHub token" style="margin-bottom:12px;font-size:12px">':
       '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>')+
-    '<button id="score-go" class="ym-btn ym-btn-accent" style="width:100%" '+(pubkey?'':'disabled')+'>Publish Score</button>'+
+    '<button id="score-go" class="ym-btn ym-btn-accent" style="width:100%" '+(pubkey?'':'disabled')+'>Submit Score</button>'+
     '<div id="score-status" style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center"></div>';
 
   container.querySelector('#score-go')?.addEventListener('click', async()=>{
@@ -976,30 +978,30 @@ async function _renderUpdateScore(container){
     const tok=token||(container.querySelector('#score-token')?.value?.trim()||'');
     if(!tok){status.textContent='GitHub token required';return;}
     if(!pubkey){status.textContent='Connect your wallet first';return;}
-
-    // Eligibility check
+    if(!username){status.textContent='GitHub username required — reconnect via Build';return;}
     const elig=await computeEligibility();
     if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant';return;}
-
-    const repo=_getRepo(tok);
-    if(!repo){status.textContent='No registry configured';return;}
-
-    status.textContent='Publishing…';
-    const headers={'Authorization':'token '+tok,'Content-Type':'application/json'};
-    const apiUrl='https://api.github.com/repos/'+repo+'/contents/rank.json';
-    let sha=null,ranks=[];
-    try{const r=await fetch(apiUrl,{headers});if(r.ok){const j=await r.json();sha=j.sha;ranks=JSON.parse(atob(j.content.replace(/\n/g,'')));}}catch{}
-    ranks=ranks.filter(x=>x.pubkey!==pubkey);
-    ranks.push({uuid:p.uuid,name:p.name,pubkey,score:claimable,laps:curLaps,ts:Date.now()});
-    ranks.sort((a,b)=>b.score-a.score);
-    const content=btoa(unescape(encodeURIComponent(JSON.stringify(ranks,null,2))));
-    const body={message:'update rank: '+(p.name||pubkey.slice(0,8)),content};
-    if(sha)body.sha=sha;
-    const res=await fetch(apiUrl,{method:'PUT',headers,body:JSON.stringify(body)});
-    if(res.ok){status.style.color='var(--gold)';status.textContent='✓ Score published to rank.json';}
-    else{const e=await res.json();status.textContent='Error: '+(e.message||res.status);}
+    status.textContent='Signing…';
+    const nonce=uuid();
+    const ts=Math.floor(Date.now()/1000);
+    let sigB64='';
+    if(window.YM_Mine_sign){
+      const msg=JSON.stringify({action:'rank',wallet:pubkey,nonce,timestamp:ts,score:claimable,laps:curLaps});
+      try{const sig=await window.YM_Mine_sign(msg);sigB64=btoa(String.fromCharCode(...Array.from(sig)));}
+      catch(e){status.textContent='Signature failed';return;}
+    }
+    const ev={action:'rank',filename:'rank.json',wallet:pubkey,signature:sigB64,nonce,timestamp:ts,score:claimable,laps:curLaps,rankEntry:{uuid:p.uuid,name:p.name||''}};
+    try{
+      status.textContent='Fork…';await ensureFork(tok,username);
+      status.textContent='Push…';await ghPush(tok,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'rank: '+nonce);
+      await new Promise(r=>setTimeout(r,1500));
+      status.textContent='PR…';const pr=await openPR(tok,username);
+      status.style.color='var(--gold)';
+      status.innerHTML='⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ Score PR submitted</a>';
+    }catch(e){status.textContent='Error: '+e.message;}
   });
 }
+
 
 function _getToken(){
   try{const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');return bt?.token||null;}catch{return null;}
