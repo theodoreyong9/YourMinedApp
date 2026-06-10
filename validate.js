@@ -8,13 +8,18 @@ const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 const MAX_EVENT_AGE_SEC = 3600;
 const MIN_TS_GAP_SEC    = 300;
 
+// Allowed file types
+const ALLOWED_SPHERE    = f => f.endsWith('.sphere.js');
+const ALLOWED_PROFILE   = f => f.endsWith('.profile.js');
+const ALLOWED_REGISTRY  = f => f === 'name.json' || f === 'profile.json';
+const ALLOWED_FILE      = f => ALLOWED_SPHERE(f) || ALLOWED_PROFILE(f) || ALLOWED_REGISTRY(f);
+
 function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
   try { return JSON.parse(raw); }
   catch(e) { try { return JSON.parse(raw.replace(/,\s*([}\]])/g, '$1').trim()); } catch(e2) { return []; } }
 }
 
-// Télécharge le code depuis le fork de l'user via codeUrl
 function fetchCodeFromFork(codeUrl) {
   return new Promise((resolve, reject) => {
     const req = https.get(codeUrl, (res) => {
@@ -76,24 +81,71 @@ async function main() {
   const walletPubkey = events[0].wallet;
   console.log('Wallet: ' + walletPubkey);
 
+  // Score update — special action that updates all wallet files scores
+  const scoreUpdateEvent = events.find(ev => ev.action === 'score_update');
+  if (scoreUpdateEvent) {
+    if (!scoreUpdateEvent.signature) {
+      console.error('Signature required for score_update');
+      process.exit(1);
+    }
+    const msg = JSON.stringify({
+      action: 'score_update', wallet: scoreUpdateEvent.wallet,
+      nonce: scoreUpdateEvent.nonce, timestamp: scoreUpdateEvent.timestamp,
+      score: scoreUpdateEvent.score, laps: scoreUpdateEvent.laps
+    });
+    if (!verifySignature(msg, scoreUpdateEvent.signature, walletPubkey)) {
+      console.error('Invalid signature for score_update');
+      process.exit(1);
+    }
+    // Verify score on-chain
+    const walletPubs = filesJsonMain
+      .filter(f => f.author === walletPubkey)
+      .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
+    const lastPub = walletPubs[0] || null;
+    const sc = await checkScoreEligibility(
+      walletPubkey,
+      lastPub ? (lastPub.score || 0) : 0,
+      lastPub ? Math.max(1, lastPub.laps || 1) : 1
+    );
+    if (!sc.eligible) {
+      console.error('Score not eligible: ' + sc.reason);
+      process.exit(1);
+    }
+    console.log('Score update eligible — score=' + sc.score.toFixed(4) + ' laps=' + sc.currentLaps);
+    fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
+      walletPubkey, ghActor,
+      files: [{ action: 'score_update', wallet: walletPubkey, score: sc.score, laps: sc.currentLaps, timestamp: scoreUpdateEvent.timestamp, nonce: scoreUpdateEvent.nonce }]
+    }, null, 2));
+    console.log('\nScore update validation passed');
+    process.exit(0);
+  }
+
+  // Vérifie les types de fichiers
+  for (const ev of events) {
+    if (!ALLOWED_FILE(ev.filename)) {
+      console.error('File type not allowed: ' + ev.filename);
+      process.exit(1);
+    }
+  }
+
   // Classifie : nouveaux / upgrades
   const newFiles     = [];
   const upgradeFiles = [];
   for (const ev of events) {
     const existing = filesJsonMain.find(f => f.filename === ev.filename);
     if (!existing) {
-      // Vérifie que ce n'est pas un fichier protégé du repo
       if (fs.existsSync(ev.filename)) {
         console.error('PROTECTED: ' + ev.filename + ' exists in repo but not in files.json');
         process.exit(1);
       }
-      newFiles.push(ev);
+      // Registry files (name.json, profile.json) are never "new" in the same sense
+      if (!ALLOWED_REGISTRY(ev.filename)) newFiles.push(ev);
+      else upgradeFiles.push(ev); // registry updates = always upgrades
     } else {
-      // UPGRADE : GitHub OU wallet correspondent
       const ghMatch    = existing.ghAuthor === ghActor;
       const walletMatch = existing.author === walletPubkey;
       if (!ghMatch && !walletMatch) {
-        console.error('REFUSED: ' + ev.filename + ' belongs to @' + existing.ghAuthor + ' with wallet ' + (existing.author || '?'));
+        console.error('REFUSED: ' + ev.filename + ' belongs to @' + existing.ghAuthor);
         process.exit(1);
       }
       upgradeFiles.push(ev);
@@ -144,21 +196,26 @@ async function main() {
   }
   console.log('Anti-replay OK');
 
-  // Score on-chain — nouveaux seulement
+  // Score on-chain — nouveaux fichiers code seulement (.sphere.js, .profile.js)
+  const newCodeFiles = newFiles.filter(f => ALLOWED_SPHERE(f.filename) || ALLOWED_PROFILE(f.filename));
   let scoreCheck = { score: 0, currentLaps: 1, eligible: true };
-  if (newFiles.length > 0) {
+  if (newCodeFiles.length > 0) {
     const walletPubs = filesJsonMain
       .filter(f => f.ghAuthor === ghActor || f.author === walletPubkey)
       .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
     const lastPub = walletPubs[0] || null;
-    scoreCheck = await checkScoreEligibility(walletPubkey, lastPub ? (lastPub.score || 0) : 0, lastPub ? Math.max(1, lastPub.laps || 1) : 1);
+    scoreCheck = await checkScoreEligibility(
+      walletPubkey,
+      lastPub ? (lastPub.score || 0) : 0,
+      lastPub ? Math.max(1, lastPub.laps || 1) : 1
+    );
     if (!scoreCheck.eligible) {
       console.error('Score not eligible: ' + scoreCheck.reason);
       process.exit(1);
     }
     console.log('Score eligible (claimable=' + scoreCheck.score.toFixed(4) + ')');
   } else {
-    console.log('Score check skipped (upgrades only)');
+    console.log('Score check skipped (upgrades or registry only)');
   }
 
   // Validation par event
@@ -167,63 +224,91 @@ async function main() {
     const { filename } = event;
     console.log('\n--- ' + filename + ' ---');
 
-    if (!filename.endsWith('.sphere.js')) {
-      console.error('Only .sphere.js allowed: ' + filename);
-      process.exit(1);
-    }
+    const isRegistryFile = ALLOWED_REGISTRY(filename);
+    const isCodeFile     = ALLOWED_SPHERE(filename) || ALLOWED_PROFILE(filename);
+    const existing       = filesJsonMain.find(f => f.filename === filename);
+    const isUpdate       = !!(existing);
+    console.log('→ ' + (isUpdate ? 'Upgrade' : 'New') + ' | type: ' + (isRegistryFile ? 'registry' : 'code'));
 
-    const existing = filesJsonMain.find(f => f.filename === filename);
-    const isUpdate = !!(existing);
-    console.log('→ ' + (isUpdate ? 'Upgrade' : 'New file'));
+    // Hash + signature vérification pour les fichiers code seulement
+    if (isCodeFile) {
+      const codeUrl = event.codeUrl || ('https://raw.githubusercontent.com/' + ghActor + '/' + GH_REPO_NAME() + '/main/' + filename);
+      console.log('  codeUrl: ' + codeUrl);
 
-    // codeUrl = lien vers le code dans le fork
-    const codeUrl = event.codeUrl || ('https://raw.githubusercontent.com/' + (event.wallet ? ghActor : ghActor) + '/' + GH_REPO_NAME(filename) + '/main/' + filename);
-    console.log('  codeUrl: ' + codeUrl);
-
-    // Télécharge le code depuis le fork pour vérifier le hash
-    let codeSource = '';
-    try {
-      codeSource = await fetchCodeFromFork(codeUrl);
-      codeSource = codeSource.replace(/\r\n/g, '\n');
-    } catch(e) {
-      console.error('Cannot fetch code from fork: ' + e.message);
-      process.exit(1);
-    }
-
-    const actualHash = crypto.createHash('sha256').update(codeSource).digest('hex');
-    if (actualHash !== event.content_hash) {
-      console.error('Hash mismatch for ' + filename);
-      console.error('  Expected: ' + event.content_hash);
-      console.error('  Got:      ' + actualHash);
-      process.exit(1);
-    }
-    console.log('Hash OK');
-
-    // Vérifie la signature (si présente — optionnel pour upgrades GitHub)
-    if (event.signature) {
-      const message = JSON.stringify({
-        action: event.action, filename: event.filename,
-        content_hash: event.content_hash, nonce: event.nonce,
-        timestamp: event.timestamp, score: event.score, laps: event.laps,
-        codeUrl: event.codeUrl
-      });
-      if (!verifySignature(message, event.signature, walletPubkey)) {
-        console.error('Invalid signature for ' + filename);
+      let codeSource = '';
+      try {
+        codeSource = await fetchCodeFromFork(codeUrl);
+        codeSource = codeSource.replace(/\r\n/g, '\n');
+      } catch(e) {
+        console.error('Cannot fetch code from fork: ' + e.message);
         process.exit(1);
       }
-      console.log('Signature OK');
-    } else {
-      console.log('No signature (upgrade via GitHub only)');
+
+      const actualHash = crypto.createHash('sha256').update(codeSource).digest('hex');
+      if (actualHash !== event.content_hash) {
+        console.error('Hash mismatch for ' + filename);
+        console.error('  Expected: ' + event.content_hash);
+        console.error('  Got:      ' + actualHash);
+        process.exit(1);
+      }
+      console.log('Hash OK');
+
+      if (event.signature) {
+        const message = JSON.stringify({
+          action: event.action, filename: event.filename,
+          content_hash: event.content_hash, nonce: event.nonce,
+          timestamp: event.timestamp, score: event.score, laps: event.laps,
+          codeUrl: event.codeUrl
+        });
+        if (!verifySignature(message, event.signature, walletPubkey)) {
+          console.error('Invalid signature for ' + filename);
+          process.exit(1);
+        }
+        console.log('Signature OK');
+      } else {
+        console.log('No signature (upgrade via GitHub only)');
+      }
     }
 
-    console.log(filename + ' validated (' + (isUpdate ? 'upgrade' : 'new') + ')');
+    // Signature requise pour les registry files (name.json, profile.json)
+    if (isRegistryFile) {
+      if (!event.signature) {
+        console.error('Signature required for registry file: ' + filename);
+        process.exit(1);
+      }
+      const message = JSON.stringify({
+        action: event.action, filename: event.filename,
+        nonce: event.nonce, timestamp: event.timestamp,
+        wallet: event.wallet
+      });
+      if (!verifySignature(message, event.signature, walletPubkey)) {
+        console.error('Invalid signature for registry file: ' + filename);
+        process.exit(1);
+      }
+      console.log('Signature OK (registry)');
+    }
+
+    console.log(filename + ' validated');
+
+    // FIX: use blockchain score for new code files, event score for upgrades/registry
+    const finalScore = (newCodeFiles.length > 0 && !isUpdate && isCodeFile)
+      ? scoreCheck.score
+      : (event.score || 0);
+    const finalLaps = (newCodeFiles.length > 0 && !isUpdate && isCodeFile)
+      ? scoreCheck.currentLaps
+      : (event.laps || 0);
+
     results.push({
-      filename, isUpdate, codeUrl,
+      filename, isUpdate, isRegistryFile,
+      codeUrl: event.codeUrl || null,
       ghAuthor: ghActor,
       wallet: walletPubkey,
-      score:    event.score    || 0,
-      laps:     event.laps     || 0,
-      timestamp: event.timestamp || Math.floor(Date.now()/1000)
+      score:    finalScore,
+      laps:     finalLaps,
+      timestamp: event.timestamp || Math.floor(Date.now() / 1000),
+      // Pass through registry payloads for merge.js
+      nameEntry:    event.nameEntry    || null,
+      profileEntry: event.profileEntry || null,
     });
   }
 
@@ -233,7 +318,6 @@ async function main() {
   console.log('\nValidation passed — ' + results.length + ' file(s) ready');
 }
 
-// Extrait le nom du repo depuis le path (toujours YourMinedApp)
-function GH_REPO_NAME(){ return 'YourMinedApp'; }
+function GH_REPO_NAME() { return 'YourMinedApp'; }
 
 main().catch(e => { console.error('Validation error:', e.message); process.exit(1); });
