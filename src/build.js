@@ -952,7 +952,6 @@ async function _renderUpdateScore(container){
   const state=window._mineState||{};
   const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
   const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
-  const p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
   const token=_getToken();
   const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
   const username=bt?.username||'';
@@ -964,13 +963,14 @@ async function _renderUpdateScore(container){
         '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Wallet</div>'+
         '<div style="font-size:12px;color:var(--gold);font-family:monospace;word-break:break-all">'+pubkey+'</div>'+
         '<div style="display:flex;gap:16px;margin-top:10px">'+
-        '<div><div style="font-size:10px;color:var(--text3)">Score</div><div style="font-size:18px;font-weight:700;color:var(--text)">'+claimable+'</div></div>'+
+        '<div><div style="font-size:10px;color:var(--text3)">Score</div><div style="font-size:18px;font-weight:700;color:var(--text)">'+claimable.toFixed(4)+'</div></div>'+
         '<div><div style="font-size:10px;color:var(--text3)">Laps</div><div style="font-size:18px;font-weight:700;color:var(--text)">'+curLaps+'</div></div>'+
         '</div></div>'
       :'<div style="color:var(--red);font-size:13px;margin-bottom:12px">❌ Connect your wallet first</div>')+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Updates score for all your files across all registries.</div>'+
     (!token?'<input id="score-token" type="password" class="ym-input" placeholder="GitHub token" style="margin-bottom:12px;font-size:12px">':
       '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>')+
-    '<button id="score-go" class="ym-btn ym-btn-accent" style="width:100%" '+(pubkey?'':'disabled')+'>Submit Score</button>'+
+    '<button id="score-go" class="ym-btn ym-btn-accent" style="width:100%" '+(pubkey?'':'disabled')+'>Submit Score Update</button>'+
     '<div id="score-status" style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center"></div>';
 
   container.querySelector('#score-go')?.addEventListener('click', async()=>{
@@ -980,24 +980,33 @@ async function _renderUpdateScore(container){
     if(!pubkey){status.textContent='Connect your wallet first';return;}
     if(!username){status.textContent='GitHub username required — reconnect via Build';return;}
     const elig=await computeEligibility();
-    if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant';return;}
+    if(elig&&!elig.eligible){status.textContent='❌ '+elig.reason;return;}
     status.textContent='Signing…';
     const nonce=uuid();
     const ts=Math.floor(Date.now()/1000);
     let sigB64='';
     if(window.YM_Mine_sign){
-      const msg=JSON.stringify({action:'rank',wallet:pubkey,nonce,timestamp:ts,score:claimable,laps:curLaps});
+      const msg=JSON.stringify({action:'score_update',wallet:pubkey,nonce,timestamp:ts,score:claimable,laps:curLaps});
       try{const sig=await window.YM_Mine_sign(msg);sigB64=btoa(String.fromCharCode(...Array.from(sig)));}
       catch(e){status.textContent='Signature failed';return;}
     }
-    const ev={action:'rank',filename:'rank.json',wallet:pubkey,signature:sigB64,nonce,timestamp:ts,score:claimable,laps:curLaps,rankEntry:{uuid:p.uuid,name:p.name||''}};
+    const ev={
+      action:'score_update',
+      filename:'score_update',
+      wallet:pubkey,
+      signature:sigB64,
+      nonce,
+      timestamp:ts,
+      score:claimable,
+      laps:curLaps
+    };
     try{
       status.textContent='Fork…';await ensureFork(tok,username);
-      status.textContent='Push…';await ghPush(tok,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'rank: '+nonce);
+      status.textContent='Push…';await ghPush(tok,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'score_update: '+nonce);
       await new Promise(r=>setTimeout(r,1500));
       status.textContent='PR…';const pr=await openPR(tok,username);
       status.style.color='var(--gold)';
-      status.innerHTML='⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ Score PR submitted</a>';
+      status.innerHTML='⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ Score update PR submitted</a>';
     }catch(e){status.textContent='Error: '+e.message;}
   });
 }
