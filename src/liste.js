@@ -9,7 +9,7 @@ const REPO_BRANCH = 'main';
 const RAW_BASE    = 'https://raw.githubusercontent.com/'+REPO_OWNER+'/'+REPO_NAME+'/'+REPO_BRANCH+'/';
 const FILES_JSON_URL = (window.YM_REGISTRY_OVERRIDE && window.YM_REGISTRY_OVERRIDE.url) || RAW_BASE+'files.json';
 
-const CACHE_KEY = 'ym_liste_cache_v5';
+const CACHE_KEY = 'ym_liste_cache_v4';
 const CACHE_TTL = 30 * 60 * 1000;
 
 let _sphereList = [];
@@ -54,7 +54,18 @@ async function _doFetch(){
   // Invalidate cache if files.json changed (etag mismatch)
   const cached=_readCache(true);
   const cacheValid=cached&&etag&&cached.etag===etag&&(Date.now()-cached.ts<CACHE_TTL);
-  if(cacheValid){_sphereList=cached.list;_loaded=true;return _sphereList;}
+  if(cacheValid){
+    // Still patch visual properties in case files.json was updated
+    cached.list.forEach(s=>{
+      const e=entries.find(x=>x.filename===s.fileName);
+      if(!e) return;
+      if(e.cardGif)        s.cardGif        = e.cardGif;
+      if(e.cardBackground) s.cardBackground = e.cardBackground;
+      if(e.desktopGif)     s.desktopGif     = e.desktopGif;
+      if(e.fullscreen)     s.fullscreen     = e.fullscreen;
+    });
+    _sphereList=cached.list;_loaded=true;return _sphereList;
+  }
   if(!entries.length){_sphereList=[];_loaded=true;_writeCache(_sphereList);return _sphereList;}
   const cachedMap={};
   if(cached)cached.list.forEach(s=>{cachedMap[s.fileName]=s;});
@@ -79,8 +90,8 @@ async function _doFetch(){
     const hasEntryMeta=entryMeta.name&&entryMeta.icon;
     if(cachedMap[fileName]){
       const cached={...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};
-      // Override with files.json metadata if available
-      if(hasEntryMeta)Object.assign(cached,entryMeta);
+      // Always apply latest entryMeta — including visual properties
+      Object.assign(cached,entryMeta);
       return cached;
     }
     // If files.json has metadata, use it directly without fetching sphere code
