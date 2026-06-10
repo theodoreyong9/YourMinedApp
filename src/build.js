@@ -311,7 +311,7 @@ function renderPatchContent(body){
   body.appendChild(applyBtn);
   let _detectedType=null,_detectedName=null;
   fetchBtn.addEventListener('click',async()=>{
-    const url=urlInput.value.trim().replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/')trim();
+    const url=urlInput.value.trim().replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob//','/').trim();
     if(!url){toast('Enter a URL first','warn');return;}
     fetchBtn.disabled=true;fetchBtn.textContent='…';
     applyBtn.disabled=true;status.textContent='Validating…';
