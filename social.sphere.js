@@ -1017,7 +1017,8 @@ async function renderSearchTab(el){
       if(sphereFilters.length){if(!sphereFilters.some(sf=>(p.spheres||[]).includes(sf)))return false;}
       if(!query) return true;
       // Name match — from name.json or profile.json
-      const nameMatch=(p.name||'').toLowerCase().includes(query);
+      // Name match — from name.json or profile.json
+      const nameMatch=(p.name||'').toLowerCase().includes(query)||allNames.some(e=>e.uuid===p.uuid&&(e.name||'').toLowerCase().includes(query));
       // Keyword match — from profile.json only
       const kwMatch=(p.keywords||[]).join(' ').toLowerCase().includes(query);
       return nameMatch||kwMatch;
