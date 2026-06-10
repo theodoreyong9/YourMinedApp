@@ -54,7 +54,18 @@ async function _doFetch(){
   // Invalidate cache if files.json changed (etag mismatch)
   const cached=_readCache(true);
   const cacheValid=cached&&etag&&cached.etag===etag&&(Date.now()-cached.ts<CACHE_TTL);
-  if(cacheValid){_sphereList=cached.list;_loaded=true;return _sphereList;}
+  if(cacheValid){
+    // Still patch visual properties in case files.json was updated
+    cached.list.forEach(s=>{
+      const e=entries.find(x=>x.filename===s.fileName);
+      if(!e) return;
+      if(e.cardGif)        s.cardGif        = e.cardGif;
+      if(e.cardBackground) s.cardBackground = e.cardBackground;
+      if(e.desktopGif)     s.desktopGif     = e.desktopGif;
+      if(e.fullscreen)     s.fullscreen     = e.fullscreen;
+    });
+    _sphereList=cached.list;_loaded=true;return _sphereList;
+  }
   if(!entries.length){_sphereList=[];_loaded=true;_writeCache(_sphereList);return _sphereList;}
   const cachedMap={};
   if(cached)cached.list.forEach(s=>{cachedMap[s.fileName]=s;});
@@ -77,10 +88,11 @@ async function _doFetch(){
       fullscreen:entry.fullscreen||false,
     };
     const hasEntryMeta=entryMeta.name&&entryMeta.icon;
+    const hasVisualMeta=!!(entryMeta.cardGif||entryMeta.cardBackground||entryMeta.fullscreen);
     if(cachedMap[fileName]){
       const cached={...cachedMap[fileName],ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0,codeUrl:codeUrl||cachedMap[fileName].codeUrl||null};
-      // Override with files.json metadata if available
-      if(hasEntryMeta)Object.assign(cached,entryMeta);
+      // Only apply non-null entryMeta values — avoid overriding valid cache with null
+      Object.keys(entryMeta).forEach(k=>{ if(entryMeta[k]!=null) cached[k]=entryMeta[k]; });
       return cached;
     }
     // If files.json has metadata, use it directly without fetching sphere code
@@ -88,7 +100,10 @@ async function _doFetch(){
       return{...entryMeta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
     }
     const meta=await fetchSphereMeta(url,fileName,codeUrl);
-    return{...meta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
+    const result={...meta,url,codeUrl,fileName,ghAuthor,author:entry.author||'',score:entry.score||0,laps:entry.laps||0,merged_at:entry.merged_at||0};
+    // Always apply visual properties from files.json even when fetching meta from code
+    if(hasVisualMeta) Object.assign(result,{cardGif:entryMeta.cardGif,cardBackground:entryMeta.cardBackground,desktopGif:entryMeta.desktopGif,fullscreen:entryMeta.fullscreen});
+    return result;
   }));
   _fetchedList.sort(function(a,b){return (b.score||0)-(a.score||0);});
   _sphereList=_fetchedList;
@@ -1086,6 +1101,10 @@ function renderList(body){
       if(liveSphere.cardGif && !sphere.cardGif) sphere = Object.assign({}, sphere, {cardGif: liveSphere.cardGif});
       if(liveSphere.cardBackground && !sphere.cardBackground) sphere = Object.assign({}, sphere, {cardBackground: liveSphere.cardBackground});
       if(liveSphere.icon && sphere.icon === '⬡') sphere = Object.assign({}, sphere, {icon: liveSphere.icon});
+    }
+    // If icon is a URL (gif/image) and no explicit cardGif, use it as card background
+    if(!sphere.cardGif && !sphere.cardBackground && sphere.icon && (sphere.icon.startsWith('http')||sphere.icon.startsWith('/'))) {
+      sphere = Object.assign({}, sphere, {cardGif: sphere.icon});
     }
     const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
     const siteUrl=sphere.siteUrl||null;
