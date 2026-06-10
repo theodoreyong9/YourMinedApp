@@ -1395,8 +1395,27 @@
    * ═══════════════════════════════════════════════════════════ */
   const GH_BASE = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
 
+  async function _applyRandomThemeOnFirstVisit() {
+    if (localStorage.getItem('ym_theme_url')) return; // already has a theme
+    try {
+      const reg = (window.YM_REGISTRY_OVERRIDE && window.YM_REGISTRY_OVERRIDE.themesUrl)
+        || 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/themes-files.json';
+      const r = await fetch(reg + '?t=' + Date.now());
+      if (!r.ok) return;
+      const themes = await r.json();
+      const eligible = themes.filter(t => t.codeUrl && !t.wip);
+      if (!eligible.length) return;
+      const pick = eligible[Math.floor(Math.random() * eligible.length)];
+      localStorage.setItem('ym_theme_url', pick.codeUrl);
+      const html = await fetch(pick.codeUrl).then(r2 => r2.ok ? r2.text() : null);
+      if (html) try { localStorage.setItem('ym_theme_cache', html); } catch(e) {}
+      location.reload();
+    } catch(e) { console.warn('[YM] random theme failed', e.message); }
+  }
+
   async function init() {
     OC();
+    await _applyRandomThemeOnFirstVisit();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
     for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
