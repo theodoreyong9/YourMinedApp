@@ -1098,10 +1098,6 @@ function renderList(body){
       if(liveSphere.cardBackground && !sphere.cardBackground) sphere = Object.assign({}, sphere, {cardBackground: liveSphere.cardBackground});
       if(liveSphere.icon && sphere.icon === '⬡') sphere = Object.assign({}, sphere, {icon: liveSphere.icon});
     }
-    // If icon is a URL (gif/image) and no explicit cardGif, use it as card background
-    if(!sphere.cardGif && !sphere.cardBackground && sphere.icon && (sphere.icon.startsWith('http')||sphere.icon.startsWith('/'))) {
-      sphere = Object.assign({}, sphere, {cardGif: sphere.icon});
-    }
     const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
     const siteUrl=sphere.siteUrl||null;
     const iconIsUrl=sphere.icon&&(sphere.icon.startsWith('http')||sphere.icon.startsWith('/'));
