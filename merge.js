@@ -322,6 +322,23 @@ async function main() {
     }
   }
 
+  // Unpublish profile — remove entry from profile.json
+  const unpublishFile = files.find(f => f.action === 'unpublish_profile');
+  if (unpublishFile) {
+    const uuidToRemove = unpublishFile.profileEntry?.uuid;
+    if (uuidToRemove) {
+      let profileJson = [];
+      try { profileJson = JSON.parse(fs.readFileSync('profile.json','utf8')); } catch(e) {}
+      profileJson = profileJson.filter(p => p.uuid !== uuidToRemove);
+      fs.writeFileSync('profile.json', JSON.stringify(profileJson, null, 2));
+      console.log('Profile unpublished:', uuidToRemove);
+    }
+    run('git add profile.json');
+    run('git commit -m "bot: unpublish_profile @' + ghActor + '"');
+    run('git push origin main');
+    return;
+  }
+
   // Score update — updates score across all registries for this wallet
   const scoreUpdateFile = files.find(f => f.action === 'score_update');
   if (scoreUpdateFile) {
