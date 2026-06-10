@@ -81,6 +81,21 @@ async function main() {
   const walletPubkey = events[0].wallet;
   console.log('Wallet: ' + walletPubkey);
 
+  // Unpublish profile — remove entry from profile.json
+  const unpublishEvent = events.find(ev => ev.action === 'unpublish_profile');
+  if (unpublishEvent) {
+    if (!unpublishEvent.signature) { console.error('Signature required for unpublish_profile'); process.exit(1); }
+    const msgU = JSON.stringify({action:'unpublish_profile',filename:'profile.json',wallet:unpublishEvent.wallet,nonce:unpublishEvent.nonce,timestamp:unpublishEvent.timestamp,uuid:unpublishEvent.profileEntry?.uuid});
+    if (!verifySignature(msgU, unpublishEvent.signature, walletPubkey)) { console.error('Invalid signature for unpublish_profile'); process.exit(1); }
+    // Verify UUID belongs to this wallet
+    const profileJsonMain2 = (() => { try { return JSON.parse(fs.readFileSync('profile.json','utf8')); } catch(e) { return []; } })();
+    const entry = profileJsonMain2.find(p => p.uuid === unpublishEvent.profileEntry?.uuid);
+    if (entry && entry.pubkey !== walletPubkey) { console.error('REFUSED: profile UUID belongs to another wallet'); process.exit(1); }
+    fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({walletPubkey,ghActor,files:[{action:'unpublish_profile',filename:'profile.json',wallet:walletPubkey,profileEntry:unpublishEvent.profileEntry,timestamp:unpublishEvent.timestamp,nonce:unpublishEvent.nonce}]},null,2));
+    console.log('Unpublish profile validation passed');
+    process.exit(0);
+  }
+
   // Score update — special action that updates all wallet files scores
   const scoreUpdateEvent = events.find(ev => ev.action === 'score_update');
   if (scoreUpdateEvent) {
