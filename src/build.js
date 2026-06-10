@@ -95,7 +95,7 @@ function _injectGithubBtn(){
   });
 }
 
-// ── FLOW CONVERSATIONNEL ──────────────────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────
 function _flowBtn(label, onClick){
   const b = document.createElement('button');
   b.style.cssText = 'cursor:pointer;border-radius:10px;padding:12px 16px;font-size:13px;transition:border-color .15s,color .15s;width:100%;text-align:left;display:flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text2)';
@@ -116,144 +116,83 @@ function _flowBack(buildContent, fn){
   return back;
 }
 
+// ── FLOW PRINCIPAL — 4 boutons directs ───────────────────────
 function renderFlow(buildContent){
   buildContent.innerHTML='';
   buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;gap:10px';
 
-  const q = document.createElement('div');
-  q.style.cssText = 'font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px';
-  q.textContent = 'You have code or a link?';
-  buildContent.appendChild(q);
-
-  // YES
-  buildContent.appendChild(_flowBtn(
-    '<span style="font-size:20px">&#10003;</span><div><div style="font-size:13px;color:var(--text)">Yes &#8212; I have code or a link</div></div>',
-    ()=>{
-      buildContent.innerHTML='';
-      buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;gap:10px';
-      const q2=document.createElement('div');
-      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px';
-      q2.textContent='What do you want to do?';
-      buildContent.appendChild(q2);
-      const wrap=document.createElement('div');
-      wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
-      // 1.1 Rank
-      wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">&#11014;</span><div><div style="font-size:13px;color:var(--text)">Rank</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Publish to the YourMine registry via PR</div></div>',
-        ()=>{
-          buildContent.innerHTML='';
-          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-          const scrollArea=document.createElement('div');
-          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
-          buildContent.appendChild(scrollArea);
-          renderBuildContent(scrollArea);
-          const backWrap=document.createElement('div');
-          backWrap.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-          backWrap.appendChild(_flowBack(buildContent, renderFlow));
-          buildContent.appendChild(backWrap);
-        }
-      ));
-      // 1.2 Plug
-      wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">&#128268;</span><div><div style="font-size:13px;color:var(--text)">Test (Plug)</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Load directly without publishing</div></div>',
-        ()=>{
-          buildContent.innerHTML='';
-          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-          const scrollArea=document.createElement('div');
-          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
-          buildContent.appendChild(scrollArea);
-          renderPlugContent(scrollArea);
-          const backWrap2=document.createElement('div');
-          backWrap2.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-          backWrap2.appendChild(_flowBack(buildContent, renderFlow));
-          buildContent.appendChild(backWrap2);
-        }
-      ));
-      // 1.3 Patch
-      wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">&#9998;</span><div><div style="font-size:13px;color:var(--text)">Patch</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Propose a fix on any GitHub file via PR</div></div>',
-        ()=>{
-          buildContent.innerHTML='';
-          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-          const scrollArea=document.createElement('div');
-          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
-          buildContent.appendChild(scrollArea);
-          renderPatchContent(scrollArea);
-          const backWrap4=document.createElement('div');
-          backWrap4.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-          backWrap4.appendChild(_flowBack(buildContent, renderFlow));
-          buildContent.appendChild(backWrap4);
-        }
-      ));
-      // 1.4 Update Score
-      wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">◈</span><div><div style="font-size:13px;color:var(--text)">Update Score</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Publish your current wallet score to rank.json</div></div>',
-        ()=>{
-          buildContent.innerHTML='';
-          buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-          const scrollArea=document.createElement('div');
-          scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;padding:24px 16px';
-          buildContent.appendChild(scrollArea);
-          _renderUpdateScore(scrollArea);
-          const backWrap5=document.createElement('div');
-          backWrap5.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-          backWrap5.appendChild(_flowBack(buildContent, renderFlow));
-          buildContent.appendChild(backWrap5);
-        }
-      ));
-      // 1.5 Custom Profile
-      wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">✦</span><div><div style="font-size:13px;color:var(--text)">Custom Profile</div><div style="font-size:10px;color:var(--text3);margin-top:2px">Design and publish your profile sphere</div></div>',
-        ()=>{
-          if(window.openProfileSphereEditor) window.openProfileSphereEditor();
-        }
-      ));
-      buildContent.appendChild(wrap);
-      buildContent.appendChild(_flowBack(buildContent, renderFlow));
+  const items = [
+    {
+      icon:'&#11014;',
+      label:'Apps',
+      sub:'Publish a sphere or theme via PR',
+      action(){
+        buildContent.innerHTML='';
+        buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+        const scrollArea=document.createElement('div');
+        scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
+        buildContent.appendChild(scrollArea);
+        renderBuildContent(scrollArea);
+        const backWrap=document.createElement('div');
+        backWrap.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
+        backWrap.appendChild(_flowBack(buildContent, renderFlow));
+        buildContent.appendChild(backWrap);
+      }
+    },
+    {
+      icon:'✦',
+      label:'Profile',
+      sub:'Design and publish your profile sphere',
+      action(){
+        if(window.openProfileSphereEditor) window.openProfileSphereEditor();
+      }
+    },
+    {
+      icon:'&#10022;',
+      label:'Prompt',
+      sub:'Copy the AI prompt to your clipboard',
+      action(){
+        const prompt='yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
+        navigator.clipboard?.writeText(prompt).then(()=>{
+          toast('Prompt copied — paste it in your AI','success');
+        }).catch(()=>{
+          const ta=document.createElement('textarea');
+          ta.value=prompt;ta.style.cssText='position:fixed;opacity:0';
+          document.body.appendChild(ta);ta.select();
+          document.execCommand('copy');document.body.removeChild(ta);
+          toast('Prompt copied — paste it in your AI','success');
+        });
+      }
+    },
+    {
+      icon:'◈',
+      label:'Rank',
+      sub:'Publish your current wallet score to rank.json',
+      action(){
+        buildContent.innerHTML='';
+        buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+        const scrollArea=document.createElement('div');
+        scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;padding:24px 16px';
+        buildContent.appendChild(scrollArea);
+        _renderUpdateScore(scrollArea);
+        const backWrap=document.createElement('div');
+        backWrap.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
+        backWrap.appendChild(_flowBack(buildContent, renderFlow));
+        buildContent.appendChild(backWrap);
+      }
     }
-  ));
+  ];
 
-  // NO
-  buildContent.appendChild(_flowBtn(
-    '<span style="font-size:20px">&#10007;</span><div><div style="font-size:13px;color:var(--text)">No &#8212; I have nothing yet</div></div>',
-    ()=>{
-      buildContent.innerHTML='';
-      buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;gap:10px';
-      const q2=document.createElement('div');
-      q2.style.cssText='font-family:var(--font-d,inherit);font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px';
-      q2.textContent='What do you need?';
-      buildContent.appendChild(q2);
-      const wrap=document.createElement('div');
-      wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
-      // 2.1 Copy AI Prompt
-      wrap.appendChild(_flowBtn(
-        '<span style="font-size:20px">&#10022;</span><div><div style="font-size:13px;color:var(--text)">Copy AI Prompt</div><div style="font-size:10px;color:var(--text3);margin-top:2px">as long as your web exists</div></div>',
-        ()=>{
-          const prompt='yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
-          navigator.clipboard?.writeText(prompt).then(()=>{
-            toast('Prompt copied — paste it in your AI','success');
-          }).catch(()=>{
-            const ta=document.createElement('textarea');
-            ta.value=prompt;ta.style.cssText='position:fixed;opacity:0';
-            document.body.appendChild(ta);ta.select();
-            document.execCommand('copy');document.body.removeChild(ta);
-            toast('Prompt copied — paste it in your AI','success');
-          });
-        }
-      ));
-      // 2.2 AI — disabled (soon)
-      const aiBtn = _flowBtn(
-        '<span style="font-size:20px;opacity:.5">&#10022;</span><div><div style="font-size:13px;color:var(--text2)">Test the YourMine agent</div><div style="font-size:10px;margin-top:2px;display:flex;align-items:center;gap:6px"><span style="color:var(--text3)">AI code generation</span><span style="font-family:var(--font-m,monospace);font-size:9px;letter-spacing:.12em;color:var(--gold);opacity:.7;background:rgba(240,168,48,.08);border:1px solid rgba(240,168,48,.2);border-radius:4px;padding:1px 5px">soon</span></div></div>',
-        ()=>{}
-      );
-      aiBtn.style.opacity='0.6';
-      aiBtn.style.cursor='not-allowed';
-      aiBtn.style.pointerEvents='none';
-      wrap.appendChild(aiBtn);
-      buildContent.appendChild(wrap);
-      buildContent.appendChild(_flowBack(buildContent, renderFlow));
-    }
-  ));
+  items.forEach(item=>{
+    buildContent.appendChild(_flowBtn(
+      '<span style="font-size:20px">'+item.icon+'</span>'+
+      '<div>'+
+        '<div style="font-size:13px;color:var(--text)">'+item.label+'</div>'+
+        '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+item.sub+'</div>'+
+      '</div>',
+      item.action
+    ));
+  });
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
@@ -277,7 +216,7 @@ async function render(containerArg,presetType){
   }
 }
 
-// ── PATCH FLOW ────────────────────────────────────────────────
+// ── PATCH FLOW (mis de côté — conservé) ──────────────────────
 const PATCH_PREFIX = 'ym_patch_';
 const THEO_RAW = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
 const FILES_JSON_URL = THEO_RAW + 'files.json';
@@ -287,11 +226,7 @@ function getFileName(url){ return url.split('/').pop().split('?')[0]; }
 
 async function validatePatchUrl(url){
   const fname = getFileName(url);
-
-  // Exception: liste.js from theo repo
   if(fname === 'liste.js') return {type:'system', name:'liste.js', valid:true};
-
-  // Sphere: ends with .sphere.js — check files.json
   if(fname.endsWith('.sphere.js')){
     try{
       const r = await fetch(FILES_JSON_URL+'?t='+Date.now(),{cache:'no-store'});
@@ -302,8 +237,6 @@ async function validatePatchUrl(url){
       return {type:'sphere', name:fname, valid:false, reason:'Sphere not found in files.json'};
     }catch(e){ return {type:'sphere', name:fname, valid:false, reason:e.message}; }
   }
-
-  // Theme: ends with .theme.html — check themes-files.json
   if(fname.endsWith('.theme.html')||fname.endsWith('.html')){
     try{
       const r = await fetch(THEMES_FILES_JSON_URL+'?t='+Date.now(),{cache:'no-store'});
@@ -314,7 +247,6 @@ async function validatePatchUrl(url){
       return {type:'theme', name:fname, valid:false, reason:'Theme not found in themes-files.json'};
     }catch(e){ return {type:'theme', name:fname, valid:false, reason:e.message}; }
   }
-
   return {type:'unknown', name:fname, valid:false, reason:'Only registered spheres, themes, or liste.js can be patched'};
 }
 
@@ -338,18 +270,14 @@ function getActivePatches(){
 function renderPatchContent(body){
   body.innerHTML='';
   body.style.cssText='padding:16px;display:flex;flex-direction:column;gap:10px';
-
   const hd=document.createElement('div');
   hd.style.cssText='font-family:var(--font-d,inherit);font-size:13px;font-weight:700;color:var(--text)';
   hd.textContent='Patch & Apply';
   body.appendChild(hd);
-
   const sub=document.createElement('div');
   sub.style.cssText='font-size:10px;color:var(--text3);line-height:1.5';
   sub.textContent='Patch any registered sphere, theme, or liste.js — verified against the registry before apply.';
   body.appendChild(sub);
-
-  // URL input
   const urlRow=document.createElement('div');
   urlRow.style.cssText='display:flex;gap:6px;align-items:center';
   const urlInput=document.createElement('input');
@@ -363,85 +291,50 @@ function renderPatchContent(body){
   urlRow.appendChild(urlInput);
   urlRow.appendChild(fetchBtn);
   body.appendChild(urlRow);
-
-  // Detected type badge
   const typeBadge=document.createElement('div');
   typeBadge.style.cssText='font-size:9px;color:var(--text3);min-height:14px;font-family:var(--font-m,inherit)';
   body.appendChild(typeBadge);
-
-  // Editor
   const editor=document.createElement('textarea');
   editor.className='ym-input';
   editor.rows=14;
   editor.placeholder='File content will appear here…';
   editor.style.cssText='font-size:10px;font-family:var(--font-m,inherit);line-height:1.5;min-height:220px;resize:vertical';
   body.appendChild(editor);
-
-  // Status
   const status=document.createElement('div');
   status.style.cssText='font-size:10px;min-height:14px';
   body.appendChild(status);
-
-  // Apply button
   const applyBtn=document.createElement('button');
   applyBtn.className='ym-btn ym-btn-accent';
   applyBtn.style.cssText='width:100%;font-size:13px;padding:12px';
   applyBtn.textContent='▶ Apply';
   applyBtn.disabled=true;
   body.appendChild(applyBtn);
-
-  let _detectedType=null; // 'sphere' | 'theme'
-  let _detectedName=null;
-
-  // ── Fetch ──
+  let _detectedType=null,_detectedName=null;
   fetchBtn.addEventListener('click',async()=>{
-    const url=urlInput.value.trim()
-      .replace('https://github.com/','https://raw.githubusercontent.com/')
-      .replace('/blob/','/')
-      .trim();
+    const url=urlInput.value.trim().replace('https://github.com/','https://raw.githubusercontent.com/').replace('/blob/','/')trim();
     if(!url){toast('Enter a URL first','warn');return;}
     fetchBtn.disabled=true;fetchBtn.textContent='…';
-    applyBtn.disabled=true;
-    status.textContent='Validating…';
+    applyBtn.disabled=true;status.textContent='Validating…';
     try{
-      // Validate before fetching
       const validated=await validatePatchUrl(url);
-      if(!validated.valid){
-        typeBadge.innerHTML='<span style="color:var(--red)">✗ Not allowed</span>';
-        throw new Error(validated.reason||'This file cannot be patched');
-      }
+      if(!validated.valid){typeBadge.innerHTML='<span style="color:var(--red)">✗ Not allowed</span>';throw new Error(validated.reason||'This file cannot be patched');}
       _detectedType=validated.type;_detectedName=validated.name;
       const typeLabels={'sphere':'<span style="color:var(--gold)">⬡ Sphere</span>','theme':'<span style="color:var(--cyan)">🎨 Theme</span>','system':'<span style="color:var(--green)">⚙ liste.js</span>'};
       typeBadge.innerHTML=(typeLabels[validated.type]||'?')+' — '+esc(validated.name)+' <span style="color:var(--green)">✓ verified</span>';
-
-      // Fetch content
-      const r=await fetch(url);
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      const text=await r.text();
-      editor.value=text;
-      applyBtn.disabled=false;
+      const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
+      const text=await r.text();editor.value=text;applyBtn.disabled=false;
       status.innerHTML='<span style="color:var(--green)">✓ Loaded '+text.length+' chars — verified</span>';
-    }catch(e){
-      status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';
-      applyBtn.disabled=true;
-    }finally{
-      fetchBtn.disabled=false;fetchBtn.textContent='⬇ Load';
-    }
+    }catch(e){status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';applyBtn.disabled=true;}
+    finally{fetchBtn.disabled=false;fetchBtn.textContent='⬇ Load';}
   });
-
   urlInput.addEventListener('keydown',e=>{if(e.key==='Enter')fetchBtn.click();});
-
-  // ── Apply ──
-  // ── Active patches list ──
   const patchesSection=document.createElement('div');
   patchesSection.id='active-patches-section';
   patchesSection.style.cssText='display:flex;flex-direction:column;gap:6px';
   body.appendChild(patchesSection);
-
   function renderActivePatches(){
     patchesSection.innerHTML='';
-    const patches=getActivePatches();
-    if(!patches.length)return;
+    const patches=getActivePatches();if(!patches.length)return;
     const title=document.createElement('div');
     title.style.cssText='font-size:9px;color:var(--text3);font-family:var(--font-m,inherit);text-transform:uppercase;letter-spacing:1px;margin-top:4px';
     title.textContent='Active patches ('+patches.length+')';
@@ -456,53 +349,35 @@ function renderPatchContent(body){
       removeBtn.className='ym-btn ym-btn-ghost';
       removeBtn.style.cssText='font-size:9px;padding:3px 8px;color:var(--red);border-color:rgba(255,69,96,.2)';
       removeBtn.textContent='✕ Remove';
-      removeBtn.addEventListener('click',function(){
-        removeActivePatch(p.name);
-        toast(p.name+' patch removed — reload to restore original','info');
-        renderActivePatches();
-      });
+      removeBtn.addEventListener('click',function(){removeActivePatch(p.name);toast(p.name+' patch removed — reload to restore original','info');renderActivePatches();});
       row.appendChild(nameEl);row.appendChild(removeBtn);
       patchesSection.appendChild(row);
     });
   }
-
   renderActivePatches();
-
   applyBtn.addEventListener('click',async()=>{
-    const code=editor.value.trim();
-    if(!code){toast('Nothing to apply','warn');return;}
-    applyBtn.disabled=true;applyBtn.textContent='⏳ Applying…';
-    status.textContent='';
-
+    const code=editor.value.trim();if(!code){toast('Nothing to apply','warn');return;}
+    applyBtn.disabled=true;applyBtn.textContent='⏳ Applying…';status.textContent='';
     try{
       const name=_detectedName||'patch.js';
       if(_detectedType==='theme'){
-        const div=document.createElement('div');
-        div.innerHTML=code;
-        div.querySelectorAll('script').forEach(oldScript=>{
-          const s=document.createElement('script');s.textContent=oldScript.textContent;
-          document.head.appendChild(s);
-        });
+        const div=document.createElement('div');div.innerHTML=code;
+        div.querySelectorAll('script').forEach(oldScript=>{const s=document.createElement('script');s.textContent=oldScript.textContent;document.head.appendChild(s);});
         div.querySelectorAll('style').forEach(st=>{document.head.appendChild(st.cloneNode(true));});
         saveActivePatch(name,urlInput.value.trim(),code);
         status.innerHTML='<span style="color:var(--green)">✓ Theme patch applied</span>';
-        toast('Theme patch applied','success');
-        renderActivePatches();
-      } else if(_detectedType==='system'){
-        // liste.js — reload with patched version via blob
+        toast('Theme patch applied','success');renderActivePatches();
+      }else if(_detectedType==='system'){
         const blob=new Blob([code],{type:'text/javascript'});
         const blobUrl=URL.createObjectURL(blob);
-        const s=document.createElement('script');
-        s.src=blobUrl;s.dataset.patch=name;
+        const s=document.createElement('script');s.src=blobUrl;s.dataset.patch=name;
         s.onload=()=>{URL.revokeObjectURL(blobUrl);toast('liste.js patched','success');};
-        const old=document.querySelector('script[data-patch="'+name+'"]');
-        if(old)old.remove();
+        const old=document.querySelector('script[data-patch="'+name+'"]');if(old)old.remove();
         document.head.appendChild(s);
         saveActivePatch(name,urlInput.value.trim(),code);
         status.innerHTML='<span style="color:var(--green)">✓ liste.js patch applied</span>';
         renderActivePatches();
-      } else {
-        // Sphere
+      }else{
         const blob=new Blob([code],{type:'text/javascript'});
         const blobUrl=URL.createObjectURL(blob);
         if(window.YM_sphereRegistry&&window.YM_sphereRegistry.has(name)){
@@ -516,26 +391,19 @@ function renderPatchContent(body){
             if(window.YM.activateSphere)await window.YM.activateSphere(name,obj);
             saveActivePatch(name,urlInput.value.trim(),code);
             status.innerHTML='<span style="color:var(--green)">✓ Sphere patch applied — '+esc(obj.name||name)+'</span>';
-            toast((obj.name||name)+' patch applied','success');
-            renderActivePatches();
-          } else throw new Error('Sphere loaded but not found in registry');
-        } else throw new Error('YM not ready');
+            toast((obj.name||name)+' patch applied','success');renderActivePatches();
+          }else throw new Error('Sphere loaded but not found in registry');
+        }else throw new Error('YM not ready');
       }
-    }catch(e){
-      status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';
-      toast(e.message,'error');
-    }finally{
-      applyBtn.disabled=false;applyBtn.textContent='▶ Apply';
-    }
+    }catch(e){status.innerHTML='<span style="color:var(--red)">✗ '+esc(e.message)+'</span>';toast(e.message,'error');}
+    finally{applyBtn.disabled=false;applyBtn.textContent='▶ Apply';}
   });
 }
-
 
 function renderPlugContent(body){
   if(window.YM_Liste?.renderPlugContent){window.YM_Liste.renderPlugContent(body);}
   else{body.style.cssText='display:flex;align-items:center;justify-content:center;height:100%';body.innerHTML='<div style="color:var(--text3);font-size:12px">Loading\u2026</div>';setTimeout(()=>{if(window.YM_Liste?.renderPlugContent)window.YM_Liste.renderPlugContent(body);},500);}
 }
-
 
 function renderBuildContent(body,presetType){
   body.innerHTML='';
@@ -930,8 +798,7 @@ window.addEventListener('ym:switch-mine-tab',e=>{
     try{
       const p=JSON.parse(localStorage.getItem(k));
       if(!p||!p.code)continue;
-      const detected=detectPatchType(p.url||p.name);
-      if(detected.type==='system'&&p.name==='liste.js'){
+      if(p.name==='liste.js'){
         const blob=new Blob([p.code],{type:'text/javascript'});
         const blobUrl=URL.createObjectURL(blob);
         const s=document.createElement('script');
@@ -946,7 +813,7 @@ window.addEventListener('ym:switch-mine-tab',e=>{
 
 window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t),computeEligibility};
 
-// ── Update Score ──────────────────────────────────────────────────────────────
+// ── Update Score ──────────────────────────────────────────────
 async function _renderUpdateScore(container){
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
   const state=window._mineState||{};
@@ -957,7 +824,7 @@ async function _renderUpdateScore(container){
   const username=bt?.username||'';
 
   container.innerHTML=
-    '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">◈ Update Score</div>'+
+    '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">◈ Rank</div>'+
     (pubkey
       ?'<div style="background:rgba(240,168,48,.08);border:1px solid rgba(240,168,48,.15);border-radius:10px;padding:12px;margin-bottom:16px">'+
         '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">Wallet</div>'+
@@ -1010,7 +877,6 @@ async function _renderUpdateScore(container){
     }catch(e){status.textContent='Error: '+e.message;}
   });
 }
-
 
 function _getToken(){
   try{const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');return bt?.token||null;}catch{return null;}
