@@ -133,18 +133,6 @@ function renderFlow(buildContent){
         scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
         buildContent.appendChild(scrollArea);
         renderBuildContent(scrollArea);
-        const backWrap=document.createElement('div');
-        backWrap.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-        backWrap.appendChild(_flowBack(buildContent, renderFlow));
-        buildContent.appendChild(backWrap);
-      }
-    },
-    {
-      icon:'✦',
-      label:'Profile',
-      sub:'Design and publish your profile sphere',
-      action(){
-        if(window.openProfileSphereEditor) window.openProfileSphereEditor();
       }
     },
     {
@@ -175,10 +163,6 @@ function renderFlow(buildContent){
         scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;padding:24px 16px';
         buildContent.appendChild(scrollArea);
         _renderUpdateScore(scrollArea);
-        const backWrap=document.createElement('div');
-        backWrap.style.cssText='padding:10px 16px;flex-shrink:0;border-top:1px solid rgba(255,255,255,.06)';
-        backWrap.appendChild(_flowBack(buildContent, renderFlow));
-        buildContent.appendChild(backWrap);
       }
     }
   ];
