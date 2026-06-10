@@ -202,7 +202,7 @@ async function updateNameRegistry(files, ghActor, walletPubkey) {
   const nameFiles = files.filter(f => f.filename === 'name.json');
   if (!nameFiles.length) return;
 
-  for (const { filename, wallet, score, laps, timestamp, nameEntry } of nameFiles) {
+  for (const { wallet, score, laps, timestamp, nonce, nameEntry } of nameFiles) {
     if (!wallet || !score) {
       console.warn('name.json update rejected — missing wallet or score');
       continue;
@@ -212,22 +212,43 @@ async function updateNameRegistry(files, ghActor, walletPubkey) {
       continue;
     }
 
-    // Load existing name.json
-    let nameJson = {};
-    try { nameJson = JSON.parse(fs.readFileSync('name.json', 'utf8')); } catch(e) {}
+    // Load existing name.json — array format
+    let nameJson = [];
+    try {
+      const raw = JSON.parse(fs.readFileSync('name.json', 'utf8'));
+      // Migrate old {name:uuid} format to array
+      if (!Array.isArray(raw)) {
+        nameJson = Object.entries(raw).map(([n, u]) => ({ name: n, uuid: u, pubkey: '', score: 0, laps: 0, timestamp: 0, nonce: '' }));
+      } else {
+        nameJson = raw;
+      }
+    } catch(e) {}
 
-    // Rules: one name per uuid, unique name
     const { name, uuid } = nameEntry;
-    if (nameJson[name] && nameJson[name] !== uuid) {
+
+    // Rules: unique name, one name per uuid
+    const existingName = nameJson.find(e => e.name === name && e.uuid !== uuid);
+    if (existingName) {
       console.warn('name.json update rejected — name already taken:', name);
       continue;
     }
-    // Remove old entry for this uuid
-    Object.keys(nameJson).forEach(k => { if (nameJson[k] === uuid && k !== name) delete nameJson[k]; });
-    nameJson[name] = uuid;
+    // Remove old entry for this uuid (name change)
+    nameJson = nameJson.filter(e => e.uuid !== uuid);
+
+    nameJson.push({
+      name, uuid,
+      pubkey:    wallet,
+      score:     parseFloat(score.toFixed(6)),
+      laps:      parseFloat((laps || 0).toFixed(6)),
+      timestamp: timestamp || Math.floor(Date.now() / 1000),
+      nonce:     nonce || ''
+    });
+
+    // Sort by score descending
+    nameJson.sort((a, b) => (b.score || 0) - (a.score || 0));
 
     fs.writeFileSync('name.json', JSON.stringify(nameJson, null, 2));
-    console.log('Name registry updated:', name, '->', uuid, '— wallet:', wallet, 'score:', score);
+    console.log('Name registry updated:', name, '->', uuid, '— score:', score);
   }
 }
 
@@ -331,7 +352,12 @@ async function main() {
       if (!fs.existsSync(reg)) continue;
       try {
         let data = JSON.parse(fs.readFileSync(reg, 'utf8'));
-        if (!Array.isArray(data)) continue;
+        if (!Array.isArray(data)) {
+          // Migrate name.json old format
+          if (reg === 'name.json') {
+            data = Object.entries(data).map(([n, u]) => ({ name: n, uuid: u, pubkey: '', score: 0, laps: 0 }));
+          } else continue;
+        }
         let updated = false;
         data = data.map(entry => {
           if (entry.author === wallet || entry.pubkey === wallet) {
