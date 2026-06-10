@@ -414,32 +414,7 @@ function renderContactsTab(container){
     addOverlay.appendChild(box);document.body.appendChild(addOverlay);
     addOverlay.addEventListener('click',function(e){if(e.target===addOverlay){addOverlay.remove();addOverlay=null;}});
     box.querySelector('#pc-add-close').addEventListener('click',function(){addOverlay.remove();addOverlay=null;});
-    box.querySelector('#pc-name-search').addEventListener('click',function(){
-      var query=box.querySelector('#pc-name-input').value.trim().toLowerCase();
-      var results=box.querySelector('#pc-name-results');
-      if(!query){results.innerHTML='';return;}
-      results.innerHTML='<div style="font-size:11px;color:var(--text3)">Searching…</div>';
-      var nameUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url
-        ?window.YM_REGISTRY_OVERRIDE.url.replace(/\/[^\/]+\.json.*$/,'')
-        :'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main')+'/name.json?t='+Date.now();
-      fetch(nameUrl,{mode:'cors'}).then(function(r){return r.ok?r.json():Promise.reject(r.status);}).then(function(names){
-        var matches=Object.entries(names).filter(function(e){return e[0].toLowerCase().includes(query);});
-        if(!matches.length){results.innerHTML='<div style="font-size:11px;color:var(--text3)">No match found</div>';return;}
-        results.innerHTML=matches.map(function(e){
-          return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.05)">'+
-            '<span style="font-size:12px;color:var(--text);flex:1">'+e[0]+'</span>'+
-            '<span style="font-size:10px;color:var(--text3);font-family:monospace">'+e[1].slice(0,8)+'…</span>'+
-            '<button class="ym-btn ym-btn-accent" style="font-size:11px;padding:2px 8px" data-uuid="'+e[1]+'">Add</button>'+
-          '</div>';
-        }).join('');
-        results.querySelectorAll('button[data-uuid]').forEach(function(btn){
-          btn.addEventListener('click',function(){
-            box.querySelector('#pc-uuid-input').value=btn.dataset.uuid;
-            results.innerHTML='';
-          });
-        });
-      }).catch(function(){results.innerHTML='<div style="font-size:11px;color:var(--text3)">Could not load name registry</div>';});
-    });
+
     box.querySelector('#pc-uuid-add').addEventListener('click',function(){
       var uuid=box.querySelector('#pc-uuid-input').value.trim();
       var status=box.querySelector('#pc-add-status');
