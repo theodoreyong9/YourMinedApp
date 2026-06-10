@@ -128,21 +128,43 @@ async function main() {
     }
   }
 
+  // Load profile.json for .profile.js ownership checks
+  let profileJsonMain = [];
+  try { profileJsonMain = JSON.parse(fs.readFileSync('profile.json', 'utf8')); } catch(e) {}
+
   // Classifie : nouveaux / upgrades
   const newFiles     = [];
   const upgradeFiles = [];
   for (const ev of events) {
+    // Registry files — always treated as upgrades (merge.js handles dedup)
+    if (ALLOWED_REGISTRY(ev.filename)) {
+      upgradeFiles.push(ev);
+      continue;
+    }
+
+    // .profile.js — ownership check via profile.json, not files.json
+    if (ALLOWED_PROFILE(ev.filename)) {
+      const uuidFromFile = ev.filename.replace('.profile.js', '');
+      const existingProfile = profileJsonMain.find(p => p.uuid === uuidFromFile);
+      if (existingProfile && existingProfile.pubkey !== walletPubkey) {
+        console.error('REFUSED: ' + ev.filename + ' belongs to wallet ' + existingProfile.pubkey);
+        process.exit(1);
+      }
+      // Profile spheres are always upgrades (no score check needed)
+      upgradeFiles.push(ev);
+      continue;
+    }
+
+    // .sphere.js — standard check via files.json
     const existing = filesJsonMain.find(f => f.filename === ev.filename);
     if (!existing) {
       if (fs.existsSync(ev.filename)) {
         console.error('PROTECTED: ' + ev.filename + ' exists in repo but not in files.json');
         process.exit(1);
       }
-      // Registry files (name.json, profile.json) are never "new" in the same sense
-      if (!ALLOWED_REGISTRY(ev.filename)) newFiles.push(ev);
-      else upgradeFiles.push(ev); // registry updates = always upgrades
+      newFiles.push(ev);
     } else {
-      const ghMatch    = existing.ghAuthor === ghActor;
+      const ghMatch     = existing.ghAuthor === ghActor;
       const walletMatch = existing.author === walletPubkey;
       if (!ghMatch && !walletMatch) {
         console.error('REFUSED: ' + ev.filename + ' belongs to @' + existing.ghAuthor);
