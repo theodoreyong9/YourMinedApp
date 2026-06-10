@@ -71,6 +71,10 @@ async function _doFetch(){
       icon:entry.icon||null,
       category:entry.category||null,
       description:entry.description||null,
+      cardGif:entry.cardGif||null,
+      cardBackground:entry.cardBackground||null,
+      desktopGif:entry.desktopGif||null,
+      fullscreen:entry.fullscreen||false,
     };
     const hasEntryMeta=entryMeta.name&&entryMeta.icon;
     if(cachedMap[fileName]){
@@ -1082,6 +1086,30 @@ function renderList(body){
       if(liveSphere.cardGif && !sphere.cardGif) sphere = Object.assign({}, sphere, {cardGif: liveSphere.cardGif});
       if(liveSphere.cardBackground && !sphere.cardBackground) sphere = Object.assign({}, sphere, {cardBackground: liveSphere.cardBackground});
       if(liveSphere.icon && sphere.icon === '⬡') sphere = Object.assign({}, sphere, {icon: liveSphere.icon});
+    } else if(!sphere.cardGif && !sphere.cardBackground && sphere.codeUrl) {
+      // Lazy-fetch sphere code to extract visual metadata — fire and forget
+      (function(s, cardEl){
+        const _cacheKey = 'ym_card_meta_'+s.fileName;
+        const cached = sessionStorage.getItem(_cacheKey);
+        if(cached){
+          try{
+            const meta = JSON.parse(cached);
+            if(meta.cardGif){const bg=document.createElement('div');bg.style.cssText='position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;border-radius:inherit';bg.innerHTML='<img src="'+meta.cardGif+'" style="width:100%;height:100%;object-fit:cover;opacity:.18;filter:saturate(1.4)">';cardEl.insertBefore(bg,cardEl.firstChild);}
+            if(meta.icon&&meta.icon.startsWith('http')){const el=cardEl.querySelector('.sphere-icon-el');if(el)el.innerHTML='<img src="'+meta.icon+'" style="width:34px;height:34px;border-radius:6px;object-fit:contain">';}
+          }catch{}
+          return;
+        }
+        fetch(s.codeUrl,{mode:'cors'}).then(function(r){return r.ok?r.text():null;}).then(function(code){
+          if(!code) return;
+          const meta={};
+          const gifM=code.match(/cardGif\s*:\s*['"]([^'"]+)['"]/);if(gifM)meta.cardGif=gifM[1];
+          const bgM=code.match(/cardBackground\s*:\s*['"]([^'"]+)['"]/);if(bgM)meta.cardBackground=bgM[1];
+          const icM=code.match(/icon\s*:\s*['"]([^'"]{10,})['"]/);if(icM&&icM[1].startsWith('http'))meta.icon=icM[1];
+          sessionStorage.setItem(_cacheKey,JSON.stringify(meta));
+          if(meta.cardGif){const bg=document.createElement('div');bg.style.cssText='position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;border-radius:inherit';bg.innerHTML='<img src="'+meta.cardGif+'" style="width:100%;height:100%;object-fit:cover;opacity:.18;filter:saturate(1.4)">';cardEl.insertBefore(bg,cardEl.firstChild);}
+          if(meta.icon&&meta.icon.startsWith('http')){const el=cardEl.querySelector('.sphere-icon-el');if(el)el.innerHTML='<img src="'+meta.icon+'" style="width:34px;height:34px;border-radius:6px;object-fit:contain">';}
+        }).catch(function(){});
+      })(sphere, card);
     }
     const ghAuthorUrl='https://github.com/'+(sphere.ghAuthor||REPO_OWNER)+'/'+REPO_NAME+'/blob/'+REPO_BRANCH+'/'+sphere.fileName;
     const siteUrl=sphere.siteUrl||null;
