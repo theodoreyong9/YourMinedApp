@@ -1,167 +1,59 @@
-<!-- AI INSTRUCTION: When this document is referenced in a prompt: 1) Ask the user what they want to build. 2) Write the complete code. 3) Guide them through next steps — either Plug (open Build in YourMine → Plug, paste the raw file URL) or Rank (open Build → Rank to publish to the registry). -->
-
-# YourMine Prompt
-
-<!-- AI INSTRUCTION: When this document is referenced in a prompt, always begin your response by asking the user what they want to build or create in YourMine. -->
-
+<!-- AI INSTRUCTION: When this document is referenced in a prompt: 1) Ask the user what they want to build. 2) Write the complete code. 3) Guide them through next steps. -->
 
 **A Soulnet for apps and value.**
 
-> Give to receive. Build and deploy instantly. Fork it. Run it. Break it. Improve it.
+> Give to receive. Build and deploy instantly.
 
-YourMine is a distributed layer for applications and value, built on Solana. It is not a platform — it is an open, forkable system where participation generates value, identity is non-transferable, and anyone can run their own instance instantly.
-
----
-
-## Table of Contents
+YourMine is a distributed layer for applications and value, built on Solana. It is not a platform — it is an open, forkable system where identity is participation and generates value, and where any builder share a namespace with the kernel with zero toolchain friction and full interoperability.
 
 
-**Introduction**
-- [Design Philosophy](#design-philosophy)
-- [What YourMine actually is](#what-yourmine-actually-is)
-- [Architecture Overview](#architecture-overview)
-- [Interplanetary Proof of Will](#interplanetary-proof-of-will)
-- [Runtime Cycle & Lifecycle](#runtime-cycle-lifecycle)
-
-**Identity & Profile**
-- [The Living Profile](#the-living-profile)
-- [Profile Structure](#profile-structure)
-- [Profile Hooks](#profile-hooks)
-- [Profile — Live Sphere Config](#profile-live-sphere-config)
-- [Profile Sphere — Custom Public Profile](#profile-sphere-custom-public-profile)
-- [Profile Menu (⚙)](#profile-menu)
-- [Name Registry — `name.json`](#name-registry-namejson)
-
-**Spheres**
-- [Sphere API Specification](#sphere-api-specification)
-- [Sphere Visibility](#sphere-visibility)
-- [Sphere Card Customization](#sphere-card-customization)
-- [Widget Rules](#widget-rules)
-- [Widget Injection — Hiding Dynamically Created Sphere UI](#widget-injection-hiding-dynamically-created-sphere-ui)
-- [Cross-Registry Sphere Loading](#cross-registry-sphere-loading)
-- [New Spheres (Session 6)](#new-spheres-session-6)
-
-**Themes**
-- [Theme API Specification](#theme-api-specification)
-- [System Themes](#system-themes)
-- [Theme Configuration API](#theme-configuration-api)
-- [Theme CSS isolation](#theme-css-isolation)
-- [SVG illustrations in themes](#svg-illustrations-in-themes)
-- [Book Theme — Deep Links & Position Restore](#book-theme-deep-links-position-restore)
-- [Theme Router — `window.YM_ROUTER`](#theme-router-windowym_router)
-
-**Desktop & Navigation**
-- [Desktop Icon System](#desktop-icon-system)
-- [Desktop Page Width Hook](#desktop-page-width-hook)
-- [Nav Button Config](#nav-button-config)
-- [Nav Button Active State — `YM_NAV_CONFIG` Aware](#nav-button-active-state-ym_nav_config-aware)
-- [Edge-back Button](#edge-back-button)
-- [URL Routing](#url-routing)
-
-**Wallet, Mining & Build**
-- [Wallet & Encryption](#wallet-encryption)
-- [Mining, Score & Ranking](#mining-score-ranking)
-- [Merge Bot](#merge-bot)
-- [Bot `merge.js` — Metadata extraction](#bot-mergejs-metadata-extraction)
-- [Plug](#plug)
-- [Ownership Transfer](#ownership-transfer)
-- [Token GitHub Security Note](#token-github-security-note)
-
-**Multiplayer**
-- [Multiplayer](#multiplayer)
-- [External Apps & Bridge API](#external-apps-bridge-api)
-
-**API Reference**
-- [Global API Reference](#global-api-reference)
-- [Runtime Events](#runtime-events)
-- [Storage Reference](#storage-reference)
-- [CSS Custom Properties Reference](#css-custom-properties-reference)
-- [File Format Standards](#file-format-standards)
-
-**Security**
-- [Permissions & Security Model](#permissions-security-model)
-- [Safety System](#safety-system)
-
-**Development**
-- [Test Environment](#test-environment)
-
----
 
 ---
 
 # Introduction
 
-## Design Philosophy
-
-YourMine is intentionally vanilla JS with no bundler, no framework, no build step. This is a philosophical choice — anyone with a text editor can build a sphere or a theme.
-
-This constraint has a consequence: **you share a namespace with the kernel**. There is no Shadow DOM isolation, no CSS modules, no sandboxed scope. In exchange you get zero toolchain friction and full interoperability with every other sphere and theme.
-
-This means a few lightweight conventions replace what a framework would enforce automatically:
-
-- Prefix your CSS classes with your sphere or theme name
-- Never use `window.YM_*` names for your own globals
-- Declare `YM_NAV_CONFIG` before `app.js` loads if you need custom nav
-- Use `ctx.storage` instead of raw `localStorage` to avoid key collisions
-
-These are not bugs in the architecture. They are the visible seam between a kernel that must stay open and a builder space that must stay free.
 ## What YourMine actually is
 
 The profile is not a feature. It is the infrastructure.
 
-Every app on the web today implements its own authentication — its own login, its own user table, its own permission system. YourMine collapses all of that into one thing: **the profile is already there**. Apps don't authenticate users. They receive an identity that already exists, already has a history, already carries its own permissions.
+Every app on the web today implements its own authentication — its own login, its own user table, its own permission system. YourMine collapses all of that into one thing: **the profile is already there**. Apps don't authenticate users. They receive an identity that already exists, already has a history, already carries its own permissions — and the sphere receives it through `ctx`.
 
-There is no auth to implement. There is no account to create. The user arrives with their profile — a cryptographic identity backed by a Solana wallet — and the sphere receives it through `ctx`.
 
-**Permission is the token.** Not a role, not an access list, not a verified account. If you hold YRM, you participate. The token is the permission system.
+**Distribution is a prompt.** Any builder can distribute a sphere or a theme by giving a single prompt — by voice, by text, from a phone, from anywhere. The recipient doesn't install anything. They don't sign up. They speak or type, and the sphere appears in their YourMine thanks to a simple permissionless PR and a Proof of Will consensus.
 
-**Distribution is a prompt.** Any builder can distribute a sphere or a theme by giving a single prompt — by voice, by text, from a phone, from anywhere. The recipient doesn't install anything. They don't sign up. They speak or type, and the sphere appears in their YourMine.
-
-This is not Web3. Web3 replaced trust with ownership. YourMine replaces authentication with participation. The user doesn't prove who they are — they simply act, and the network receives the action.
-
-**Web4 = participate without permission.**
 ## Architecture Overview
 
 ```
-index.html          Boot loader — fetches theme, injects DOM, loads desk.js then app.js
-desk.js             Desktop runtime — icons, pages, folders, drag/drop, widgets
-app.js              Core logic — panels, sphere registry, P2P, PWA
-themes/*.html       Visual layer — CSS + DOM injected by index.html
-src/*.js            Core modules — mine.js, build.js, liste.js, profile.js
-*.sphere.js         Distributed apps — loaded from author forks via codeUrl in files.json
-files.json          Registry — list of published spheres with metadata and codeUrl
+index.html
+Boot loader — fetches theme, injects DOM, loads desk.js then app.js
+
+desk.js
+Desktop runtime — icons, pages, folders, drag/drop, widgets
+
+app.js
+Core logic — panels, sphere registry, P2P, PWA
+
+*.themes.html
+Visual layer — CSS + DOM injected by index.html
+
+src/*.js
+Core modules — mine.js, build.js, liste.js, profile.js
+
+*.sphere.js
+Distributed apps — loaded from author forks via codeUrl in files.json
+
+files.json
+Registry — list of published spheres with metadata and codeUrl
+
 ```
 
-**Key design constraint:** sphere code is never hosted on the main repo. It lives in the author's GitHub fork. `files.json` contains only the `codeUrl` pointing to the fork. This is the "loader unique" architecture.
-
-### AI-native architecture
-
-YourMine is intentionally structured for AI agents, not human maintainability.
-
-Each file (`app.js`, `desk.js`, `liste.js`, `build.js`, each sphere) is a self-contained block of ~1000 lines with a stable public API on `window.YM`, `window.YM_Desk`, `window.YM_S`. Dependencies exist — but they are channelled through these public APIs, never through internal state. No file reaches into the internals of another.
-
-For a human developer this looks monolithic. For an AI agent it is perfect: the entire file fits in one context window, the agent understands everything it needs without reading other files, and the channelled dependencies mean the blast radius of any change is predictable and contained.
-
-This means:
-- Give any file to an LLM with this README as context — it has everything it needs
-- Modify a sphere without touching the core
-- Refactor `desk.js` without touching `app.js`
-- Generate a new sphere with a single prompt
-
-The architecture was built for speed and modularity. It turned out to be optimal for AI-assisted development.
-
----
 ## Interplanetary Proof of Will
 
-Bitcoin cannot mine across planets. The speed of light introduces 3–22 minutes of latency between Earth and Mars, which breaks global consensus. Any chain would fork irreversibly.
+Any monetary system on earth (Dollars, Bitcoin, whatever...) cannot work across planets. The speed of light introduces 3–22 minutes of latency between Earth and Mars, which breaks global consensus. Any chain would fork irreversibly.
 
-Proof of Will is geographically independent by design. Mining happens where you are, with who you are. Your will does not travel — it acts locally. No global synchronisation required.
+Proof of Will is geographically independent by design. Mining happens where you are, with who you are. Your will does not travel — it acts locally. No global synchronisation required other than time itself.
 
-This makes YourMine the first participation protocol that works at interplanetary scale.
-
----
-
-*YourMine is open source and open by design. There is no central authority. Fork it, improve it, run it.*
+This makes YourMine the first participation protocol that is adaptable at interplanetary scale.
 
 
 ---
