@@ -129,8 +129,7 @@ peerSection(container, ctx) {
     }
   ]
 }
-```
-
+``
 
 ---
 ## Profile Hooks
@@ -250,22 +249,6 @@ Two files are written to your registry repo:
 
 ---
 
-### Editor — no code mode
-
-Without custom code, the visitor sees the classic profile layout (`_renderProfileView`).
-
-Configure:
-- **Accent color** — hex color applied throughout
-- **Keywords** — comma-separated, searchable in Social → Search tab
-- **Spheres** — per-sphere toggles:
-  - `show` — visible or hidden in the public profile (design visibility)
-  - `auto` — accordion opens automatically when visitor arrives
-  - `↑ ↓` — reorder
-
-> **Design visibility ≠ System visibility.** A sphere can be active on your bureau but hidden in your public profile. These are independent.
-
----
-
 ### Editor — custom code mode
 
 The **Custom JS** field accepts the body of `renderPanel(container)`.
@@ -307,12 +290,9 @@ container.innerHTML =
   + profile.name + '</div>'
   + '<div style="color:rgba(255,255,255,.5);margin-top:8px">' + (profile.bio||'') + '</div>';
 ```
-
-**Full example** — see `jean.profile.js` in the repo.
-
 ---
 
-### Priority layer — always applied after your code
+### Priority layer
 
 Regardless of what your custom code renders, the active spheres are **always injected after** as expandable accordions, in the order and visibility you defined in the editor.
 
@@ -325,25 +305,6 @@ This guarantees that all public spheres are always present in the visitor view.
 
 ---
 
-### Before / After preview
-
-- **Before** — opens the classic profile panel as a visitor would see it without a custom sphere
-- **After** — injects your generated sphere code and opens it live
-- The editor stays open behind — close the panel to return
-
----
-
-### Publish requirements
-
-Same flow as Build:
-1. Wallet connected
-2. Score eligible (`computeEligibility`)
-3. GitHub token (from Build session or entered manually)
-
-### Unpublish
-
-Removes the entry from `profile.json`. The `uuid.profile.js` file remains on the repo but is no longer referenced.
-
 ---
 ## Profile Menu (⚙)
 
@@ -355,10 +316,6 @@ Single button in the profile panel header opens a bottom sheet with:
 - **Profile sphere** — design and publish custom public profile
 ## Name Registry — `name.json`
 
-Any user can publish their name to a registry via the 📡 button in the profile panel. This creates or updates a `name.json` file on the active registry repo.
-
-The repo is derived automatically from `YM_REGISTRY_OVERRIDE` — no manual input required. Only a GitHub token with write access is needed.
-
 ### Format
 
 ```json
@@ -368,18 +325,7 @@ The repo is derived automatically from `YM_REGISTRY_OVERRIDE` — no manual inpu
 }
 ```
 
-### Rules enforced client-side
 
-- **One name per UUID** — publishing a new name automatically removes the previous entry for the same UUID.
-- **Unique names** — if the name is already taken by a different UUID, the publish is blocked.
-- **UUID from local profile only** — the UUID is read from the local profile, never from a user-editable field. You can only publish your own identity.
-
-### Limitation
-
-The `name.json` file is stored on GitHub. Anyone with a write token can modify it directly via the API. The rules above are enforced client-side only — they are a social contract, not a cryptographic guarantee.
-
----
----
 
 # Spheres
 
@@ -893,31 +839,6 @@ When a theme uses `YM_REGISTRY_OVERRIDE`, spheres already activated in the user'
 
 This means spheres from Theodore and Keanuji (or any fork) coexist without bugs — each sphere loads from its real origin regardless of the active registry.
 
----
-## New Spheres (Session 6)
-
-### `career.sphere.js`
-CV and job board. Publish via GitHub + Solana wallet. Browse candidates ranked by AI. Adapt your CV to any offer.
-
-- `cv.json` at repo root — CV registry
-- `jobs.json` at repo root — job registry
-- `src/cv/username.cv.js` — CV file in user's fork
-- `src/jobs/username-slug.job.js` — job file in user's fork
-- First publish requires wallet signature. Updates require GitHub token only.
-- CV/job files must expose `window.YM_renderCV(container)` / `window.YM_renderJob(container)`
-
-### `journal.sphere.js`
-Social journal. One file per person, evolving over time. Publish via GitHub + wallet, update via GitHub only.
-
-- `journals.json` at repo root — journal registry
-- `src/journals/username.journal.js` — journal file in user's fork
-- Feed tab shows Near (P2P peers), Contacts (Social sphere), Top (registry)
-- Journal files must expose `window.YM_renderJournal(container)`
-
-### `status.sphere.js`
-Battery level and network status widget. Uses `navigator.getBattery()` (Chrome Android) and `navigator.connection`.
-
----
 ---
 
 # Themes
@@ -1607,7 +1528,7 @@ Score frozen at merge time. No editorial curation.
 ---
 ## Bot `merge.js` — Metadata extraction
 
-Since session 6, `merge.js` automatically extracts `name`, `icon`, `category`, `description` from sphere code at merge time and writes them into `files.json`. No manual metadata required.
+`merge.js` automatically extracts `name`, `icon`, `category`, `description` from sphere code at merge time and writes them into `files.json`. No manual metadata required.
 
 The bot reads these fields from the sphere's `window.YM_S['name.sphere.js'] = { name, icon, category, description }` declaration.
 
@@ -1640,52 +1561,7 @@ When switching away from the test theme, `setTheme()` clears `ym_profile_key` �
 Two different test registries (e.g. Keanuji and another fork) have different hashes and therefore completely separate profiles and bureaux.
 
 ---
-## Plug
 
-Two modes:
-
-### URL mode
-
-```
-https://raw.githubusercontent.com/user/repo/main/mysphere.sphere.js  → Sphere
-https://raw.githubusercontent.com/user/repo/main/mytheme.theme.js    → Theme
-```
-
-### Code mode
-
-Paste raw JS code. Sphere: executed inline via Blob URL. Theme: Blob URL stored in `localStorage.ym_theme_url`, page reloads.
-
-### Plug vs Rank
-
-| | Plug | Rank |
-|---|---|---|
-| Registry entry | No | Yes |
-| Direct activation URL | No | Yes |
-| Score / ranking | No | Yes |
-| Mining score required | No | Yes (new spheres only) |
-
----
-## Ownership Transfer
-
-```json
-{
-  "filename":  "mysphere.sphere.js",
-  "ghAuthor":  "original-author",
-  "owner":     "new-owner",
-  "codeUrl":   "https://raw.githubusercontent.com/new-owner/..."
-}
-```
-
-Permission check: `ghAuthor === username` OR `owner === username` OR `author (wallet) === pubkey`.
-
----
-## Token GitHub Security Note
-
-The GitHub token (`ghp_...`) entered in Build:
-- **Stored in `sessionStorage`** — cleared when tab closes, never in `localStorage`
-- **Never sent to any third party** — only to `api.github.com` directly
-- **Scoped to `repo`** — minimum required for fork, push, PR
-- **Risk**: visible in browser memory during the session. Use a dedicated token and revoke after publishing.
 
 ---
 ---
@@ -2167,7 +2043,7 @@ localStorage.removeItem('ym_liste_cache_v4'); // clear cache so override takes e
 - **No permission required** — any fork can have its own registry
 - **Zero configuration** — two lines in a theme is all it takes
 
-### `test.json` format
+### `test.json` format on the user repo
 
 Same format as `files.json`:
 
@@ -2186,7 +2062,7 @@ Same format as `files.json`:
 ]
 ```
 
-### `test-theme.json` format
+### `test-theme.json` format on the user repo
 
 Same format as `themes-files.json`. Can be an empty array `[]` to show no themes.
 
