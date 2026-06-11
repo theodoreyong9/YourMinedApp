@@ -116,10 +116,10 @@ function _flowBack(buildContent, fn){
   return back;
 }
 
-// ── FLOW PRINCIPAL — 4 boutons directs ───────────────────────
+// ── FLOW PRINCIPAL — layout horizontal ───────────────────────
 function renderFlow(buildContent){
   buildContent.innerHTML='';
-  buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;gap:10px';
+  buildContent.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:24px 16px;justify-content:center;gap:16px';
 
   const items = [
     {
@@ -153,9 +153,9 @@ function renderFlow(buildContent){
       }
     },
     {
-      icon:'+',
+      icon:'&#11014;',
       label:'Rank',
-      sub:'Publish your current wallet score to rank.json',
+      sub:'Publish your wallet score',
       action(){
         buildContent.innerHTML='';
         buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
@@ -167,16 +167,23 @@ function renderFlow(buildContent){
     }
   ];
 
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:10px';
+
   items.forEach(item=>{
-    buildContent.appendChild(_flowBtn(
-      '<span style="font-size:20px">'+item.icon+'</span>'+
-      '<div>'+
-        '<div style="font-size:13px;color:var(--text)">'+item.label+'</div>'+
-        '<div style="font-size:10px;color:var(--text3);margin-top:2px">'+item.sub+'</div>'+
-      '</div>',
-      item.action
-    ));
+    const card=document.createElement('button');
+    card.style.cssText='cursor:pointer;border-radius:14px;padding:18px 10px 14px;display:flex;flex-direction:column;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text2);transition:border-color .15s,background .15s,color .15s;text-align:center';
+    card.innerHTML=
+      '<span style="font-size:26px;line-height:1">'+item.icon+'</span>'+
+      '<div style="font-size:12px;font-weight:600;color:var(--text);letter-spacing:.02em">'+item.label+'</div>'+
+      '<div style="font-size:9px;color:var(--text3);line-height:1.4">'+item.sub+'</div>';
+    card.addEventListener('mouseenter',()=>{card.style.borderColor='rgba(240,168,48,.4)';card.style.background='rgba(240,168,48,.06)';card.style.color='var(--text)';});
+    card.addEventListener('mouseleave',()=>{card.style.borderColor='rgba(255,255,255,.1)';card.style.background='rgba(255,255,255,.04)';card.style.color='var(--text2)';});
+    card.addEventListener('click',item.action);
+    grid.appendChild(card);
   });
+
+  buildContent.appendChild(grid);
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
