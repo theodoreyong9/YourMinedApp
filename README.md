@@ -57,27 +57,7 @@ This makes YourMine the first participation protocol that is adaptable at interp
 
 
 ---
-## Runtime Cycle & Lifecycle
-
-### Boot sequence
-
-```
-1. index.html captures beforeinstallprompt → window._pwaPrompt
-2. index.html loads WebLLM via <script type="module"> if navigator.gpu → window.__webllm
-3. index.html injects edge-back UI
-4. index.html fetches theme HTML → injectTheme()
-5. boot: await desk.js
-6. boot: await app.js
-7. app.js: OC() — creates profile if none
-8. app.js: deskInit()
-9. app.js: loads mine.js, liste.js, build.js, profile.js
-10. app.js: fetchSphereList() — populates sphere registry from files.json
-11. app.js: restores active spheres from profile.spheres[]
-12. app.js: activates social.sphere.js (mandatory)
-13. app.js: activates requiredSpheres from YM_THEME_META (optional, user can deactivate later)
-14. app.js: initP2P() — Trystero via Nostr relays
-15. app.js: hides loader on fonts.ready
-```
+## Runtime 
 
 ### Sphere activation flow
 
@@ -106,30 +86,13 @@ activate(ctx) {
 }
 ```
 
-### Mandatory spheres
-
-`social.sphere.js` is the only permanently mandatory sphere — always active, not deactivatable.
-
-`safety.sphere.js` is optional and deactivatable like any other sphere.
-
----
----
-
 # Identity & Profile
 
 ## The Living Profile
 
-The central concept of YourMine is not the P2P layer, not the wallet, not the sphere registry. It is the **living profile** — a profile that has no fixed form, because it is not declared: it emerges from participation.
-
-### How it works
-
 A profile in YourMine is a surface that **composes itself differently for every pair of people**, based on the spheres they share.
 
-When user A views user B's profile card, `app.js` iterates over every sphere both users have active and calls `peerSection(container, ctx)` on each one. Each sphere injects its own UI into that card — a challenge button, a shared track, a trade interface, a game state. The result is a profile that is:
-
-- **Unique to each relationship** — what you see in someone's profile depends on what you both participate in
-- **Dynamic** — it changes the moment either person activates or deactivates a sphere
-- **Designed by no one** — no one designed "the profile page". It emerged from the composition of independent spheres
+When user A views user B's profile card, `app.js` iterates over every sphere both users have active and calls `peerSection(container, ctx)` on each one. Each sphere injects its own UI into that card — a challenge button, a shared track, a trade interface, a game state.
 
 ### The primitive
 
@@ -144,19 +107,6 @@ peerSection(container, ctx) {
   // for users who share this sphere
 }
 ```
-
-This single method is what makes the system "living". Without it, YourMine would be a P2P messaging layer with a wallet. With it, identity becomes relational — **you are the intersection of every sphere you share with every person nearby**.
-
-### Why this matters
-
-Every other social system defines the profile as a page: a fixed set of fields (name, bio, followers, posts). YourMine defines the profile as a **composition function**: `profile(A, B) = union of peerSections of shared spheres(A, B)`.
-
-This means:
-- Two people who share only a chess sphere see each other as chess players
-- Two people who share a chess sphere and a music sphere see a richer surface
-- Adding a new sphere doesn't update "your profile" — it updates every relationship where the other person also has that sphere
-
-There is no central profile editor. There is no profile schema. The living layer is this: a web of intersecting participation contexts, each pair of users seeing a version of each other that no one explicitly designed.
 
 ---
 ## Profile Structure
@@ -181,7 +131,6 @@ There is no central profile editor. There is no profile schema. The living layer
 }
 ```
 
-`uuid` is permanent, non-transferable, excluded from backup restore.
 
 ---
 ## Profile Hooks
