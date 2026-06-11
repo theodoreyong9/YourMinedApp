@@ -934,7 +934,7 @@ function renderList(body){
       const card=document.createElement('div');
       card.className='ym-card';
       card.dataset.sphere=sphere.fileName;
-      card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s;position:relative;overflow:hidden;display:flex;align-items:center;gap:10px'+(active?';border-color:rgba(255,255,255,.55)':'');
+      card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s;position:relative;overflow:hidden;display:flex;align-items:center;gap:10px';
 
       // Background watermark
       if(sphere.cardBackground||sphere.cardGif){
