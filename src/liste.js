@@ -658,7 +658,7 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
 
     right.appendChild(shareBtn);
     right.appendChild(codeBtn);
-    right.appendChild(deskBtn);
+    if(!isCur)right.appendChild(deskBtn);
 
     card.style.display='flex';
     card.style.alignItems='center';
