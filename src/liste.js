@@ -934,7 +934,7 @@ function renderList(body){
       const card=document.createElement('div');
       card.className='ym-card';
       card.dataset.sphere=sphere.fileName;
-      card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s;position:relative;overflow:hidden;display:flex;align-items:center;gap:10px'+(active?';border-color:var(--accent-dim)':'');
+      card.style.cssText='cursor:pointer;transition:border-color .2s,opacity .2s;position:relative;overflow:hidden;display:flex;align-items:center;gap:10px'+(active?';border-color:rgba(255,255,255,.55)':'');
 
       // Background watermark
       if(sphere.cardBackground||sphere.cardGif){
@@ -960,7 +960,7 @@ function renderList(body){
             '<span style="color:var(--text3);font-size:9px">·</span>'+
             '<span style="font-size:9px;color:var(--text3)">@<b style="color:var(--accent)">'+esc(sphere.ghAuthor||'?')+'</b></span>'+
           '</div>'+
-          '<div style="font-size:11px;color:var(--text2);line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sphere.description||'—')+'</div>'+
+          '<div style="font-size:11px;color:var(--text2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(sphere.description||'—')+'</div>'+
         '</div>';
 
       // Right: share + code buttons (always visible)
@@ -998,7 +998,7 @@ function renderList(body){
         if(e.target.closest('button'))return;
         if(active){
           // Open the sphere panel
-          if(window.YM&&window.YM.openSphere)window.YM.openSphere(sphere.fileName);
+          if(window.YM&&window.YM.openSpherePanel)window.YM.openSpherePanel(sphere.fileName);
           else window.dispatchEvent(new CustomEvent('ym:open-sphere',{detail:{fileName:sphere.fileName}}));
         }else{
           card.style.opacity='.6';
