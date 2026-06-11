@@ -123,7 +123,7 @@ function renderFlow(buildContent){
 
   const items = [
     {
-      icon:'&#11014;',
+      icon:'◈',
       label:'Apps',
       sub:'Publish a sphere or theme via PR',
       action(){
@@ -153,7 +153,7 @@ function renderFlow(buildContent){
       }
     },
     {
-      icon:'◈',
+      icon:'+',
       label:'Rank',
       sub:'Publish your current wallet score to rank.json',
       action(){
