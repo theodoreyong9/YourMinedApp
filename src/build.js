@@ -638,7 +638,7 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
   const nameRaw=(nameTypeStep.querySelector('#pub-name-main')?.value||'').trim();
   if(!nameRaw)return st('Nom requis','error');
-  const wip=codeAreaEl.querySelector('#pub-wip-main')?.checked!==false;
+  const wip=codeAreaEl.querySelector('#pub-wip-main')?.checked===true;
   if(btn){btn.disabled=true;btn.textContent='Processing…';}
   try{
     if(pubType==='sphere'){
@@ -672,13 +672,13 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       const codeNorm=sphereCode.replace(/\r\n/g,'\n');
       const hashBuf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(codeNorm));
       const content_hash=Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const evPayload={action:'create',filename,content_hash,nonce,timestamp:ts,score:claimable,laps:curLaps,codeUrl,wip};
       let sigB64='';
       if(pubkey&&window.YM_Mine_sign&&!existing){
-        const msg=JSON.stringify({action:'create',filename,content_hash,nonce,timestamp:ts,score:claimable,laps:curLaps,codeUrl,wip});
-        st('Signature…');const sig=await window.YM_Mine_sign(msg);
+        st('Signature…');const sig=await window.YM_Mine_sign(JSON.stringify(evPayload));
         sigB64=btoa(String.fromCharCode(...Array.from(sig)));
       }
-      const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp:ts,score:claimable,laps:curLaps,codeUrl,wip,content_hash};
+      const ev={...evPayload,wallet:pubkey||username,signature:sigB64};
       await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
       await new Promise(r=>setTimeout(r,2000));
       st('PR…');const pr=await openPR(token,username);
