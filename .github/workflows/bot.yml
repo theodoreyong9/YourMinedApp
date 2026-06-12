@@ -1,14 +1,10 @@
 name: Bot — Validate & Merge Sphere
 on:
-  pull_request_target:
-    types: [opened]
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   validate-and-merge:
     runs-on: ubuntu-latest
-    if: github.actor != 'github-actions[bot]'
     permissions:
       contents: write
       pull-requests: write
@@ -72,4 +68,3 @@ jobs:
               issue_number: context.payload.pull_request.number,
               body: '❌ Validation failed — PR closed automatically.'
             });
-            console.log('PR closed after failure');
