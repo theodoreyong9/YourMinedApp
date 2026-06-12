@@ -244,17 +244,16 @@ async function main() {
       }
 
       if (event.signature) {
-        const message = JSON.stringify({
-          action: event.action, filename: event.filename,
-          content_hash: event.content_hash, nonce: event.nonce,
-          timestamp: event.timestamp, score: event.score, laps: event.laps,
-          codeUrl: event.codeUrl, wip: event.wip
-        });
-        if (!verifySignature(message, event.signature, walletPubkey)) {
+        // Try new format first (with content_hash), then old format (without)
+        const msgNew = JSON.stringify({action:event.action,filename:event.filename,content_hash:event.content_hash,nonce:event.nonce,timestamp:event.timestamp,score:event.score,laps:event.laps,codeUrl:event.codeUrl,wip:event.wip});
+        const msgOld = JSON.stringify({action:event.action,filename:event.filename,nonce:event.nonce,timestamp:event.timestamp,score:event.score,laps:event.laps,codeUrl:event.codeUrl,wip:event.wip});
+        const validNew = verifySignature(msgNew, event.signature, walletPubkey);
+        const validOld = verifySignature(msgOld, event.signature, walletPubkey);
+        if (!validNew && !validOld) {
           console.error('Invalid signature for ' + filename);
           process.exit(1);
         }
-        console.log('Signature OK');
+        console.log('Signature OK (' + (validNew ? 'new format' : 'old format') + ')');
       } else {
         console.log('No signature (upgrade via GitHub only)');
       }
