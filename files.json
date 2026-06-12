@@ -34,7 +34,6 @@
     "merged_at": 1776595526,
     "burnSlot": 448770336
   },
-  
   {
     "filename": "social.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
@@ -59,8 +58,8 @@
     "burnSlot": 456713132,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/test.sphere.js",
     "icon": "https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif",
-"cardGif": "https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif",
-"fullscreen": true
+    "cardGif": "https://media.giphy.com/media/RPAoaeulF8mGBg3vwy/giphy.gif",
+    "fullscreen": true
   },
   {
     "filename": "meteo.sphere.js",
@@ -86,7 +85,7 @@
     "burnSlot": 456713132,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/clock.sphere.js"
   },
-{
+  {
     "filename": "poker.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
@@ -97,5 +96,21 @@
     "merged_at": 1777741104,
     "burnSlot": 456713132,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/poker.sphere.js"
+  },
+  {
+    "filename": "video.sphere.js",
+    "name": "WebTV",
+    "icon": "📺",
+    "category": "Media",
+    "description": "Free worldwide TV & radio — HLS streams, no YouTube, no ads.",
+    "author": "FPbGRtwQg8V9odqEndb5QyJjKcH6UGg9mZ8DyPsCu4Xg",
+    "ghAuthor": "Keanuji",
+    "last_committer": "Keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/video.sphere.js",
+    "wip": false,
+    "score": 0.554706,
+    "laps": 55201,
+    "timestamp": 1781291192,
+    "merged_at": 1781291221
   }
 ]
