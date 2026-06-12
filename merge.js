@@ -366,11 +366,6 @@ async function main() {
     console.log('PR closed');
   } catch(e) { console.warn('Could not close PR:', e.message); }
 
-  try {
-    await ghAPI('/repos/' + forkRepo + '/merge-upstream', 'POST', { branch: 'main' });
-    console.log('Fork synced');
-  } catch(e) { console.warn('Fork sync:', e.message); }
-
   console.log('\nDone — ' + files.length + ' file(s) merged.');
 }
 
