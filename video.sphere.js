@@ -1,5 +1,5 @@
 /* jshint esversion:11, browser:true */
-// video.sphere.js — YourMine WebTV & Free Streaming (HLS only, no YouTube)
+// video.sphere.js — yo YourMine WebTV & Free Streaming (HLS only, no YouTube)
 (function(){
 'use strict';
 window.YM_S = window.YM_S || {};
