@@ -1,10 +1,14 @@
 name: Bot — Validate & Merge Sphere
 on:
-  workflow_dispatch:
+  pull_request_target:
+    types: [opened]
+    branches:
+      - main
 
 jobs:
   validate-and-merge:
     runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
     permissions:
       contents: write
       pull-requests: write
