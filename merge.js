@@ -12,6 +12,9 @@ function run(cmd) {
   console.log('$ ' + cmd);
   return execSync(cmd, { encoding: 'utf8', stdio: ['pipe','pipe','pipe'] });
 }
+function runSafe(cmd) {
+  try { return run(cmd); } catch(e) { console.warn('(non-fatal) ' + cmd + ' →', e.message.trim()); return null; }
+}
 async function ghAPI(path, method, body) {
   const r = await fetch('https://api.github.com' + path, {
     method: method || 'GET',
@@ -63,12 +66,7 @@ async function extractSphereMetadata(filename, codeUrl, forkOwner) {
     return meta;
   } catch(e) {
     console.warn('Could not extract metadata from', filename, ':', e.message);
-    return {
-      name: filename.replace('.sphere.js', ''),
-      icon: '⬡',
-      category: 'Other',
-      description: ''
-    };
+    return { name: filename.replace('.sphere.js', ''), icon: '⬡', category: 'Other', description: '' };
   }
 }
 
@@ -79,8 +77,6 @@ async function updateSpheresJson(files, ghActor, forkOwner) {
 
   for (const { filename, isUpdate, codeUrl, wallet, score, laps, timestamp, wip, transferTo } of files.filter(f => f.filename && f.filename.endsWith('.sphere.js'))) {
     const effectiveCodeUrl = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + BASE_REPO.split('/')[1] + '/main/' + filename);
-
-    // Extract name, icon, category, description from sphere code
     const meta = await extractSphereMetadata(filename, effectiveCodeUrl, forkOwner);
 
     const idx = filesJson.findIndex(f => f.filename === filename);
@@ -117,6 +113,7 @@ async function updateSpheresJson(files, ghActor, forkOwner) {
   }
 
   fs.writeFileSync('files.json', JSON.stringify(filesJson, null, 2));
+  console.log('files.json written —', filesJson.length, 'entries');
 }
 
 // ── THÈMES ────────────────────────────────────────────────────────────────────
@@ -170,6 +167,7 @@ async function updateThemesJson(files, ghActor, forkOwner) {
   }
 
   fs.writeFileSync('themes-files.json', JSON.stringify(themesJson, null, 2));
+  console.log('themes-files.json written —', themesJson.length, 'entries');
 }
 
 // ── PROFILE SPHERES (.profile.js) ────────────────────────────────────────────
@@ -178,7 +176,6 @@ async function updateProfileSpheres(files, ghActor, forkOwner, walletPubkey) {
   if (!profileFiles.length) return;
 
   for (const { filename, codeUrl, wallet, score, laps, timestamp } of profileFiles) {
-    // Validate — same rules as spheres
     if (!wallet || !score) {
       console.warn('Profile sphere rejected — missing wallet or score:', filename);
       continue;
@@ -186,7 +183,6 @@ async function updateProfileSpheres(files, ghActor, forkOwner, walletPubkey) {
     const forkRepo = BASE_REPO.split('/')[1];
     const effectiveUrl = codeUrl || ('https://raw.githubusercontent.com/' + forkOwner + '/' + forkRepo + '/main/' + filename);
 
-    // Fetch and copy .profile.js to main repo
     const r = await fetch(effectiveUrl + '?t=' + Date.now(), {
       headers: { 'Authorization': 'token ' + GITHUB_TOKEN }
     });
@@ -203,20 +199,12 @@ async function updateNameRegistry(files, ghActor, walletPubkey) {
   if (!nameFiles.length) return;
 
   for (const { wallet, score, laps, timestamp, nonce, nameEntry } of nameFiles) {
-    if (!wallet || !score) {
-      console.warn('name.json update rejected — missing wallet or score');
-      continue;
-    }
-    if (!nameEntry || !nameEntry.name || !nameEntry.uuid) {
-      console.warn('name.json update rejected — missing name or uuid in nameEntry');
-      continue;
-    }
+    if (!wallet || !score) { console.warn('name.json update rejected — missing wallet or score'); continue; }
+    if (!nameEntry || !nameEntry.name || !nameEntry.uuid) { console.warn('name.json update rejected — missing name or uuid in nameEntry'); continue; }
 
-    // Load existing name.json — array format
     let nameJson = [];
     try {
       const raw = JSON.parse(fs.readFileSync('name.json', 'utf8'));
-      // Migrate old {name:uuid} format to array
       if (!Array.isArray(raw)) {
         nameJson = Object.entries(raw).map(([n, u]) => ({ name: n, uuid: u, pubkey: '', score: 0, laps: 0, timestamp: 0, nonce: '' }));
       } else {
@@ -225,28 +213,11 @@ async function updateNameRegistry(files, ghActor, walletPubkey) {
     } catch(e) {}
 
     const { name, uuid } = nameEntry;
-
-    // Rules: unique name, one name per uuid
     const existingName = nameJson.find(e => e.name === name && e.uuid !== uuid);
-    if (existingName) {
-      console.warn('name.json update rejected — name already taken:', name);
-      continue;
-    }
-    // Remove old entry for this uuid (name change)
+    if (existingName) { console.warn('name.json update rejected — name already taken:', name); continue; }
     nameJson = nameJson.filter(e => e.uuid !== uuid);
-
-    nameJson.push({
-      name, uuid,
-      pubkey:    wallet,
-      score:     parseFloat(score.toFixed(6)),
-      laps:      parseFloat((laps || 0).toFixed(6)),
-      timestamp: timestamp || Math.floor(Date.now() / 1000),
-      nonce:     nonce || ''
-    });
-
-    // Sort by score descending
+    nameJson.push({ name, uuid, pubkey: wallet, score: parseFloat(score.toFixed(6)), laps: parseFloat((laps || 0).toFixed(6)), timestamp: timestamp || Math.floor(Date.now() / 1000), nonce: nonce || '' });
     nameJson.sort((a, b) => (b.score || 0) - (a.score || 0));
-
     fs.writeFileSync('name.json', JSON.stringify(nameJson, null, 2));
     console.log('Name registry updated:', name, '->', uuid, '— score:', score);
   }
@@ -258,37 +229,49 @@ async function updateProfileRegistry(files, ghActor, walletPubkey) {
   if (!profileJsonFiles.length) return;
 
   for (const { filename, wallet, score, laps, timestamp, profileEntry } of profileJsonFiles) {
-    if (!wallet || !score) {
-      console.warn('profile.json update rejected — missing wallet or score');
-      continue;
-    }
-    if (!profileEntry || !profileEntry.uuid) {
-      console.warn('profile.json update rejected — missing profileEntry or uuid');
-      continue;
-    }
+    if (!wallet || !score) { console.warn('profile.json update rejected — missing wallet or score'); continue; }
+    if (!profileEntry || !profileEntry.uuid) { console.warn('profile.json update rejected — missing profileEntry or uuid'); continue; }
 
-    // Load existing profile.json
     let profileJson = [];
     try { profileJson = JSON.parse(fs.readFileSync('profile.json', 'utf8')); } catch(e) {}
 
-    // Replace or add entry — one entry per uuid
     const idx = profileJson.findIndex(p => p.uuid === profileEntry.uuid);
-    const entry = {
-      ...profileEntry,
-      pubkey: wallet,
-      score: parseFloat((score || 0).toFixed(6)),
-      laps: parseFloat((laps || 0).toFixed(6)),
-      ts: timestamp || Math.floor(Date.now() / 1000)
-    };
+    const entry = { ...profileEntry, pubkey: wallet, score: parseFloat((score || 0).toFixed(6)), laps: parseFloat((laps || 0).toFixed(6)), ts: timestamp || Math.floor(Date.now() / 1000) };
     if (idx >= 0) profileJson[idx] = entry;
     else profileJson.push(entry);
-
-    // Sort by score descending
     profileJson.sort((a, b) => (b.score || 0) - (a.score || 0));
-
     fs.writeFileSync('profile.json', JSON.stringify(profileJson, null, 2));
     console.log('Profile registry updated:', profileEntry.name, '— wallet:', wallet, 'score:', score);
   }
+}
+
+// ── PUSH HELPER ───────────────────────────────────────────────────────────────
+function gitPush() {
+  // Use the remote already configured by actions/checkout (includes token)
+  // Fall back to explicit token URL if needed
+  try {
+    run('git push origin main');
+  } catch(e) {
+    console.warn('git push origin failed, trying explicit token URL:', e.message);
+    run('git push https://x-access-token:' + GITHUB_TOKEN + '@github.com/' + BASE_REPO + '.git main');
+  }
+}
+
+function gitCommitAndPush(message, filesToAdd) {
+  // Stage only the files we care about — ignore missing ones
+  for (const f of filesToAdd) {
+    runSafe('git add ' + f);
+  }
+  // Check if there is actually something staged
+  const diff = runSafe('git diff --cached --name-only') || '';
+  if (!diff.trim()) {
+    console.log('Nothing staged to commit — skipping push');
+    return false;
+  }
+  console.log('Staged files:', diff.trim());
+  run('git commit -m "' + message + '"');
+  gitPush();
+  return true;
 }
 
 // ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -310,6 +293,7 @@ async function main() {
   run('git checkout main');
   run('git pull origin main');
 
+  // Copy events from PR
   const prEventsDir = PR_CONTENT_DIR + '/events';
   if (fs.existsSync(prEventsDir)) {
     if (!fs.existsSync('events')) fs.mkdirSync('events');
@@ -322,7 +306,7 @@ async function main() {
     }
   }
 
-  // Unpublish profile — remove entry from profile.json
+  // ── Unpublish profile ──────────────────────────────────────
   const unpublishFile = files.find(f => f.action === 'unpublish_profile');
   if (unpublishFile) {
     const uuidToRemove = unpublishFile.profileEntry?.uuid;
@@ -333,13 +317,11 @@ async function main() {
       fs.writeFileSync('profile.json', JSON.stringify(profileJson, null, 2));
       console.log('Profile unpublished:', uuidToRemove);
     }
-    run('git add profile.json');
-    run('git commit -m "bot: unpublish_profile @' + ghActor + '"');
-    run('git push origin main');
+    gitCommitAndPush('bot: unpublish_profile @' + ghActor, ['profile.json']);
     return;
   }
 
-  // Score update — updates score across all registries for this wallet
+  // ── Score update ───────────────────────────────────────────
   const scoreUpdateFile = files.find(f => f.action === 'score_update');
   if (scoreUpdateFile) {
     const { wallet, score, laps } = scoreUpdateFile;
@@ -349,7 +331,6 @@ async function main() {
       try {
         let data = JSON.parse(fs.readFileSync(reg, 'utf8'));
         if (!Array.isArray(data)) {
-          // Migrate name.json old format
           if (reg === 'name.json') {
             data = Object.entries(data).map(([n, u]) => ({ name: n, uuid: u, pubkey: '', score: 0, laps: 0 }));
           } else continue;
@@ -368,28 +349,26 @@ async function main() {
         }
       } catch(e) { console.warn('Could not update ' + reg + ':', e.message); }
     }
-    run('git add files.json themes-files.json name.json profile.json');
-    run('git commit -m "bot: score_update @' + ghActor + '"');
-    run('git push origin main');
+    gitCommitAndPush('bot: score_update @' + ghActor, ['files.json', 'themes-files.json', 'name.json', 'profile.json']);
     return;
   }
 
+  // ── Standard merge ─────────────────────────────────────────
   await updateSpheresJson(files, ghActor, forkOwner);
   await updateThemesJson(files, ghActor, forkOwner);
   await updateProfileSpheres(files, ghActor, forkOwner, walletPubkey);
   await updateNameRegistry(files, ghActor, walletPubkey);
   await updateProfileRegistry(files, ghActor, walletPubkey);
 
-  const changedFiles = ['files.json', 'themes-files.json', 'events/'];
-  if(files.some(f=>f.filename&&f.filename.endsWith('.profile.js'))) changedFiles.push('*.profile.js');
-  if(files.some(f=>f.filename==='name.json')) changedFiles.push('name.json');
-  if(files.some(f=>f.filename==='profile.json')) changedFiles.push('profile.json');
+  const filesToAdd = ['files.json', 'themes-files.json', 'events/'];
+  if(files.some(f=>f.filename&&f.filename.endsWith('.profile.js'))) filesToAdd.push('*.profile.js');
+  if(files.some(f=>f.filename==='name.json')) filesToAdd.push('name.json');
+  if(files.some(f=>f.filename==='profile.json')) filesToAdd.push('profile.json');
 
-  run('git add ' + changedFiles.join(' '));
-  run('git commit -m "bot: merge @' + ghActor + ' — registries updated"');
-  run('git push https://x-access-token:' + GITHUB_TOKEN + '@github.com/' + BASE_REPO + '.git main');
-  console.log('Pushed to main');
+  const pushed = gitCommitAndPush('bot: merge @' + ghActor + ' — registries updated', filesToAdd);
+  if (!pushed) console.log('files.json was already up to date');
 
+  // ── Close PR and comment ───────────────────────────────────
   try {
     const fileList = files.map(f =>
       '- `' + f.filename + '` (' + (f.isUpdate ? 'updated' : 'new') + ') → [code](' + (f.codeUrl || '') + ')'
