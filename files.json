@@ -103,14 +103,14 @@
     "icon": "📺",
     "category": "Media",
     "description": "Free worldwide TV & radio — HLS streams, no YouTube, no ads.",
-    "author": "FPbGRtwQg8V9odqEndb5QyJjKcH6UGg9mZ8DyPsCu4Xg",
+    "author": "Keanuji",
     "ghAuthor": "Keanuji",
     "last_committer": "Keanuji",
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/video.sphere.js",
     "wip": false,
-    "score": 0.554706,
-    "laps": 55201,
-    "timestamp": 1781291192,
-    "merged_at": 1781291221
+    "score": 0,
+    "laps": 1,
+    "timestamp": 1781292025,
+    "merged_at": 1781292050
   }
 ]
