@@ -1,6 +1,7 @@
 // validate.js — Architecture loader unique : le code reste dans le fork, PR = files.json + event
 const fs     = require('fs');
 const path   = require('path');
+const crypto = require('crypto');
 const https  = require('https');
 const { verifySignature, checkScoreEligibility } = require('./solana-utils');
 
@@ -12,12 +13,43 @@ const ALLOWED_PROFILE   = f => f.endsWith('.profile.js');
 const ALLOWED_REGISTRY  = f => f === 'name.json' || f === 'profile.json';
 const ALLOWED_FILE      = f => ALLOWED_SPHERE(f) || ALLOWED_PROFILE(f) || ALLOWED_REGISTRY(f);
 
-const PR_CONTENT_DIR = process.env.PR_CONTENT_DIR || '_pr_content';
-
 function safeParseJson(raw) {
   if (!raw || !raw.trim()) return [];
   try { return JSON.parse(raw); }
   catch(e) { try { return JSON.parse(raw.replace(/,\s*([}\]])/g, '$1').trim()); } catch(e2) { return []; } }
+}
+
+// Read from _pr_content (already checked out) — avoids GitHub CDN cache
+function readCodeFromPR(filename, prContentDir) {
+  const localPath = path.join(prContentDir, filename);
+  if (fs.existsSync(localPath)) {
+    console.log('  Reading from local PR checkout:', localPath);
+    return fs.readFileSync(localPath, 'utf8');
+  }
+  throw new Error('File not found in PR content: ' + localPath);
+}
+
+// Fallback: HTTP fetch from fork
+function fetchCodeFromFork(codeUrl) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(codeUrl, (res) => {
+      if (res.statusCode !== 200) { reject(new Error('HTTP ' + res.statusCode + ' — ' + codeUrl)); return; }
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve(data));
+    });
+    req.on('error', reject);
+    req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout')); });
+  });
+}
+
+async function getCodeSource(filename, codeUrl, prContentDir) {
+  try {
+    return readCodeFromPR(filename, prContentDir);
+  } catch(e) {
+    console.warn('  Local read failed:', e.message, '— falling back to HTTP');
+    return fetchCodeFromFork(codeUrl);
+  }
 }
 
 async function main() {
@@ -90,15 +122,9 @@ async function main() {
       score: scoreUpdateEvent.score, laps: scoreUpdateEvent.laps
     });
     if (!verifySignature(msg, scoreUpdateEvent.signature, walletPubkey)) { console.error('Invalid signature for score_update'); process.exit(1); }
-    const walletPubs = filesJsonMain
-      .filter(f => f.author === walletPubkey)
-      .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
+    const walletPubs = filesJsonMain.filter(f => f.author === walletPubkey).sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
     const lastPub = walletPubs[0] || null;
-    const sc = await checkScoreEligibility(
-      walletPubkey,
-      lastPub ? (lastPub.score || 0) : 0,
-      lastPub ? Math.max(1, lastPub.laps || 1) : 1
-    );
+    const sc = await checkScoreEligibility(walletPubkey, lastPub ? (lastPub.score || 0) : 0, lastPub ? Math.max(1, lastPub.laps || 1) : 1);
     if (!sc.eligible) { console.error('Score not eligible: ' + sc.reason); process.exit(1); }
     console.log('Score update eligible — score=' + sc.score.toFixed(4) + ' laps=' + sc.currentLaps);
     fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
@@ -122,10 +148,7 @@ async function main() {
     if (ALLOWED_PROFILE(ev.filename)) {
       const uuidFromFile = ev.filename.replace('.profile.js', '');
       const existingProfile = profileJsonMain.find(p => p.uuid === uuidFromFile);
-      if (existingProfile && existingProfile.pubkey !== walletPubkey) {
-        console.error('REFUSED: ' + ev.filename + ' belongs to wallet ' + existingProfile.pubkey);
-        process.exit(1);
-      }
+      if (existingProfile && existingProfile.pubkey !== walletPubkey) { console.error('REFUSED: ' + ev.filename + ' belongs to wallet ' + existingProfile.pubkey); process.exit(1); }
       upgradeFiles.push(ev); continue;
     }
     const existing = filesJsonMain.find(f => f.filename === ev.filename);
@@ -148,10 +171,7 @@ async function main() {
     let lastMainTs = 0;
     if (fs.existsSync(mainEvDir)) {
       for (const ef of fs.readdirSync(mainEvDir).filter(f => f.endsWith('.json'))) {
-        try {
-          const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir, ef), 'utf8'));
-          if (ev.wallet === walletPubkey && ev.timestamp > lastMainTs) lastMainTs = ev.timestamp;
-        } catch(e) {}
+        try { const ev = JSON.parse(fs.readFileSync(path.join(mainEvDir, ef), 'utf8')); if (ev.wallet === walletPubkey && ev.timestamp > lastMainTs) lastMainTs = ev.timestamp; } catch(e) {}
       }
     }
     if (lastMainTs > 0) {
@@ -175,15 +195,9 @@ async function main() {
   const newCodeFiles = newFiles.filter(f => ALLOWED_SPHERE(f.filename) || ALLOWED_PROFILE(f.filename));
   let scoreCheck = { score: 0, currentLaps: 1, eligible: true };
   if (newCodeFiles.length > 0) {
-    const walletPubs = filesJsonMain
-      .filter(f => f.ghAuthor === ghActor || f.author === walletPubkey)
-      .sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
+    const walletPubs = filesJsonMain.filter(f => f.ghAuthor === ghActor || f.author === walletPubkey).sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
     const lastPub = walletPubs[0] || null;
-    scoreCheck = await checkScoreEligibility(
-      walletPubkey,
-      lastPub ? (lastPub.score || 0) : 0,
-      lastPub ? Math.max(1, lastPub.laps || 1) : 1
-    );
+    scoreCheck = await checkScoreEligibility(walletPubkey, lastPub ? (lastPub.score || 0) : 0, lastPub ? Math.max(1, lastPub.laps || 1) : 1);
     if (!scoreCheck.eligible) { console.error('Score not eligible: ' + scoreCheck.reason); process.exit(1); }
     console.log('Score eligible (claimable=' + scoreCheck.score.toFixed(4) + ')');
   } else {
@@ -205,12 +219,36 @@ async function main() {
       const codeUrl = event.codeUrl || ('https://raw.githubusercontent.com/' + ghActor + '/' + GH_REPO_NAME() + '/main/' + filename);
       console.log('  codeUrl: ' + codeUrl);
 
+      // Read from _pr_content first (no cache), fallback to HTTP
+      let codeSource = '';
+      try {
+        codeSource = await getCodeSource(filename, codeUrl, prContentDir);
+        codeSource = codeSource.replace(/\r\n/g, '\n');
+      } catch(e) {
+        console.error('Cannot read code: ' + e.message);
+        process.exit(1);
+      }
+
+      const actualHash = crypto.createHash('sha256').update(codeSource).digest('hex');
+
+      if (!event.content_hash) {
+        // No hash in event — legacy or upgrade without signature, skip check
+        console.log('  No content_hash in event — skipping hash check');
+      } else if (actualHash !== event.content_hash) {
+        console.error('Hash mismatch for ' + filename);
+        console.error('  Expected: ' + event.content_hash);
+        console.error('  Got:      ' + actualHash);
+        process.exit(1);
+      } else {
+        console.log('Hash OK');
+      }
+
       if (event.signature) {
         const message = JSON.stringify({
           action: event.action, filename: event.filename,
           content_hash: event.content_hash, nonce: event.nonce,
           timestamp: event.timestamp, score: event.score, laps: event.laps,
-          codeUrl: event.codeUrl
+          codeUrl: event.codeUrl, wip: event.wip
         });
         if (!verifySignature(message, event.signature, walletPubkey)) {
           console.error('Invalid signature for ' + filename);
@@ -224,26 +262,15 @@ async function main() {
 
     if (isRegistryFile) {
       if (!event.signature) { console.error('Signature required for registry file: ' + filename); process.exit(1); }
-      const message = JSON.stringify({
-        action: event.action, filename: event.filename,
-        nonce: event.nonce, timestamp: event.timestamp,
-        wallet: event.wallet
-      });
-      if (!verifySignature(message, event.signature, walletPubkey)) {
-        console.error('Invalid signature for registry file: ' + filename);
-        process.exit(1);
-      }
+      const message = JSON.stringify({ action: event.action, filename: event.filename, nonce: event.nonce, timestamp: event.timestamp, wallet: event.wallet });
+      if (!verifySignature(message, event.signature, walletPubkey)) { console.error('Invalid signature for registry file: ' + filename); process.exit(1); }
       console.log('Signature OK (registry)');
     }
 
     console.log(filename + ' validated');
 
-    const finalScore = (newCodeFiles.length > 0 && !isUpdate && isCodeFile)
-      ? scoreCheck.score
-      : (event.score || 0);
-    const finalLaps = (newCodeFiles.length > 0 && !isUpdate && isCodeFile)
-      ? scoreCheck.currentLaps
-      : (event.laps || 0);
+    const finalScore = (newCodeFiles.length > 0 && !isUpdate && isCodeFile) ? scoreCheck.score : (event.score || 0);
+    const finalLaps  = (newCodeFiles.length > 0 && !isUpdate && isCodeFile) ? scoreCheck.currentLaps : (event.laps || 0);
 
     results.push({
       filename, isUpdate, isRegistryFile,
