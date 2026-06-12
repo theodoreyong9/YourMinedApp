@@ -675,7 +675,10 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       }
       st('Fork…');await ensureFork(token,username);
       st('Push…');await ghPush(token,username,filename,sphereCode,'sphere: '+filename);
-      const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp:ts,score:claimable,laps:curLaps,codeUrl,wip};
+      const codeNorm=sphereCode.replace(/\r\n/g,'\n');
+      const hashBuf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(codeNorm));
+      const content_hash=Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const ev={action:'create',filename,wallet:pubkey||username,signature:sigB64,nonce,timestamp:ts,score:claimable,laps:curLaps,codeUrl,wip,content_hash};
       await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
       await new Promise(r=>setTimeout(r,2000));
       st('PR…');const pr=await openPR(token,username);
