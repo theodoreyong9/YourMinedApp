@@ -1,0 +1,13 @@
+{
+  "action": "create",
+  "filename": "video.sphere.js",
+  "wallet": "Keanuji",
+  "signature": "",
+  "nonce": "ebe442b8-3e0c-4aec-a342-5564d98f1260",
+  "timestamp": 1781292093,
+  "score": 0,
+  "laps": 1,
+  "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/video.sphere.js",
+  "wip": true,
+  "content_hash": "17c100d65a22b1a0b54abd8d080b3dafb1017d56dab09875b095df297c9ef9cb"
+}
