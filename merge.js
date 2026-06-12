@@ -245,24 +245,10 @@ async function updateProfileRegistry(files, ghActor, walletPubkey) {
   }
 }
 
-// ── PUSH HELPER ───────────────────────────────────────────────────────────────
-function gitPush() {
-  // Use the remote already configured by actions/checkout (includes token)
-  // Fall back to explicit token URL if needed
-  try {
-    run('git push origin main');
-  } catch(e) {
-    console.warn('git push origin failed, trying explicit token URL:', e.message);
-    run('git push https://x-access-token:' + GITHUB_TOKEN + '@github.com/' + BASE_REPO + '.git main');
-  }
-}
-
 function gitCommitAndPush(message, filesToAdd) {
-  // Stage only the files we care about — ignore missing ones
   for (const f of filesToAdd) {
     runSafe('git add ' + f);
   }
-  // Check if there is actually something staged
   const diff = runSafe('git diff --cached --name-only') || '';
   if (!diff.trim()) {
     console.log('Nothing staged to commit — skipping push');
@@ -270,7 +256,7 @@ function gitCommitAndPush(message, filesToAdd) {
   }
   console.log('Staged files:', diff.trim());
   run('git commit -m "' + message + '"');
-  gitPush();
+  run('git push https://x-access-token:' + GITHUB_TOKEN + '@github.com/' + BASE_REPO + '.git main');
   return true;
 }
 
