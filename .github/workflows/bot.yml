@@ -54,3 +54,22 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REPO: ${{ github.repository }}
           PR_CONTENT_DIR: _pr_content
+
+      - name: Close PR on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              state: 'closed'
+            });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: '❌ Validation failed — PR closed automatically.'
+            });
+            console.log('PR closed after failure');
