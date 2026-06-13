@@ -274,6 +274,7 @@ async function main() {
     results.push({
       filename, isUpdate, isRegistryFile,
       codeUrl: event.codeUrl || null,
+      wip: !!event.wip,
       ghAuthor: ghActor,
       wallet: walletPubkey,
       score:    finalScore,
