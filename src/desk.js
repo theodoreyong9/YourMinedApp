@@ -725,7 +725,7 @@ deskEl.addEventListener('pointerdown',e=>{
 deskEl.addEventListener('pointermove',e=>{if(bgLT&&(Math.abs(e.clientX-bgSX)>20||Math.abs(e.clientY-bgSY)>8)){bgMoved=true;clearTimeout(bgLT);bgLT=null;}},{passive:true});
 deskEl.addEventListener('pointerup',e=>{
   clearTimeout(bgLT);bgLT=null;
-  if(editMode&&!isDragging&&!e.target.closest('.icon-wrap')){exitEdit();return;}
+  if(editMode&&!isDragging&&!bgMoved&&!e.target.closest('.icon-wrap')){exitEdit();return;}
   if(e.pointerType==='mouse'&&_bgActive){
     const dx=e.clientX-bgSX,dy=e.clientY-bgSY;_bgActive=false;
     if(!isDragging&&Date.now()-_lastDragEnd>200){
