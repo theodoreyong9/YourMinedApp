@@ -609,7 +609,11 @@ function _renderPeerAccordion(container,sphereFile,ctx){
   var icon=(sphereObj&&sphereObj.icon)||'⬡';
   var wrap=document.createElement('div');wrap.style.cssText='border:1px solid var(--border);border-radius:var(--r-sm,8px);margin-bottom:6px';
   var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;background:rgba(255,255,255,.02)';
-  hdr.innerHTML='<span style="font-size:16px">'+icon+'</span><span style="font-size:12px;font-weight:600;flex:1">'+sphereName+'</span><span class="acc-arrow" style="font-size:10px;color:var(--text3)">›</span>';
+  var iconIsUrl=icon&&(icon.startsWith('http')||icon.startsWith('/'));
+  var iconHtml=iconIsUrl
+    ?'<img src="'+icon+'" style="width:20px;height:20px;border-radius:4px;object-fit:contain">'
+    :'<span style="font-size:16px">'+icon+'</span>';
+  hdr.innerHTML=iconHtml+'<span style="font-size:12px;font-weight:600;flex:1">'+sphereName+'</span><span class="acc-arrow" style="font-size:10px;color:var(--text3)">›</span>';
   var body=document.createElement('div');body.style.cssText='display:none;padding:10px 12px;border-top:1px solid var(--border)';
   hdr.addEventListener('click',function(){
     var open=body.style.display!=='none';body.style.display=open?'none':'block';hdr.querySelector('.acc-arrow').textContent=open?'›':'⌄';
