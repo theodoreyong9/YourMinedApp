@@ -30,12 +30,10 @@ function renderSphereProfiles(container,fromSphere){
   container.style.cssText='flex:1;overflow-y:auto;padding:12px 16px';
   container.innerHTML='';
 
-  // Re-render if a sphere activates after profile is open
   var _sphereListener=function(){
     if(container.isConnected) renderSphereProfiles(container,null);
   };
   window.addEventListener('ym:sphere-activated',_sphereListener,{once:false});
-  // Clean up when container is removed
   var _obs=new MutationObserver(function(){
     if(!document.body.contains(container)){
       window.removeEventListener('ym:sphere-activated',_sphereListener);
@@ -50,11 +48,16 @@ function renderSphereProfiles(container,fromSphere){
     var s=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(name);
     var wrap=document.createElement('div');wrap.style.cssText='margin-bottom:8px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden';
     var label=name.replace('.sphere.js','');
+
+    // Safe icon rendering — never render URL as text
     var iconIsUrl=s&&s.icon&&(s.icon.indexOf('http')===0||s.icon.indexOf('/')===0);
-    var iconHtml=iconIsUrl?'<img src="'+s.icon+'" style="width:24px;height:24px;border-radius:4px;object-fit:contain">':'<span style="font-size:20px">'+((s&&s.icon)||'⬡')+'</span>';
+    var iconHtml=iconIsUrl
+      ?'<img src="'+esc(s.icon)+'" style="width:24px;height:24px;border-radius:4px;object-fit:contain">'
+      :'<span style="font-size:20px">'+esc((s&&s.icon)||'⬡')+'</span>';
+
     var hdr=document.createElement('div');
     hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);cursor:pointer;user-select:none;-webkit-user-select:none';
-    hdr.innerHTML=iconHtml+'<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);flex:1">'+label+'</span><span style="font-size:11px;color:var(--text3)">▼</span>';
+    hdr.innerHTML=iconHtml+'<span style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);flex:1">'+esc(label)+'</span><span style="font-size:11px;color:var(--text3)">▼</span>';
     var content=document.createElement('div');content.style.cssText='padding:12px 14px;display:none;background:var(--surface)';
     var open=false;
     function openAcc(){
@@ -113,12 +116,24 @@ function renderSphereProfiles(container,fromSphere){
 
         content.appendChild(visRow);
 
-        // FIX: use a dedicated subcontainer so sphere's innerHTML= can't overwrite the visibility toggle
+        // ── profileSection — always use a dedicated subcontainer ──
         if(s&&typeof s.profileSection==='function'){
           var profileSubContainer=document.createElement('div');
+          // Guard: clear any accidental text content before calling
+          profileSubContainer.innerHTML='';
           content.appendChild(profileSubContainer);
-          try{s.profileSection(profileSubContainer);}
-          catch(e){profileSubContainer.innerHTML='<div style="color:var(--text3);font-size:11px">'+e.message+'</div>';}
+          try{
+            s.profileSection(profileSubContainer);
+            // Post-call guard: if the container only contains a bare URL string, clear it
+            if(profileSubContainer.children.length===0&&profileSubContainer.textContent){
+              var txt=profileSubContainer.textContent.trim();
+              if(txt.startsWith('http')||txt.startsWith('data:')){
+                profileSubContainer.textContent='';
+              }
+            }
+          }catch(e){
+            profileSubContainer.innerHTML='<div style="color:var(--text3);font-size:11px">'+esc(e.message)+'</div>';
+          }
         }else if(!s){
           content.innerHTML+='<div style="color:var(--text2);font-size:12px">Active</div>';
         }
@@ -127,7 +142,6 @@ function renderSphereProfiles(container,fromSphere){
     hdr.addEventListener('click',function(){open=!open;if(open)openAcc();else{content.style.display='none';hdr.querySelector('span:last-child').textContent='▼';}});
     wrap.appendChild(hdr);wrap.appendChild(content);container.appendChild(wrap);
     if(fromSphere&&name===fromSphere&&s&&s.profileSection){requestAnimationFrame(function(){openAcc();wrap.scrollIntoView({behavior:'smooth',block:'start'});});}
-
   });
 }
 
@@ -207,7 +221,6 @@ function openRecoveryOverlay(){
   var box=document.createElement('div');
   box.style.cssText='background:var(--surface2,#12121e);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:var(--r-lg,16px);padding:20px;max-width:340px;width:90vw;max-height:90vh;overflow-y:auto';
 
-  // Two modes — SEND (I need recovery) or RECEIVE (I help someone)
   box.innerHTML=
     '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:14px">Identity Recovery</div>'+
     '<div style="display:flex;gap:8px;margin-bottom:18px">'+
@@ -228,7 +241,6 @@ function openRecoveryOverlay(){
 
   overlay.appendChild(box);document.body.appendChild(overlay);
 
-  // Tab switching
   box.querySelectorAll('.rec-tab').forEach(function(tab){
     tab.addEventListener('click',function(){
       box.querySelectorAll('.rec-tab').forEach(function(t){t.className='ym-btn rec-tab ym-btn-ghost';t.style.flex='1';t.style.fontSize='11px';});
@@ -240,8 +252,6 @@ function openRecoveryOverlay(){
     });
   });
 
-  // SEND — store recovery request locally keyed by contact UUID
-  // When contact opens their receive panel they'll see pending requests
   var RECOVERY_KEY='ym_recovery_requests';
   function getRecoveryRequests(){try{return JSON.parse(localStorage.getItem(RECOVERY_KEY)||'[]');}catch{return[];}}
   function saveRecoveryRequests(arr){localStorage.setItem(RECOVERY_KEY,JSON.stringify(arr));}
@@ -250,14 +260,10 @@ function openRecoveryOverlay(){
     var contactUUID=(document.getElementById('rec-contact-uuid').value||'').trim();
     var status=document.getElementById('rec-send-status');
     if(!contactUUID){status.textContent='Enter a UUID';status.style.color='var(--red,#e84040)';return;}
-    // Store request: {contactUUID, myNewUUID, timestamp}
-    // When the contact opens their receive panel they check for requests addressed to them
-    // We send via P2P if peer is near, otherwise store for manual check
     var req={from:myNewUUID,to:contactUUID,ts:Date.now()};
     if(window.YM_P2P&&window.YM_P2P.sendTo){
       window.YM_P2P.sendTo(contactUUID,{sphere:'social.sphere.js',type:'identity:recovery-request',data:req});
     }
-    // Also store locally in case peer is offline
     var stored=getRecoveryRequests();
     stored=stored.filter(function(r){return r.to!==contactUUID;});
     stored.push(req);
@@ -265,19 +271,16 @@ function openRecoveryOverlay(){
     status.textContent='Request sent ✓';status.style.color='var(--green,#30e880)';
   });
 
-  // RECEIVE — show pending requests addressed to me
   function _renderRecoveryRequests(){
     var list=document.getElementById('rec-requests-list');
     list.innerHTML='';
     var allReqs=getRecoveryRequests().filter(function(r){return r.to===myNewUUID;});
-    // Also check incoming P2P requests stored in ym_recovery_incoming
     var incoming=[];try{incoming=JSON.parse(localStorage.getItem('ym_recovery_incoming')||'[]');}catch{}
     var reqs=allReqs.concat(incoming);
     if(!reqs.length){
       list.innerHTML='<div style="font-size:12px;color:var(--text3);padding:8px 0">No pending requests</div>';
       return;
     }
-    var contacts=window.YM&&window.YM.getProfile&&window.YM.getProfile()||{};
     var contactList=[];try{contactList=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');}catch{}
     reqs.forEach(function(req){
       var row=document.createElement('div');
@@ -297,17 +300,14 @@ function openRecoveryOverlay(){
       row.querySelector('.rec-confirm-btn').addEventListener('click',function(){
         var oldUUID=row.querySelector('.rec-contact-select').value;
         if(!oldUUID){return;}
-        // Send back the old UUID to the requester via P2P
         if(window.YM_P2P&&window.YM_P2P.sendTo){
           window.YM_P2P.sendTo(req.from,{sphere:'social.sphere.js',type:'identity:recovery-response',data:{oldUUID:oldUUID,newUUID:req.from}});
         }
-        // Update contact list — replace old UUID with new UUID
         var updated=contactList.map(function(c){
           if(c.uuid===oldUUID){c.uuid=req.from;if(c.profile)c.profile.uuid=req.from;}
           return c;
         });
         localStorage.setItem('ym_contacts_v1',JSON.stringify(updated));
-        // Remove request
         var remaining=getRecoveryRequests().filter(function(r){return r.from!==req.from;});
         saveRecoveryRequests(remaining);
         row.innerHTML='<div style="color:var(--green,#30e880);font-size:12px">Identity restored ✓</div>';
@@ -317,7 +317,6 @@ function openRecoveryOverlay(){
     });
   }
 
-  // Listen for incoming recovery requests via P2P
   window.addEventListener('ym:p2p-data',function onRecovery(e){
     var msg=e.detail&&e.detail.msg;
     if(!msg||msg.sphere!=='social.sphere.js')return;
@@ -328,7 +327,6 @@ function openRecoveryOverlay(){
       localStorage.setItem('ym_recovery_incoming',JSON.stringify(inc));
     }
     if(msg.type==='identity:recovery-response'&&msg.data.newUUID===myNewUUID){
-      // Restore old UUID
       var SP=window.YM&&window.YM.saveProfile;
       if(SP){var prof=p;prof.uuid=msg.data.oldUUID;SP(prof);}
       if(window.YM_toast)window.YM_toast('Your identity has been restored','success');
@@ -634,7 +632,6 @@ function openProfileSphereEditor(){
   var name=p.name||'';
   if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
 
-  // Load existing profile sphere config from localStorage
   var PROF_KEY='ym_profile_sphere_'+uuid;
   var config;
   try{config=JSON.parse(localStorage.getItem(PROF_KEY)||'null');}catch{config=null;}
@@ -650,43 +647,30 @@ function openProfileSphereEditor(){
   ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.9);display:flex;flex-direction:column;overflow:hidden';
   ov.innerHTML=
     '<div style="flex:1;overflow-y:auto;padding:16px">'+
-
-    // Keywords
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Keywords (comma separated)</div>'+
     '<input id="pse-keywords" class="ym-input" style="margin-bottom:12px;font-size:12px" value="'+config.keywords.join(', ')+'" placeholder="builder, circular economy, web3…">'+
-
-    // Accent color
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Accent color</div>'+
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'+
     '<input type="color" id="pse-accent" value="'+config.accent+'" style="width:40px;height:32px;border:none;background:none;cursor:pointer;padding:0">'+
     '<span id="pse-accent-val" style="font-size:12px;color:var(--text3)">'+config.accent+'</span>'+
     '</div>'+
-
-    // Sections order — only relevant for custom code
     '<div id="pse-sections-wrap" style="display:'+(config.customCode?'block':'none')+'">'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sections order</div>'+
     '<div id="pse-sections" style="margin-bottom:8px"></div>'+
     '</div>'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;margin-top:4px;text-transform:uppercase;letter-spacing:.1em">Spheres</div>'+
     '<div id="pse-spheres" style="margin-bottom:12px"></div>'+
-
-    // Custom code
     '<div style="display:flex;align-items:center;margin-bottom:4px">'+
     '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;flex:1">Custom JS (optional — renderPanel body)</div>'+
     '<button id="pse-copy-prompt" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:2px 8px">✦ Copy Prompt</button>'+
     '</div>'+
     '<textarea id="pse-code" style="width:100%;box-sizing:border-box;height:120px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px;color:var(--text);font-family:monospace;font-size:11px;margin-bottom:12px;resize:vertical" placeholder="// renderPanel body — or paste a full sphere (window.YM_S[...])">'+config.customCode+'</textarea>'+
-
-    // Token for publish
     '<div id="pse-token-wrap">'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">GitHub token</div>'+
     '<input id="pse-token" type="password" class="ym-input" style="margin-bottom:4px;font-size:12px" placeholder="Token (or connect via Build)">'+
     '</div>'+
-
-    '<div id="pse-token-wrap"></div>'+
     '<div id="pse-status" style="font-size:11px;color:var(--text3);text-align:center;min-height:14px;margin-top:4px"></div>'+
     '</div>'+
-    // Bottom toolbar
     '<div style="border-top:1px solid rgba(255,255,255,.08);padding:12px 16px;flex-shrink:0">'+
     '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">✦ Profile Sphere</div>'+
     '<div style="display:flex;gap:6px;margin-bottom:6px">'+
@@ -702,23 +686,19 @@ function openProfileSphereEditor(){
 
   document.body.appendChild(ov);
 
-  // Check build token
   try{var bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
     if(bt&&bt.token){ov.querySelector('#pse-token-wrap').innerHTML='<div style="font-size:11px;color:var(--gold);margin-bottom:8px">✓ Using GitHub token from Build</div>';}
   }catch{}
 
-  // Show sections order only when custom code is present
   ov.querySelector('#pse-code').addEventListener('input',function(){
     var wrap=ov.querySelector('#pse-sections-wrap');
     if(wrap) wrap.style.display=this.value.trim()?'block':'none';
   });
 
-  // Accent color live update
   ov.querySelector('#pse-accent').addEventListener('input',function(){
     ov.querySelector('#pse-accent-val').textContent=this.value;
   });
 
-  // Sections drag-to-reorder (simple up/down buttons)
   function renderSections(){
     var sec=ov.querySelector('#pse-sections');
     sec.innerHTML='';
@@ -755,33 +735,21 @@ function openProfileSphereEditor(){
         +'<span class="sp-auto" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(sc.autoOpen?'var(--gold)':'rgba(255,255,255,.12)')+';color:'+(sc.autoOpen?'var(--gold)':'var(--text3)')+';cursor:pointer">auto</span>'
         +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-up>↑</button>'
         +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-dn>↓</button>';
-      row.querySelector('.sp-visible').onclick=function(){
-        sc.visible=!sc.visible;renderSpheresConfig();
-      };
-      row.querySelector('.sp-auto').onclick=function(){
-        sc.autoOpen=!sc.autoOpen;renderSpheresConfig();
-      };
-      row.querySelector('[data-up]').onclick=function(){
-        if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}
-      };
-      row.querySelector('[data-dn]').onclick=function(){
-        if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}
-      };
+      row.querySelector('.sp-visible').onclick=function(){sc.visible=!sc.visible;renderSpheresConfig();};
+      row.querySelector('.sp-auto').onclick=function(){sc.autoOpen=!sc.autoOpen;renderSpheresConfig();};
+      row.querySelector('[data-up]').onclick=function(){if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
+      row.querySelector('[data-dn]').onclick=function(){if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
       spEl.appendChild(row);
     });
   }
   renderSections();
   renderSpheresConfig();
 
-  // Collect config from form
   function collectConfig(){
     return {
-      uuid:uuid,
-      name:name,
+      uuid:uuid,name:name,
       keywords:ov.querySelector('#pse-keywords').value.split(',').map(function(k){return k.trim();}).filter(Boolean),
-      bio:p.bio||'',
-      pubkey:p.pubkey||'',
-      spheres:p.spheres||[],
+      bio:p.bio||'',pubkey:p.pubkey||'',spheres:p.spheres||[],
       accent:ov.querySelector('#pse-accent').value,
       sections:config.sections.slice(),
       sphereConfig:config.sphereConfig||{},
@@ -791,10 +759,8 @@ function openProfileSphereEditor(){
     };
   }
 
-  // Close
   ov.querySelector('#pse-close').onclick=function(){ov.remove();};
 
-  // Copy AI Prompt button
   ov.querySelector('#pse-copy-prompt').onclick=function(){
     var prompt='yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
     if(navigator.clipboard&&navigator.clipboard.writeText){
@@ -806,7 +772,6 @@ function openProfileSphereEditor(){
     }
   };
 
-  // Unpublish — remove from profile.json
   ov.querySelector('#pse-unpublish').onclick=async function(){
     var status=ov.querySelector('#pse-status');
     var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
@@ -837,18 +802,13 @@ function openProfileSphereEditor(){
     }catch(e){status.textContent='Error: '+e.message;}
   };
 
-  // Before — visitor view of classic profile
   ov.querySelector('#pse-before').onclick=function(){
     ov.style.display='none';
     var myProfile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
     window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel(myProfile);
-    // Reopen editor when panel closes
     var _check=setInterval(function(){
       var panel=document.getElementById('panel-profile-view')||document.getElementById('panel-sphere');
-      if(!panel||!panel.classList.contains('open')){
-        clearInterval(_check);
-        ov.style.display='flex';
-      }
+      if(!panel||!panel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
     },400);
   };
 
@@ -856,26 +816,16 @@ function openProfileSphereEditor(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
     var code=_generateProfileSphere(cfg);
-    // Replace placeholder uuid with real uuid
     code=code.replace(/xxxx-xxxx-xxxx-xxxx/g,cfg.uuid);
-
-    // Inject via script tag — more reliable than new Function
     var sphereId=cfg.uuid+'.profile.js';
     document.getElementById('pse-preview-script')?.remove();
     var script=document.createElement('script');
     script.id='pse-preview-script';
     script.textContent=code;
     document.head.appendChild(script);
-
-    // Small delay for script to execute
     setTimeout(function(){
       var s=window.YM_S[sphereId];
-      if(!s){
-        // Fallback — any profile sphere
-        Object.keys(window.YM_S||{}).forEach(function(k){
-          if(window.YM_S[k].isProfileSphere&&!s){s=window.YM_S[k];sphereId=k;}
-        });
-      }
+      if(!s){Object.keys(window.YM_S||{}).forEach(function(k){if(window.YM_S[k].isProfileSphere&&!s){s=window.YM_S[k];sphereId=k;}});}
       if(!s){ov.querySelector('#pse-status').textContent='Generation failed — check console';return;}
       if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId,s);
       ov.style.display='none';
@@ -887,7 +837,6 @@ function openProfileSphereEditor(){
     },100);
   };
 
-  // Publish
   ov.querySelector('#pse-publish').onclick=async function(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
@@ -896,24 +845,18 @@ function openProfileSphereEditor(){
     var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
     var token=(bt&&bt.token)||(tokenEl?tokenEl.value.trim():'');
     if(!token){status.textContent='GitHub token required';return;}
-
-    // Wallet check
     var pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
     if(!pubkey){status.textContent='❌ Connect your wallet first';return;}
     var elig=window.YM_Build&&window.YM_Build.computeEligibility?await window.YM_Build.computeEligibility():null;
     if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant';return;}
-
-    // Derive repo
     var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
     var repoMatch=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
     var repo=repoMatch?repoMatch[1]:(bt&&bt.repo)||'';
     if(!repo){status.textContent='No registry configured';return;}
-
     status.textContent='Generating profile sphere…';
     var sphereCode=_generateProfileSphere(cfg);
+    var username=(bt&&bt.username)||'';
     var rawSphereUrl='https://raw.githubusercontent.com/'+username+'/YourMinedApp/main/'+uuid+'.profile.js';
-
-    // Sign event
     var nonce=window._ymUuid?window._ymUuid():(Date.now().toString(36)+Math.random().toString(36).slice(2));
     var ts=Math.floor(Date.now()/1000);
     var sigB64='';
@@ -924,68 +867,46 @@ function openProfileSphereEditor(){
         sigB64=btoa(String.fromCharCode(...Array.from(sig)));
       }catch(e){status.textContent='Signature failed';return;}
     }
-
     var ev={
-      action:'profile',
-      filename:uuid+'.profile.js',
-      wallet:pubkey,
-      signature:sigB64,
-      nonce,timestamp:ts,
+      action:'profile',filename:uuid+'.profile.js',
+      wallet:pubkey,signature:sigB64,nonce,timestamp:ts,
       codeUrl:rawSphereUrl,
-      profileEntry:{
-        uuid,name,
-        keywords:cfg.keywords||[],
-        bio:cfg.bio||'',
-        pubkey:pubkey,
-        spheres:cfg.spheres||[],
-        accent:cfg.accent||'',
-        profileSphere:rawSphereUrl
-      }
+      profileEntry:{uuid,name,keywords:cfg.keywords||[],bio:cfg.bio||'',pubkey:pubkey,spheres:cfg.spheres||[],accent:cfg.accent||'',profileSphere:rawSphereUrl}
     };
-
     try{
-      status.textContent='Fork…';
-      await _ymEnsureFork(token,username);
-      // Push sphere code to fork
-      status.textContent='Push…';
-      await _ymGhPush(token,username,uuid+'.profile.js',sphereCode,'profile: '+name);
+      status.textContent='Fork…';await _ymEnsureFork(token,username);
+      status.textContent='Push…';await _ymGhPush(token,username,uuid+'.profile.js',sphereCode,'profile: '+name);
       await _ymGhPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
       await new Promise(function(r){setTimeout(r,1500);});
-      status.textContent='PR…';
-      var pr=await _ymOpenPR(token,username);
+      status.textContent='PR…';var pr=await _ymOpenPR(token,username);
       status.style.color='var(--gold)';
       status.innerHTML='⏳ <a href="'+pr.html_url+'" target="_blank" style="color:var(--cyan)">↗ Profile PR submitted</a>';
     }catch(e2){status.textContent='Error: '+e2.message;}
   };
 }
 
-// Generate the profile sphere JS code
 function _generateProfileSphere(cfg){
   if(cfg.customCode&&cfg.customCode.includes('window.YM_S[')){
-    // Extract renderPanel body from full sphere code
     var _bodyMatch=cfg.customCode.match(/renderPanel\s*:\s*function\s*\(container\)\s*\{([\s\S]*?)\},\s*profileSection/);
     var _extractedBody=_bodyMatch?_bodyMatch[1]:'/* custom code unparseable - using default */';
     cfg=Object.assign({},cfg,{customCode:_extractedBody});
   }
-  // Default body — use classic visitor layout via _renderProfileView
-  var defaultBody = 'if(window._renderProfileView){var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};window._renderProfileView(p,container);return;}';
-  var body = cfg.customCode || defaultBody;
-
-  var cfgJson = JSON.stringify(cfg);
-  var sphereId = cfg.uuid + '.profile.js';
+  var defaultBody='if(window._renderProfileView){var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};window._renderProfileView(p,container);return;}';
+  var body=cfg.customCode||defaultBody;
+  var cfgJson=JSON.stringify(cfg);
+  var sphereId=cfg.uuid+'.profile.js';
   return [
     '(function(){',
-    'var cfg=' + cfgJson + ';',
-    'window.YM_S[' + JSON.stringify(sphereId) + ']={',
-    '  name:' + JSON.stringify(cfg.name) + ',',
+    'var cfg='+cfgJson+';',
+    'window.YM_S['+JSON.stringify(sphereId)+']={',
+    '  name:'+JSON.stringify(cfg.name)+',',
     '  icon:"\u2746",',
     '  category:"Profile",',
     '  isProfileSphere:true,',
     '  activate:function(){},',
     '  deactivate:function(){},',
     '  renderPanel:function(container){',
-    '    (function(){' + body + '})();',
-    '    // ── Priority layer — spheres always injected after custom code ──',
+    '    (function(){'+body+'})();',
     '    var _sc=cfg.sphereConfig||{};',
     '    var _so=cfg.sphereOrder||cfg.spheres||[];',
     '    var _hasSection=_so.some(function(id){var s=_sc[id];return !s||s.visible!==false;});',
@@ -1022,7 +943,6 @@ function _generateProfileSphere(cfg){
 }
 window.openProfileSphereEditor=openProfileSphereEditor;
 
-
 // ── Profile Menu ──────────────────────────────────────────────────────────────
 function _openProfileMenu(){
   document.getElementById('prof-menu-sheet')?.remove();
@@ -1030,15 +950,13 @@ function _openProfileMenu(){
   sheet.style.cssText='position:fixed;inset:0;z-index:2500;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center';
   var box=document.createElement('div');
   box.style.cssText='background:var(--bg2,#1a1a2e);border-radius:14px 14px 0 0;padding:16px;width:100%;max-width:400px';
-
   var items=[
     {icon:'👤',label:'Edit identity',sub:'Avatar, name, bio, website',fn:openIdentityEditor},
     {icon:'💾',label:'Backup',sub:'Export your identity',fn:function(){sheet.remove();openBackupOverlay();}},
     {icon:'🔁',label:'Recovery',sub:'P2P identity recovery',fn:function(){sheet.remove();openRecoveryOverlay();}},
     {icon:'📡',label:'Publish name',sub:'Link your name to your UUID',fn:function(){sheet.remove();openPublishNameOverlay();}},
-    {icon:'✦', label:'Profile sphere',sub:'Customize your public profile',fn:function(){sheet.remove();openProfileSphereEditor();}},
+    {icon:'✦',label:'Profile sphere',sub:'Customize your public profile',fn:function(){sheet.remove();openProfileSphereEditor();}},
   ];
-
   box.innerHTML='<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;text-align:center">Profile</div>';
   items.forEach(function(item){
     var row=document.createElement('div');
@@ -1051,7 +969,6 @@ function _openProfileMenu(){
     row.addEventListener('mouseleave',function(){this.style.background='';});
     box.appendChild(row);
   });
-
   var cancelBtn=document.createElement('button');
   cancelBtn.className='ym-btn ym-btn-ghost';cancelBtn.style.cssText='width:100%;margin-top:12px;font-size:13px';
   cancelBtn.textContent='Cancel';cancelBtn.onclick=function(){sheet.remove();};
@@ -1070,7 +987,6 @@ function openIdentityEditor(){
   ov.innerHTML=
     '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:20px;width:100%;max-width:340px">'+
     '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:16px">👤 Edit identity</div>'+
-    // Avatar
     '<div style="display:flex;justify-content:center;margin-bottom:12px">'+
     '<div id="id-av" style="width:72px;height:72px;border-radius:50%;background:var(--surface3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;overflow:hidden">'
     +(p.avatar?'<img src="'+p.avatar+'" style="width:100%;height:100%;object-fit:cover">':'&#128100;')+
@@ -1083,7 +999,6 @@ function openIdentityEditor(){
     '<button id="id-save" class="ym-btn ym-btn-accent" style="flex:1">Save</button>'+
     '</div></div>';
   document.body.appendChild(ov);
-
   ov.querySelector('#id-av').addEventListener('click',function(){
     var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
     inp.onchange=function(){var r=new FileReader();r.onload=function(e){
@@ -1099,7 +1014,6 @@ function openIdentityEditor(){
       bio:ov.querySelector('#id-bio').value,
       site:ov.querySelector('#id-site').value
     });
-    // Broadcast to social if active
     if(window.YM_sphereRegistry&&window.YM_sphereRegistry.get('social.sphere.js')){
       try{window.YM_sphereRegistry.get('social.sphere.js').broadcastPresence&&window.YM_sphereRegistry.get('social.sphere.js').broadcastPresence();}catch{}
     }
@@ -1108,7 +1022,6 @@ function openIdentityEditor(){
   };
 }
 window.openIdentityEditor=openIdentityEditor;
-
 
 // ── PR helpers ────────────────────────────────────────────────────────────────
 async function _ymGhAPI(token,path,method,body){
@@ -1151,15 +1064,12 @@ function openPublishNameOverlay(){
   var name=p.name||'';
   var uuid=p.uuid||'';
   if(!name){window.YM_toast&&window.YM_toast('Set a name in your profile first','error');return;}
-
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px';
-  // Derive repo from registry URL
   var registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
   var repoFromRegistry='';
   var m=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
   if(m)repoFromRegistry=m[1];
-  // Get token from build session (same as Build feature)
   var buildToken=null;
   try{var bt=sessionStorage.getItem('ym_build_token');if(bt)buildToken=JSON.parse(bt);}catch{}
   var tokenAvailable=!!(buildToken&&buildToken.token);
@@ -1169,8 +1079,8 @@ function openPublishNameOverlay(){
     '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">Your UUID <span style="font-family:monospace;font-size:10px;color:var(--gold)">'+uuid.slice(0,12)+'…</span> will be associated to this name in the registry.</div>'+
     '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">'+name+'</div>'+
     (tokenAvailable
-      ? '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>'
-      : '<input id="pub-token" type="password" placeholder="GitHub token (or connect via Build first)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:12px">')+
+      ?'<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>'
+      :'<input id="pub-token" type="password" placeholder="GitHub token (or connect via Build first)" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;margin-bottom:12px">')+
     (repoFromRegistry?'<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Registry: <span style="color:var(--gold)">'+repoFromRegistry+'</span></div>':'')+
     '<div style="display:flex;gap:8px">'+
     '<button id="pub-cancel" class="ym-btn ym-btn-ghost" style="flex:1">Cancel</button>'+
@@ -1179,7 +1089,6 @@ function openPublishNameOverlay(){
     '</div>';
   document.body.appendChild(ov);
   document.getElementById('pub-cancel').onclick=function(){ov.remove();};
-
   document.getElementById('pub-go').onclick=async function(){
     var tokenEl=document.getElementById('pub-token');
     var token=(buildToken&&buildToken.token)||(tokenEl?tokenEl.value.trim():'');
@@ -1187,19 +1096,16 @@ function openPublishNameOverlay(){
     var status=document.getElementById('pub-status');
     if(!token){status.textContent='GitHub token required — connect via Build first';return;}
     if(!repo){status.textContent='No registry configured';return;}
-    // Check wallet connected
     var pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
     if(!pubkey){status.textContent='❌ Connect your wallet first';return;}
-    // Check score eligibility
     status.textContent='Checking eligibility…';
     var elig=window.YM_Build&&window.YM_Build.computeEligibility?await window.YM_Build.computeEligibility():null;
     if(elig&&!elig.eligible){status.textContent='❌ Score insuffisant pour publier';return;}
     status.textContent='Checking…';
-
-    // Sign event
     var nonce2=window._ymUuid?window._ymUuid():(Date.now().toString(36)+Math.random().toString(36).slice(2));
     var ts2=Math.floor(Date.now()/1000);
     var sigB64b='';
+    var username=(buildToken&&buildToken.username)||'';
     if(window.YM_Mine_sign){
       try{
         var msg2=JSON.stringify({action:'name',filename:'name.json',wallet:pubkey,nonce:nonce2,timestamp:ts2});
@@ -1207,26 +1113,15 @@ function openPublishNameOverlay(){
         sigB64b=btoa(String.fromCharCode(...Array.from(sig2)));
       }catch(e){status.textContent='Signature failed';return;}
     }
-
-    var ev2={
-      action:'name',filename:'name.json',
-      wallet:pubkey,signature:sigB64b,
-      nonce:nonce2,timestamp:ts2,
-      nameEntry:{name,uuid}
-    };
-
+    var ev2={action:'name',filename:'name.json',wallet:pubkey,signature:sigB64b,nonce:nonce2,timestamp:ts2,nameEntry:{name,uuid}};
     try{
-      status.textContent='Fork…';
-      await _ymEnsureFork(token,username);
-      status.textContent='Push…';
-      await _ymGhPush(token,username,'events/'+nonce2+'.json',JSON.stringify(ev2,null,2),'name: '+name);
+      status.textContent='Fork…';await _ymEnsureFork(token,username);
+      status.textContent='Push…';await _ymGhPush(token,username,'events/'+nonce2+'.json',JSON.stringify(ev2,null,2),'name: '+name);
       await new Promise(function(r){setTimeout(r,1500);});
-      status.textContent='PR…';
-      var pr2=await _ymOpenPR(token,username);
+      status.textContent='PR…';var pr2=await _ymOpenPR(token,username);
       status.style.color='var(--gold)';
       status.innerHTML='⏳ <a href="'+pr2.html_url+'" target="_blank" style="color:var(--cyan)">↗ Name PR submitted</a>';
     }catch(e){status.textContent='Error: '+e.message;}
   };
 }
 window.openPublishNameOverlay=openPublishNameOverlay;
-
