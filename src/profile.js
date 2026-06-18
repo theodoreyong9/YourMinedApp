@@ -679,6 +679,7 @@ function openProfileSphereEditor(){
     '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">✦ Profile Sphere</div>'+
     '<div style="display:flex;gap:6px;margin-bottom:6px">'+
     '<button id="pse-before" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1">Before</button>'+
+    '<button id="pse-current" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1;display:none">Current</button>'+
     '<button id="pse-after" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1">After</button>'+
     '<button id="pse-unpublish" class="ym-btn ym-btn-ghost" style="font-size:12px;flex:1;color:var(--red,#e84040);border-color:rgba(232,64,64,.3)">Unpublish</button>'+
     '</div>'+
@@ -762,6 +763,54 @@ function openProfileSphereEditor(){
       customCode:ov.querySelector('#pse-code').value
     };
   }
+
+  // Show Current button if a published profile sphere exists
+  var bt2=null;try{bt2=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
+  var username2=(bt2&&bt2.username)||'';
+  var publishedUrl='https://raw.githubusercontent.com/'+username2+'/YourMinedApp/main/'+uuid+'.profile.js';
+  if(username2){
+    fetch(publishedUrl+'?t='+Date.now(),{method:'HEAD'}).then(function(r){
+      if(r.ok) ov.querySelector('#pse-current').style.display='';
+    }).catch(function(){});
+  }
+
+  ov.querySelector('#pse-current').onclick=function(){
+    var status=ov.querySelector('#pse-status');
+    status.textContent='Loading current…';
+    var sphereId=uuid+'.profile.js';
+    // If already loaded in registry, use it
+    var existing=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sphereId);
+    function _open(sid){
+      ov.style.display='none';
+      window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sid);
+      var _check=setInterval(function(){
+        var panel=document.getElementById('panel-sphere');
+        if(!panel||!panel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';status.textContent='';}
+      },400);
+    }
+    if(existing){status.textContent='';_open(sphereId);return;}
+    // Fetch and execute published sphere
+    fetch(publishedUrl+'?t='+Date.now(),{cache:'no-store'}).then(function(r){
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      return r.text();
+    }).then(function(code){
+      var script=document.createElement('script');
+      script.textContent=code;
+      document.head.appendChild(script);
+      setTimeout(function(){
+        var s=window.YM_S&&window.YM_S[sphereId];
+        if(s){
+          if(window.YM_sphereRegistry)window.YM_sphereRegistry.set(sphereId,s);
+          status.textContent='';
+          _open(sphereId);
+        }else{
+          status.textContent='Could not load current sphere';
+        }
+      },100);
+    }).catch(function(e){status.textContent='Error: '+e.message;});
+  };
+
+
 
   ov.querySelector('#pse-close').onclick=function(){ov.remove();};
 
@@ -910,7 +959,10 @@ function _generateProfileSphere(cfg){
     '  activate:function(){},',
     '  deactivate:function(){},',
     '  renderPanel:function(container){',
-    '    (function(){'+body+'})();',
+    '    try{(function(){'+body+'})();}catch(e){',
+    '      console.warn("Profile sphere custom code error:",e.message);',
+    '      if(window._renderProfileView){var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};window._renderProfileView(p,container);}',
+    '    }',
     '    var _sc=cfg.sphereConfig||{};',
     '    var _so=cfg.sphereOrder||cfg.spheres||[];',
     '    var _hasSection=_so.some(function(id){var s=_sc[id];return !s||s.visible!==false;});',
@@ -929,8 +981,8 @@ function _generateProfileSphere(cfg){
     '        var body2=document.createElement("div");',
     '        body2.style.cssText="padding:12px 14px;display:none";',
     '        var open2=sc.autoOpen||false;',
-    '        function toggle2(){open2=!open2;body2.style.display=open2?"block":"none";hdr.querySelector("span:last-child").textContent=open2?"▲":"▼";}',
-    '        if(open2){body2.style.display="block";hdr.querySelector("span:last-child")&&(hdr.querySelector("span:last-child").textContent="▲");}',
+    '        function toggle2(){open2=!open2;body2.style.display=open2?"block":"none";var arr=hdr.querySelector("span:last-child");if(arr)arr.textContent=open2?"▲":"▼";}',
+    '        body2.style.display=open2?"block":"none";',
     '        hdr.addEventListener("click",toggle2);',
     '        try{var _pr=window.YM&&window.YM.getProfile?window.YM.getProfile():{};if(typeof sphere.peerSection==="function"){sphere.peerSection(body2,{uuid:_pr.uuid,isNear:true,isReciproc:true,profile:_pr});}else if(typeof sphere.profileSection==="function"){sphere.profileSection(body2);}}catch(e){}',
     '        var acc=document.createElement("div");acc.style.cssText="border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px";',
