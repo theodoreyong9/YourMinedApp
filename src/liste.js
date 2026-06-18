@@ -77,6 +77,7 @@ async function _doFetch(){
       icon:entry.icon||null,
       category:entry.category||null,
       description:entry.description||null,
+      wip:entry.wip||false,
       cardGif:entry.cardGif||null,
       cardBackground:entry.cardBackground||null,
       desktopGif:entry.desktopGif||null,
@@ -682,7 +683,7 @@ function _renderThemeCards(container,curThemeUrl,GH_BLOB_BASE,themes){
   });
 }
 
-const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent'];
+const STD_CATS=['Communication','Games','AI','Finance','Commerce','Social','Media','Search','Agent','Tools'];
 function normCat(cat){return STD_CATS.includes(cat)?cat:'Autres';}
 
 function renderLinkContent(container){
