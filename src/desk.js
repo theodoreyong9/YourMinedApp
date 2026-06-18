@@ -400,7 +400,7 @@ function mkIcon(ic,isFolder){
     if(folderNotifTotal>0){const fn=document.createElement('div');fn.className='icon-notif';fn.textContent=folderNotifTotal;body.appendChild(fn);}
     w.appendChild(body);
     const lbl=document.createElement('div');lbl.className='icon-label';lbl.textContent=ic.label;w.appendChild(lbl);
-    w.addEventListener('click',()=>{if(!editMode&&!isDragging)openFolderPanel(ic);});
+    w.addEventListener('click',()=>{if(!isDragging)openFolderPanel(ic);});
   }else{
     const body=document.createElement('div');body.className='icon-body';body.appendChild(del);
     body.appendChild(renderIconContent(ic.icon));
@@ -711,7 +711,7 @@ const pageOf=el=>{const pg=el&&el.closest&&el.closest('.desktop-page');return pa
     const dx=e.changedTouches[0].clientX-sx,dy=e.changedTouches[0].clientY-sy;
     const elapsed=Date.now()-startT,vx=Math.abs(dx)/elapsed,vy=Math.abs(dy)/elapsed;
     if(Math.abs(dy)>50&&Math.abs(dy)>Math.abs(dx)*1.5&&vy>0.2){if(dy<0&&window.YM)window.YM.openSwitcher();return;}
-    if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.5&&vx>0.2){if(editMode){exitEdit();return;}goPage(dx<0?curPg+1:curPg-1,true);}
+    if(Math.abs(dx)>40&&Math.abs(dx)>Math.abs(dy)*1.5&&vx>0.2){goPage(dx<0?curPg+1:curPg-1,true);}
   },{passive:true});
 })();
 
