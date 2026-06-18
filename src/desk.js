@@ -142,15 +142,12 @@ function setNotif(id,n){
 }
 
 function setIcon(id,icon){
-  // Update stored data
   const d=LD(),found=findIconParent(id,d);
   if(found){found.item.icon=icon;SD(d);}
-  // Update live DOM — find icon-body for this id
   const wrap=document.querySelector('.icon-wrap[data-id="'+id+'"]');
   if(!wrap)return;
   const body=wrap.querySelector('.icon-body');
   if(!body)return;
-  // Replace icon content (first non-del, non-notif child)
   const existing=body.querySelector('span,img');
   if(existing){
     const newContent=renderIconContent(icon);
@@ -159,8 +156,8 @@ function setIcon(id,icon){
 }
 
 // ── WIDGET PAGE REGISTRY ──────────────────────────────────────
-const _widgetPages=new Map(); // widgetId -> page
-const _widgetPosKeys=new Map(); // widgetId -> localStorage key for position
+const _widgetPages=new Map();
+const _widgetPosKeys=new Map();
 const WIDGET_PAGES_KEY='ym_widget_pages';
 const WIDGET_POSKEYS_KEY='ym_widget_poskeys';
 function _saveWidgetPages(){
@@ -181,7 +178,6 @@ function registerWidgetPage(widgetId,page,posKey){
 function unregisterWidget(widgetId){_widgetPages.delete(widgetId);_saveWidgetPages();}
 function isPageOccupiedByWidget(page){for(const p of _widgetPages.values()){if(p===page)return true;}return false;}
 
-// ── NEW: expose widget page lookup ────────────────────────────
 function registeredWidgetPage(widgetId){
   const p=_widgetPages.get(widgetId);
   return p!=null?p:null;
@@ -226,7 +222,6 @@ function autoCleanPages(){
   icons.forEach(i=>{if(remap.has(i.page))i.page=remap.get(i.page);});SD(icons);
   for(const[id,p] of _widgetPages){if(remap.has(p))_widgetPages.set(id,remap.get(p));}
   _saveWidgetPages();
-  // Update each widget's own position storage
   for(const[id] of _widgetPages){
     const posKey=_widgetPosKeys.get(id);
     if(!posKey)continue;
@@ -303,6 +298,27 @@ function renderFolderPanel(ic){
   const pg=document.getElementById('folder-page-0');if(!pg)return;
   pg.className='desktop-page folder-desktop-page';pg.style.cssText='';
   renderPageInto(pg,iconsForPage(items,0),true);
+
+  // Propagate editMode into folder icons
+  const panel=document.getElementById('panel-folder');
+  if(panel){
+    if(editMode)panel.classList.add('edit-mode');
+    else panel.classList.remove('edit-mode');
+  }
+  if(editMode)pg.classList.add('edit-mode');
+  else pg.classList.remove('edit-mode');
+
+  // Dynamic height based on icon rows
+  const g=GRID();
+  const pageItems=iconsForPage(items,0);
+  const maxRow=pageItems.length>0?Math.max(...pageItems.map(i=>i.row||0)):0;
+  const rowCount=maxRow+1;
+  const cellH=isPC()?90:86;
+  const headH=52,handleH=20,dzH=editMode?36:0,padH=16;
+  const contentH=rowCount*cellH;
+  const totalH=handleH+headH+dzH+contentH+padH;
+  if(panel)panel.style.height=Math.min(totalH,window.innerHeight*0.85)+'px';
+
   const bc=document.getElementById('folder-panel-breadcrumb');
   if(bc){
     bc.innerHTML='';
@@ -727,7 +743,10 @@ function showBgDlg(p){
   document.getElementById('bg-wp').onclick=()=>{document.getElementById('bg-dlg').classList.remove('open');pickWP();};
   document.getElementById('bg-remove').onclick=()=>{localStorage.removeItem(WK);applyWP();document.getElementById('bg-dlg').classList.remove('open');toast('Wallpaper removed','info');};
   const bgSph=document.getElementById('bg-spheres');
-  if(bgSph)bgSph.onclick=()=>{document.getElementById('bg-dlg').classList.remove('open');if(window.YM){window.YM.openPanel('panel-spheres');if(window.YM_Liste)window.YM_Liste.render();}};
+  if(bgSph)bgSph.onclick=()=>{
+    document.getElementById('bg-dlg').classList.remove('open');
+    if(window.YM){window.YM.openPanel('panel-spheres');if(window.YM_Liste)window.YM_Liste.render();}
+  };
   const PRESETS=window.YM_WALLPAPER_PRESETS||[];
   const grid=document.getElementById('bg-presets');
   if(grid&&!grid.children.length){
@@ -754,8 +773,6 @@ function deskInit(){
   applyWP();
   _loadWidgetPages();
   const icons=LD();
-  // Use saved pageCount — autoCleanPages already cleaned empty pages before save
-  // Ensure pageCount covers all icon pages
   const maxPage=icons.length?Math.max(...icons.map(i=>i.page)):0;
   const savedCount=getPgCount();
   const count=Math.max(savedCount,maxPage+1);
@@ -765,7 +782,6 @@ function deskInit(){
 window.YM_Desk={
   addIcon,removeIcon,setNotif,setIcon,renderDesk,goPage,getPgCount,buildSlider,autoCleanPages,enterEdit,exitEdit,
   registerWidgetPage,unregisterWidget,
-  // ── NEW: expose widget page for radio/widget sync ──
   registeredWidgetPage,
   get safeBottom(){return getDeskSafeBottom();},
   get curPg(){return curPg;},
