@@ -199,27 +199,42 @@ async function updateNameRegistry(files, ghActor, walletPubkey) {
   if (!nameFiles.length) return;
 
   for (const { wallet, score, laps, timestamp, nonce, nameEntry } of nameFiles) {
-    if (!wallet || !score) { console.warn('name.json update rejected — missing wallet or score'); continue; }
+    if (!wallet) { console.warn('name.json update rejected — missing wallet'); continue; }
     if (!nameEntry || !nameEntry.name || !nameEntry.uuid) { console.warn('name.json update rejected — missing name or uuid in nameEntry'); continue; }
 
     let nameJson = [];
     try {
       const raw = JSON.parse(fs.readFileSync('name.json', 'utf8'));
       if (!Array.isArray(raw)) {
-        nameJson = Object.entries(raw).map(([n, u]) => ({ name: n, uuid: u, pubkey: '', score: 0, laps: 0, timestamp: 0, nonce: '' }));
+        nameJson = Object.entries(raw).map(([n, u]) => ({ name: n, uuid: u, pubkey: '', ghAccount: '', score: 0, laps: 0, timestamp: 0, nonce: '' }));
       } else {
         nameJson = raw;
       }
     } catch(e) {}
 
     const { name, uuid } = nameEntry;
+
+    // Name must be unique across UUIDs
     const existingName = nameJson.find(e => e.name === name && e.uuid !== uuid);
     if (existingName) { console.warn('name.json update rejected — name already taken:', name); continue; }
+
+    // One name per GitHub account (not wallet) — different UUID, same GitHub account = reject
+    const existingByGh = nameJson.find(e => e.ghAccount === ghActor && e.uuid !== uuid);
+    if (existingByGh) { console.warn('name.json update rejected — GitHub account already has a name:', ghActor); continue; }
+
     nameJson = nameJson.filter(e => e.uuid !== uuid);
-    nameJson.push({ name, uuid, pubkey: wallet, score: parseFloat(score.toFixed(6)), laps: parseFloat((laps || 0).toFixed(6)), timestamp: timestamp || Math.floor(Date.now() / 1000), nonce: nonce || '' });
+    nameJson.push({
+      name, uuid,
+      pubkey: wallet,
+      ghAccount: ghActor,
+      score: parseFloat((score || 0).toFixed(6)),
+      laps: parseFloat((laps || 0).toFixed(6)),
+      timestamp: timestamp || Math.floor(Date.now() / 1000),
+      nonce: nonce || ''
+    });
     nameJson.sort((a, b) => (b.score || 0) - (a.score || 0));
     fs.writeFileSync('name.json', JSON.stringify(nameJson, null, 2));
-    console.log('Name registry updated:', name, '->', uuid, '— score:', score);
+    console.log('Name registry updated:', name, '->', uuid, '— score (rank only):', score);
   }
 }
 
@@ -229,19 +244,36 @@ async function updateProfileRegistry(files, ghActor, walletPubkey) {
   if (!profileJsonFiles.length) return;
 
   for (const { filename, wallet, score, laps, timestamp, profileEntry } of profileJsonFiles) {
-    if (!wallet || !score) { console.warn('profile.json update rejected — missing wallet or score'); continue; }
+    if (!wallet) { console.warn('profile.json update rejected — missing wallet'); continue; }
     if (!profileEntry || !profileEntry.uuid) { console.warn('profile.json update rejected — missing profileEntry or uuid'); continue; }
 
     let profileJson = [];
     try { profileJson = JSON.parse(fs.readFileSync('profile.json', 'utf8')); } catch(e) {}
 
+    // One profile per GitHub account — different UUID, same GitHub account = reject
+    const existingByGh = profileJson.find(p => p.ghAccount === ghActor && p.uuid !== profileEntry.uuid);
+    if (existingByGh) { console.warn('profile.json update rejected — GitHub account already has a profile:', ghActor); continue; }
+
+    // Name uniqueness across UUIDs (profile display name)
+    if (profileEntry.name) {
+      const existingName = profileJson.find(p => p.name === profileEntry.name && p.uuid !== profileEntry.uuid);
+      if (existingName) { console.warn('profile.json update rejected — name already taken:', profileEntry.name); continue; }
+    }
+
     const idx = profileJson.findIndex(p => p.uuid === profileEntry.uuid);
-    const entry = { ...profileEntry, pubkey: wallet, score: parseFloat((score || 0).toFixed(6)), laps: parseFloat((laps || 0).toFixed(6)), ts: timestamp || Math.floor(Date.now() / 1000) };
+    const entry = {
+      ...profileEntry,
+      pubkey: wallet,
+      ghAccount: ghActor,
+      score: parseFloat((score || 0).toFixed(6)),
+      laps: parseFloat((laps || 0).toFixed(6)),
+      ts: timestamp || Math.floor(Date.now() / 1000)
+    };
     if (idx >= 0) profileJson[idx] = entry;
     else profileJson.push(entry);
     profileJson.sort((a, b) => (b.score || 0) - (a.score || 0));
     fs.writeFileSync('profile.json', JSON.stringify(profileJson, null, 2));
-    console.log('Profile registry updated:', profileEntry.name, '— wallet:', wallet, 'score:', score);
+    console.log('Profile registry updated:', profileEntry.name, '— wallet:', wallet, 'score (rank only):', score);
   }
 }
 
@@ -307,35 +339,39 @@ async function main() {
     return;
   }
 
-  // ── Score update ───────────────────────────────────────────
-  const scoreUpdateFile = files.find(f => f.action === 'score_update');
+  // ── Score update — single entry only, never global ─────────
+  const scoreUpdateFile = files.find(f => f.action === 'score_update_entry');
   if (scoreUpdateFile) {
-    const { wallet, score, laps } = scoreUpdateFile;
-    const registries = ['files.json', 'themes-files.json', 'name.json', 'profile.json'];
-    for (const reg of registries) {
-      if (!fs.existsSync(reg)) continue;
-      try {
-        let data = JSON.parse(fs.readFileSync(reg, 'utf8'));
-        if (!Array.isArray(data)) {
-          if (reg === 'name.json') {
-            data = Object.entries(data).map(([n, u]) => ({ name: n, uuid: u, pubkey: '', score: 0, laps: 0 }));
-          } else continue;
+    const { wallet, score, laps, targetFilename } = scoreUpdateFile;
+    if (!targetFilename) { console.error('score_update_entry missing targetFilename'); process.exit(1); }
+    let reg = null;
+    if (targetFilename.endsWith('.sphere.js')) reg = 'files.json';
+    else if (targetFilename.endsWith('.theme.html')) reg = 'themes-files.json';
+    else if (targetFilename === 'name.json') reg = 'name.json';
+    else if (targetFilename === 'profile.json') reg = 'profile.json';
+    if (!reg || !fs.existsSync(reg)) { console.error('Unknown or missing registry for', targetFilename); process.exit(1); }
+    try {
+      let data = JSON.parse(fs.readFileSync(reg, 'utf8'));
+      if (!Array.isArray(data)) { console.error(reg, 'is not an array'); process.exit(1); }
+      let updated = false;
+      const matchKey = reg === 'files.json' || reg === 'themes-files.json' ? 'filename' : 'uuid';
+      data = data.map(entry => {
+        const isMatch = (entry.filename === targetFilename || entry.uuid === scoreUpdateFile.targetUuid)
+          && (entry.author === wallet || entry.pubkey === wallet);
+        if (isMatch) {
+          updated = true;
+          return { ...entry, score: parseFloat(score.toFixed(6)), laps: parseFloat(laps.toFixed(6)) };
         }
-        let updated = false;
-        data = data.map(entry => {
-          if (entry.author === wallet || entry.pubkey === wallet) {
-            updated = true;
-            return { ...entry, score: parseFloat(score.toFixed(6)), laps: parseFloat(laps.toFixed(6)) };
-          }
-          return entry;
-        });
-        if (updated) {
-          fs.writeFileSync(reg, JSON.stringify(data, null, 2));
-          console.log('Score updated in ' + reg + ' for wallet ' + wallet.slice(0, 8) + '…');
-        }
-      } catch(e) { console.warn('Could not update ' + reg + ':', e.message); }
-    }
-    gitCommitAndPush('bot: score_update @' + ghActor, ['files.json', 'themes-files.json', 'name.json', 'profile.json']);
+        return entry;
+      });
+      if (updated) {
+        fs.writeFileSync(reg, JSON.stringify(data, null, 2));
+        console.log('Score updated in ' + reg + ' for ' + targetFilename);
+      } else {
+        console.warn('No matching entry found for score update:', targetFilename);
+      }
+    } catch(e) { console.error('Could not update ' + reg + ':', e.message); process.exit(1); }
+    gitCommitAndPush('bot: score_update @' + ghActor + ' — ' + targetFilename, [reg]);
     return;
   }
 
