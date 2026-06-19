@@ -12,6 +12,18 @@
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/status.sphere.js"
   },
   {
+    "filename": "jackpot.sphere.js",
+    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
+    "ghAuthor": "Keanuji",
+    "last_committer": "Keanuji",
+    "score": 0.931547,
+    "laps": 7885881,
+    "timestamp": 1776619284,
+    "merged_at": 1776620204,
+    "burnSlot": 448770336,
+    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/jackpot.sphere.js"
+  },
+  {
     "filename": "anonmessenger.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
