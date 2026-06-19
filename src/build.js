@@ -612,13 +612,19 @@ function _showSimulatorOverlay(elig){
     const state=window._mineState||{};
     const S=((state.lastBurnAmount||0)+(extra*1e9))/1e9;
     if(S<=0){box.querySelector('#simov-wait').textContent='∞';return;}
-    const tau=Math.min(state.taxRate||20,40)/100,A=Math.max(1,state.currentSlot||111111112);
-    const dGen=Math.max(1,A-111111111),inner=Math.pow(dGen,2.2*(1-tau))+Math.pow(33,3);
-    const den=inner>1?Math.pow(Math.log(inner),3):1;
+    const tau=Math.min(state.taxRate||20,40)/100;
+    const baseSlot=Math.max(1,state.currentSlot||111111112);
     const needed=elig.lastRatio;
-    let t=elig.curLaps;
-    for(let i=0;i<2000;i++){if((S*Math.pow(t,1.1)/den+1)/(t+1)>=needed)break;t+=500;}
-    const slots=Math.max(0,t-elig.curLaps);
+    let t=elig.curLaps,slots=Infinity;
+    for(let i=0;i<2000;i++){
+      // Recompute dGen at THIS future point in time — A advances as t advances
+      const futureSlot=baseSlot+(t-elig.curLaps);
+      const dGen=Math.max(1,futureSlot-111111111);
+      const inner=Math.pow(dGen,2.2*(1-tau))+Math.pow(33,3);
+      const den=inner>1?Math.pow(Math.log(inner),3):1;
+      if((S*Math.pow(t,1.1)/den+1)/(t+1)>=needed){slots=Math.max(0,t-elig.curLaps);break;}
+      t+=500;
+    }
     const wEl=box.querySelector('#simov-wait');
     wEl.textContent=slotsToHuman(slots);
     box.querySelector('#simov-slots').textContent=isFinite(slots)?Math.round(slots).toLocaleString():'∞';
@@ -807,7 +813,7 @@ window.addEventListener('ym:switch-mine-tab',e=>{
 
 window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t),computeEligibility};
 
-// ── Update Score ──────────────────────────────────────────────
+// ── Update Score — single entry only ───────────────────────────
 async function _renderUpdateScore(container){
   const pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
   const state=window._mineState||{};
@@ -828,18 +834,43 @@ async function _renderUpdateScore(container){
         '<div><div style="font-size:10px;color:var(--text3)">Laps</div><div style="font-size:18px;font-weight:700;color:var(--text)">'+curLaps+'</div></div>'+
         '</div></div>'
       :'<div style="color:var(--red);font-size:13px;margin-bottom:12px">❌ Connect your wallet first</div>')+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Updates score for all your files across all registries.</div>'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Choose ONE file to update. Score updates are per-entry — never global. Each file has its own time/burn cycle.</div>'+
+    '<select id="score-target" class="ym-input" style="margin-bottom:12px;font-size:12px"><option value="">Loading your files…</option></select>'+
     (!token?'<input id="score-token" type="password" class="ym-input" placeholder="GitHub token" style="margin-bottom:12px;font-size:12px">':
       '<div style="font-size:11px;color:var(--gold);margin-bottom:12px">✓ Using GitHub token from Build</div>')+
     '<button id="score-go" class="ym-btn ym-btn-accent" style="width:100%" '+(pubkey?'':'disabled')+'>Submit Score Update</button>'+
     '<div id="score-status" style="font-size:11px;color:var(--text3);margin-top:10px;text-align:center"></div>';
 
+  // Populate target selector with this wallet's published files across registries
+  const sel=container.querySelector('#score-target');
+  if(pubkey){
+    try{
+      const [filesJson,themesJson,nameJson,profileJson]=await Promise.all([
+        fetchFilesJson(true),
+        fetch(THEMES_URL.replace('src/themes/index.json','themes-files.json')+'?t='+Date.now()).then(r=>r.ok?r.json():[]).catch(()=>[]),
+        fetch(RAW_BASE+'name.json?t='+Date.now()).then(r=>r.ok?r.json():[]).catch(()=>[]),
+        fetch(RAW_BASE+'profile.json?t='+Date.now()).then(r=>r.ok?r.json():[]).catch(()=>[])
+      ]);
+      const opts=[];
+      filesJson.filter(f=>f.author===pubkey).forEach(f=>opts.push({label:'⬡ '+(f.name||f.filename),value:f.filename,reg:'files.json'}));
+      themesJson.filter(t=>t.pubkey===pubkey||t.author===pubkey).forEach(t=>opts.push({label:'🎨 '+(t.name||t.filename),value:t.filename,reg:'themes-files.json'}));
+      (Array.isArray(nameJson)?nameJson:[]).filter(n=>n.pubkey===pubkey).forEach(n=>opts.push({label:'📡 '+n.name,value:'name.json',reg:'name.json',uuid:n.uuid}));
+      profileJson.filter(p=>p.pubkey===pubkey).forEach(p=>opts.push({label:'✦ '+(p.name||'Profile'),value:'profile.json',reg:'profile.json',uuid:p.uuid}));
+      sel.innerHTML=opts.length
+        ?'<option value="">— Choose a file —</option>'+opts.map(o=>'<option value="'+o.value+'" data-uuid="'+(o.uuid||'')+'">'+esc(o.label)+'</option>').join('')
+        :'<option value="">No published files found</option>';
+    }catch(e){sel.innerHTML='<option value="">Error loading files</option>';}
+  }
+
   container.querySelector('#score-go')?.addEventListener('click', async()=>{
     const status=container.querySelector('#score-status');
     const tok=token||(container.querySelector('#score-token')?.value?.trim()||'');
+    const targetFilename=sel?.value||'';
+    const targetUuid=sel?.selectedOptions?.[0]?.dataset?.uuid||'';
     if(!tok){status.textContent='GitHub token required';return;}
     if(!pubkey){status.textContent='Connect your wallet first';return;}
     if(!username){status.textContent='GitHub username required — reconnect via Build';return;}
+    if(!targetFilename){status.textContent='Choose a file to update';return;}
     const elig=await computeEligibility();
     if(elig&&!elig.eligible){status.textContent='❌ '+elig.reason;return;}
     status.textContent='Signing…';
@@ -847,23 +878,25 @@ async function _renderUpdateScore(container){
     const ts=Math.floor(Date.now()/1000);
     let sigB64='';
     if(window.YM_Mine_sign){
-      const msg=JSON.stringify({action:'score_update',wallet:pubkey,nonce,timestamp:ts,score:claimable,laps:curLaps});
+      const msg=JSON.stringify({action:'score_update_entry',wallet:pubkey,nonce,timestamp:ts,score:claimable,laps:curLaps,targetFilename,targetUuid});
       try{const sig=await window.YM_Mine_sign(msg);sigB64=btoa(String.fromCharCode(...Array.from(sig)));}
       catch(e){status.textContent='Signature failed';return;}
     }
     const ev={
-      action:'score_update',
-      filename:'score_update',
+      action:'score_update_entry',
+      filename:'score_update_'+nonce,
       wallet:pubkey,
       signature:sigB64,
       nonce,
       timestamp:ts,
       score:claimable,
-      laps:curLaps
+      laps:curLaps,
+      targetFilename,
+      targetUuid
     };
     try{
       status.textContent='Fork…';await ensureFork(tok,username);
-      status.textContent='Push…';await ghPush(tok,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'score_update: '+nonce);
+      status.textContent='Push…';await ghPush(tok,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'score_update: '+targetFilename);
       await new Promise(r=>setTimeout(r,1500));
       status.textContent='PR…';const pr=await openPR(tok,username);
       status.style.color='var(--gold)';
