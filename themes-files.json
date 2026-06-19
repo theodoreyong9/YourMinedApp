@@ -15,5 +15,22 @@
       "photos": [],
       "videos": []
     }
+  },
+  {
+    "filename": "book.theme.html",
+    "name": "book",
+    "icon": "🌍",
+    "description": "",
+    "ghAuthor": "keanuji",
+    "codeUrl": "https://raw.githubusercontent.com/keanuji/YourMinedApp/main/src/book.theme.html",
+    "wip": false,
+    "score": 0,
+    "laps": 0,
+    "timestamp": 1700000000,
+    "merged_at": 1700000100,
+    "media": {
+      "photos": [],
+      "videos": []
+    }
   }
 ]
