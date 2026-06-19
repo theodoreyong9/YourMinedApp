@@ -26,6 +26,7 @@ const DEVNET2    = 'https://rpc.ankr.com/solana_devnet';
 const STORE_KEY  = 'ym_wallet_v1';
 const MIN_BURN   = 0.0001;
 const YRM_DECIMALS = 1e18;
+const NAME_JSON_URL = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/name.json';
 
 const FAUCETS = [
   {label:'Solana Faucet', url:'https://faucet.solana.com'},
@@ -36,6 +37,7 @@ let _state = {sol:0,ym:0,lastBurnAmount:0,lastActionSlot:0,taxRate:20,totalBurne
 let _wallet = {locked:true,keypair:null,pubkey:null,connection:null};
 let _pdas = {};
 let _cycleTimer=null,_claimTimer=null;
+let _nameCache=null;
 
 const B58=(()=>{
   const A='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz',M={};
@@ -45,6 +47,34 @@ const B58=(()=>{
     decode(s){let n=0n;for(const c of s){if(!(c in M))throw Error('Bad b58');n=n*58n+M[c]}const h=n.toString(16).padStart(2,'0');const b=Uint8Array.from((h.length%2?'0'+h:h).match(/.{2}/g).map(x=>parseInt(x,16)));let l=0;for(const c of s){if(c==='1')l++;else break}const o=new Uint8Array(l+b.length);o.set(b,l);return o}
   };
 })();
+
+// ── NAME RESOLUTION ───────────────────────────────────────────
+async function fetchNameRegistry(){
+  if(_nameCache)return _nameCache;
+  try{
+    const r=await fetch(NAME_JSON_URL+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    _nameCache=await r.json();
+    return _nameCache;
+  }catch(e){
+    console.warn('[Mine] name.json fetch failed:',e.message);
+    return [];
+  }
+}
+
+// Resolve a name or address to a pubkey
+// Returns {pubkey, name, resolved} or null
+async function resolveName(input){
+  input=(input||'').trim();
+  if(!input)return null;
+  // Already looks like a pubkey (base58, 32-44 chars)
+  if(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(input))return{pubkey:input,name:null,resolved:false};
+  // Try name registry
+  const registry=await fetchNameRegistry();
+  const entry=registry.find(e=>e.name&&e.name.toLowerCase()===input.toLowerCase());
+  if(entry&&entry.pubkey)return{pubkey:entry.pubkey,name:entry.name,resolved:true};
+  return null;
+}
 
 async function mnemonicToSeed(m){const e=new TextEncoder(),k=await crypto.subtle.importKey('raw',e.encode(m.normalize('NFKD')),'PBKDF2',false,['deriveBits']);return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt:e.encode('mnemonic'),iterations:2048,hash:'SHA-512'},k,512));}
 async function slip10(seed,path){const mk=await crypto.subtle.importKey('raw',new TextEncoder().encode('ed25519 seed'),{name:'HMAC',hash:'SHA-512'},false,['sign']);let I=new Uint8Array(await crypto.subtle.sign('HMAC',mk,seed)),kL=I.slice(0,32),kR=I.slice(32);for(const seg of path.replace(/^m\//,'').split('/')){const hard=seg.endsWith("'");const idx=((parseInt(seg)+(hard?0x80000000:0))>>>0);const d=new Uint8Array(37);d[0]=0;d.set(kL,1);d[33]=(idx>>>24)&0xff;d[34]=(idx>>>16)&0xff;d[35]=(idx>>>8)&0xff;d[36]=idx&0xff;const ck=await crypto.subtle.importKey('raw',kR,{name:'HMAC',hash:'SHA-512'},false,['sign']);const ci=new Uint8Array(await crypto.subtle.sign('HMAC',ck,d));kL=ci.slice(0,32);kR=ci.slice(32);}return kL;}
@@ -130,53 +160,42 @@ async function importWallet(raw,pw){const sol=window.solanaWeb3;let kp;if(raw.st
 function showProofOfWill(){
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;z-index:1000;background:rgba(5,5,7,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;transition:opacity .3s ease';
-  
   const closeBtn=document.createElement('button');
   closeBtn.style.cssText='position:fixed;top:20px;right:20px;z-index:1001;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:18px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center';
   closeBtn.textContent='✕';
   closeBtn.addEventListener('click',()=>overlay.remove());
   overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
   document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){overlay.remove();document.removeEventListener('keydown',esc);}});
-
   const wrap=document.createElement('div');
   wrap.style.cssText='max-width:640px;margin:0 auto;padding:60px 24px 80px;font-family:Inter,sans-serif;color:#e4e6f4';
-
   wrap.innerHTML=
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px">Protocol</div>'+
     '<div style="font-size:28px;font-weight:700;background:linear-gradient(135deg,#ff4560,#f0a830);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px">Proof of Will</div>'+
     '<div style="font-size:13px;color:rgba(240,240,248,.4);margin-bottom:24px">The three formulas that make participation irreversible</div>'+
-
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);margin-bottom:24px"></div>'+
-
     '<div style="font-size:13px;color:rgba(240,240,248,.6);line-height:1.8;margin-bottom:16px">Most protocols reward computation or capital. YourMine rewards <strong style="color:#ff4560">will</strong> — the deliberate choice to participate, to wait, to contribute quality over quantity.</div>'+
-
     '<div style="background:rgba(255,69,96,.04);border:1px solid rgba(255,69,96,.15);border-radius:10px;padding:14px 16px;margin-bottom:24px;font-size:12px;color:rgba(240,240,248,.6);line-height:1.7">'+
       '<strong style="color:#f0a830">Interplanetary by design.</strong> Bitcoin cannot mine across planets — the speed of light breaks its consensus. Proof of Will mines where you are, with who you are. No global synchronisation required. Your will does not travel. It acts.'+
     '</div>'+
-
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px">I. Mining — the patience formula</div>'+
     '<div style="font-size:10px;color:rgba(240,240,248,.4);margin-bottom:6px">Standard form:</div>'+
     '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:13px;color:rgba(34,211,238,.8);margin-bottom:8px;line-height:2">       S · t<sup style="font-size:9px">α</sup><br>─────────────────────────<br>[ln(A<sup style="font-size:9px">β</sup>(1−T) + C)]<sup style="font-size:9px">γ</sup></div>'+
     '<div style="font-size:10px;color:rgba(240,240,248,.4);margin-bottom:6px">Computationally safe form (avoids overflow):</div>'+
     '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:11px;color:rgba(34,211,238,.7);margin-bottom:14px;line-height:2">              S · t<sup style="font-size:9px">α</sup><br>──────────────────────────────────────────<br>[β(1−T)·ln(A) + ln(1 + C / A<sup style="font-size:9px">β(1−T)</sup>)]<sup style="font-size:9px">γ</sup></div>'+
-
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">'+
       _powVar('S','Amount of the last burn (lamports)')+
       _powVar('t','Solana slots elapsed since last action')+
       _powVar('T','Patience rate — chosen by user · capped at 40%')+
       _powVar('A','Protocol age — slots since block 111 111 111')+
-      _powVar('C = 33³ = 35 937','Stabilisation constant')+
+      _powVar('C = 33³ = 35 937','Stabilisation constant')+
       _powVar('α = 1.1','Temporal growth exponent')+
       _powVar('β = 2.2','Patience / age interaction')+
       _powVar('γ = 3','Concentration compression — denominator exponent')+
     '</div>'+
-
     '<div style="background:rgba(255,69,96,.04);border:1px solid rgba(255,69,96,.15);border-radius:10px;padding:14px 16px;margin-bottom:24px;font-size:12px;color:rgba(240,240,248,.6);line-height:1.7">'+
       'The only variables you control are <strong style="color:#f0a830">S</strong> and <strong style="color:#a78bfa">T</strong>. Everything else is objective. <strong style="color:rgba(255,255,255,.7)">You cannot fake will.</strong>'+
     '</div>'+
-
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin-bottom:20px"></div>'+
-
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">Anti-Sybil by construction</div>'+
     '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">'+
       _powItem('t starts at zero','For every new wallet. A fresh wallet has small t — small numerator — regardless of how many wallets you control.','#f0a830')+
@@ -185,9 +204,7 @@ function showProofOfWill(){
       _powItem('A is global','Protocol age is the same for everyone. It cannot be gamed per wallet.','rgba(240,240,248,.5)')+
     '</div>'+
     '<div style="font-size:12px;color:rgba(240,240,248,.5);line-height:1.7;margin-bottom:24px">The cost of a Sybil attack scales <strong style="color:#ff4560">linearly</strong> with the number of fake identities. <strong style="color:rgba(255,255,255,.7)">Time is the non-duplicable resource.</strong></div>'+
-
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin-bottom:20px"></div>'+
-
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">II. Permission score — the quality gate</div>'+
     '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:11px;color:rgba(34,211,238,.7);margin-bottom:12px">(score+1) / (laps+1)  &gt;  (score_last+1) / (laps_last+1)</div>'+
     '<div style="font-size:12px;color:rgba(240,240,248,.55);line-height:1.7;margin-bottom:8px">To publish a new file, your current ratio must exceed your previous one. The +1 is a Laplace smoothing — your first publication is always allowed. After that, each new contribution must improve your average.</div>'+
@@ -196,24 +213,15 @@ function showProofOfWill(){
       _powItem('No subjective curation','Quality is judged by the network score, not an editorial committee.','#f0a830')+
       _powItem('Updates are free','Improving an existing sphere only requires ownership. The gate applies to new files only.','#a78bfa')+
     '</div>'+
-
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin-bottom:20px"></div>'+
-
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">III. Rank — the frozen reputation</div>'+
     '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:13px;color:rgba(34,211,238,.7);margin-bottom:12px">rank = score / laps</div>'+
     '<div style="font-size:12px;color:rgba(240,240,248,.55);line-height:1.7;margin-bottom:8px">Score is frozen at merge time. Never changes retroactively. No recency bias, no editorial boost.</div>'+
-
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin:24px 0"></div>'+
-
-    '<div style="text-align:center;font-size:14px;color:rgba(240,240,248,.4);font-style:italic;line-height:1.8">'+
-      '"You cannot fake will.<br>You can only demonstrate it."'+
-    '</div>'+
-
+    '<div style="text-align:center;font-size:14px;color:rgba(240,240,248,.4);font-style:italic;line-height:1.8">"You cannot fake will.<br>You can only demonstrate it."</div>'+
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin:24px 0"></div>'+
-
     '<div style="text-align:center;font-size:11px;color:rgba(255,69,96,.5);font-family:monospace;letter-spacing:.15em;text-transform:uppercase">Interplanetary Proof of Will</div>'+
     '<div style="text-align:center;font-size:12px;color:rgba(240,240,248,.3);margin-top:6px;line-height:1.7">The first consensus mechanism that works beyond Earth.<br>Your will mines where you are.</div>';
-
   overlay.appendChild(closeBtn);
   overlay.appendChild(wrap);
   document.body.appendChild(overlay);
@@ -373,6 +381,7 @@ function renderUnlocked(body){
     '<button class="ym-btn ym-btn-accent" id="mine-burn-btn" '+S('width:100%;font-size:13px;font-weight:700;padding:10px;box-shadow:0 4px 20px rgba(240,168,48,.28)')+'">🔥 Burn</button>'+
     '<div id="mine-txmsg" class="ym-notice" '+S('display:none')+'"></div>'+
   '</div>'+
+  // Send SOL — with name resolution
   '<div '+S('display:grid;grid-template-columns:auto 1fr;gap:8px')+'>'+
     '<div '+S('display:flex;flex-direction:column;align-items:center;gap:4px;background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:10px;padding:8px')+'>'+
       '<div '+S('font-size:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text3);align-self:flex-start;font-family:var(--font-m)')+'">Receive</div>'+
@@ -380,7 +389,8 @@ function renderUnlocked(body){
     '</div>'+
     '<div '+S('display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:10px;padding:8px')+'>'+
       '<div '+S('font-size:8px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--text3);font-family:var(--font-m)')+'">Send SOL</div>'+
-      '<input class="ym-input" id="mine-sto" placeholder="Address" '+S('font-size:11px')+'"/>'+
+      '<input class="ym-input" id="mine-sto" placeholder="Address or name…" '+S('font-size:11px')+'"/>'+
+      '<div id="mine-sto-hint" '+S('font-size:9px;min-height:12px;color:var(--text3)')+'"></div>'+
       '<input class="ym-input" id="mine-samt" type="number" step="0.001" placeholder="Amount" '+S('font-size:11px')+'"/>'+
       '<button class="ym-btn ym-btn-accent" id="mine-send-btn" '+S('font-size:11px;padding:6px')+'">Send ↗</button>'+
     '</div>'+
@@ -403,6 +413,29 @@ function renderUnlocked(body){
   _updateFee(body);
   if($('mine-rslider'))$('mine-rslider').addEventListener('input',()=>{if($('mine-rlbl'))$('mine-rlbl').textContent=$('mine-rslider').value+'%';_updateFee(body);});
   if($('mine-bamt'))$('mine-bamt').addEventListener('input',()=>_updateFee(body));
+
+  // Name resolution on input
+  let _resolveTimer=null;
+  if($('mine-sto'))$('mine-sto').addEventListener('input',()=>{
+    clearTimeout(_resolveTimer);
+    const hint=$('mine-sto-hint');
+    const val=($('mine-sto').value||'').trim();
+    if(!val){hint.textContent='';return;}
+    if(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(val)){hint.textContent='';return;}
+    hint.textContent='Resolving…';
+    _resolveTimer=setTimeout(async()=>{
+      const r=await resolveName(val);
+      if(r&&r.resolved){
+        hint.textContent='✓ '+r.name+' → '+r.pubkey.slice(0,8)+'…'+r.pubkey.slice(-4);
+        hint.style.color='var(--green,#30e880)';
+      }else if(r){
+        hint.textContent='';
+      }else{
+        hint.textContent='Name not found';
+        hint.style.color='var(--red,#e84040)';
+      }
+    },600);
+  });
 
   function copyAddr(){if(navigator.clipboard)navigator.clipboard.writeText(addr);if(window.YM_toast)window.YM_toast('Address copied','success');}
   if($('mine-copy'))$('mine-copy').addEventListener('click',copyAddr);
@@ -427,12 +460,21 @@ function renderUnlocked(body){
     catch(e){showTx(body,e.message,true);}
     finally{if(btn){btn.disabled=false;btn.textContent='⚡';}}
   });
+
+  // Send with name resolution
   if($('mine-send-btn'))$('mine-send-btn').addEventListener('click',async()=>{
-    const to=($('mine-sto')?$('mine-sto').value:'').trim(),amt=parseFloat($('mine-samt')?$('mine-samt').value:0);
-    if(!to||!amt)return;
+    const toRaw=($('mine-sto')?$('mine-sto').value:'').trim();
+    const amt=parseFloat($('mine-samt')?$('mine-samt').value:0);
+    if(!toRaw||!amt)return;
     const btn=$('mine-send-btn');btn.disabled=true;btn.textContent='…';
-    try{const sig=await doSend(to,amt);showTx(body,'✓ Sent '+sig.slice(0,10)+'…');setTimeout(refreshBalances,2000);}
-    catch(e){showTx(body,e.message,true);}
+    try{
+      const resolved=await resolveName(toRaw);
+      if(!resolved)throw new Error('Cannot resolve: '+toRaw);
+      const sig=await doSend(resolved.pubkey,amt);
+      const label=resolved.name?resolved.name:resolved.pubkey.slice(0,8)+'…';
+      showTx(body,'✓ Sent to '+label+' — '+sig.slice(0,10)+'…');
+      setTimeout(refreshBalances,2000);
+    }catch(e){showTx(body,e.message,true);}
     finally{if(btn){btn.disabled=false;btn.textContent='Send ↗';}}
   });
 
@@ -446,7 +488,7 @@ function _startCycles(body){clearInterval(_cycleTimer);clearInterval(_claimTimer
 function showErr(body,msg){const e=body.querySelector('#mine-err');if(e){e.textContent=msg;e.style.display='flex';}}
 function showTx(body,msg,err){err=err||false;const e=document.getElementById('mine-txmsg');if(!e)return;e.textContent=msg;e.className='ym-notice '+(err?'error':'success');e.style.display='flex';setTimeout(()=>{e.style.display='none';},5000);}
 
-window.YM_Mine = { render, refreshBalances, calcClaimable, signMessage };
+window.YM_Mine = { render, refreshBalances, calcClaimable, signMessage, resolveName };
 _loadSolana().catch(()=>{});
 _loadNacl().catch(()=>{});
 })();
