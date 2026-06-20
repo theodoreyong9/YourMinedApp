@@ -12,18 +12,6 @@
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/status.sphere.js"
   },
   {
-    "filename": "Tanobox.sphere.js",
-    "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "score": 0.931547,
-    "laps": 7885881,
-    "timestamp": 1776619284,
-    "merged_at": 1776620204,
-    "burnSlot": 448770336,
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/Tanobox.sphere.js"
-  },
-  {
     "filename": "anonmessenger.sphere.js",
     "author": "GABatPZGUZbURx1FfvS3YBFkqjUWxMNCgze2b4NqvWEp",
     "ghAuthor": "Keanuji",
@@ -108,21 +96,5 @@
     "merged_at": 1777741104,
     "burnSlot": 456713132,
     "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/poker.sphere.js"
-  },
-  {
-    "filename": "video.sphere.js",
-    "name": "WebTV",
-    "icon": "📺",
-    "category": "Media",
-    "description": "Free worldwide TV & radio — HLS streams, no YouTube, no ads.",
-    "author": "FPbGRtwQg8V9odqEndb5QyJjKcH6UGg9mZ8DyPsCu4Xg",
-    "ghAuthor": "Keanuji",
-    "last_committer": "Keanuji",
-    "codeUrl": "https://raw.githubusercontent.com/Keanuji/YourMinedApp/main/video.sphere.js",
-    "wip": true,
-    "score": 0.013434,
-    "laps": 1875,
-    "timestamp": 1781350950,
-    "merged_at": 1781350975
   }
 ]
