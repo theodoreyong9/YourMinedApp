@@ -112,24 +112,54 @@ async function main() {
     process.exit(0);
   }
 
-  // Score update
-  const scoreUpdateEvent = events.find(ev => ev.action === 'score_update');
+  // Score update — single entry only, never global
+  const scoreUpdateEvent = events.find(ev => ev.action === 'score_update_entry');
   if (scoreUpdateEvent) {
-    if (!scoreUpdateEvent.signature) { console.error('Signature required for score_update'); process.exit(1); }
+    if (!scoreUpdateEvent.signature) { console.error('Signature required for score_update_entry'); process.exit(1); }
+    if (!scoreUpdateEvent.targetFilename) { console.error('targetFilename required for score_update_entry'); process.exit(1); }
     const msg = JSON.stringify({
-      action: 'score_update', wallet: scoreUpdateEvent.wallet,
+      action: 'score_update_entry', wallet: scoreUpdateEvent.wallet,
       nonce: scoreUpdateEvent.nonce, timestamp: scoreUpdateEvent.timestamp,
-      score: scoreUpdateEvent.score, laps: scoreUpdateEvent.laps
+      score: scoreUpdateEvent.score, laps: scoreUpdateEvent.laps,
+      targetFilename: scoreUpdateEvent.targetFilename, targetUuid: scoreUpdateEvent.targetUuid
     });
-    if (!verifySignature(msg, scoreUpdateEvent.signature, walletPubkey)) { console.error('Invalid signature for score_update'); process.exit(1); }
-    const walletPubs = filesJsonMain.filter(f => f.author === walletPubkey).sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
-    const lastPub = walletPubs[0] || null;
-    const sc = await checkScoreEligibility(walletPubkey, lastPub ? (lastPub.score || 0) : 0, lastPub ? Math.max(1, lastPub.laps || 1) : 1);
-    if (!sc.eligible) { console.error('Score not eligible: ' + sc.reason); process.exit(1); }
-    console.log('Score update eligible — score=' + sc.score.toFixed(4) + ' laps=' + sc.currentLaps);
+    if (!verifySignature(msg, scoreUpdateEvent.signature, walletPubkey)) { console.error('Invalid signature for score_update_entry'); process.exit(1); }
+
+    const targetFilename = scoreUpdateEvent.targetFilename;
+    let lastPub = null;
+    if (targetFilename.endsWith('.sphere.js')) {
+      lastPub = filesJsonMain.find(f => f.filename === targetFilename && f.author === walletPubkey);
+    } else if (targetFilename.endsWith('.theme.html')) {
+      let themesJson = [];
+      try { themesJson = JSON.parse(fs.readFileSync('themes-files.json', 'utf8')); } catch(e) {}
+      lastPub = themesJson.find(t => t.filename === targetFilename && (t.pubkey === walletPubkey || t.author === walletPubkey));
+    } else if (targetFilename === 'name.json' || targetFilename === 'profile.json') {
+      // name.json / profile.json updates have zero score gate by design — always eligible
+      lastPub = { score: 0, laps: 1 };
+    } else {
+      console.error('Unknown target type for score_update_entry: ' + targetFilename);
+      process.exit(1);
+    }
+    if (!lastPub) { console.error('No existing entry found for ' + targetFilename + ' owned by this wallet'); process.exit(1); }
+
+    let sc = { score: 0, currentLaps: 1, eligible: true };
+    if (targetFilename.endsWith('.sphere.js') || targetFilename.endsWith('.theme.html')) {
+      sc = await checkScoreEligibility(walletPubkey, lastPub.score || 0, Math.max(1, lastPub.laps || 1));
+      if (!sc.eligible) { console.error('Score not eligible: ' + sc.reason); process.exit(1); }
+    } else {
+      // name/profile — zero friction, no score gate, just report current claimable as rank
+      sc = await checkScoreEligibility(walletPubkey, 0, 1).catch(() => ({ score: scoreUpdateEvent.score || 0, currentLaps: scoreUpdateEvent.laps || 1, eligible: true }));
+      sc.eligible = true;
+    }
+    console.log('Score update eligible for ' + targetFilename + ' — score=' + sc.score.toFixed(4) + ' laps=' + sc.currentLaps);
     fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
       walletPubkey, ghActor,
-      files: [{ action: 'score_update', wallet: walletPubkey, score: sc.score, laps: sc.currentLaps, timestamp: scoreUpdateEvent.timestamp, nonce: scoreUpdateEvent.nonce }]
+      files: [{
+        action: 'score_update_entry', wallet: walletPubkey,
+        score: sc.score, laps: sc.currentLaps,
+        timestamp: scoreUpdateEvent.timestamp, nonce: scoreUpdateEvent.nonce,
+        targetFilename, targetUuid: scoreUpdateEvent.targetUuid || null
+      }]
     }, null, 2));
     console.log('\nScore update validation passed');
     process.exit(0);
@@ -141,9 +171,28 @@ async function main() {
 
   let profileJsonMain = [];
   try { profileJsonMain = JSON.parse(fs.readFileSync('profile.json', 'utf8')); } catch(e) {}
+  let nameJsonMain = [];
+  try {
+    const raw = JSON.parse(fs.readFileSync('name.json', 'utf8'));
+    nameJsonMain = Array.isArray(raw) ? raw : [];
+  } catch(e) {}
 
   const newFiles = [], upgradeFiles = [];
   for (const ev of events) {
+    if (ev.filename === 'name.json') {
+      const uuid = ev.nameEntry && ev.nameEntry.uuid;
+      if (!uuid) { console.error('REFUSED: name.json event missing uuid'); process.exit(1); }
+      const existingByGh = nameJsonMain.find(e => e.ghAccount === ghActor && e.uuid !== uuid);
+      if (existingByGh) { console.error('REFUSED: GitHub account @' + ghActor + ' already has a published name (' + existingByGh.name + ')'); process.exit(1); }
+      upgradeFiles.push(ev); continue;
+    }
+    if (ev.filename === 'profile.json') {
+      const uuid = ev.profileEntry && ev.profileEntry.uuid;
+      if (!uuid) { console.error('REFUSED: profile.json event missing uuid'); process.exit(1); }
+      const existingByGh = profileJsonMain.find(p => p.ghAccount === ghActor && p.uuid !== uuid);
+      if (existingByGh) { console.error('REFUSED: GitHub account @' + ghActor + ' already has a published profile'); process.exit(1); }
+      upgradeFiles.push(ev); continue;
+    }
     if (ALLOWED_REGISTRY(ev.filename)) { upgradeFiles.push(ev); continue; }
     if (ALLOWED_PROFILE(ev.filename)) {
       const uuidFromFile = ev.filename.replace('.profile.js', '');
