@@ -10,13 +10,11 @@ const RAW_BASE   = 'https://raw.githubusercontent.com/'+GH_OWNER+'/'+GH_REPO+'/m
 const FILES_URL  = RAW_BASE+'files.json';
 const THEMES_URL = (window.YM_THEMES_OVERRIDE && window.YM_THEMES_OVERRIDE.url) || RAW_BASE+'src/themes/index.json';
 
-let _userToken = (function(){
-  try{const t=sessionStorage.getItem('ym_build_token');return t?JSON.parse(t):null;}catch{return null;}
-})();
+// SECURITY: token kept in memory only, never persisted to sessionStorage/localStorage.
+// Lost on page reload by design — must be re-entered each session.
+let _userToken = null;
 function _saveToken(t){
   _userToken=t;
-  try{if(t)sessionStorage.setItem('ym_build_token',JSON.stringify(t));
-      else sessionStorage.removeItem('ym_build_token');}catch{}
 }
 
 let _filesJson=null,_themesJson=null,_watchTimer=null,_lastContainer=null,_activeTab='sphere';
@@ -811,7 +809,7 @@ window.addEventListener('ym:switch-mine-tab',e=>{
   }
 })();
 
-window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t),computeEligibility};
+window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t),computeEligibility,getToken:()=>_userToken};
 
 // ── Update Score — single entry only ───────────────────────────
 async function _renderUpdateScore(container){
@@ -819,9 +817,8 @@ async function _renderUpdateScore(container){
   const state=window._mineState||{};
   const claimable=window.YM_calcClaimable?window.YM_calcClaimable():0;
   const curLaps=Math.max(1,(state.currentSlot||0)-(state.lastActionSlot||0));
-  const token=_getToken();
-  const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
-  const username=bt?.username||'';
+  const token=_userToken?.value||null;
+  const username=_userToken?.username||'';
 
   container.innerHTML=
     '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px">◈ Rank</div>'+
@@ -906,12 +903,12 @@ async function _renderUpdateScore(container){
 }
 
 function _getToken(){
-  try{const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');return bt?.token||null;}catch{return null;}
+  return _userToken?.value||null;
 }
 function _getRepo(token){
   const registryUrl=(window.YM_REGISTRY_OVERRIDE&&window.YM_REGISTRY_OVERRIDE.url)||'';
   const m=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
   if(m) return m[1];
-  try{const bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');return bt?.repo||null;}catch{return null;}
+  return _userToken?.repo||null;
 }
 })();
