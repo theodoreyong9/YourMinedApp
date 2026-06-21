@@ -691,9 +691,8 @@ function openProfileSphereEditor(){
 
   document.body.appendChild(ov);
 
-  try{var bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');
-    if(bt&&bt.token){ov.querySelector('#pse-token-wrap').innerHTML='<div style="font-size:11px;color:var(--gold);margin-bottom:8px">✓ Using GitHub token from Build</div>';}
-  }catch{}
+  var bt=window.YM_Build&&window.YM_Build.getToken?window.YM_Build.getToken():null;
+  if(bt&&bt.value){ov.querySelector('#pse-token-wrap').innerHTML='<div style="font-size:11px;color:var(--gold);margin-bottom:8px">✓ Using GitHub token from Build</div>';}
 
   ov.querySelector('#pse-code').addEventListener('input',function(){
     var wrap=ov.querySelector('#pse-sections-wrap');
@@ -765,7 +764,7 @@ function openProfileSphereEditor(){
   }
 
   // Show Current button if a published profile sphere exists
-  var bt2=null;try{bt2=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
+  var bt2=window.YM_Build&&window.YM_Build.getToken?window.YM_Build.getToken():null;
   var username2=(bt2&&bt2.username)||'';
   var publishedUrl='https://raw.githubusercontent.com/'+username2+'/YourMinedApp/main/'+uuid+'.profile.js';
   if(username2){
@@ -827,8 +826,8 @@ function openProfileSphereEditor(){
 
   ov.querySelector('#pse-unpublish').onclick=async function(){
     var status=ov.querySelector('#pse-status');
-    var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
-    var token=(bt&&bt.token)||'';
+    var bt=window.YM_Build&&window.YM_Build.getToken?window.YM_Build.getToken():null;
+    var token=(bt&&bt.value)||'';
     var usernameU=(bt&&bt.username)||'';
     var pubkeyU=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
     if(!token){status.textContent='GitHub token required';return;}
@@ -895,8 +894,8 @@ function openProfileSphereEditor(){
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
     var status=ov.querySelector('#pse-status');
     var tokenEl=ov.querySelector('#pse-token');
-    var bt=null;try{bt=JSON.parse(sessionStorage.getItem('ym_build_token')||'null');}catch{}
-    var token=(bt&&bt.token)||(tokenEl?tokenEl.value.trim():'');
+    var bt=window.YM_Build&&window.YM_Build.getToken?window.YM_Build.getToken():null;
+    var token=(bt&&bt.value)||(tokenEl?tokenEl.value.trim():'');
     if(!token){status.textContent='GitHub token required';return;}
     var pubkey=window.YM_Mine_pubkey?window.YM_Mine_pubkey():null;
     if(!pubkey){status.textContent='❌ Connect your wallet first';return;}
@@ -1126,9 +1125,8 @@ function openPublishNameOverlay(){
   var repoFromRegistry='';
   var m=registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
   if(m)repoFromRegistry=m[1];
-  var buildToken=null;
-  try{var bt=sessionStorage.getItem('ym_build_token');if(bt)buildToken=JSON.parse(bt);}catch{}
-  var tokenAvailable=!!(buildToken&&buildToken.token);
+  var buildToken=window.YM_Build&&window.YM_Build.getToken?window.YM_Build.getToken():null;
+  var tokenAvailable=!!(buildToken&&buildToken.value);
   ov.innerHTML=
     '<div style="background:var(--bg2,#1a1a2e);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:24px;width:100%;max-width:340px">'+
     '<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px">📡 Publish your name</div>'+
@@ -1147,7 +1145,7 @@ function openPublishNameOverlay(){
   document.getElementById('pub-cancel').onclick=function(){ov.remove();};
   document.getElementById('pub-go').onclick=async function(){
     var tokenEl=document.getElementById('pub-token');
-    var token=(buildToken&&buildToken.token)||(tokenEl?tokenEl.value.trim():'');
+    var token=(buildToken&&buildToken.value)||(tokenEl?tokenEl.value.trim():'');
     var repo=repoFromRegistry||(buildToken&&buildToken.repo)||'';
     var status=document.getElementById('pub-status');
     if(!token){status.textContent='GitHub token required — connect via Build first';return;}
