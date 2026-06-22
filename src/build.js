@@ -134,6 +134,19 @@ function renderFlow(buildContent){
       }
     },
     {
+      icon:'&#129302;',
+      label:'AI',
+      sub:'Generate a sphere or theme with AI',
+      action(){
+        buildContent.innerHTML='';
+        buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+        const wrap=document.createElement('div');
+        wrap.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+        buildContent.appendChild(wrap);
+        _mountAI(wrap,buildContent);
+      }
+    },
+    {
       icon:'&#10022;',
       label:'Prompt',
       sub:'Copy the AI prompt to your clipboard',
@@ -166,7 +179,7 @@ function renderFlow(buildContent){
   ];
 
   const grid=document.createElement('div');
-  grid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:10px';
+  grid.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);gap:10px';
 
   items.forEach(item=>{
     const card=document.createElement('button');
@@ -182,6 +195,30 @@ function renderFlow(buildContent){
   });
 
   buildContent.appendChild(grid);
+}
+
+// ── MOUNT AI TAB (with Back button) ───────────────────────────
+function _mountAI(wrap, buildContent){
+  const scrollArea=document.createElement('div');
+  scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;display:flex;flex-direction:column';
+  wrap.appendChild(scrollArea);
+
+  function boot(){
+    if(window.YM_AI && window.YM_AI.renderAIContent){
+      window.YM_AI.renderAIContent(scrollArea);
+    }else{
+      scrollArea.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading AI engine…</div>';
+      let n=0;
+      const iv=setInterval(()=>{
+        n++;
+        if(window.YM_AI && window.YM_AI.renderAIContent){clearInterval(iv);window.YM_AI.renderAIContent(scrollArea);}
+        else if(n>40){clearInterval(iv);scrollArea.innerHTML='<div style="padding:24px;text-align:center;color:var(--red);font-size:12px">AI module failed to load (ai.js missing?)</div>';}
+      },250);
+    }
+  }
+  boot();
+
+  wrap.appendChild(_flowBack(buildContent, renderFlow));
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
@@ -200,6 +237,11 @@ async function render(containerArg,presetType){
   body.appendChild(buildContent);
   if(presetType==='theme'){
     renderBuildContent(buildContent,'theme');
+  }else if(presetType==='ai'){
+    const wrap=document.createElement('div');
+    wrap.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+    buildContent.appendChild(wrap);
+    _mountAI(wrap,buildContent);
   }else{
     renderFlow(buildContent);
   }
@@ -509,6 +551,7 @@ function renderBuildContent(body,presetType){
     '<div style="display:flex;gap:4px">'+
       '<button id="mode-code-main" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px;background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)">&lt;/&gt; Code brut</button>'+
       '<button id="mode-quick-main" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">⚡ Quick</button>'+
+      '<button id="mode-ai-main" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 8px">✦ AI</button>'+
     '</div>';
   codeStepEl.appendChild(codeHead);
   const codeAreaEl=document.createElement('div');
@@ -518,8 +561,50 @@ function renderBuildContent(body,presetType){
   function renderCodeAreaMain(){
     codeAreaEl.innerHTML='';
     const isCode=_mode==='code';
+    const isAI=_mode==='ai';
     codeHead.querySelector('#mode-code-main').style.cssText='font-size:9px;padding:3px 8px;'+(isCode?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
-    codeHead.querySelector('#mode-quick-main').style.cssText='font-size:9px;padding:3px 8px;'+(!isCode?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+    codeHead.querySelector('#mode-quick-main').style.cssText='font-size:9px;padding:3px 8px;'+(_mode==='quick'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+    codeHead.querySelector('#mode-ai-main').style.cssText='font-size:9px;padding:3px 8px;'+(isAI?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
+    if(isAI){
+      // Mount the AI generator inline; "Use this code" copies result into the raw code textarea
+      const aiHost=document.createElement('div');
+      aiHost.style.cssText='border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;max-height:520px;display:flex;flex-direction:column';
+      codeAreaEl.appendChild(aiHost);
+      function mountAI(){
+        if(window.YM_AI && window.YM_AI.renderAIContent){
+          window.YM_AI.renderAIContent(aiHost);
+          // Add a "Use this code" bridge button under the AI output once rendered
+          setTimeout(()=>{
+            const outEl=aiHost.querySelector('#ai-output');
+            const genWrap=aiHost.querySelector('#ai-generate')?.closest('div');
+            if(outEl && !aiHost.querySelector('#ai-use-code')){
+              const useBtn=document.createElement('button');
+              useBtn.id='ai-use-code';
+              useBtn.className='ym-btn ym-btn-accent';
+              useBtn.style.cssText='width:100%;font-size:12px;margin:8px 14px 14px;flex-shrink:0';
+              useBtn.textContent='↳ Use this code for publishing';
+              useBtn.addEventListener('click',()=>{
+                _mode='code';renderCodeAreaMain();
+                const codeTa=codeAreaEl.querySelector('#pub-code-main');
+                if(codeTa){codeTa.value=outEl.value;codeTa.dispatchEvent(new Event('input'));}
+                toast('Code transféré vers Code brut','success');
+              });
+              aiHost.appendChild(useBtn);
+            }
+          },300);
+        }else{
+          aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading AI engine…</div>';
+          let n=0;
+          const iv=setInterval(()=>{
+            n++;
+            if(window.YM_AI && window.YM_AI.renderAIContent){clearInterval(iv);mountAI();}
+            else if(n>40){clearInterval(iv);aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--red);font-size:12px">AI module failed to load (ai.js missing?)</div>';}
+          },250);
+        }
+      }
+      mountAI();
+      return;
+    }
     if(isCode){
       const ph=_pubType==='theme'?'<!-- HTML theme code -->':'/* Visit github.com/theodoreyong9/YourMinedApp for sphere examples */';
       codeAreaEl.innerHTML=
@@ -558,6 +643,7 @@ function renderBuildContent(body,presetType){
   }
   codeHead.querySelector('#mode-code-main').addEventListener('click',()=>{_mode='code';renderCodeAreaMain();});
   codeHead.querySelector('#mode-quick-main').addEventListener('click',()=>{_mode='quick';renderCodeAreaMain();});
+  codeHead.querySelector('#mode-ai-main').addEventListener('click',()=>{_mode='ai';renderCodeAreaMain();});
   renderCodeAreaMain();
 
   const submitWrap=document.createElement('div');
@@ -565,7 +651,7 @@ function renderBuildContent(body,presetType){
   submitWrap.innerHTML='<div id="pub-status-main" style="margin-bottom:8px"></div>'+
     '<button id="pub-submit-main" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">⬆ Sign & Submit</button>';
   body.appendChild(submitWrap);
-  submitWrap.querySelector('#pub-submit-main').addEventListener('click',()=>submitUnified(body,codeAreaEl,nameTypeStep,_pubType,_mode));
+  submitWrap.querySelector('#pub-submit-main').addEventListener('click',()=>submitUnified(body,codeAreaEl,nameTypeStep,_pubType,_mode==='ai'?'code':_mode));
   if(presetType==='theme')setTimeout(()=>nameTypeStep.querySelector('#type-theme')?.click(),0);
 }
 
