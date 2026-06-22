@@ -3,7 +3,13 @@
 (function () {
   'use strict';
 
-  const SYSTEM_SPHERE = `You are an expert YourMine developer. Output ONLY the complete file code. No explanation, no markdown fences, no preamble.
+  const GH_OWNER = 'theodoreyong9';
+  const GH_REPO  = 'YourMinedApp';
+  const RAW_BASE = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/main/';
+  const SPEC_URL = (window.YM_SPEC_OVERRIDE && window.YM_SPEC_OVERRIDE.url) || RAW_BASE + 'ym-spec.json';
+
+  // Fallback system prompt — used only if ym-spec.json cannot be fetched.
+  const FALLBACK_SYSTEM_SPHERE = `You are an expert YourMine developer. Output ONLY the complete file code. No explanation, no markdown fences, no preamble.
 
 ## SPHERE FILE (filename.sphere.js)
 (function(){
@@ -18,18 +24,6 @@ window.YM_S['FILENAME'] = {
 
   activate(ctx) {
     _ctx = ctx;
-    // ctx.storage.get/set/del(key)
-    // ctx.toast(msg, 'success'|'error'|'info'|'warn')
-    // ctx.send(type, data)          — P2P broadcast, rate-limited 10/s
-    // ctx.onReceive((type, data, peerId) => {})  — auto-cleaned on deactivate
-    // ctx.openPanel(renderFn)
-    // ctx.setNotification(n)        — badge on desktop icon
-    // ctx.saveProfile(obj) / ctx.loadProfile()
-    // window.YM_Social?._nearUsers  — Map<uuid,{profile,ts,peerId,broadcastData}>
-    // window.YM_sphereRegistry      — Map<filename,ctx> of active spheres
-    // window.YM_P2P?.sendTo(peerId, {sphere,type,data})
-    // window.YM?.openSpherePanel?.('filename.sphere.js')
-    // window.YM?.openProfilePanel?.(profileObject)
   },
 
   deactivate() {
@@ -40,64 +34,20 @@ window.YM_S['FILENAME'] = {
   renderPanel(container) {
     container.innerHTML = '<div style="padding:16px"><div class="ym-card"><div class="ym-card-title">Title</div></div></div>';
   },
-
-  // Optional:
-  profileSection(container) { /* shown in own profile → Spheres tab */ },
-  peerSection(container, peerCtx) {
-    // peerCtx = { uuid, isNear, isReciproc, profile }
-    // NOT the activate ctx — use window.YM_P2P.sendTo() for P2P here
-  },
-  broadcastData() {
-    // Merged into social presence packet — keep < 500 bytes
-    return {};
-  },
 };
 })();
 
 ## THEME FILE (name.theme.html)
 <!-- HTML fragment injected into <body> by index.html -->
-<!-- Must include ALL required YourMine DOM elements -->
 <script>
 window.YM_THEME_META = {"name":"ThemeName","icon":"🎨","description":"Short description"};
-window.YM_WALLPAPER_PRESETS = [{ label: 'Name', url: 'https://...' }];
-// Optional: window.YM_NO_WIDGETS = true; to suppress sphere widgets
 </script>
-<!-- Required IDs: ym-wp, ym-bg, ym-loader, toasts, desktop, desktop-slider,
-     drag-ghost, page-dots, nav-bar, dock, btn-back, btn-profile, btn-figure,
-     panel-overlay, panel-spheres, panel-spheres-body, panel-profile, panel-profile-body,
-     panel-build, panel-build-body, panel-mine, panel-mine-wallet, panel-mine-build,
-     panel-mine-formula, panel-mine-liste, mine-tabs-bar, panel-sphere, sphere-panel-title,
-     panel-sphere-body, panel-profile-view, profile-view-title, panel-profile-view-body,
-     panel-switcher, switcher-handle, switcher-grid, folder-dlg, folder-name-input,
-     folder-confirm, folder-cancel, bg-dlg, bg-presets, theme-list, theme-custom-input,
-     theme-custom-btn, bg-wp, bg-remove, bg-spheres, bg-del, bg-dlg-title,
-     ym-sign-dlg, ym-sign-sphere, ym-sign-detail, ym-sign-confirm, ym-sign-reject,
-     pwa-install-btn, spheres-build-btn, profile-share-btn -->
-<!-- Grid: --cols:4 --rows:6 mobile / --cols:8 --rows:5 desktop -->
-<!-- Widget injection: use MutationObserver to catch position:fixed elements injected by spheres -->
-
-## CSS VARIABLES — always use, never hardcode colors
---bg:#06060e --text:#e4e6f4 --text2:rgba(228,230,244,.52) --text3:rgba(228,230,244,.26)
---gold:#f0a830 --cyan:#08e0f8 --red:#ff4560 --green:#22d98a
---font-d:'Syne' --font-b:'Space Grotesk' --font-m:'JetBrains Mono'
-Fallbacks: var(--surface2,#12121e) var(--border,rgba(255,255,255,.08)) var(--r,12px) var(--accent,var(--gold))
-
-## UI CLASSES
-.ym-card .ym-card-title
-.ym-btn .ym-btn-accent .ym-btn-ghost .ym-btn-danger
-.ym-input
-.ym-notice .info/.success/.error/.warn
-.ym-tabs .ym-tab .ym-tab.active
-.pill .pill.active
 
 ## CRITICAL RULES
 - IIFE wrapper always — no top-level vars
 - window.YM_S key MUST exactly match the filename
 - activate() must complete in <8s — never await slow calls inside it
 - deactivate() is a top-level method on the object, never ctx.deactivate=...
-- Widget page registry: YM_Desk.registerWidgetPage(id,page) / registeredWidgetPage(id) / unregisterWidget(id)
-- Do NOT clamp targetPage to pageCount at spawn — registerWidgetPage creates pages as needed
-- broadcastData() is called by social.sphere.js — keep payload small
 
 Output ONLY the complete file content. No explanation, no markdown fences.`;
 
@@ -105,6 +55,203 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
+
+  // ── YM_SPEC LOADING ──────────────────────────────────────────
+  // ym-spec.json is generated offline by mine-patterns.js from the real
+  // repo's *.sphere.js / *.theme.html files. It replaces a hand-written
+  // README with a frequency-ranked, machine-readable rule set, which is
+  // far more token-efficient and reliable for small local models.
+  let _spec = null;
+  let _specPromise = null;
+
+  async function loadSpec(force) {
+    if (_spec && !force) return _spec;
+    if (_specPromise && !force) return _specPromise;
+    _specPromise = (async () => {
+      try {
+        const r = await fetch(SPEC_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const spec = await r.json();
+        if (!spec || !spec.v) throw new Error('invalid spec');
+        _spec = spec;
+        return spec;
+      } catch (e) {
+        console.warn('[YM AI] ym-spec.json unavailable, using fallback prompt:', e.message);
+        _spec = null;
+        return null;
+      }
+    })();
+    return _specPromise;
+  }
+
+  // Renders a loaded ym-spec.json into a compact system prompt.
+  // userPrompt drives skeleton selection; similarExamples are real mined
+  // files retrieved for this specific request (see retrieveSimilarSpheres).
+  function renderSpecAsSystemPrompt(spec, type, userPrompt, similarExamples) {
+    if (!spec) return FALLBACK_SYSTEM_SPHERE;
+    const lines = [];
+    lines.push('You are an expert YourMine developer. Output ONLY the complete file code. No explanation, no markdown fences, no preamble.');
+    lines.push('');
+    lines.push('# TARGET: ' + (type === 'theme' ? '.theme.html file' : '.sphere.js file'));
+    lines.push('');
+    if (spec.core) {
+      lines.push('## STRUCTURE (mined from ' + (spec.totalFilesMined || '?') + ' real files)');
+      if (spec.core.wrapper) lines.push('Wrapper: ' + spec.core.wrapper);
+      if (spec.core.registry) lines.push('Registry: ' + spec.core.registry);
+      if (spec.core.required_methods) lines.push('Required methods: ' + spec.core.required_methods.join(', '));
+      if (spec.core.optional_methods) lines.push('Optional methods: ' + spec.core.optional_methods.join(', '));
+      if (spec.core.fields) lines.push('Required fields on the object: ' + spec.core.fields.join(', '));
+      lines.push('');
+    }
+    if (spec.ctx_api) {
+      lines.push('## ctx API (only call what is documented here)');
+      Object.entries(spec.ctx_api).forEach(([group, calls]) => {
+        lines.push('- ' + group + ': ' + calls.join(', '));
+      });
+      lines.push('');
+    }
+    if (spec.global_api) {
+      lines.push('## Global API');
+      Object.entries(spec.global_api).forEach(([k, v]) => {
+        lines.push('- ' + k + ': ' + v);
+      });
+      lines.push('');
+    }
+    if (spec.css_vars) {
+      lines.push('## CSS variables — always use, never hardcode colors');
+      lines.push(spec.css_vars.join(' '));
+      lines.push('');
+    }
+    if (spec.ui_classes) {
+      lines.push('## UI classes available');
+      lines.push(spec.ui_classes.join(' '));
+      lines.push('');
+    }
+    if (spec.required && spec.required.length) {
+      lines.push('## OBSERVED PATTERNS (frequency across mined repo — treat anything >70% as mandatory)');
+      spec.required.forEach(p => lines.push('- ' + p.pattern + ' — ' + p.freq + ' of files'));
+      lines.push('');
+    }
+    if (spec.constraints) {
+      lines.push('## HARD CONSTRAINTS');
+      spec.constraints.forEach(c => lines.push('- ' + c));
+      lines.push('');
+    }
+    if (spec.skeleton_by_intent) {
+      const chosen = pickSkeleton(spec.skeleton_by_intent, userPrompt);
+      lines.push('## SKELETON — start from this structure, fill it in, do not invent a new one');
+      lines.push('### ' + chosen.intent + (chosen.matched ? ' (matched from your prompt)' : ' (default — no strong match found)'));
+      lines.push(chosen.code);
+      lines.push('');
+    }
+    if (similarExamples && similarExamples.length) {
+      lines.push('## SIMILAR EXISTING FILES (real, mined from the repo — follow their conventions, do not copy verbatim)');
+      similarExamples.forEach(ex => {
+        lines.push('### ' + ex.filename + (ex.description ? ' — ' + ex.description : ''));
+        lines.push('```');
+        lines.push(ex.snippet);
+        lines.push('```');
+      });
+      lines.push('');
+    }
+    if (spec.anti_patterns) {
+      lines.push('## ANTI-PATTERNS — never do these');
+      spec.anti_patterns.forEach(a => lines.push('- ' + a));
+      lines.push('');
+    }
+    lines.push('Output ONLY the complete file content. No explanation, no markdown fences.');
+    return lines.join('\n');
+  }
+
+  // ── INTENT DETECTION ─────────────────────────────────────────
+  // Cheap keyword router: maps words in the user's prompt to a skeleton
+  // key. This is the "context builder" picking ONE relevant skeleton
+  // instead of dumping every skeleton into the prompt (which wastes a
+  // huge chunk of a 1.5B model's limited context window).
+  const INTENT_KEYWORDS = {
+    p2p_game: ['game', 'jeu', 'poker', 'cards', 'match', 'multiplayer', 'p2p', 'opponent', 'turn-based', 'tour par tour', 'duel'],
+    social_overlay: ['profile', 'profil', 'peer', 'social', 'friend', 'ami', 'nearby', 'overlay', 'badge', 'status'],
+    widget: ['widget', 'tool', 'outil', 'utility', 'counter', 'clock', 'timer', 'note', 'tracker', 'dashboard'],
+  };
+
+  function pickSkeleton(skeletonMap, userPrompt) {
+    const keys = Object.keys(skeletonMap);
+    if (!keys.length) return { intent: null, code: '', matched: false };
+    const p = (userPrompt || '').toLowerCase();
+    let best = null, bestScore = 0;
+    keys.forEach(key => {
+      const words = INTENT_KEYWORDS[key] || [];
+      const score = words.reduce((acc, w) => acc + (p.includes(w) ? 1 : 0), 0);
+      if (score > bestScore) { bestScore = score; best = key; }
+    });
+    if (best) return { intent: best, code: skeletonMap[best], matched: true };
+    // Default to "widget" if present, else the first available skeleton
+    const fallbackKey = skeletonMap.widget ? 'widget' : keys[0];
+    return { intent: fallbackKey, code: skeletonMap[fallbackKey], matched: false };
+  }
+
+  // ── SIMILAR FILE RETRIEVAL ───────────────────────────────────
+  // Pulls files.json (the real registry, not the spec) and ranks entries
+  // by keyword overlap with the user prompt + chosen category, fetches
+  // the top matches' real code, and keeps only a short snippet of each
+  // (first ~40 lines) to stay cheap on tokens.
+  let _filesJsonCache = null;
+  async function fetchFilesJsonForRetrieval(force) {
+    if (_filesJsonCache && !force) return _filesJsonCache;
+    try {
+      const url = (window.YM_FILES_OVERRIDE && window.YM_FILES_OVERRIDE.url) || (RAW_BASE + 'files.json');
+      const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      _filesJsonCache = await r.json();
+    } catch (e) {
+      _filesJsonCache = [];
+    }
+    return _filesJsonCache;
+  }
+
+  function tokenize(s) {
+    return (s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
+  }
+
+  async function retrieveSimilarSpheres(userPrompt, category, topK) {
+    topK = topK || 3;
+    const files = await fetchFilesJsonForRetrieval();
+    if (!files.length) return [];
+    const queryTokens = new Set([...tokenize(userPrompt), ...tokenize(category)]);
+    if (!queryTokens.size) return [];
+
+    const scored = files.map(f => {
+      const haystack = [f.name, f.filename, f.description, f.category].filter(Boolean).join(' ');
+      const hTokens = tokenize(haystack);
+      let score = 0;
+      hTokens.forEach(t => { if (queryTokens.has(t)) score++; });
+      if (category && (f.category || '').toLowerCase() === category.toLowerCase()) score += 2;
+      return { f, score };
+    }).filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, topK);
+
+    const results = [];
+    for (const { f } of scored) {
+      const url = f.codeUrl || (RAW_BASE + (f.filename || ''));
+      if (!url) continue;
+      try {
+        const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) continue;
+        const code = await r.text();
+        const snippet = code.split('\n').slice(0, 40).join('\n');
+        results.push({ filename: f.filename, description: f.description || '', snippet });
+      } catch {}
+    }
+    return results;
+  }
+
+  async function getSystemPrompt(type, userPrompt, category) {
+    const spec = await loadSpec();
+    let similarExamples = [];
+    if (type === 'sphere' && userPrompt) {
+      try { similarExamples = await retrieveSimilarSpheres(userPrompt, category, 3); } catch {}
+    }
+    return renderSpecAsSystemPrompt(spec, type, userPrompt, similarExamples);
+  }
 
   // ── WEBLLM CONFIG ────────────────────────────────────────────
   const WEBLLM_CDN = 'https://esm.run/@mlc-ai/web-llm';
@@ -250,6 +397,69 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     }
   }
 
+  // ── SECTIONED GENERATION (for large files) ──────────────────
+  // Instead of asking the model for 1000 lines in one shot (which a 1.5B
+  // model reliably fails at), we ask for a short manifest of sections,
+  // then generate each section separately with the same spec context,
+  // then assemble. The user still only ever sees/downloads one file.
+  const SECTION_PLAN_SUFFIX = `
+
+Before writing any code, first output a single line of JSON describing the sections you will write, like:
+{"sections":["header_and_state","ui_render","p2p_logic","helpers"]}
+Output ONLY that JSON line. Do not write code yet.`;
+
+  async function planSections(engine, model, systemPrompt, userPrompt) {
+    let full = '';
+    for await (const chunk of streamGenerate(engine, model, systemPrompt, userPrompt + SECTION_PLAN_SUFFIX, null)) {
+      full += chunk;
+      if (full.length > 600) break; // manifest should be tiny
+    }
+    try {
+      const m = full.match(/\{[^}]*"sections"[^}]*\}/);
+      if (m) {
+        const parsed = JSON.parse(m[0]);
+        if (Array.isArray(parsed.sections) && parsed.sections.length) return parsed.sections.slice(0, 8);
+      }
+    } catch {}
+    return null; // fall back to single-shot
+  }
+
+  async function* sectionedGenerate(engine, model, systemPrompt, userPrompt, filename, onProgress) {
+    const sections = await planSections(engine, model, systemPrompt, userPrompt);
+    if (!sections) {
+      // Fallback: single-shot generation
+      yield* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress);
+      return;
+    }
+    if (onProgress) onProgress({ text: 'Plan: ' + sections.join(', '), progress: 1 });
+    let assembled = '';
+    for (let i = 0; i < sections.length; i++) {
+      const sec = sections[i];
+      const secPrompt = userPrompt +
+        '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
+        'Context so far (already written, do not repeat):\n```\n' + assembled.slice(-1500) + '\n```\n' +
+        'Continue writing ONLY the next part for "' + sec + '". Output raw code only, no markdown fences, no repetition of prior code.';
+      let secCode = '';
+      for await (const chunk of streamGenerate(engine, model, systemPrompt, secPrompt, onProgress)) {
+        secCode += chunk;
+        yield chunk;
+      }
+      assembled += '\n' + secCode;
+    }
+  }
+
+  // ── VALIDATION (post-generation repair hints) ────────────────
+  function validateSphereCode(code, filename) {
+    const issues = [];
+    if (!/^\s*\(function\s*\(\s*\)\s*\{/.test(code)) issues.push('Missing top-level IIFE wrapper');
+    if (!code.includes('window.YM_S')) issues.push('Missing window.YM_S registry assignment');
+    if (filename && !code.includes(filename)) issues.push('window.YM_S key does not match filename "' + filename + '"');
+    if (!/activate\s*\(/.test(code)) issues.push('Missing activate() method');
+    if (!/deactivate\s*\(\)\s*\{/.test(code)) issues.push('Missing top-level deactivate() method');
+    if (!/renderPanel\s*\(/.test(code)) issues.push('Missing renderPanel() method');
+    return issues;
+  }
+
   // ── RENDER ────────────────────────────────────────────────────
   function renderAIContent(body) {
     body.innerHTML = '';
@@ -259,16 +469,20 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     let _engine = { type: 'none', label: 'Detecting…', models: [] };
     let _model = '';
 
-    // Engine indicator
+    // Engine + spec indicator
     const engRow = document.createElement('div');
-    engRow.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px';
+    engRow.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
     body.appendChild(engRow);
+
+    let _specStatus = 'loading'; // loading | ok | fallback
 
     function updateEngBadge() {
       const ok = _engine.type !== 'none';
+      const specLabel = _specStatus === 'ok' ? 'spec ✓' : (_specStatus === 'fallback' ? 'spec: fallback' : 'spec…');
       engRow.innerHTML =
         '<div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:' + (ok ? 'var(--green)' : 'var(--red)') + '"></div>' +
-        '<span style="font-size:9px;color:var(--text3);flex:1">' + esc(_webllmReady && _engine.type==='webllm' ? 'WebLLM ' + WEBLLM_MODEL + ' ✓' : _engine.label) + '</span>' +
+        '<span style="font-size:9px;color:var(--text3);flex:1;min-width:0">' + esc(_webllmReady && _engine.type==='webllm' ? 'WebLLM ' + WEBLLM_MODEL + ' ✓' : _engine.label) + '</span>' +
+        '<span style="font-size:9px;color:' + (_specStatus==='ok'?'var(--green)':'var(--text3)') + ';flex-shrink:0">' + esc(specLabel) + '</span>' +
         (_engine.models.length > 1 ?
           '<select id="ai-model" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text2);font-size:10px;border-radius:6px;padding:2px 6px;cursor:pointer">' +
           _engine.models.map(m => '<option value="' + esc(m) + '"' + (m === _model ? ' selected' : '') + '>' + esc(m) + '</option>').join('') +
@@ -281,6 +495,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       _model = eng.models[0] || '';
       updateEngBadge();
     });
+    loadSpec().then(spec => { _specStatus = spec ? 'ok' : 'fallback'; updateEngBadge(); });
     updateEngBadge();
 
     // Type toggle
@@ -302,12 +517,14 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '<textarea id="ai-prompt" class="ym-input" rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical" placeholder="Describe what to generate…"></textarea>';
     body.appendChild(promptWrap);
 
-    // Category
+    // Category + options
     const optsWrap = document.createElement('div');
-    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
+    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;gap:8px;align-items:flex-end';
     optsWrap.innerHTML =
-      '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
-      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">';
+      '<div style="flex:1"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
+      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box"></div>' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);cursor:pointer;flex-shrink:0;padding-bottom:6px">' +
+      '<input type="checkbox" id="ai-sectioned"> Long file (sectioned)</label>';
     body.appendChild(optsWrap);
 
     // Generate button
@@ -327,7 +544,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         '<span id="ai-chars" style="font-size:9px;color:var(--text3)">0 chars</span>' +
         '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
       '</div>' +
-      '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:14px" placeholder="Generated code appears here…" spellcheck="false"></textarea>';
+      '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
+      '<div id="ai-validate" style="font-size:10px;margin-bottom:14px;min-height:14px"></div>';
     body.appendChild(outWrap);
 
     // Type toggle wiring
@@ -348,19 +566,23 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
     // Generate
     body.querySelector('#ai-generate').addEventListener('click', async () => {
-      const prompt  = (body.querySelector('#ai-prompt')?.value || '').trim();
-      const cat     = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
-      const outEl   = body.querySelector('#ai-output');
-      const progEl  = body.querySelector('#ai-progress');
-      const charsEl = body.querySelector('#ai-chars');
-      const genBtn  = body.querySelector('#ai-generate');
+      const prompt    = (body.querySelector('#ai-prompt')?.value || '').trim();
+      const cat       = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
+      const sectioned = body.querySelector('#ai-sectioned')?.checked === true;
+      const outEl     = body.querySelector('#ai-output');
+      const progEl    = body.querySelector('#ai-progress');
+      const charsEl   = body.querySelector('#ai-chars');
+      const valEl     = body.querySelector('#ai-validate');
+      const genBtn    = body.querySelector('#ai-generate');
 
       if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
-      // Engine always available — WebLLM loads on demand
 
       const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
       const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '');
       const filename = slug + ext;
+
+      progEl.textContent = 'Building context (similar files + skeleton)…';
+      const systemPrompt = await getSystemPrompt(_type, prompt, cat);
 
       const userPrompt = [
         'Generate a YourMine ' + _type + ' file.',
@@ -375,15 +597,17 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       genBtn.textContent = '⏳ Generating…';
       outEl.value = '';
       charsEl.textContent = '0 chars';
+      valEl.textContent = '';
       progEl.textContent = _engine.type === 'webllm' && !_webllmReady ? 'Loading AI model (first time ~1GB)…' : 'Starting…';
 
       // Progress callback for WebLLM download
       function onProgress(p) {
+        if (!p) return;
         if (p.progress < 1) {
           const pct = Math.round(p.progress * 100);
-          progEl.innerHTML = '<span style="color:var(--cyan)">⬇ ' + pct + '% — ' + (p.text || 'Loading model…') + '</span>';
+          progEl.innerHTML = '<span style="color:var(--cyan)">⬇ ' + pct + '% — ' + esc(p.text || 'Loading model…') + '</span>';
         } else {
-          progEl.textContent = 'Generating…';
+          progEl.textContent = p.text || 'Generating…';
         }
       }
 
@@ -392,7 +616,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const t0 = Date.now();
 
       try {
-        for await (const chunk of streamGenerate(_engine, _model, SYSTEM_SPHERE, userPrompt, onProgress)) {
+        const gen = sectioned && _type === 'sphere'
+          ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress)
+          : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
+
+        for await (const chunk of gen) {
           fullCode += chunk;
           tokenCount++;
           outEl.value = fullCode;
@@ -405,6 +633,15 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         }
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's — ' + fullCode.length + ' chars</span>';
+
+        if (_type === 'sphere') {
+          const issues = validateSphereCode(fullCode, filename);
+          if (issues.length) {
+            valEl.innerHTML = '<span style="color:var(--red)">⚠ ' + issues.map(esc).join(' · ') + '</span>';
+          } else {
+            valEl.innerHTML = '<span style="color:var(--green)">✓ Structure looks valid</span>';
+          }
+        }
         toast('Code generated!', 'success');
       } catch (e) {
         progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + '</span>';
@@ -433,6 +670,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
 
   // ── PATCH YM_Build.render ──────────────────────────────────────
+  // Ensures YM_Build exposes the AI tab even if build.js loaded first
+  // without an AI entry point (older cached builds).
   function _patchBuildRender() {
     if (!window.YM_Build) return false;
     if (window.YM_Build.__ai) return true;
@@ -446,6 +685,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
   // ── BOOT ──────────────────────────────────────────────────────
   (function boot() {
+    loadSpec(); // kick off spec fetch early so it's warm by the time the panel opens
     _patchBuildRender();
     let n = 0;
     const iv = setInterval(() => {
@@ -455,6 +695,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     }, 500);
   })();
 
-  window.YM_AI = { renderAIContent, SYSTEM_SPHERE };
+  window.YM_AI = {
+    renderAIContent,
+    getSystemPrompt,
+    loadSpec,
+    validateSphereCode,
+    SYSTEM_SPHERE: FALLBACK_SYSTEM_SPHERE,
+  };
 
 })();
