@@ -1,0 +1,42 @@
+name: Regenerate ym-spec.json
+
+on:
+  schedule:
+    # Every Monday at 03:00 UTC
+    - cron: '0 3 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'files.json'
+      - 'themes-files.json'
+  workflow_dispatch: {}   # lets you trigger it manually from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run pattern miner
+        run: node scripts/mine-patterns.js --out ym-spec.json --threshold 0.4
+
+      - name: Commit updated spec (if changed)
+        run: |
+          git config user.name "ym-spec-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if git diff --quiet ym-spec.json; then
+            echo "No changes to ym-spec.json — skipping commit."
+          else
+            git add ym-spec.json
+            git commit -m "chore: regenerate ym-spec.json [skip ci]"
+            git push
+          fi
