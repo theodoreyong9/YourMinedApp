@@ -659,7 +659,7 @@ function openProfileSphereEditor(){
     '<input type="color" id="pse-accent" value="'+config.accent+'" style="width:40px;height:32px;border:none;background:none;cursor:pointer;padding:0">'+
     '<span id="pse-accent-val" style="font-size:12px;color:var(--text3)">'+config.accent+'</span>'+
     '</div>'+
-    '<div id="pse-sections-wrap" style="display:'+(config.customCode?'block':'none')+'">'+
+    '<div id="pse-sections-wrap">'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sections order</div>'+
     '<div id="pse-sections" style="margin-bottom:8px"></div>'+
     '</div>'+
@@ -696,10 +696,7 @@ function openProfileSphereEditor(){
     if(bt&&bt.token){ov.querySelector('#pse-token-wrap').innerHTML='<div style="font-size:11px;color:var(--gold);margin-bottom:8px">✓ Using GitHub token from Build</div>';}
   }catch{}
 
-  ov.querySelector('#pse-code').addEventListener('input',function(){
-    var wrap=ov.querySelector('#pse-sections-wrap');
-    if(wrap) wrap.style.display=this.value.trim()?'block':'none';
-  });
+  // pse-sections-wrap est toujours visible — pas de toggle ici
 
   ov.querySelector('#pse-accent').addEventListener('input',function(){
     ov.querySelector('#pse-accent-val').textContent=this.value;
@@ -938,14 +935,21 @@ function openProfileSphereEditor(){
 function _generateProfileSphere(cfg){
   if(cfg.customCode&&cfg.customCode.includes('window.YM_S[')){
     var _bodyMatch=cfg.customCode.match(/renderPanel\s*:\s*function\s*\(container\)\s*\{([\s\S]*?)\},\s*profileSection/);
-    var _extractedBody=_bodyMatch?_bodyMatch[1]:'/* custom code unparseable - using default */';
+    var _extractedBody=_bodyMatch?_bodyMatch[1]:'/* custom code unparseable */';
     cfg=Object.assign({},cfg,{customCode:_extractedBody});
   }
-  var defaultBody='if(window._renderProfileView){var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};window._renderProfileView(p,container);return;}';
-  var body=cfg.customCode||defaultBody;
+  var hasCustom=!!(cfg.customCode&&cfg.customCode.trim());
   var cfgJson=JSON.stringify(cfg);
   var sphereId=cfg.uuid+'.profile.js';
-  return [
+
+  // Le renderPanel généré :
+  // 1. Affiche TOUJOURS le bouton Add/Remove contact en haut
+  // 2. Si custom code → l'exécute dans un sous-container, avec fallback vers _renderProfileView si erreur
+  // 3. Si pas de custom code → appelle _renderProfileView (vue visiteur standard)
+  // 4. Affiche ensuite les sections sphères configurées
+  // Note : on utilise des apostrophes dans cssText pour éviter les conflits de quotes
+
+  var lines=[
     '(function(){',
     'var cfg='+cfgJson+';',
     'window.YM_S['+JSON.stringify(sphereId)+']={',
@@ -956,43 +960,114 @@ function _generateProfileSphere(cfg){
     '  activate:function(){},',
     '  deactivate:function(){},',
     '  renderPanel:function(container){',
-    '    try{(function(){'+body+'})();}catch(e){',
-    '      console.warn("Profile sphere custom code error:",e.message);',
-    '      if(window._renderProfileView){var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};window._renderProfileView(p,container);}',
+    '    var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};',
+    // ── Bouton Add/Remove contact — toujours présent ──
+    '    var _isContact=false;',
+    '    try{var _cts=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");_isContact=_cts.some(function(c){return c.uuid===p.uuid;});}catch(e){}',
+    '    var _ctBar=document.createElement("div");',
+    '    _ctBar.style.cssText="margin:10px 16px 4px";',
+    '    if(_isContact){',
+    '      _ctBar.innerHTML="<div style=\'display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:8px\'><span style=\'color:#30e880;font-size:12px;flex:1\'>✓ In contacts</span><button id=\'ps-rm-ct\' style=\'background:none;border:none;color:#e84040;font-size:11px;cursor:pointer\'>Remove</button></div>";',
+    '    }else{',
+    '      _ctBar.innerHTML="<button id=\'ps-add-ct\' style=\'width:100%;padding:10px;background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3);border-radius:8px;color:var(--accent,#f0a830);font-size:13px;cursor:pointer;font-weight:600\'>+ Add Contact</button>";',
     '    }',
+    '    container.appendChild(_ctBar);',
+    '    function _reRender(){if(window.YM_S&&window.YM_S['+JSON.stringify(sphereId)+'])window.YM_S['+JSON.stringify(sphereId)+'].renderPanel(container);}',
+    '    var _addBtn=_ctBar.querySelector("#ps-add-ct");',
+    '    if(_addBtn){_addBtn.addEventListener("click",function(){',
+    '      try{var _a=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");if(!_a.find(function(c){return c.uuid===p.uuid;})){_a.push({uuid:p.uuid,nickname:"",profile:p});localStorage.setItem("ym_contacts_v1",JSON.stringify(_a));}if(window.YM_toast)window.YM_toast("Contact added","success");}catch(e){}',
+    '      container.innerHTML="";_reRender();',
+    '    });}',
+    '    var _rmBtn=_ctBar.querySelector("#ps-rm-ct");',
+    '    if(_rmBtn){_rmBtn.addEventListener("click",function(){',
+    '      try{var _a=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");localStorage.setItem("ym_contacts_v1",JSON.stringify(_a.filter(function(c){return c.uuid!==p.uuid;})));if(window.YM_toast)window.YM_toast("Contact removed","info");}catch(e){}',
+    '      container.innerHTML="";_reRender();',
+    '    });}',
+    // ── Zone contenu principal ──
+    '    var _main=document.createElement("div");',
+    '    container.appendChild(_main);',
+  ];
+
+  if(hasCustom){
+    lines=lines.concat([
+      // Exécute le custom code — si erreur → fallback vers vue visiteur standard
+      '    var _customOk=false;',
+      '    try{',
+      '      (function(container){'+cfg.customCode+'})(_main);',
+      '      _customOk=true;',
+      '    }catch(e){',
+      '      console.warn("Profile sphere custom code error:",e.message);',
+      '      _main.innerHTML="";',
+      '    }',
+      '    if(!_customOk&&window._renderProfileView){',
+      '      window._renderProfileView(p,_main);',
+      '    }',
+    ]);
+  }else{
+    lines=lines.concat([
+      // Pas de custom code : vue visiteur standard
+      '    if(window._renderProfileView){window._renderProfileView(p,_main);}',
+    ]);
+  }
+
+  lines=lines.concat([
+    // ── Sections sphères configurées ──
     '    var _sc=cfg.sphereConfig||{};',
     '    var _so=cfg.sphereOrder||cfg.spheres||[];',
-    '    var _hasSection=_so.some(function(id){var s=_sc[id];return !s||s.visible!==false;});',
-    '    if(_hasSection){',
-    '      var _wrap=document.createElement("div");',
-    '      _wrap.style.cssText="border-top:1px solid rgba(255,255,255,.06);margin-top:8px";',
-    '      _so.forEach(function(id){',
+    '    var _visible=_so.filter(function(id){var s=_sc[id];return !s||s.visible!==false;});',
+    '    if(_visible.length){',
+    '      var _swrap=document.createElement("div");',
+    '      _swrap.style.cssText="border-top:1px solid rgba(255,255,255,.06);margin-top:8px";',
+    '      _visible.forEach(function(id){',
     '        var sc=_sc[id]||{visible:true,autoOpen:false};',
-    '        if(sc.visible===false) return;',
     '        var sphere=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(id);',
-    '        if(!sphere||typeof sphere.profileSection!=="function") return;',
+    '        if(!sphere||(typeof sphere.profileSection!=="function"&&typeof sphere.peerSection!=="function"))return;',
     '        var hdr=document.createElement("div");',
-    '        hdr.style.cssText="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);cursor:pointer";',
-    '        var label=id.replace(".sphere.js","");',
-    '        hdr.innerHTML="<span style=\\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);flex:1\\">"+label+"</span><span style=\\"font-size:11px;color:var(--text3)\\">▼</span>";',
-    '        var body2=document.createElement("div");',
-    '        body2.style.cssText="padding:12px 14px;display:none";',
+    // Note: on utilise des apostrophes dans cssText pour éviter les conflits de quotes
+    "        hdr.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);cursor:pointer';",
+    '        var lbl=id.replace(".sphere.js","");',
+    '        var hdrSpan1=document.createElement("span");',
+    "        hdrSpan1.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);flex:1';",
+    '        hdrSpan1.textContent=lbl;',
+    '        var hdrSpan2=document.createElement("span");',
+    "        hdrSpan2.style.cssText='font-size:11px;color:var(--text3)';",
+    '        hdrSpan2.textContent="▼";',
+    '        hdr.appendChild(hdrSpan1);hdr.appendChild(hdrSpan2);',
+    '        var bd2=document.createElement("div");',
+    "        bd2.style.cssText='padding:12px 14px;display:none';",
     '        var open2=sc.autoOpen||false;',
-    '        function toggle2(){open2=!open2;body2.style.display=open2?"block":"none";var arr=hdr.querySelector("span:last-child");if(arr)arr.textContent=open2?"▲":"▼";}',
-    '        body2.style.display=open2?"block":"none";',
-    '        hdr.addEventListener("click",toggle2);',
-    '        try{var _pr=window.YM&&window.YM.getProfile?window.YM.getProfile():{};if(typeof sphere.peerSection==="function"){sphere.peerSection(body2,{uuid:_pr.uuid,isNear:true,isReciproc:true,profile:_pr});}else if(typeof sphere.profileSection==="function"){sphere.profileSection(body2);}}catch(e){}',
-    '        var acc=document.createElement("div");acc.style.cssText="border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px";',
-    '        acc.appendChild(hdr);acc.appendChild(body2);',
-    '        _wrap.appendChild(acc);',
+    '        if(open2)bd2.style.display="block";',
+    '        hdrSpan2.textContent=open2?"▲":"▼";',
+    '        hdr.addEventListener("click",function(){',
+    '          open2=!open2;bd2.style.display=open2?"block":"none";hdrSpan2.textContent=open2?"▲":"▼";',
+    '          if(open2&&!bd2.children.length){',
+    '            try{',
+    '              if(typeof sphere.peerSection==="function"){sphere.peerSection(bd2,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});}',
+    '              else if(typeof sphere.profileSection==="function"){sphere.profileSection(bd2);}',
+    '            }catch(e){bd2.textContent=e.message;}',
+    '          }',
+    '        });',
+    // Auto-open au premier rendu si demandé
+    '        if(open2&&!bd2.children.length){',
+    '          try{',
+    '            if(typeof sphere.peerSection==="function"){sphere.peerSection(bd2,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});}',
+    '            else if(typeof sphere.profileSection==="function"){sphere.profileSection(bd2);}',
+    '          }catch(e){bd2.textContent=e.message;}',
+    '        }',
+    '        var acc=document.createElement("div");',
+    "        acc.style.cssText='border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px';",
+    '        acc.appendChild(hdr);acc.appendChild(bd2);',
+    '        _swrap.appendChild(acc);',
     '      });',
-    '      container.appendChild(_wrap);',
+    '      container.appendChild(_swrap);',
     '    }',
     '  },',
     '  profileSection:function(){}',
     '};',
     '})();'
-  ].join('\n');
+  ]);
+
+  return lines.join('\n');
 }
 window.openProfileSphereEditor=openProfileSphereEditor;
 
