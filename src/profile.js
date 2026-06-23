@@ -667,9 +667,11 @@ function openProfileSphereEditor(){
     '<input type="color" id="pse-accent" value="'+config.accent+'" style="width:40px;height:32px;border:none;background:none;cursor:pointer;padding:0">'+
     '<span id="pse-accent-val" style="font-size:12px;color:var(--text3)">'+config.accent+'</span>'+
     '</div>'+
-    '<div id="pse-sections-wrap" style="display:none"></div>'+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;margin-top:4px;text-transform:uppercase;letter-spacing:.1em">Spheres</div>'+
-    '<div id="pse-spheres" style="margin-bottom:12px"></div>'+
+    '<div id="pse-sections-wrap">'+
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sphere order &amp; display</div>'+
+    '<div id="pse-sections" style="margin-bottom:8px"></div>'+
+    '</div>'+
+    '<div id="pse-spheres" style="display:none"></div>'+
     '<div style="display:flex;align-items:center;margin-bottom:4px">'+
     '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;flex:1">Custom JS (optional — renderPanel body)</div>'+
     '<button id="pse-copy-prompt" class="ym-btn ym-btn-ghost" style="font-size:10px;padding:2px 8px">✦ Copy Prompt</button>'+
@@ -707,23 +709,11 @@ function openProfileSphereEditor(){
     ov.querySelector('#pse-accent-val').textContent=this.value;
   });
 
-  function renderSections(){
-    var sec=ov.querySelector('#pse-sections');
-    sec.innerHTML='';
-    config.sections.forEach(function(s,i){
-      var row=document.createElement('div');
-      row.style.cssText='display:flex;align-items:center;gap:4px;padding:5px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
-      row.innerHTML='<span style="flex:1;font-size:12px;color:var(--text)">'+s+'</span>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-up>↑</button>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-dn>↓</button>';
-      row.querySelector('[data-up]').onclick=function(){if(i>0){config.sections.splice(i-1,0,config.sections.splice(i,1)[0]);renderSections();}};
-      row.querySelector('[data-dn]').onclick=function(){if(i<config.sections.length-1){config.sections.splice(i+1,0,config.sections.splice(i,1)[0]);renderSections();}};
-      sec.appendChild(row);
-    });
-  }
+  // renderSections : fusionné dans renderSpheresConfig (ordre et visibilité des sphères)
+  function renderSections(){ renderSpheresConfig(); }
 
   function renderSpheresConfig(){
-    var spEl=ov.querySelector('#pse-spheres');
+    var spEl=ov.querySelector('#pse-sections')||ov.querySelector('#pse-spheres');
     if(!spEl) return;
     spEl.innerHTML='';
     config.sphereConfig=config.sphereConfig||{};
@@ -768,8 +758,7 @@ function openProfileSphereEditor(){
       spEl.appendChild(row);
     });
   }
-  renderSections();
-  renderSpheresConfig();
+  renderSpheresConfig(); // renderSections appelle renderSpheresConfig
 
   function collectConfig(){
     return {
@@ -873,38 +862,93 @@ function openProfileSphereEditor(){
   };
 
   ov.querySelector('#pse-before').onclick=function(){
+    // Before = vue visiteur actuelle SANS customCode — renderPeerProfile standard
     ov.style.display='none';
     var myProfile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
-    window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel(myProfile);
-    var _check=setInterval(function(){
-      var panel=document.getElementById('panel-profile-view')||document.getElementById('panel-sphere');
-      if(!panel||!panel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
-    },400);
+    // Ouvrir panel-profile-view avec renderPeerProfile (vue telle qu'un contact la voit)
+    var pvBody=document.getElementById('panel-profile-view-body');
+    var pvPanel=document.getElementById('panel-profile-view');
+    if(pvBody&&pvPanel&&window._renderProfileView){
+      pvBody.innerHTML='';
+      window._renderProfileView(pvBody,myProfile);
+      pvPanel.classList.add('open');
+      var _check=setInterval(function(){
+        if(!pvPanel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
+      },400);
+    }else{
+      // Fallback : openProfilePanel standard
+      window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel(myProfile);
+      var _check2=setInterval(function(){
+        var panel=document.getElementById('panel-profile-view')||document.getElementById('panel-sphere');
+        if(!panel||!panel.classList.contains('open')){clearInterval(_check2);ov.style.display='flex';}
+      },400);
+    }
   };
 
   ov.querySelector('#pse-after').onclick=function(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
-    var code=_generateProfileSphere(cfg);
-    code=code.replace(/xxxx-xxxx-xxxx-xxxx/g,cfg.uuid);
+    var status=ov.querySelector('#pse-status');
+    status.textContent='';
+    var code;
+    try{code=_generateProfileSphere(cfg);}catch(genErr){
+      status.textContent='Code generation error: '+genErr.message;
+      console.error('_generateProfileSphere error:',genErr);
+      return;
+    }
     var sphereId=cfg.uuid+'.profile.js';
-    document.getElementById('pse-preview-script')?.remove();
+    // Supprimer ancien script preview
+    var oldScript=document.getElementById('pse-preview-script');
+    if(oldScript)oldScript.remove();
+    // Exécuter le code généré dans un bloc try/catch visible
     var script=document.createElement('script');
     script.id='pse-preview-script';
-    script.textContent=code;
+    // Wrapper: attrape les erreurs de syntaxe/runtime du code généré
+    script.textContent='(function(){try{'+code+'}catch(_genErr){window._pse_gen_error=_genErr;console.error("Generated sphere error:",_genErr);}})();';
     document.head.appendChild(script);
     setTimeout(function(){
-      var s=window.YM_S[sphereId];
-      if(!s){Object.keys(window.YM_S||{}).forEach(function(k){if(window.YM_S[k].isProfileSphere&&!s){s=window.YM_S[k];sphereId=k;}});}
-      if(!s){ov.querySelector('#pse-status').textContent='Generation failed — check console';return;}
-      if(window.YM_sphereRegistry) window.YM_sphereRegistry.set(sphereId,s);
+      if(window._pse_gen_error){
+        status.textContent='Sphere error: '+window._pse_gen_error.message;
+        console.error('Generated code error:',window._pse_gen_error);
+        delete window._pse_gen_error;
+        return;
+      }
+      var s=window.YM_S&&window.YM_S[sphereId];
+      if(!s){
+        // Chercher par isProfileSphere si l'UUID a changé
+        Object.keys(window.YM_S||{}).forEach(function(k){
+          if(window.YM_S[k].isProfileSphere&&!s)s=window.YM_S[k];
+        });
+      }
+      if(!s){
+        status.textContent='Preview failed — check console';
+        console.error('Generated code (debug):', code.slice(0,500));
+        return;
+      }
+      if(window.YM_sphereRegistry)window.YM_sphereRegistry.set(sphereId,s);
       ov.style.display='none';
-      window.YM&&window.YM.openSpherePanel&&window.YM.openSpherePanel(sphereId);
+      // Ouvrir le panel sphere avec la sphere générée
+      if(window.YM&&window.YM.openSpherePanel){
+        window.YM.openSpherePanel(sphereId);
+      }else{
+        // Fallback: render direct dans panel-sphere-body
+        var panelBody=document.getElementById('panel-sphere-body');
+        var panel=document.getElementById('panel-sphere');
+        if(panelBody&&s.renderPanel){
+          panelBody.innerHTML='';
+          s.renderPanel(panelBody);
+          if(panel)panel.classList.add('open');
+        }
+      }
       var _check=setInterval(function(){
         var panel=document.getElementById('panel-sphere');
-        if(!panel||!panel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
+        if(!panel||!panel.classList.contains('open')){
+          clearInterval(_check);
+          ov.style.display='flex';
+          status.textContent='';
+        }
       },400);
-    },100);
+    },150);
   };
 
   ov.querySelector('#pse-publish').onclick=async function(){
@@ -956,122 +1000,193 @@ function openProfileSphereEditor(){
 }
 
 function _generateProfileSphere(cfg){
+  // Extraire body si sphere complet collé
   if(cfg.customCode&&cfg.customCode.includes('window.YM_S[')){
-    var _bodyMatch=cfg.customCode.match(/renderPanel\s*:\s*function\s*\(container\)\s*\{([\s\S]*?)\},\s*profileSection/);
-    var _extractedBody=_bodyMatch?_bodyMatch[1]:'/* custom code unparseable */';
-    cfg=Object.assign({},cfg,{customCode:_extractedBody});
+    var _m=cfg.customCode.match(/renderPanel\s*:\s*function\s*\(container\)\s*\{([\s\S]*?)\},\s*profileSection/);
+    cfg=Object.assign({},cfg,{customCode:_m?_m[1]:'/* unparseable */'});
   }
   var hasCustom=!!(cfg.customCode&&cfg.customCode.trim());
   var cfgJson=JSON.stringify(cfg);
   var sphereId=cfg.uuid+'.profile.js';
+  var sIdJ=JSON.stringify(sphereId);
+  var SELF='window.YM_S['+sIdJ+']';
 
-  // customBlock : exécute le code custom dans (container,cfg) — fallback si erreur
-  var customBlock=hasCustom
-    ? '    var _ok=false;\n    try{(function(container,cfg){\n'+cfg.customCode+'\n}(_main,cfg));_ok=true;}catch(e){console.warn(\'Profile sphere error:\',e.message);_main.innerHTML=\'<p style=\'\' +\'font-size:11px;color:#e84040\'\'>\'+e.message+\'</p>\';if(window._renderProfileView){_main.innerHTML="";window._renderProfileView(p,_main);}}'
-    : '    if(window._renderProfileView){window._renderProfileView(p,_main);}';
+  // Bloc contact — API DOM pure, pas de cssText avec variables CSS à l'intérieur de strings JS
+  var contactBlock=[
+    'var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};',
+    'var _isC=false;',
+    'try{var _cl=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");',
+    '_isC=_cl.some(function(c){return c.uuid===p.uuid;});}catch(e){}',
+    'var _ctBar=document.createElement("div");',
+    '_ctBar.style.padding="10px 14px 4px";_ctBar.style.flexShrink="0";',
+    'if(_isC){',
+    '  var _ctI=document.createElement("div");',
+    '  _ctI.style.display="flex";_ctI.style.alignItems="center";_ctI.style.gap="8px";',
+    '  _ctI.style.padding="8px 12px";_ctI.style.borderRadius="8px";',
+    '  _ctI.style.background="rgba(48,232,128,.08)";',
+    '  _ctI.style.border="1px solid rgba(48,232,128,.25)";',
+    '  var _ctT=document.createElement("span");',
+    '  _ctT.style.color="#30e880";_ctT.style.fontSize="12px";_ctT.style.flex="1";',
+    '  _ctT.textContent="\u2713 In contacts";',
+    '  var _rmB=document.createElement("button");',
+    '  _rmB.style.background="none";_rmB.style.border="none";',
+    '  _rmB.style.color="#e84040";_rmB.style.fontSize="11px";_rmB.style.cursor="pointer";',
+    '  _rmB.textContent="Remove";',
+    '  _rmB.onclick=function(){',
+    '    try{var _a=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");',
+    '    localStorage.setItem("ym_contacts_v1",JSON.stringify(_a.filter(function(c){return c.uuid!==p.uuid;})));',
+    '    if(window.YM_toast)window.YM_toast("Contact removed","info");}catch(e){}',
+    '    container.innerHTML="";'+SELF+'.renderPanel(container);',
+    '  };',
+    '  _ctI.appendChild(_ctT);_ctI.appendChild(_rmB);_ctBar.appendChild(_ctI);',
+    '}else{',
+    '  var _addB=document.createElement("button");',
+    '  _addB.style.width="100%";_addB.style.padding="10px";',
+    '  _addB.style.background="rgba(240,168,48,.1)";',
+    '  _addB.style.border="1px solid rgba(240,168,48,.3)";',
+    '  _addB.style.borderRadius="8px";_addB.style.cursor="pointer";',
+    '  _addB.style.color="var(--accent,#f0a830)";',
+    '  _addB.style.fontSize="13px";_addB.style.fontWeight="600";',
+    '  _addB.textContent="+ Add Contact";',
+    '  _addB.onclick=function(){',
+    '    try{var _a=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");',
+    '    if(!_a.find(function(c){return c.uuid===p.uuid;})){',
+    '      _a.push({uuid:p.uuid,nickname:"",profile:p});',
+    '      localStorage.setItem("ym_contacts_v1",JSON.stringify(_a));',
+    '    }',
+    '    if(window.YM_toast)window.YM_toast("Contact added","success");}catch(e){}',
+    '    container.innerHTML="";'+SELF+'.renderPanel(container);',
+    '  };',
+    '  _ctBar.appendChild(_addB);',
+    '}',
+    'container.appendChild(_ctBar);',
+  ].join('\n');
 
-  var L=[
+  var mainOpen=[
+    'var _main=document.createElement("div");',
+    '_main.style.flex="1";_main.style.overflowY="auto";_main.style.minHeight="0";',
+    'container.appendChild(_main);',
+  ].join('\n');
+
+  // Custom code wrappé dans une IIFE(container,cfg) — le code user peut utiliser container et cfg librement
+  // Si erreur → fallback _renderProfileView (vue visiteur standard)
+  var customBlock;
+  if(hasCustom){
+    customBlock=[
+      'var _cErr=null;',
+      'try{',
+      '  (function(container,cfg){',
+      cfg.customCode,
+      '  }(_main,cfg));',
+      '}catch(_e){',
+      '  _cErr=_e;',
+      '  console.warn("Profile sphere error:",_e.message);',
+      '}',
+      'if(_cErr){',
+      '  _main.innerHTML="";',
+      '  if(window._renderProfileView){window._renderProfileView(p,_main);}',
+      '  else{var _ed=document.createElement("div");_ed.style.padding="12px";',
+      '    _ed.style.fontSize="11px";_ed.style.color="#e84040";',
+      '    _ed.textContent="Error: "+_cErr.message;_main.appendChild(_ed);}',
+      '}',
+    ].join('\n');
+  }else{
+    customBlock='if(window._renderProfileView){window._renderProfileView(p,_main);}';
+  }
+
+  // Accordéons sphères — injectés après le contenu, flex-shrink:0
+  var spheresBlock=[
+    'var _sc=cfg.sphereConfig||{};',
+    'var _so=cfg.sphereOrder||cfg.spheres||[];',
+    'var _vis=_so.filter(function(id){var s=_sc[id];return !s||s.visible!==false;});',
+    'if(_vis.length){',
+    '  var _sw=document.createElement("div");',
+    '  _sw.style.flexShrink="0";',
+    '  _sw.style.borderTop="1px solid rgba(255,255,255,.06)";',
+    '  _sw.style.padding="8px 14px 4px";',
+    '  _vis.forEach(function(id){',
+    '    var sc=_sc[id]||{visible:true,autoOpen:false};',
+    '    var sph=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(id);',
+    '    if(!sph||(typeof sph.profileSection!=="function"&&typeof sph.peerSection!=="function"))return;',
+    '    var sIcon=sph.icon||"\u29e1";',
+    '    var _iUrl=sIcon&&(sIcon.startsWith("http")||sIcon.startsWith("/"));',
+    '    var _hdr=document.createElement("div");',
+    '    _hdr.style.display="flex";_hdr.style.alignItems="center";',
+    '    _hdr.style.gap="8px";_hdr.style.padding="9px 4px";_hdr.style.cursor="pointer";',
+    '    var _iEl=_iUrl?document.createElement("img"):document.createElement("span");',
+    '    if(_iUrl){_iEl.src=sIcon;_iEl.style.width="18px";_iEl.style.height="18px";',
+    '      _iEl.style.borderRadius="3px";_iEl.style.objectFit="contain";}',
+    '    else{_iEl.style.fontSize="15px";_iEl.textContent=sIcon;}',
+    '    var _lbl=document.createElement("span");',
+    '    _lbl.style.fontSize="10px";_lbl.style.fontWeight="700";',
+    '    _lbl.style.textTransform="uppercase";_lbl.style.letterSpacing="1.5px";_lbl.style.flex="1";',
+    '    _lbl.style.color="var(--accent,#f0a830)";',
+    '    _lbl.textContent=id.replace(".sphere.js","");',
+    '    var _arr=document.createElement("span");',
+    '    _arr.style.fontSize="10px";_arr.style.color="var(--text3,rgba(228,230,244,.26))";',
+    '    var _open=!!(sc.autoOpen);',
+    '    _arr.textContent=_open?"\u25b2":"\u25bc";',
+    '    _hdr.appendChild(_iEl);_hdr.appendChild(_lbl);_hdr.appendChild(_arr);',
+    '    var _bd=document.createElement("div");',
+    '    _bd.style.padding="8px 4px 12px";',
+    '    _bd.style.display=_open?"block":"none";',
+    '    function _fill(bd,sph,p){',
+    '      bd.innerHTML="";',
+    '      try{',
+    '        if(typeof sph.peerSection==="function"){',
+    '          sph.peerSection(bd,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});',
+    '        }else{sph.profileSection(bd);}',
+    '      }catch(e2){',
+    '        var _d=document.createElement("div");',
+    '        _d.style.fontSize="11px";',
+    '        _d.style.color="rgba(228,230,244,.3)";',
+    '        _d.textContent=e2.message;bd.appendChild(_d);',
+    '      }',
+    '    }',
+    '    if(_open)_fill(_bd,sph,p);',
+    '    (function(bd,sph,p,arr,st){',
+    '      _hdr.addEventListener("click",function(){',
+    '        st.o=!st.o;',
+    '        arr.textContent=st.o?"\u25b2":"\u25bc";',
+    '        bd.style.display=st.o?"block":"none";',
+    '        if(st.o)_fill(bd,sph,p);',
+    '      });',
+    '    }(_bd,sph,p,_arr,{o:_open}));',
+    '    var _acc=document.createElement("div");',
+    '    _acc.style.border="1px solid rgba(255,255,255,.06)";',
+    '    _acc.style.borderRadius="8px";_acc.style.overflow="hidden";_acc.style.marginBottom="6px";',
+    '    _acc.appendChild(_hdr);_acc.appendChild(_bd);_sw.appendChild(_acc);',
+    '  });',
+    '  if(_sw.children.length)container.appendChild(_sw);',
+    '}',
+  ].join('\n');
+
+  return [
     '(function(){',
     'var cfg='+cfgJson+';',
-    'window.YM_S['+JSON.stringify(sphereId)+']={',
+    'window.YM_S['+sIdJ+']={',
     '  name:'+JSON.stringify(cfg.name)+',',
-    '  icon:"\\u2746",',
+    '  icon:"\u2746",',
     '  category:"Profile",',
     '  isProfileSphere:true,',
     '  activate:function(){},',
     '  deactivate:function(){},',
     '  renderPanel:function(container){',
     '    container.innerHTML="";',
-    "    container.style.cssText='flex:1;overflow-y:auto;display:flex;flex-direction:column;min-height:0';",
-    '    var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};',
-    // Bouton contact
-    '    var _isC=false;',
-    '    try{var _cl=JSON.parse(localStorage.getItem(\"ym_contacts_v1\")||"[]");_isC=_cl.some(function(c){return c.uuid===p.uuid;});}catch(e){}',
-    '    var _ctBar=document.createElement(\"div\");',
-    "    _ctBar.style.cssText='flex-shrink:0;padding:10px 14px 4px';",
-    '    if(_isC){',
-    '      var _ctI=document.createElement(\"div\");',
-    "      _ctI.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:8px';",
-    '      var _ctT=document.createElement(\"span\");',
-    "      _ctT.style.cssText='color:#30e880;font-size:12px;flex:1';",
-    '      _ctT.textContent="\\u2713 In contacts";',
-    '      var _rmB=document.createElement(\"button\");',
-    "      _rmB.style.cssText='background:none;border:none;color:#e84040;font-size:11px;cursor:pointer';",
-    '      _rmB.textContent="Remove";',
-    '      _ctI.appendChild(_ctT);_ctI.appendChild(_rmB);_ctBar.appendChild(_ctI);',
-    '      _rmB.addEventListener(\"click\",function(){',
-    '        try{var _a=JSON.parse(localStorage.getItem(\"ym_contacts_v1\")||"[]");localStorage.setItem(\"ym_contacts_v1\",JSON.stringify(_a.filter(function(c){return c.uuid!==p.uuid;})));if(window.YM_toast)window.YM_toast(\"Contact removed\",\"info\");}catch(e){}',
-    '        container.innerHTML="";window.YM_S['+JSON.stringify(sphereId)+'].renderPanel(container);',
-    '      });',
-    '    }else{',
-    '      var _addB=document.createElement(\"button\");',
-    "      _addB.style.cssText='width:100%;padding:10px;background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3);border-radius:8px;color:var(--accent,#f0a830);font-size:13px;cursor:pointer;font-weight:600';",
-    '      _addB.textContent="+ Add Contact";',
-    '      _ctBar.appendChild(_addB);',
-    '      _addB.addEventListener(\"click\",function(){',
-    '        try{var _a=JSON.parse(localStorage.getItem(\"ym_contacts_v1\")||"[]");if(!_a.find(function(c){return c.uuid===p.uuid;})){_a.push({uuid:p.uuid,nickname:\"\",profile:p});localStorage.setItem(\"ym_contacts_v1\",JSON.stringify(_a));}if(window.YM_toast)window.YM_toast(\"Contact added\",\"success\");}catch(e){}',
-    '        container.innerHTML="";window.YM_S['+JSON.stringify(sphereId)+'].renderPanel(container);',
-    '      });',
-    '    }',
-    '    container.appendChild(_ctBar);',
-    // Zone principale
-    '    var _main=document.createElement(\"div\");',
-    "    _main.style.cssText='flex:1;overflow-y:auto;min-height:0';",
-    '    container.appendChild(_main);',
+    '    container.style.flex="1";',
+    '    container.style.overflowY="auto";',
+    '    container.style.display="flex";',
+    '    container.style.flexDirection="column";',
+    '    container.style.minHeight="0";',
+    contactBlock,
+    mainOpen,
     customBlock,
-    // Accordéons sphères
-    '    var _sc=cfg.sphereConfig||{};',
-    '    var _so=cfg.sphereOrder||cfg.spheres||[];',
-    '    var _vis=_so.filter(function(id){var s=_sc[id];return !s||s.visible!==false;});',
-    '    if(_vis.length){',
-    '      var _sw=document.createElement(\"div\");',
-    "      _sw.style.cssText='flex-shrink:0;border-top:1px solid rgba(255,255,255,.06);padding:8px 14px 4px';",
-    '      _vis.forEach(function(id){',
-    '        var sc=_sc[id]||{visible:true,autoOpen:false};',
-    '        var sph=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(id);',
-    '        if(!sph||(typeof sph.profileSection!==\"function\"&&typeof sph.peerSection!==\"function\"))return;',
-    '        var sIcon=(sph.icon)||"\\u29e1";',
-    '        var _iconUrl=sIcon&&(sIcon.startsWith(\"http\")||sIcon.startsWith(\"./\")||sIcon.startsWith(\"/\"));',
-    '        var _hdr=document.createElement(\"div\");',
-    "        _hdr.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 4px;cursor:pointer';",
-    '        var _iEl=_iconUrl?document.createElement(\"img\"):document.createElement(\"span\");',
-    '        if(_iconUrl){_iEl.src=sIcon;_iEl.style.cssText=\"width:18px;height:18px;border-radius:3px;object-fit:contain\";}',
-    '        else{_iEl.style.cssText=\"font-size:15px\";_iEl.textContent=sIcon;}',
-    '        var _lbl=document.createElement(\"span\");',
-    "        _lbl.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent,#f0a830);flex:1';",
-    '        _lbl.textContent=id.replace(\".sphere.js\",\"\");',
-    '        var _arr=document.createElement(\"span\");',
-    "        _arr.style.cssText='font-size:10px;color:var(--text3,rgba(228,230,244,.26))';",
-    '        var _open=!!(sc.autoOpen);',
-    '        _arr.textContent=_open?\"\\u25b2\":\"\\u25bc\";',
-    '        _hdr.appendChild(_iEl);_hdr.appendChild(_lbl);_hdr.appendChild(_arr);',
-    '        var _bd=document.createElement(\"div\");',
-    '        _bd.style.cssText=\"padding:8px 4px 12px;display:\"+(_open?\"block\":\"none\");',
-    '        function _fill(bd,sph,p){',
-    '          bd.innerHTML=\"\";',
-    '          try{',
-    '            if(typeof sph.peerSection===\"function\"){sph.peerSection(bd,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});}',
-    '            else{sph.profileSection(bd);}',
-    '          }catch(e){bd.innerHTML=\"<div style=\\\"font-size:11px;color:rgba(228,230,244,.3)\\\">\"+ e.message +\"</div>\";}',
-    '        }',
-    '        if(_open)_fill(_bd,sph,p);',
-    '        _hdr.addEventListener(\"click\",(function(bd,sph,p,arr,o){return function(){',
-    '          o._v=!o._v;arr.textContent=o._v?\"\\u25b2\":\"\\u25bc\";',
-    '          bd.style.display=o._v?\"block\":\"none\";',
-    '          if(o._v)_fill(bd,sph,p);',
-    '        };}(_bd,sph,p,_arr,{_v:_open})));',
-    '        var _acc=document.createElement(\"div\");',
-    "        _acc.style.cssText='border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px';",
-    '        _acc.appendChild(_hdr);_acc.appendChild(_bd);_sw.appendChild(_acc);',
-    '      });',
-    '      if(_sw.children.length)container.appendChild(_sw);',
-    '    }',
+    spheresBlock,
     '  },',
     '  profileSection:function(){}',
     '};',
-    '})();'
-  ];
-  return L.join('\n');
+    '})();',
+  ].join('\n');
 }
 window.openProfileSphereEditor=openProfileSphereEditor;
 
