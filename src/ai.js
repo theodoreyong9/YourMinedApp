@@ -245,7 +245,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
         if (!r.ok) continue;
         const code = await r.text();
-        const snippet = code.split('\n').slice(0, 40).join('\n');
+        const snippet = code.split('\n').slice(0, 20).join('\n');
         results.push({ filename: f.filename, description: f.description || '', snippet });
       } catch {}
     }
@@ -385,9 +385,20 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // What we CAN do is detect upfront when conditions are clearly bad and
   // say so honestly, instead of letting the person wait through a failed
   // download/load.
-  function checkWebGpuSupport() {
+  async function checkWebGpuSupport() {
     if (typeof navigator === 'undefined' || !navigator.gpu) {
       return { supported: false, reason: 'WebGPU is not available in this browser. On iOS this needs a recent Safari; on Android, a recent Chrome.' };
+    }
+    // navigator.gpu existing only means the API exists — it does NOT mean a
+    // real adapter is behind it. Actually requesting one is the only honest
+    // check; without this we only find out after downloading ~900MB.
+    try {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        return { supported: false, reason: 'Unable to find a compatible GPU on this device/browser. WebGPU API is present but no adapter responded — see https://webgpureport.org/ to check support.' };
+      }
+    } catch (e) {
+      return { supported: false, reason: 'GPU adapter request failed: ' + e.message };
     }
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     const mem = navigator.deviceMemory; // not available on iOS, rough hint on Android/Chrome
@@ -420,7 +431,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       }
     } catch {}
     // 3. WebLLM — check capability before claiming it's "always available"
-    const gpu = checkWebGpuSupport();
+    const gpu = await checkWebGpuSupport();
     if (!gpu.supported) {
       return { type: 'unsupported', label: 'No local AI engine available on this device', models: [], reason: gpu.reason };
     }
@@ -428,7 +439,15 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     return { type: 'webllm', label, models: ['webllm'], risky: gpu.risky, riskyReason: gpu.reason };
   }
 
-  async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, _isRetry) {
+  // Default kept deliberately short: a single 4096-token call on a 1.5B
+  // model in-browser is exactly what was timing out/crashing on long
+  // generations. Shorter calls, chained together (see sectionedGenerate),
+  // finish faster individually and survive interruptions better — losing
+  // one short section costs far less than losing one giant call near the end.
+  const DEFAULT_MAX_TOKENS = 1200;
+
+  async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, maxTokens, _isRetry) {
+    maxTokens = maxTokens || DEFAULT_MAX_TOKENS;
     if (engine.type === 'webllm') {
       // Auto-load if not ready (or reload if a previous run disposed the engine)
       const llm = await initWebLLM(onProgress);
@@ -442,14 +461,14 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         try {
           stream = await llm.chat.completions.create({
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-            temperature: 0.3, max_tokens: 4096, stream: true,
+            temperature: 0.3, max_tokens: maxTokens, stream: true,
           });
         } catch (e) {
           if (_isGpuContextLostError(e)) {
             _resetWebllmState();
             if (!_isRetry) {
               if (onProgress) onProgress({ text: 'Engine was disposed (background/screen-off) — reloading and retrying…', progress: 0 });
-              yield* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, true);
+              yield* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, maxTokens, true);
               return;
             }
             throw new Error('The AI engine keeps getting disposed by the OS. Reopen the AI tab, keep this tab in the foreground with the screen on, and try again.');
@@ -477,7 +496,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const resp = await fetch('http://localhost:13305/api/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], stream: true, max_tokens: 4096 }),
+        body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], stream: true, max_tokens: maxTokens }),
       });
       if (!resp.ok) throw new Error('Lemonade error ' + resp.status);
       yield* readSSE(resp);
@@ -532,27 +551,29 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
 
   // ── SECTIONED GENERATION (for large files) ──────────────────
-  // Instead of asking the model for 1000 lines in one shot (which a 1.5B
-  // model reliably fails at), we ask for a short manifest of sections,
-  // then generate each section separately with the same spec context,
-  // then assemble. The user still only ever sees/downloads one file.
+  // Always used for spheres now (not optional): a single 4096-token call
+  // on-device was the direct cause of long generations crashing/timing out.
+  // Splitting into short, separately-completed sections means each call
+  // finishes faster, and if one call fails only that section is lost —
+  // not the whole file.
   const SECTION_PLAN_SUFFIX = `
 
 Before writing any code, first output a single line of JSON describing the sections you will write, like:
 {"sections":["header_and_state","ui_render","p2p_logic","helpers"]}
-Output ONLY that JSON line. Do not write code yet.`;
+Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`;
 
   async function planSections(engine, model, systemPrompt, userPrompt) {
     let full = '';
-    for await (const chunk of streamGenerate(engine, model, systemPrompt, userPrompt + SECTION_PLAN_SUFFIX, null)) {
+    // Manifest is tiny — cap tokens hard so this call is fast no matter what.
+    for await (const chunk of streamGenerate(engine, model, systemPrompt, userPrompt + SECTION_PLAN_SUFFIX, null, 150)) {
       full += chunk;
-      if (full.length > 600) break; // manifest should be tiny
+      if (full.length > 400) break;
     }
     try {
       const m = full.match(/\{[^}]*"sections"[^}]*\}/);
       if (m) {
         const parsed = JSON.parse(m[0]);
-        if (Array.isArray(parsed.sections) && parsed.sections.length) return parsed.sections.slice(0, 8);
+        if (Array.isArray(parsed.sections) && parsed.sections.length) return parsed.sections.slice(0, 5);
       }
     } catch {}
     return null; // fall back to single-shot
@@ -561,7 +582,7 @@ Output ONLY that JSON line. Do not write code yet.`;
   async function* sectionedGenerate(engine, model, systemPrompt, userPrompt, filename, onProgress) {
     const sections = await planSections(engine, model, systemPrompt, userPrompt);
     if (!sections) {
-      // Fallback: single-shot generation
+      // Fallback: single-shot generation (still capped at DEFAULT_MAX_TOKENS)
       yield* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress);
       return;
     }
@@ -569,12 +590,15 @@ Output ONLY that JSON line. Do not write code yet.`;
     let assembled = '';
     for (let i = 0; i < sections.length; i++) {
       const sec = sections[i];
+      if (onProgress) onProgress({ text: 'Section ' + (i + 1) + '/' + sections.length + ': ' + sec, progress: 1 });
       const secPrompt = userPrompt +
         '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
-        'Context so far (already written, do not repeat):\n```\n' + assembled.slice(-1500) + '\n```\n' +
+        // Keep carried-over context short (~600 chars, not 1500) — this is
+        // the per-call prompt size that matters most for speed/reliability.
+        'Context so far (already written, do not repeat):\n```\n' + assembled.slice(-600) + '\n```\n' +
         'Continue writing ONLY the next part for "' + sec + '". Output raw code only, no markdown fences, no repetition of prior code.';
       let secCode = '';
-      for await (const chunk of streamGenerate(engine, model, systemPrompt, secPrompt, onProgress)) {
+      for await (const chunk of streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900)) {
         secCode += chunk;
         yield chunk;
       }
@@ -665,21 +689,29 @@ Output ONLY that JSON line. Do not write code yet.`;
       '<textarea id="ai-prompt" class="ym-input" rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical" placeholder="Describe what to generate…"></textarea>';
     body.appendChild(promptWrap);
 
-    // Category + options
+    // Category
     const optsWrap = document.createElement('div');
-    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;gap:8px;align-items:flex-end';
+    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
     optsWrap.innerHTML =
-      '<div style="flex:1"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
-      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box"></div>' +
-      '<label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);cursor:pointer;flex-shrink:0;padding-bottom:6px">' +
-      '<input type="checkbox" id="ai-sectioned"> Long file (sectioned)</label>';
+      '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
+      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">' +
+      '<div style="font-size:9px;color:var(--text3);margin-top:6px">Generation runs in short chunks automatically — more reliable than one long call.</div>';
     body.appendChild(optsWrap);
 
     // Generate button
+    if (!document.getElementById('ym-ai-spin-style')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'ym-ai-spin-style';
+      styleEl.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(styleEl);
+    }
     const genWrap = document.createElement('div');
     genWrap.style.cssText = 'padding:10px 14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)';
     genWrap.innerHTML =
-      '<button id="ai-generate" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px">✦ Generate</button>' +
+      '<button id="ai-generate" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
+        '<span id="ai-spinner" style="display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:ym-ai-spin .7s linear infinite;flex-shrink:0"></span>' +
+        '<span id="ai-generate-label">✦ Generate</span>' +
+      '</button>' +
       '<div id="ai-progress" style="font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;text-align:center"></div>';
     body.appendChild(genWrap);
 
@@ -716,7 +748,6 @@ Output ONLY that JSON line. Do not write code yet.`;
     body.querySelector('#ai-generate').addEventListener('click', async () => {
       const prompt    = (body.querySelector('#ai-prompt')?.value || '').trim();
       const cat       = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
-      const sectioned = body.querySelector('#ai-sectioned')?.checked === true;
       const outEl     = body.querySelector('#ai-output');
       const progEl    = body.querySelector('#ai-progress');
       const charsEl   = body.querySelector('#ai-chars');
@@ -742,7 +773,10 @@ Output ONLY that JSON line. Do not write code yet.`;
       ].join('\n');
 
       genBtn.disabled = true;
-      genBtn.textContent = '⏳ Generating…';
+      const spinnerEl = body.querySelector('#ai-spinner');
+      const labelEl = body.querySelector('#ai-generate-label');
+      if (spinnerEl) spinnerEl.style.display = '';
+      if (labelEl) labelEl.textContent = 'Generating…';
       outEl.value = '';
       charsEl.textContent = '0 chars';
       valEl.textContent = '';
@@ -776,7 +810,7 @@ Output ONLY that JSON line. Do not write code yet.`;
       }, 1000);
 
       try {
-        const gen = sectioned && _type === 'sphere'
+        const gen = _type === 'sphere'
           ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress)
           : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
 
@@ -815,7 +849,8 @@ Output ONLY that JSON line. Do not write code yet.`;
         toast(e.message, 'error');
       } finally {
         genBtn.disabled = false;
-        genBtn.textContent = '✦ Generate';
+        if (spinnerEl) spinnerEl.style.display = 'none';
+        if (labelEl) labelEl.textContent = '✦ Generate';
       }
     });
 
