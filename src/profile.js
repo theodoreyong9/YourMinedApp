@@ -443,10 +443,18 @@ function renderContactsTab(container){
     allPill.addEventListener('click',function(){activeSphere='';buildSphereBar();renderList(q);});sphereBar.appendChild(allPill);
     sphereList.forEach(function(sName){
       var sObj=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sName);
-      var icon=(sObj&&sObj.icon)||'⬡';var label=sName.replace('.sphere.js','');
+      var rawIcon=(sObj&&sObj.icon)||'⬡';
+      var label=sName.replace('.sphere.js','');
       var pill=document.createElement('span');pill.className='pill'+(activeSphere===sName?' active':'');
       pill.style.cssText='cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:4px';
-      pill.innerHTML=icon+' '+esc(label)+' <span style="font-size:9px;opacity:.6">('+sphereCounts[sName]+')</span>';
+      // Icône: URL → <img>, sinon emoji texte
+      var iconIsUrl=rawIcon&&(rawIcon.startsWith('http')||rawIcon.startsWith('/'));
+      var iconEl=iconIsUrl?document.createElement('img'):document.createElement('span');
+      if(iconIsUrl){iconEl.src=rawIcon;iconEl.style.cssText='width:16px;height:16px;border-radius:3px;object-fit:contain;vertical-align:middle';}
+      else{iconEl.textContent=rawIcon;}
+      var labelEl=document.createElement('span');labelEl.textContent=label;
+      var countEl=document.createElement('span');countEl.style.cssText='font-size:9px;opacity:.6';countEl.textContent='('+sphereCounts[sName]+')';
+      pill.appendChild(iconEl);pill.appendChild(document.createTextNode(' '));pill.appendChild(labelEl);pill.appendChild(document.createTextNode(' '));pill.appendChild(countEl);
       pill.addEventListener('click',function(){activeSphere=activeSphere===sName?'':sName;buildSphereBar();renderList(q);});
       sphereBar.appendChild(pill);
     });
@@ -659,10 +667,7 @@ function openProfileSphereEditor(){
     '<input type="color" id="pse-accent" value="'+config.accent+'" style="width:40px;height:32px;border:none;background:none;cursor:pointer;padding:0">'+
     '<span id="pse-accent-val" style="font-size:12px;color:var(--text3)">'+config.accent+'</span>'+
     '</div>'+
-    '<div id="pse-sections-wrap">'+
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em">Sections order</div>'+
-    '<div id="pse-sections" style="margin-bottom:8px"></div>'+
-    '</div>'+
+    '<div id="pse-sections-wrap" style="display:none"></div>'+
     '<div style="font-size:11px;color:var(--text3);margin-bottom:4px;margin-top:4px;text-transform:uppercase;letter-spacing:.1em">Spheres</div>'+
     '<div id="pse-spheres" style="margin-bottom:12px"></div>'+
     '<div style="display:flex;align-items:center;margin-bottom:4px">'+
@@ -724,7 +729,7 @@ function openProfileSphereEditor(){
     config.sphereConfig=config.sphereConfig||{};
     var activeSpheres=p.spheres||[];
     if(!activeSpheres.length){
-      spEl.innerHTML='<div style="font-size:11px;color:var(--text3)">No active spheres</div>';
+      var _empty=document.createElement('div');_empty.style.cssText='font-size:11px;color:var(--text3)';_empty.textContent='No active spheres';spEl.appendChild(_empty);
       return;
     }
     activeSpheres.forEach(function(id,i){
@@ -733,15 +738,33 @@ function openProfileSphereEditor(){
       var label=id.replace('.sphere.js','');
       var row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:4px;padding:5px 8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:6px;margin-bottom:4px';
-      row.innerHTML='<span style="flex:1;font-size:12px;color:'+(sc.visible?'var(--text)':'var(--text3)')+'">'+label+'</span>'
-        +'<span class="sp-visible" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(sc.visible?'var(--accent)':'rgba(255,255,255,.12)')+';color:'+(sc.visible?'var(--accent)':'var(--text3)')+';cursor:pointer">show</span>'
-        +'<span class="sp-auto" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid '+(sc.autoOpen?'var(--gold)':'rgba(255,255,255,.12)')+';color:'+(sc.autoOpen?'var(--gold)':'var(--text3)')+';cursor:pointer">auto</span>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-up>↑</button>'
-        +'<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px" data-dn>↓</button>';
-      row.querySelector('.sp-visible').onclick=function(){sc.visible=!sc.visible;renderSpheresConfig();};
-      row.querySelector('.sp-auto').onclick=function(){sc.autoOpen=!sc.autoOpen;renderSpheresConfig();};
-      row.querySelector('[data-up]').onclick=function(){if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
-      row.querySelector('[data-dn]').onclick=function(){if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
+      // label
+      var lblEl=document.createElement('span');
+      lblEl.style.cssText='flex:1;font-size:12px';
+      lblEl.style.color=sc.visible?'var(--text)':'var(--text3)';
+      lblEl.textContent=label;
+      // show pill
+      var showEl=document.createElement('span');
+      showEl.className='sp-visible';
+      showEl.style.cssText='font-size:9px;padding:2px 6px;border-radius:10px;cursor:pointer';
+      showEl.style.border='1px solid '+(sc.visible?'var(--accent)':'rgba(255,255,255,.12)');
+      showEl.style.color=sc.visible?'var(--accent)':'var(--text3)';
+      showEl.textContent='show';
+      // auto pill
+      var autoEl=document.createElement('span');
+      autoEl.className='sp-auto';
+      autoEl.style.cssText='font-size:9px;padding:2px 6px;border-radius:10px;cursor:pointer';
+      autoEl.style.border='1px solid '+(sc.autoOpen?'var(--gold)':'rgba(255,255,255,.12)');
+      autoEl.style.color=sc.autoOpen?'var(--gold)':'var(--text3)';
+      autoEl.textContent='auto';
+      // up/down
+      var upBtn=document.createElement('button');upBtn.textContent='↑';upBtn.style.cssText='background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px';
+      var dnBtn=document.createElement('button');dnBtn.textContent='↓';dnBtn.style.cssText='background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px';
+      row.appendChild(lblEl);row.appendChild(showEl);row.appendChild(autoEl);row.appendChild(upBtn);row.appendChild(dnBtn);
+      showEl.onclick=function(){sc.visible=!sc.visible;renderSpheresConfig();};
+      autoEl.onclick=function(){sc.autoOpen=!sc.autoOpen;renderSpheresConfig();};
+      upBtn.onclick=function(){if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
+      dnBtn.onclick=function(){if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
       spEl.appendChild(row);
     });
   }
@@ -942,132 +965,113 @@ function _generateProfileSphere(cfg){
   var cfgJson=JSON.stringify(cfg);
   var sphereId=cfg.uuid+'.profile.js';
 
-  // Le renderPanel généré :
-  // 1. Affiche TOUJOURS le bouton Add/Remove contact en haut
-  // 2. Si custom code → l'exécute dans un sous-container, avec fallback vers _renderProfileView si erreur
-  // 3. Si pas de custom code → appelle _renderProfileView (vue visiteur standard)
-  // 4. Affiche ensuite les sections sphères configurées
-  // Note : on utilise des apostrophes dans cssText pour éviter les conflits de quotes
+  // customBlock : exécute le code custom dans (container,cfg) — fallback si erreur
+  var customBlock=hasCustom
+    ? '    var _ok=false;\n    try{(function(container,cfg){\n'+cfg.customCode+'\n}(_main,cfg));_ok=true;}catch(e){console.warn(\'Profile sphere error:\',e.message);_main.innerHTML=\'<p style=\'\' +\'font-size:11px;color:#e84040\'\'>\'+e.message+\'</p>\';if(window._renderProfileView){_main.innerHTML="";window._renderProfileView(p,_main);}}'
+    : '    if(window._renderProfileView){window._renderProfileView(p,_main);}';
 
-  var lines=[
+  var L=[
     '(function(){',
     'var cfg='+cfgJson+';',
     'window.YM_S['+JSON.stringify(sphereId)+']={',
     '  name:'+JSON.stringify(cfg.name)+',',
-    '  icon:"\u2746",',
+    '  icon:"\\u2746",',
     '  category:"Profile",',
     '  isProfileSphere:true,',
     '  activate:function(){},',
     '  deactivate:function(){},',
     '  renderPanel:function(container){',
+    '    container.innerHTML="";',
+    "    container.style.cssText='flex:1;overflow-y:auto;display:flex;flex-direction:column;min-height:0';",
     '    var p=window.YM&&window.YM.getProfile?window.YM.getProfile():{};',
-    // ── Bouton Add/Remove contact — toujours présent ──
-    '    var _isContact=false;',
-    '    try{var _cts=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");_isContact=_cts.some(function(c){return c.uuid===p.uuid;});}catch(e){}',
-    '    var _ctBar=document.createElement("div");',
-    '    _ctBar.style.cssText="margin:10px 16px 4px";',
-    '    if(_isContact){',
-    '      _ctBar.innerHTML="<div style=\'display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:8px\'><span style=\'color:#30e880;font-size:12px;flex:1\'>✓ In contacts</span><button id=\'ps-rm-ct\' style=\'background:none;border:none;color:#e84040;font-size:11px;cursor:pointer\'>Remove</button></div>";',
+    // Bouton contact
+    '    var _isC=false;',
+    '    try{var _cl=JSON.parse(localStorage.getItem(\"ym_contacts_v1\")||"[]");_isC=_cl.some(function(c){return c.uuid===p.uuid;});}catch(e){}',
+    '    var _ctBar=document.createElement(\"div\");',
+    "    _ctBar.style.cssText='flex-shrink:0;padding:10px 14px 4px';",
+    '    if(_isC){',
+    '      var _ctI=document.createElement(\"div\");',
+    "      _ctI.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(48,232,128,.08);border:1px solid rgba(48,232,128,.25);border-radius:8px';",
+    '      var _ctT=document.createElement(\"span\");',
+    "      _ctT.style.cssText='color:#30e880;font-size:12px;flex:1';",
+    '      _ctT.textContent="\\u2713 In contacts";',
+    '      var _rmB=document.createElement(\"button\");',
+    "      _rmB.style.cssText='background:none;border:none;color:#e84040;font-size:11px;cursor:pointer';",
+    '      _rmB.textContent="Remove";',
+    '      _ctI.appendChild(_ctT);_ctI.appendChild(_rmB);_ctBar.appendChild(_ctI);',
+    '      _rmB.addEventListener(\"click\",function(){',
+    '        try{var _a=JSON.parse(localStorage.getItem(\"ym_contacts_v1\")||"[]");localStorage.setItem(\"ym_contacts_v1\",JSON.stringify(_a.filter(function(c){return c.uuid!==p.uuid;})));if(window.YM_toast)window.YM_toast(\"Contact removed\",\"info\");}catch(e){}',
+    '        container.innerHTML="";window.YM_S['+JSON.stringify(sphereId)+'].renderPanel(container);',
+    '      });',
     '    }else{',
-    '      _ctBar.innerHTML="<button id=\'ps-add-ct\' style=\'width:100%;padding:10px;background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3);border-radius:8px;color:var(--accent,#f0a830);font-size:13px;cursor:pointer;font-weight:600\'>+ Add Contact</button>";',
+    '      var _addB=document.createElement(\"button\");',
+    "      _addB.style.cssText='width:100%;padding:10px;background:rgba(240,168,48,.1);border:1px solid rgba(240,168,48,.3);border-radius:8px;color:var(--accent,#f0a830);font-size:13px;cursor:pointer;font-weight:600';",
+    '      _addB.textContent="+ Add Contact";',
+    '      _ctBar.appendChild(_addB);',
+    '      _addB.addEventListener(\"click\",function(){',
+    '        try{var _a=JSON.parse(localStorage.getItem(\"ym_contacts_v1\")||"[]");if(!_a.find(function(c){return c.uuid===p.uuid;})){_a.push({uuid:p.uuid,nickname:\"\",profile:p});localStorage.setItem(\"ym_contacts_v1\",JSON.stringify(_a));}if(window.YM_toast)window.YM_toast(\"Contact added\",\"success\");}catch(e){}',
+    '        container.innerHTML="";window.YM_S['+JSON.stringify(sphereId)+'].renderPanel(container);',
+    '      });',
     '    }',
     '    container.appendChild(_ctBar);',
-    '    function _reRender(){if(window.YM_S&&window.YM_S['+JSON.stringify(sphereId)+'])window.YM_S['+JSON.stringify(sphereId)+'].renderPanel(container);}',
-    '    var _addBtn=_ctBar.querySelector("#ps-add-ct");',
-    '    if(_addBtn){_addBtn.addEventListener("click",function(){',
-    '      try{var _a=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");if(!_a.find(function(c){return c.uuid===p.uuid;})){_a.push({uuid:p.uuid,nickname:"",profile:p});localStorage.setItem("ym_contacts_v1",JSON.stringify(_a));}if(window.YM_toast)window.YM_toast("Contact added","success");}catch(e){}',
-    '      container.innerHTML="";_reRender();',
-    '    });}',
-    '    var _rmBtn=_ctBar.querySelector("#ps-rm-ct");',
-    '    if(_rmBtn){_rmBtn.addEventListener("click",function(){',
-    '      try{var _a=JSON.parse(localStorage.getItem("ym_contacts_v1")||"[]");localStorage.setItem("ym_contacts_v1",JSON.stringify(_a.filter(function(c){return c.uuid!==p.uuid;})));if(window.YM_toast)window.YM_toast("Contact removed","info");}catch(e){}',
-    '      container.innerHTML="";_reRender();',
-    '    });}',
-    // ── Zone contenu principal ──
-    '    var _main=document.createElement("div");',
+    // Zone principale
+    '    var _main=document.createElement(\"div\");',
+    "    _main.style.cssText='flex:1;overflow-y:auto;min-height:0';",
     '    container.appendChild(_main);',
-  ];
-
-  if(hasCustom){
-    lines=lines.concat([
-      // Exécute le custom code — si erreur → fallback vers vue visiteur standard
-      '    var _customOk=false;',
-      '    try{',
-      '      (function(container){'+cfg.customCode+'})(_main);',
-      '      _customOk=true;',
-      '    }catch(e){',
-      '      console.warn("Profile sphere custom code error:",e.message);',
-      '      _main.innerHTML="";',
-      '    }',
-      '    if(!_customOk&&window._renderProfileView){',
-      '      window._renderProfileView(p,_main);',
-      '    }',
-    ]);
-  }else{
-    lines=lines.concat([
-      // Pas de custom code : vue visiteur standard
-      '    if(window._renderProfileView){window._renderProfileView(p,_main);}',
-    ]);
-  }
-
-  lines=lines.concat([
-    // ── Sections sphères configurées ──
+    customBlock,
+    // Accordéons sphères
     '    var _sc=cfg.sphereConfig||{};',
     '    var _so=cfg.sphereOrder||cfg.spheres||[];',
-    '    var _visible=_so.filter(function(id){var s=_sc[id];return !s||s.visible!==false;});',
-    '    if(_visible.length){',
-    '      var _swrap=document.createElement("div");',
-    '      _swrap.style.cssText="border-top:1px solid rgba(255,255,255,.06);margin-top:8px";',
-    '      _visible.forEach(function(id){',
+    '    var _vis=_so.filter(function(id){var s=_sc[id];return !s||s.visible!==false;});',
+    '    if(_vis.length){',
+    '      var _sw=document.createElement(\"div\");',
+    "      _sw.style.cssText='flex-shrink:0;border-top:1px solid rgba(255,255,255,.06);padding:8px 14px 4px';",
+    '      _vis.forEach(function(id){',
     '        var sc=_sc[id]||{visible:true,autoOpen:false};',
-    '        var sphere=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(id);',
-    '        if(!sphere||(typeof sphere.profileSection!=="function"&&typeof sphere.peerSection!=="function"))return;',
-    '        var hdr=document.createElement("div");',
-    // Note: on utilise des apostrophes dans cssText pour éviter les conflits de quotes
-    "        hdr.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(255,255,255,.02);cursor:pointer';",
-    '        var lbl=id.replace(".sphere.js","");',
-    '        var hdrSpan1=document.createElement("span");',
-    "        hdrSpan1.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);flex:1';",
-    '        hdrSpan1.textContent=lbl;',
-    '        var hdrSpan2=document.createElement("span");',
-    "        hdrSpan2.style.cssText='font-size:11px;color:var(--text3)';",
-    '        hdrSpan2.textContent="▼";',
-    '        hdr.appendChild(hdrSpan1);hdr.appendChild(hdrSpan2);',
-    '        var bd2=document.createElement("div");',
-    "        bd2.style.cssText='padding:12px 14px;display:none';",
-    '        var open2=sc.autoOpen||false;',
-    '        if(open2)bd2.style.display="block";',
-    '        hdrSpan2.textContent=open2?"▲":"▼";',
-    '        hdr.addEventListener("click",function(){',
-    '          open2=!open2;bd2.style.display=open2?"block":"none";hdrSpan2.textContent=open2?"▲":"▼";',
-    '          if(open2&&!bd2.children.length){',
-    '            try{',
-    '              if(typeof sphere.peerSection==="function"){sphere.peerSection(bd2,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});}',
-    '              else if(typeof sphere.profileSection==="function"){sphere.profileSection(bd2);}',
-    '            }catch(e){bd2.textContent=e.message;}',
-    '          }',
-    '        });',
-    // Auto-open au premier rendu si demandé
-    '        if(open2&&!bd2.children.length){',
+    '        var sph=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(id);',
+    '        if(!sph||(typeof sph.profileSection!==\"function\"&&typeof sph.peerSection!==\"function\"))return;',
+    '        var sIcon=(sph.icon)||"\\u29e1";',
+    '        var _iconUrl=sIcon&&(sIcon.startsWith(\"http\")||sIcon.startsWith(\"./\")||sIcon.startsWith(\"/\"));',
+    '        var _hdr=document.createElement(\"div\");',
+    "        _hdr.style.cssText='display:flex;align-items:center;gap:8px;padding:9px 4px;cursor:pointer';",
+    '        var _iEl=_iconUrl?document.createElement(\"img\"):document.createElement(\"span\");',
+    '        if(_iconUrl){_iEl.src=sIcon;_iEl.style.cssText=\"width:18px;height:18px;border-radius:3px;object-fit:contain\";}',
+    '        else{_iEl.style.cssText=\"font-size:15px\";_iEl.textContent=sIcon;}',
+    '        var _lbl=document.createElement(\"span\");',
+    "        _lbl.style.cssText='font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent,#f0a830);flex:1';",
+    '        _lbl.textContent=id.replace(\".sphere.js\",\"\");',
+    '        var _arr=document.createElement(\"span\");',
+    "        _arr.style.cssText='font-size:10px;color:var(--text3,rgba(228,230,244,.26))';",
+    '        var _open=!!(sc.autoOpen);',
+    '        _arr.textContent=_open?\"\\u25b2\":\"\\u25bc\";',
+    '        _hdr.appendChild(_iEl);_hdr.appendChild(_lbl);_hdr.appendChild(_arr);',
+    '        var _bd=document.createElement(\"div\");',
+    '        _bd.style.cssText=\"padding:8px 4px 12px;display:\"+(_open?\"block\":\"none\");',
+    '        function _fill(bd,sph,p){',
+    '          bd.innerHTML=\"\";',
     '          try{',
-    '            if(typeof sphere.peerSection==="function"){sphere.peerSection(bd2,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});}',
-    '            else if(typeof sphere.profileSection==="function"){sphere.profileSection(bd2);}',
-    '          }catch(e){bd2.textContent=e.message;}',
+    '            if(typeof sph.peerSection===\"function\"){sph.peerSection(bd,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});}',
+    '            else{sph.profileSection(bd);}',
+    '          }catch(e){bd.innerHTML=\"<div style=\\\"font-size:11px;color:rgba(228,230,244,.3)\\\">\"+ e.message +\"</div>\";}',
     '        }',
-    '        var acc=document.createElement("div");',
-    "        acc.style.cssText='border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px';",
-    '        acc.appendChild(hdr);acc.appendChild(bd2);',
-    '        _swrap.appendChild(acc);',
+    '        if(_open)_fill(_bd,sph,p);',
+    '        _hdr.addEventListener(\"click\",(function(bd,sph,p,arr,o){return function(){',
+    '          o._v=!o._v;arr.textContent=o._v?\"\\u25b2\":\"\\u25bc\";',
+    '          bd.style.display=o._v?\"block\":\"none\";',
+    '          if(o._v)_fill(bd,sph,p);',
+    '        };}(_bd,sph,p,_arr,{_v:_open})));',
+    '        var _acc=document.createElement(\"div\");',
+    "        _acc.style.cssText='border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden;margin-bottom:6px';",
+    '        _acc.appendChild(_hdr);_acc.appendChild(_bd);_sw.appendChild(_acc);',
     '      });',
-    '      container.appendChild(_swrap);',
+    '      if(_sw.children.length)container.appendChild(_sw);',
     '    }',
     '  },',
     '  profileSection:function(){}',
     '};',
     '})();'
-  ]);
-
-  return lines.join('\n');
+  ];
+  return L.join('\n');
 }
 window.openProfileSphereEditor=openProfileSphereEditor;
 
