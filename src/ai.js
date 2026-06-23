@@ -304,7 +304,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
   function _isGpuContextLostError(e) {
     const msg = String(e && e.message || e || '');
-    return /Instance reference no longer exists|device.*lost|GPUDevice|lost.*context/i.test(msg);
+    return /Instance reference no longer exists|device.*lost|GPUDevice|lost.*context|already.*disposed|object.*disposed/i.test(msg);
+  }
+
+  function _resetWebllmState() {
+    _webllmReady = false;
+    _webllmEngine = null;
+    window.__webllm = null;
   }
 
   async function _createEngine(onProgress) {
@@ -372,6 +378,28 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
   // ── GENERATION ────────────────────────────────────────────────
   // 1. Ollama (desktop) → 2. Lemonade (desktop) → 3. WebLLM Q4 (universal, auto-load)
+  // ── CAPABILITY PREFLIGHT ─────────────────────────────────────
+  // We cannot guarantee WebGPU survives a full generation on mobile — the
+  // OS can suspend a backgrounded tab regardless of Wake Lock, throttle
+  // thermally, or simply not have enough free memory for a ~900MB model.
+  // What we CAN do is detect upfront when conditions are clearly bad and
+  // say so honestly, instead of letting the person wait through a failed
+  // download/load.
+  function checkWebGpuSupport() {
+    if (typeof navigator === 'undefined' || !navigator.gpu) {
+      return { supported: false, reason: 'WebGPU is not available in this browser. On iOS this needs a recent Safari; on Android, a recent Chrome.' };
+    }
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    const mem = navigator.deviceMemory; // not available on iOS, rough hint on Android/Chrome
+    if (isMobile && typeof mem === 'number' && mem <= 2) {
+      return { supported: true, risky: true, reason: 'This device reports ~' + mem + 'GB RAM — local AI generation may fail or be very slow. Ollama/Lemonade on a desktop is more reliable.' };
+    }
+    if (isMobile) {
+      return { supported: true, risky: true, reason: 'Mobile WebGPU generation can be interrupted if the OS backgrounds the tab. Keep this tab in the foreground and the screen on during generation.' };
+    }
+    return { supported: true, risky: false };
+  }
+
   async function detectEngine() {
     // 1. Ollama
     try {
@@ -391,14 +419,18 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         return { type: 'lemonade', label: 'Lemonade (local)', models: models.length ? models : ['default'] };
       }
     } catch {}
-    // 3. WebLLM — always available, loads on demand
-    const label = _webllmReady ? 'WebLLM ' + WEBLLM_MODEL : 'WebLLM (loading on first use…)';
-    return { type: 'webllm', label, models: ['webllm'] };
+    // 3. WebLLM — check capability before claiming it's "always available"
+    const gpu = checkWebGpuSupport();
+    if (!gpu.supported) {
+      return { type: 'unsupported', label: 'No local AI engine available on this device', models: [], reason: gpu.reason };
+    }
+    const label = _webllmReady ? 'WebLLM ' + WEBLLM_MODEL : 'WebLLM (loading on first use…)' + (gpu.risky ? ' ⚠' : '');
+    return { type: 'webllm', label, models: ['webllm'], risky: gpu.risky, riskyReason: gpu.reason };
   }
 
-  async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress) {
+  async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, _isRetry) {
     if (engine.type === 'webllm') {
-      // Auto-load if not ready
+      // Auto-load if not ready (or reload if a previous run disposed the engine)
       const llm = await initWebLLM(onProgress);
       if (!llm) throw new Error('WebLLM failed to initialize');
       // Generation itself can take a while too — keep the screen on so the
@@ -414,7 +446,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           });
         } catch (e) {
           if (_isGpuContextLostError(e)) {
-            throw new Error('GPU context was lost (screen turned off during generation?). Reopen the AI tab and try again — keep the screen on this time.');
+            _resetWebllmState();
+            if (!_isRetry) {
+              if (onProgress) onProgress({ text: 'Engine was disposed (background/screen-off) — reloading and retrying…', progress: 0 });
+              yield* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, true);
+              return;
+            }
+            throw new Error('The AI engine keeps getting disposed by the OS. Reopen the AI tab, keep this tab in the foreground with the screen on, and try again.');
           }
           throw e;
         }
@@ -425,7 +463,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           }
         } catch (e) {
           if (_isGpuContextLostError(e)) {
-            throw new Error('GPU context was lost mid-generation (screen turned off?). Reopen the AI tab and try again — keep the screen on this time.');
+            _resetWebllmState();
+            throw new Error('GPU context was lost mid-generation (screen turned off or app backgrounded?). The partial output above was lost — reopen the AI tab and try again, keeping the screen on.');
           }
           throw e;
         }
@@ -466,6 +505,9 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         }
       }
       return;
+    }
+    if (engine.type === 'unsupported') {
+      throw new Error(engine.reason || 'No AI engine available on this device. Install Lemonade or Ollama, or use a browser with WebGPU support.');
     }
     throw new Error('No engine available. Install Lemonade or Ollama, or enable WebGPU.');
   }
@@ -565,11 +607,14 @@ Output ONLY that JSON line. Do not write code yet.`;
     const engRow = document.createElement('div');
     engRow.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
     body.appendChild(engRow);
+    const warnRow = document.createElement('div');
+    warnRow.style.cssText = 'display:none;padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
+    body.appendChild(warnRow);
 
     let _specStatus = 'loading'; // loading | ok | fallback
 
     function updateEngBadge() {
-      const ok = _engine.type !== 'none';
+      const ok = _engine.type !== 'none' && _engine.type !== 'unsupported';
       const specLabel = _specStatus === 'ok' ? 'spec ✓' : (_specStatus === 'fallback' ? 'spec: fallback' : 'spec…');
       engRow.innerHTML =
         '<div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:' + (ok ? 'var(--green)' : 'var(--red)') + '"></div>' +
@@ -580,6 +625,17 @@ Output ONLY that JSON line. Do not write code yet.`;
           _engine.models.map(m => '<option value="' + esc(m) + '"' + (m === _model ? ' selected' : '') + '>' + esc(m) + '</option>').join('') +
           '</select>' : '');
       body.querySelector('#ai-model')?.addEventListener('change', e => { _model = e.target.value; });
+
+      if (_engine.type === 'unsupported') {
+        warnRow.style.display = '';
+        warnRow.innerHTML = '<div class="ym-notice error" style="font-size:10px">✗ ' + esc(_engine.reason || 'No AI engine available on this device.') + '</div>';
+        body.querySelector('#ai-generate') && (body.querySelector('#ai-generate').disabled = true);
+      } else if (_engine.type === 'webllm' && _engine.risky && !_webllmReady) {
+        warnRow.style.display = '';
+        warnRow.innerHTML = '<div class="ym-notice warn" style="font-size:10px">⚠ ' + esc(_engine.riskyReason || 'Mobile generation can be unreliable.') + '</div>';
+      } else {
+        warnRow.style.display = 'none';
+      }
     }
 
     detectEngine().then(eng => {
@@ -706,6 +762,18 @@ Output ONLY that JSON line. Do not write code yet.`;
       let fullCode = '';
       let tokenCount = 0;
       const t0 = Date.now();
+      let _gotFirstChunk = false;
+
+      // Heartbeat: without this, the UI looks frozen during the gap between
+      // "model loaded" and "first token arrives" (the model is processing
+      // the system prompt + retrieved examples, which can take a while on
+      // a 1.5B model on a phone CPU/GPU). This makes it visibly alive.
+      const heartbeat = setInterval(() => {
+        if (_gotFirstChunk) return;
+        if (_engine.type === 'webllm' && !_webllmReady) return; // download progress owns the text during load
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (no output yet is normal here)</span>';
+      }, 1000);
 
       try {
         const gen = sectioned && _type === 'sphere'
@@ -713,20 +781,26 @@ Output ONLY that JSON line. Do not write code yet.`;
           : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
 
         for await (const chunk of gen) {
+          _gotFirstChunk = true;
           fullCode += chunk;
           tokenCount++;
           outEl.value = fullCode;
           outEl.scrollTop = outEl.scrollHeight;
           charsEl.textContent = fullCode.length + ' chars';
-          if (tokenCount % 20 === 0) {
+          if (tokenCount % 5 === 0) {
             const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-            progEl.textContent = fullCode.length + ' chars · ' + elapsed + 's';
+            progEl.textContent = '⚡ Generating… ' + fullCode.length + ' chars · ' + elapsed + 's';
           }
         }
+        clearInterval(heartbeat);
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's — ' + fullCode.length + ' chars</span>';
+        if (!fullCode) {
+          progEl.innerHTML = '<span style="color:var(--red)">✗ Model returned no output after ' + elapsed + 's — try again or shorten the prompt</span>';
+        } else {
+          progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's — ' + fullCode.length + ' chars</span>';
+        }
 
-        if (_type === 'sphere') {
+        if (_type === 'sphere' && fullCode) {
           const issues = validateSphereCode(fullCode, filename);
           if (issues.length) {
             valEl.innerHTML = '<span style="color:var(--red)">⚠ ' + issues.map(esc).join(' · ') + '</span>';
@@ -734,8 +808,9 @@ Output ONLY that JSON line. Do not write code yet.`;
             valEl.innerHTML = '<span style="color:var(--green)">✓ Structure looks valid</span>';
           }
         }
-        toast('Code generated!', 'success');
+        if (fullCode) toast('Code generated!', 'success');
       } catch (e) {
+        clearInterval(heartbeat);
         progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + '</span>';
         toast(e.message, 'error');
       } finally {
