@@ -269,14 +269,38 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   let _webllmEngine = null;
   let _webllmProgress = null; // callback for progress updates
   let _wakeLock = null;
+  let _webllmWorker = null;
+
+  // Run inference in a dedicated Web Worker instead of the main thread.
+  // Why: when a tab is backgrounded, browsers throttle the main thread
+  // heavily (timers slowed/paused), which is what breaks generation when
+  // you switch tabs or minimize the browser. A Worker is NOT throttled the
+  // same way on desktop and most Android browsers, so generation keeps
+  // running while you're elsewhere in the app or in another tab.
+  // Honest limit: this does NOT survive the OS fully suspending the browser
+  // app itself (screen off, app swiped away, iOS backgrounding) — that is
+  // an OS-level suspension no web page can override.
+  function _createWorker() {
+    const code = `
+      import * as webllm from '${WEBLLM_CDN}';
+      const handler = new webllm.WebWorkerMLCEngineHandler();
+      self.onmessage = (msg) => { handler.onmessage(msg); };
+    `;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url, { type: 'module' });
+    worker.addEventListener('error', (e) => console.error('[YM AI] worker error:', e.message));
+    return worker;
+  }
 
   // On mobile, the screen turning off (or the tab being backgrounded) while
   // the ~900MB model downloads can cause the browser to tear down the
   // WebGPU device/instance. When that happens, WebLLM throws something like
   // "A valid external Instance reference no longer exists" once the screen
   // comes back — not a bug in our code, a lost GPU context. We mitigate by
-  // (1) holding a screen wake lock during load, and (2) detecting the lost
-  // engine and transparently recreating it once instead of crashing.
+  // (1) holding a screen wake lock during load, (2) running in a Worker so
+  // backgrounding the tab itself doesn't throttle generation, and
+  // (3) detecting the lost engine and transparently recreating it once.
   async function _acquireWakeLock() {
     try {
       if ('wakeLock' in navigator) {
@@ -311,18 +335,22 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     _webllmReady = false;
     _webllmEngine = null;
     window.__webllm = null;
+    try { _webllmWorker?.terminate(); } catch {}
+    _webllmWorker = null;
   }
 
   async function _createEngine(onProgress) {
     if (_webllmProgress !== onProgress) _webllmProgress = onProgress || null;
-    if (_webllmProgress) _webllmProgress({ text: 'Initializing engine…', progress: 0 });
-    const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
+    if (_webllmProgress) _webllmProgress({ text: 'Initializing engine (worker)…', progress: 0 });
+    if (!_webllmWorker) _webllmWorker = _createWorker();
+    const engine = await window.webllm.CreateWebWorkerMLCEngine(_webllmWorker, WEBLLM_MODEL, {
       initProgressCallback: (p) => {
         if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress });
       },
     });
     return engine;
   }
+
 
   async function initWebLLM(onProgress, _isRetry) {
     if (_webllmReady && _webllmEngine) return _webllmEngine;
@@ -406,7 +434,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       return { supported: true, risky: true, reason: 'This device reports ~' + mem + 'GB RAM — local AI generation may fail or be very slow. Ollama/Lemonade on a desktop is more reliable.' };
     }
     if (isMobile) {
-      return { supported: true, risky: true, reason: 'Mobile WebGPU generation can be interrupted if the OS backgrounds the tab. Keep this tab in the foreground and the screen on during generation.' };
+      return { supported: true, risky: true, reason: 'Generation runs in a background worker, so switching tabs is fine — but locking the screen or closing the app can still interrupt it (OS-level, outside the browser\'s control).' };
     }
     return { supported: true, risky: false };
   }
