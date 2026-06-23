@@ -268,16 +268,67 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   let _webllmReady = false;
   let _webllmEngine = null;
   let _webllmProgress = null; // callback for progress updates
+  let _wakeLock = null;
 
-  async function initWebLLM(onProgress) {
+  // On mobile, the screen turning off (or the tab being backgrounded) while
+  // the ~900MB model downloads can cause the browser to tear down the
+  // WebGPU device/instance. When that happens, WebLLM throws something like
+  // "A valid external Instance reference no longer exists" once the screen
+  // comes back — not a bug in our code, a lost GPU context. We mitigate by
+  // (1) holding a screen wake lock during load, and (2) detecting the lost
+  // engine and transparently recreating it once instead of crashing.
+  async function _acquireWakeLock() {
+    try {
+      if ('wakeLock' in navigator) {
+        _wakeLock = await navigator.wakeLock.request('screen');
+        _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+      }
+    } catch (e) {
+      // Wake lock can fail (denied, unsupported, low battery) — non-fatal
+      console.warn('[YM AI] wake lock unavailable:', e.message);
+    }
+  }
+  function _releaseWakeLock() {
+    try { _wakeLock?.release(); } catch {}
+    _wakeLock = null;
+  }
+  // Re-acquire if the page becomes visible again mid-load (some browsers
+  // auto-release the lock when backgrounded, then allow re-acquiring).
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && _webllmLoading && !_wakeLock) {
+        _acquireWakeLock();
+      }
+    });
+  }
+
+  function _isGpuContextLostError(e) {
+    const msg = String(e && e.message || e || '');
+    return /Instance reference no longer exists|device.*lost|GPUDevice|lost.*context/i.test(msg);
+  }
+
+  async function _createEngine(onProgress) {
+    if (_webllmProgress !== onProgress) _webllmProgress = onProgress || null;
+    if (_webllmProgress) _webllmProgress({ text: 'Initializing engine…', progress: 0 });
+    const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
+      initProgressCallback: (p) => {
+        if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress });
+      },
+    });
+    return engine;
+  }
+
+  async function initWebLLM(onProgress, _isRetry) {
     if (_webllmReady && _webllmEngine) return _webllmEngine;
-    if (_webllmLoading) {
+    if (_webllmLoading && !_isRetry) {
       // Wait for existing load
       await new Promise(r => { const iv = setInterval(() => { if (!_webllmLoading) { clearInterval(iv); r(); } }, 300); });
-      return _webllmEngine;
+      if (_webllmReady) return _webllmEngine;
+      // If the load that just finished failed (e.g. lost context), fall through and retry.
     }
     _webllmLoading = true;
     _webllmProgress = onProgress || null;
+    await _acquireWakeLock();
     try {
       // Load WebLLM from CDN
       if (!window.webllm) {
@@ -294,18 +345,28 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           setTimeout(() => reject(new Error('WebLLM CDN timeout')), 30000);
         });
       }
-      if (_webllmProgress) _webllmProgress({ text: 'Initializing engine…', progress: 0 });
-      const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
-        initProgressCallback: (p) => {
-          if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress });
-        },
-      });
+      let engine;
+      try {
+        engine = await _createEngine(onProgress);
+      } catch (e) {
+        if (_isGpuContextLostError(e) && !_isRetry) {
+          // Screen-off / backgrounding likely killed the GPU context mid-load.
+          // Reset state and retry once, now that the page is visible again.
+          console.warn('[YM AI] GPU context lost during load, retrying once…');
+          _webllmEngine = null; _webllmReady = false;
+          if (onProgress) onProgress({ text: 'GPU context lost (screen off?) — retrying…', progress: 0 });
+          _webllmLoading = false;
+          return await initWebLLM(onProgress, true);
+        }
+        throw e;
+      }
       _webllmEngine = engine;
       window.__webllm = engine;
       _webllmReady = true;
       return engine;
     } finally {
       _webllmLoading = false;
+      _releaseWakeLock();
     }
   }
 
@@ -340,13 +401,36 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       // Auto-load if not ready
       const llm = await initWebLLM(onProgress);
       if (!llm) throw new Error('WebLLM failed to initialize');
-      const stream = await llm.chat.completions.create({
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-        temperature: 0.3, max_tokens: 4096, stream: true,
-      });
-      for await (const chunk of stream) {
-        const d = chunk.choices?.[0]?.delta?.content || '';
-        if (d) yield d;
+      // Generation itself can take a while too — keep the screen on so the
+      // GPU context doesn't get torn down mid-stream the same way it can
+      // during the initial model download.
+      await _acquireWakeLock();
+      try {
+        let stream;
+        try {
+          stream = await llm.chat.completions.create({
+            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+            temperature: 0.3, max_tokens: 4096, stream: true,
+          });
+        } catch (e) {
+          if (_isGpuContextLostError(e)) {
+            throw new Error('GPU context was lost (screen turned off during generation?). Reopen the AI tab and try again — keep the screen on this time.');
+          }
+          throw e;
+        }
+        try {
+          for await (const chunk of stream) {
+            const d = chunk.choices?.[0]?.delta?.content || '';
+            if (d) yield d;
+          }
+        } catch (e) {
+          if (_isGpuContextLostError(e)) {
+            throw new Error('GPU context was lost mid-generation (screen turned off?). Reopen the AI tab and try again — keep the screen on this time.');
+          }
+          throw e;
+        }
+      } finally {
+        _releaseWakeLock();
       }
       return;
     }
@@ -606,7 +690,7 @@ Output ONLY that JSON line. Do not write code yet.`;
       outEl.value = '';
       charsEl.textContent = '0 chars';
       valEl.textContent = '';
-      progEl.textContent = _engine.type === 'webllm' && !_webllmReady ? 'Loading AI model (first time ~1GB)…' : 'Starting…';
+      progEl.textContent = _engine.type === 'webllm' && !_webllmReady ? 'Loading AI model (first time ~1GB) — keep screen on…' : 'Starting…';
 
       // Progress callback for WebLLM download
       function onProgress(p) {
