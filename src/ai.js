@@ -221,11 +221,19 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     if (!queryTokens.size) return [];
 
     const scored = files.map(f => {
-      const haystack = [f.name, f.filename, f.description, f.category].filter(Boolean).join(' ');
-      const hTokens = tokenize(haystack);
+      // Real files.json entries are often missing name/description/category
+      // (older merges, before merge.js's metadata extraction landed, or
+      // extraction failed silently). filename is the one field guaranteed
+      // to exist, so it's weighted highest; the rest are bonus signal.
+      const filenameStem = (f.filename || '').replace(/\.sphere\.js$/, '').replace(/[-_]/g, ' ');
+      const fnTokens = tokenize(filenameStem);
+      const metaTokens = tokenize([f.name, f.description, f.category].filter(Boolean).join(' '));
+
       let score = 0;
-      hTokens.forEach(t => { if (queryTokens.has(t)) score++; });
-      if (category && (f.category || '').toLowerCase() === category.toLowerCase()) score += 2;
+      fnTokens.forEach(t => { if (queryTokens.has(t)) score += 3; });   // filename match = strong signal
+      metaTokens.forEach(t => { if (queryTokens.has(t)) score += 1; }); // metadata match = weaker, often absent
+      if (category && f.category && f.category.toLowerCase() === category.toLowerCase()) score += 2;
+
       return { f, score };
     }).filter(s => s.score > 0).sort((a, b) => b.score - a.score).slice(0, topK);
 
