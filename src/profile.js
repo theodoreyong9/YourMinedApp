@@ -603,7 +603,19 @@ function renderPeerProfile(container,profile){
     var mySpheres=(window.YM&&window.YM.getProfile&&window.YM.getProfile().spheres)||[];
     var shared=profile.spheres.filter(function(s){return mySpheres.includes(s);});
     var others=profile.spheres.filter(function(s){return!mySpheres.includes(s);});
-    // ── CORRECTIF : on passe le profil complet dans le contexte ──
+    // ── Enrichir profile.broadcastData avec les données locales des sphères actives ──
+    // En preview (Before/After) le profil n'a pas de broadcastData car pas reçu via P2P.
+    // On le reconstruit en appelant broadcastData() sur chaque sphère active localement.
+    if(!profile.broadcastData){
+      var _bd={};
+      (profile.spheres||[]).forEach(function(sf){
+        var sph=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sf);
+        if(sph&&typeof sph.broadcastData==='function'){
+          try{var d=sph.broadcastData();if(d)_bd[sf]=d;}catch(e){}
+        }
+      });
+      if(Object.keys(_bd).length) profile=Object.assign({},profile,{broadcastData:_bd});
+    }
     var ctx={uuid:profile.uuid,isNear:isNear,isReciproc:isReciproc,profile:profile};
     if(shared.length){var st2=document.createElement('div');st2.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin:12px 0 6px';st2.textContent='Spheres in common';container.appendChild(st2);shared.forEach(function(sf){_renderPeerAccordion(container,sf,ctx);});}
     if(others.length){var ot=document.createElement('div');ot.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';ot.textContent='Other spheres';container.appendChild(ot);
@@ -625,8 +637,18 @@ function _renderPeerAccordion(container,sphereFile,ctx){
   hdr.innerHTML=iconHtml+'<span style="font-size:12px;font-weight:600;flex:1">'+sphereName+'</span><span class="acc-arrow" style="font-size:10px;color:var(--text3)">›</span>';
   var body=document.createElement('div');body.style.cssText='display:none;padding:10px 12px;border-top:1px solid var(--border)';
   hdr.addEventListener('click',function(){
-    var open=body.style.display!=='none';body.style.display=open?'none':'block';hdr.querySelector('.acc-arrow').textContent=open?'›':'⌄';
-    if(!open&&!body.children.length){if(sphereObj&&typeof sphereObj.peerSection==='function'){try{sphereObj.peerSection(body,ctx);}catch(e){body.innerHTML='<div style="color:var(--text3);font-size:11px">'+e.message+'</div>';}}else{body.innerHTML='<div style="font-size:11px;color:var(--text2)">'+(sphereObj&&sphereObj.description||'No interactions available')+'</div>';}}
+    var open=body.style.display!=='none';
+    body.style.display=open?'none':'block';
+    hdr.querySelector('.acc-arrow').textContent=open?'›':'⌄';
+    if(!open){
+      body.innerHTML='';
+      if(sphereObj&&typeof sphereObj.peerSection==='function'){
+        try{sphereObj.peerSection(body,ctx);}
+        catch(e){body.innerHTML='<div style="color:var(--text3);font-size:11px">'+e.message+'</div>';}
+      }else{
+        body.innerHTML='<div style="font-size:11px;color:var(--text2)">'+(sphereObj&&sphereObj.description||'No interactions available')+'</div>';
+      }
+    }
   });
   wrap.appendChild(hdr);wrap.appendChild(body);container.appendChild(wrap);
 }
@@ -655,6 +677,9 @@ function openProfileSphereEditor(){
     sections:['identity','spheres','networks','bio'],
     customCode:''
   };
+  // S'assurer que sphereOrder et sphereConfig sont initialisés
+  if(!config.sphereOrder||!config.sphereOrder.length) config.sphereOrder=(p.spheres||[]).slice();
+  if(!config.sphereConfig) config.sphereConfig={};
 
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.9);display:flex;flex-direction:column;overflow:hidden';
@@ -717,7 +742,9 @@ function openProfileSphereEditor(){
     if(!spEl) return;
     spEl.innerHTML='';
     config.sphereConfig=config.sphereConfig||{};
-    var activeSpheres=p.spheres||[];
+    // config.sphereOrder est la source de vérité pour l'ordre
+    if(!config.sphereOrder||!config.sphereOrder.length) config.sphereOrder=(p.spheres||[]).slice();
+    var activeSpheres=config.sphereOrder;
     if(!activeSpheres.length){
       var _empty=document.createElement('div');_empty.style.cssText='font-size:11px;color:var(--text3)';_empty.textContent='No active spheres';spEl.appendChild(_empty);
       return;
@@ -751,24 +778,34 @@ function openProfileSphereEditor(){
       var upBtn=document.createElement('button');upBtn.textContent='↑';upBtn.style.cssText='background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px';
       var dnBtn=document.createElement('button');dnBtn.textContent='↓';dnBtn.style.cssText='background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 3px';
       row.appendChild(lblEl);row.appendChild(showEl);row.appendChild(autoEl);row.appendChild(upBtn);row.appendChild(dnBtn);
-      showEl.onclick=function(){sc.visible=!sc.visible;renderSpheresConfig();};
-      autoEl.onclick=function(){sc.autoOpen=!sc.autoOpen;renderSpheresConfig();};
-      upBtn.onclick=function(){if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
-      dnBtn.onclick=function(){if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;renderSpheresConfig();}};
+      showEl.onclick=function(){
+        sc.visible=!sc.visible;
+        config.sphereConfig[id]=sc;
+        renderSpheresConfig();
+      };
+      autoEl.onclick=function(){
+        sc.autoOpen=!sc.autoOpen;
+        config.sphereConfig[id]=sc;
+        renderSpheresConfig();
+      };
+      upBtn.onclick=function(){if(i>0){activeSpheres.splice(i-1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;config.sphereOrder=activeSpheres.slice();renderSpheresConfig();}};
+      dnBtn.onclick=function(){if(i<activeSpheres.length-1){activeSpheres.splice(i+1,0,activeSpheres.splice(i,1)[0]);p.spheres=activeSpheres;config.sphereOrder=activeSpheres.slice();renderSpheresConfig();}};
       spEl.appendChild(row);
     });
   }
   renderSpheresConfig(); // renderSections appelle renderSpheresConfig
 
   function collectConfig(){
+    // sphereOrder = ordre courant des sphères (modifié par ↑↓ dans renderSpheresConfig)
+    var currentOrder=config.sphereOrder&&config.sphereOrder.length?config.sphereOrder:(p.spheres||[]);
     return {
       uuid:uuid,name:name,
       keywords:ov.querySelector('#pse-keywords').value.split(',').map(function(k){return k.trim();}).filter(Boolean),
-      bio:p.bio||'',pubkey:p.pubkey||'',spheres:p.spheres||[],
+      bio:p.bio||'',pubkey:p.pubkey||'',spheres:currentOrder.slice(),
       accent:ov.querySelector('#pse-accent').value,
       sections:config.sections.slice(),
-      sphereConfig:config.sphereConfig||{},
-      sphereOrder:p.spheres||[],
+      sphereConfig:JSON.parse(JSON.stringify(config.sphereConfig||{})),
+      sphereOrder:currentOrder.slice(),
       autoOpen:config.autoOpen||[],
       customCode:ov.querySelector('#pse-code').value
     };
@@ -862,26 +899,35 @@ function openProfileSphereEditor(){
   };
 
   ov.querySelector('#pse-before').onclick=function(){
-    // Before = vue visiteur actuelle SANS customCode — renderPeerProfile standard
-    ov.style.display='none';
+    // Before = vue visiteur standard dans un overlay dédié par-dessus l'éditeur
     var myProfile=window.YM&&window.YM.getProfile?window.YM.getProfile():{};
-    // Ouvrir panel-profile-view avec renderPeerProfile (vue telle qu'un contact la voit)
-    var pvBody=document.getElementById('panel-profile-view-body');
-    var pvPanel=document.getElementById('panel-profile-view');
-    if(pvBody&&pvPanel&&window._renderProfileView){
-      pvBody.innerHTML='';
-      window._renderProfileView(pvBody,myProfile);
-      pvPanel.classList.add('open');
-      var _check=setInterval(function(){
-        if(!pvPanel.classList.contains('open')){clearInterval(_check);ov.style.display='flex';}
-      },400);
+    var prevOv=document.getElementById('pse-before-overlay');
+    if(prevOv)prevOv.remove();
+    var bOv=document.createElement('div');
+    bOv.id='pse-before-overlay';
+    bOv.style.cssText='position:fixed;inset:0;z-index:3100;background:var(--bg,#08080f);display:flex;flex-direction:column;overflow:hidden';
+    // Header avec bouton fermer
+    var bHead=document.createElement('div');
+    bHead.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0';
+    var bTitle=document.createElement('span');
+    bTitle.style.cssText='font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;flex:1';
+    bTitle.textContent='Before — Visitor view';
+    var bClose=document.createElement('button');
+    bClose.className='ym-btn ym-btn-ghost';
+    bClose.style.cssText='padding:4px 12px;font-size:12px';
+    bClose.textContent='✕ Close';
+    bClose.onclick=function(){bOv.remove();};
+    bHead.appendChild(bTitle);bHead.appendChild(bClose);
+    bOv.appendChild(bHead);
+    // Corps : renderPeerProfile
+    var bBody=document.createElement('div');
+    bBody.style.cssText='flex:1;overflow-y:auto;min-height:0';
+    bOv.appendChild(bBody);
+    document.body.appendChild(bOv);
+    if(window._renderProfileView){
+      window._renderProfileView(bBody,myProfile);
     }else{
-      // Fallback : openProfilePanel standard
-      window.YM&&window.YM.openProfilePanel&&window.YM.openProfilePanel(myProfile);
-      var _check2=setInterval(function(){
-        var panel=document.getElementById('panel-profile-view')||document.getElementById('panel-sphere');
-        if(!panel||!panel.classList.contains('open')){clearInterval(_check2);ov.style.display='flex';}
-      },400);
+      bBody.innerHTML='<div style="padding:20px;color:var(--text3);font-size:12px">_renderProfileView not available</div>';
     }
   };
 
@@ -1132,6 +1178,14 @@ function _generateProfileSphere(cfg){
     '    _bd.style.display=_open?"block":"none";',
     '    function _fill(bd,sph,p){',
     '      bd.innerHTML="";',
+    '      if(!p.broadcastData){',
+    '        var _bdd={};',
+    '        (p.spheres||[]).forEach(function(sf){',
+    '          var _s2=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sf);',
+    '          if(_s2&&typeof _s2.broadcastData==="function"){try{var _dd=_s2.broadcastData();if(_dd)_bdd[sf]=_dd;}catch(_ee){}}',
+    '        });',
+    '        if(Object.keys(_bdd).length)p=Object.assign({},p,{broadcastData:_bdd});',
+    '      }',
     '      try{',
     '        if(typeof sph.peerSection==="function"){',
     '          sph.peerSection(bd,{uuid:p.uuid,isNear:true,isReciproc:true,profile:p});',
