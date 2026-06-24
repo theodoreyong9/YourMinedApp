@@ -935,66 +935,66 @@ function openProfileSphereEditor(){
     var cfg=collectConfig();
     localStorage.setItem(PROF_KEY,JSON.stringify(cfg));
     var status=ov.querySelector('#pse-status');
-    status.textContent='';
+    status.textContent='Generating…';
+    // Générer le code
     var code;
     try{code=_generateProfileSphere(cfg);}catch(genErr){
-      status.textContent='Code generation error: '+genErr.message;
-      console.error('_generateProfileSphere error:',genErr);
+      status.textContent='Generation error: '+genErr.message;
       return;
     }
     var sphereId=cfg.uuid+'.profile.js';
-    // Supprimer ancien script preview
+    // Exécuter le code dans le contexte page pour enregistrer la sphere
     var oldScript=document.getElementById('pse-preview-script');
     if(oldScript)oldScript.remove();
-    // Exécuter le code généré dans un bloc try/catch visible
     var script=document.createElement('script');
     script.id='pse-preview-script';
-    // Wrapper: attrape les erreurs de syntaxe/runtime du code généré
-    script.textContent='(function(){try{'+code+'}catch(_genErr){window._pse_gen_error=_genErr;console.error("Generated sphere error:",_genErr);}})();';
+    script.textContent=code; // pas de wrapper — on veut que window.YM_S soit assigné proprement
     document.head.appendChild(script);
     setTimeout(function(){
-      if(window._pse_gen_error){
-        status.textContent='Sphere error: '+window._pse_gen_error.message;
-        console.error('Generated code error:',window._pse_gen_error);
-        delete window._pse_gen_error;
-        return;
-      }
       var s=window.YM_S&&window.YM_S[sphereId];
       if(!s){
-        // Chercher par isProfileSphere si l'UUID a changé
         Object.keys(window.YM_S||{}).forEach(function(k){
-          if(window.YM_S[k].isProfileSphere&&!s)s=window.YM_S[k];
+          if(window.YM_S[k]&&window.YM_S[k].isProfileSphere&&!s)s=window.YM_S[k];
         });
       }
       if(!s){
-        status.textContent='Preview failed — check console';
-        console.error('Generated code (debug):', code.slice(0,500));
+        status.textContent='Preview failed — sphere not registered';
+        console.error('Generated code:', code.slice(0,800));
         return;
       }
-      if(window.YM_sphereRegistry)window.YM_sphereRegistry.set(sphereId,s);
-      ov.style.display='none';
-      // Ouvrir le panel sphere avec la sphere générée
-      if(window.YM&&window.YM.openSpherePanel){
-        window.YM.openSpherePanel(sphereId);
-      }else{
-        // Fallback: render direct dans panel-sphere-body
-        var panelBody=document.getElementById('panel-sphere-body');
-        var panel=document.getElementById('panel-sphere');
-        if(panelBody&&s.renderPanel){
-          panelBody.innerHTML='';
-          s.renderPanel(panelBody);
-          if(panel)panel.classList.add('open');
-        }
+      status.textContent='';
+      // ── Overlay After — même pattern que Before, on contrôle le container ──
+      var prevOv=document.getElementById('pse-after-overlay');
+      if(prevOv)prevOv.remove();
+      var aOv=document.createElement('div');
+      aOv.id='pse-after-overlay';
+      aOv.style.cssText='position:fixed;inset:0;z-index:3100;background:var(--bg,#08080f);display:flex;flex-direction:column;overflow:hidden';
+      // Header
+      var aHead=document.createElement('div');
+      aHead.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0';
+      var aTitle=document.createElement('span');
+      aTitle.style.cssText='font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;flex:1';
+      aTitle.textContent='After — Profile sphere preview';
+      var aClose=document.createElement('button');
+      aClose.className='ym-btn ym-btn-ghost';
+      aClose.style.cssText='padding:4px 12px;font-size:12px';
+      aClose.textContent='✕ Close';
+      aClose.onclick=function(){aOv.remove();};
+      aHead.appendChild(aTitle);aHead.appendChild(aClose);
+      aOv.appendChild(aHead);
+      // Corps : renderPanel de la sphere générée
+      var aBody=document.createElement('div');
+      aBody.style.cssText='flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0';
+      aOv.appendChild(aBody);
+      document.body.appendChild(aOv);
+      // Appeler renderPanel avec le container qu'on contrôle
+      try{
+        s.renderPanel(aBody);
+      }catch(renderErr){
+        aBody.innerHTML='<div style="padding:16px;font-size:12px;color:#e84040">Render error: '+renderErr.message+'</div>';
+        console.error('renderPanel error:', renderErr);
       }
-      var _check=setInterval(function(){
-        var panel=document.getElementById('panel-sphere');
-        if(!panel||!panel.classList.contains('open')){
-          clearInterval(_check);
-          ov.style.display='flex';
-          status.textContent='';
-        }
-      },400);
-    },150);
+    },100);
   };
 
   ov.querySelector('#pse-publish').onclick=async function(){
