@@ -56,6 +56,31 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
+  // ── DRAFT PERSISTENCE ────────────────────────────────────────
+  // Saved at every section boundary (not mid-section — that would need
+  // exact token-level resume, not worth the complexity). On reload, if a
+  // draft exists, the UI offers "Continue" to resume from the last
+  // completed section instead of starting over from scratch.
+  const DRAFT_KEY = 'ym_ai_draft_v1';
+
+  function saveDraft(partial) {
+    try {
+      const existing = loadDraftRaw() || {};
+      const merged = Object.assign({}, existing, partial, { ts: Date.now() });
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(merged));
+    } catch (e) { /* storage full/unavailable — non-fatal, just no resume */ }
+  }
+  function loadDraftRaw() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+  }
+
+
   // ── YM_SPEC LOADING ──────────────────────────────────────────
   // ym-spec.json is generated offline by mine-patterns.js from the real
   // repo's *.sphere.js / *.theme.html files. It replaces a hand-written
@@ -583,7 +608,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // on-device was the direct cause of long generations crashing/timing out.
   // Splitting into short, separately-completed sections means each call
   // finishes faster, and if one call fails only that section is lost —
-  // not the whole file.
+  // not the whole file. onSection lets the UI render each block as it
+  // starts/streams/finishes, instead of one opaque blob of text.
   const SECTION_PLAN_SUFFIX = `
 
 Before writing any code, first output a single line of JSON describing the sections you will write, like:
@@ -607,18 +633,38 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
     return null; // fall back to single-shot
   }
 
-  async function* sectionedGenerate(engine, model, systemPrompt, userPrompt, filename, onProgress) {
-    const sections = await planSections(engine, model, systemPrompt, userPrompt);
-    if (!sections) {
-      // Fallback: single-shot generation (still capped at DEFAULT_MAX_TOKENS)
-      yield* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress);
-      return;
+  // resumeState: { sections, completedIndex, assembled } — when provided,
+  // skips planning and continues from where a previous run left off
+  // (see the localStorage draft system below).
+  async function* sectionedGenerate(engine, model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState) {
+    let sections, startIndex = 0, assembled = '';
+    if (resumeState && resumeState.sections) {
+      sections = resumeState.sections;
+      startIndex = resumeState.completedIndex || 0;
+      assembled = resumeState.assembled || '';
+      if (onSection) sections.forEach((s, i) => onSection(i, sections.length, s, i < startIndex ? 'done' : 'pending', i < startIndex ? null : ''));
+    } else {
+      sections = await planSections(engine, model, systemPrompt, userPrompt);
+      if (!sections) {
+        // Fallback: single-shot generation (still capped at DEFAULT_MAX_TOKENS)
+        if (onSection) onSection(0, 1, 'full file', 'active', '');
+        let full = '';
+        for await (const chunk of streamGenerate(engine, model, systemPrompt, userPrompt, onProgress)) {
+          full += chunk;
+          if (onSection) onSection(0, 1, 'full file', 'active', full);
+          yield chunk;
+        }
+        if (onSection) onSection(0, 1, 'full file', 'done', full);
+        return;
+      }
+      if (onProgress) onProgress({ text: 'Plan: ' + sections.join(', '), progress: 1 });
+      if (onSection) sections.forEach((s, i) => onSection(i, sections.length, s, 'pending', ''));
     }
-    if (onProgress) onProgress({ text: 'Plan: ' + sections.join(', '), progress: 1 });
-    let assembled = '';
-    for (let i = 0; i < sections.length; i++) {
+
+    for (let i = startIndex; i < sections.length; i++) {
       const sec = sections[i];
       if (onProgress) onProgress({ text: 'Section ' + (i + 1) + '/' + sections.length + ': ' + sec, progress: 1 });
+      if (onSection) onSection(i, sections.length, sec, 'active', '');
       const secPrompt = userPrompt +
         '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
         // Keep carried-over context short (~600 chars, not 1500) — this is
@@ -628,9 +674,12 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
       let secCode = '';
       for await (const chunk of streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900)) {
         secCode += chunk;
+        if (onSection) onSection(i, sections.length, sec, 'active', secCode);
         yield chunk;
       }
       assembled += '\n' + secCode;
+      if (onSection) onSection(i, sections.length, sec, 'done', secCode);
+      saveDraft({ sections, completedIndex: i + 1, assembled });
     }
   }
 
@@ -709,6 +758,25 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
       '</div>';
     body.appendChild(typeRow);
 
+    // ── Draft resume banner ──────────────────────────────────
+    const draftRow = document.createElement('div');
+    draftRow.style.cssText = 'display:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
+    body.appendChild(draftRow);
+
+    const _existingDraft = loadDraftRaw();
+    if (_existingDraft && _existingDraft.sections && _existingDraft.completedIndex < _existingDraft.sections.length) {
+      const ageMin = Math.round((Date.now() - (_existingDraft.ts || 0)) / 60000);
+      draftRow.style.display = '';
+      draftRow.innerHTML =
+        '<div class="ym-notice info" style="font-size:11px;margin-bottom:6px">' +
+          '↺ Unfinished draft found (' + _existingDraft.completedIndex + '/' + _existingDraft.sections.length + ' sections, ' + ageMin + 'min ago) — ' + esc(_existingDraft.filename || '') +
+        '</div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<button id="draft-continue" class="ym-btn ym-btn-accent" style="flex:1;font-size:11px">↳ Continue</button>' +
+          '<button id="draft-discard" class="ym-btn ym-btn-ghost" style="flex:1;font-size:11px">✕ Discard</button>' +
+        '</div>';
+    }
+
     // Prompt
     const promptWrap = document.createElement('div');
     promptWrap.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
@@ -743,6 +811,30 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
       '<div id="ai-progress" style="font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;text-align:center"></div>';
     body.appendChild(genWrap);
 
+    // ── Block list — shows each section live as it streams in ─
+    const blocksWrap = document.createElement('div');
+    blocksWrap.style.cssText = 'display:none;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto';
+    body.appendChild(blocksWrap);
+
+    function renderBlock(idx, total, name, status, codeSoFar) {
+      blocksWrap.style.display = 'flex';
+      let card = blocksWrap.querySelector('[data-block="' + idx + '"]');
+      if (!card) {
+        card = document.createElement('div');
+        card.dataset.block = idx;
+        card.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)';
+        blocksWrap.appendChild(card);
+      }
+      const icon = status === 'done' ? '✓' : (status === 'active' ? '◐' : '○');
+      const color = status === 'done' ? 'var(--green)' : (status === 'active' ? 'var(--gold)' : 'var(--text3)');
+      const lines = codeSoFar ? codeSoFar.split('\n').length : 0;
+      card.innerHTML =
+        '<span style="color:' + color + ';flex-shrink:0;width:14px;text-align:center">' + icon + '</span>' +
+        '<span style="font-size:10px;color:var(--text2);flex:1;font-family:var(--font-m)">' + esc(name) + ' <span style="color:var(--text3)">(' + (idx+1) + '/' + total + ')</span></span>' +
+        '<span style="font-size:9px;color:var(--text3);flex-shrink:0">' + (status === 'active' ? lines + ' lines…' : (status === 'done' ? lines + ' lines ✓' : 'waiting')) + '</span>';
+    }
+    function resetBlocks() { blocksWrap.innerHTML = ''; blocksWrap.style.display = 'none'; }
+
     // Output
     const outWrap = document.createElement('div');
     outWrap.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;padding:10px 14px 0';
@@ -753,7 +845,8 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
         '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
       '</div>' +
       '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
-      '<div id="ai-validate" style="font-size:10px;margin-bottom:14px;min-height:14px"></div>';
+      '<div id="ai-validate" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' +
+      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>';
     body.appendChild(outWrap);
 
     // Type toggle wiring
@@ -773,44 +866,33 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
     typeRow.querySelector('#ai-type-theme').addEventListener('click',  () => setType('theme'));
 
     // Generate
-    body.querySelector('#ai-generate').addEventListener('click', async () => {
-      const prompt    = (body.querySelector('#ai-prompt')?.value || '').trim();
-      const cat       = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
-      const outEl     = body.querySelector('#ai-output');
-      const progEl    = body.querySelector('#ai-progress');
-      const charsEl   = body.querySelector('#ai-chars');
-      const valEl     = body.querySelector('#ai-validate');
-      const genBtn    = body.querySelector('#ai-generate');
-
-      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
-
-      const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
-      const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '');
-      const filename = slug + ext;
-
-      progEl.textContent = 'Building context (similar files + skeleton)…';
-      const systemPrompt = await getSystemPrompt(_type, prompt, cat);
-
-      const userPrompt = [
-        'Generate a YourMine ' + _type + ' file.',
-        'Filename: ' + filename,
-        'Category: ' + cat,
-        '',
-        'Requirements:',
-        prompt,
-      ].join('\n');
+    // Shared generation runner — used by Generate, draft Continue, and Fix.
+    async function runGeneration({ prompt, cat, type, filename, userPrompt, systemPrompt, resumeState, isFix }) {
+      const outEl   = body.querySelector('#ai-output');
+      const progEl  = body.querySelector('#ai-progress');
+      const charsEl = body.querySelector('#ai-chars');
+      const valEl   = body.querySelector('#ai-validate');
+      const fixBtn  = body.querySelector('#ai-fix');
+      const genBtn  = body.querySelector('#ai-generate');
+      const spinnerEl = body.querySelector('#ai-spinner');
+      const labelEl   = body.querySelector('#ai-generate-label');
 
       genBtn.disabled = true;
-      const spinnerEl = body.querySelector('#ai-spinner');
-      const labelEl = body.querySelector('#ai-generate-label');
       if (spinnerEl) spinnerEl.style.display = '';
-      if (labelEl) labelEl.textContent = 'Generating…';
-      outEl.value = '';
-      charsEl.textContent = '0 chars';
+      if (labelEl) labelEl.textContent = isFix ? 'Fixing…' : 'Generating…';
+      if (fixBtn) fixBtn.style.display = 'none';
+      resetBlocks();
+      if (!resumeState) outEl.value = '';
+      let fullCode = resumeState ? (resumeState.assembled || '') : '';
+      outEl.value = fullCode;
+      charsEl.textContent = fullCode.length + ' chars';
       valEl.textContent = '';
       progEl.textContent = _engine.type === 'webllm' && !_webllmReady ? 'Loading AI model (first time ~1GB) — keep screen on…' : 'Starting…';
 
-      // Progress callback for WebLLM download
+      if (!resumeState) {
+        saveDraft({ type, prompt, cat, filename, sections: null, completedIndex: 0, assembled: '' });
+      }
+
       function onProgress(p) {
         if (!p) return;
         if (p.progress < 1) {
@@ -820,26 +902,23 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
           progEl.textContent = p.text || 'Generating…';
         }
       }
+      function onSection(idx, total, name, status, codeSoFar) {
+        renderBlock(idx, total, name, status, codeSoFar);
+      }
 
-      let fullCode = '';
       let tokenCount = 0;
       const t0 = Date.now();
       let _gotFirstChunk = false;
-
-      // Heartbeat: without this, the UI looks frozen during the gap between
-      // "model loaded" and "first token arrives" (the model is processing
-      // the system prompt + retrieved examples, which can take a while on
-      // a 1.5B model on a phone CPU/GPU). This makes it visibly alive.
       const heartbeat = setInterval(() => {
         if (_gotFirstChunk) return;
-        if (_engine.type === 'webllm' && !_webllmReady) return; // download progress owns the text during load
+        if (_engine.type === 'webllm' && !_webllmReady) return;
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (no output yet is normal here)</span>';
       }, 1000);
 
       try {
-        const gen = _type === 'sphere'
-          ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress)
+        const gen = type === 'sphere'
+          ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState)
           : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
 
         for await (const chunk of gen) {
@@ -862,24 +941,114 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
           progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's — ' + fullCode.length + ' chars</span>';
         }
 
-        if (_type === 'sphere' && fullCode) {
+        if (type === 'sphere' && fullCode) {
           const issues = validateSphereCode(fullCode, filename);
           if (issues.length) {
             valEl.innerHTML = '<span style="color:var(--red)">⚠ ' + issues.map(esc).join(' · ') + '</span>';
+            if (fixBtn) { fixBtn.style.display = ''; fixBtn.dataset.issues = JSON.stringify(issues); }
           } else {
             valEl.innerHTML = '<span style="color:var(--green)">✓ Structure looks valid</span>';
           }
         }
-        if (fullCode) toast('Code generated!', 'success');
+        if (fullCode) { toast(isFix ? 'Fix applied!' : 'Code generated!', 'success'); clearDraft(); }
       } catch (e) {
         clearInterval(heartbeat);
-        progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + '</span>';
+        progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + ' — your progress is saved, you can Continue after reload.</span>';
         toast(e.message, 'error');
       } finally {
         genBtn.disabled = false;
         if (spinnerEl) spinnerEl.style.display = 'none';
         if (labelEl) labelEl.textContent = '✦ Generate';
       }
+      return fullCode;
+    }
+
+    body.querySelector('#ai-generate').addEventListener('click', async () => {
+      const prompt = (body.querySelector('#ai-prompt')?.value || '').trim();
+      const cat    = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
+      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
+
+      const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
+      const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '');
+      const filename = slug + ext;
+
+      body.querySelector('#ai-progress').textContent = 'Building context (similar files + skeleton)…';
+      const systemPrompt = await getSystemPrompt(_type, prompt, cat);
+      const userPrompt = [
+        'Generate a YourMine ' + _type + ' file.',
+        'Filename: ' + filename,
+        'Category: ' + cat,
+        '',
+        'Requirements:',
+        prompt,
+      ].join('\n');
+
+      await runGeneration({ prompt, cat, type: _type, filename, userPrompt, systemPrompt });
+    });
+
+    // Draft continue/discard
+    draftRow.querySelector('#draft-continue')?.addEventListener('click', async () => {
+      const d = loadDraftRaw();
+      if (!d) return;
+      body.querySelector('#ai-prompt').value = d.prompt || '';
+      body.querySelector('#ai-cat').value = d.cat || '';
+      setType(d.type || 'sphere');
+      draftRow.style.display = 'none';
+      const systemPrompt = await getSystemPrompt(d.type, d.prompt, d.cat);
+      const userPrompt = [
+        'Generate a YourMine ' + d.type + ' file.',
+        'Filename: ' + d.filename,
+        'Category: ' + d.cat,
+        '',
+        'Requirements:',
+        d.prompt,
+      ].join('\n');
+      await runGeneration({
+        prompt: d.prompt, cat: d.cat, type: d.type, filename: d.filename,
+        userPrompt, systemPrompt,
+        resumeState: { sections: d.sections, completedIndex: d.completedIndex, assembled: d.assembled },
+      });
+    });
+    draftRow.querySelector('#draft-discard')?.addEventListener('click', () => {
+      clearDraft();
+      draftRow.style.display = 'none';
+      toast('Draft discarded', 'info');
+    });
+
+    // Fix flagged issues — reuses the exact same chunked-generation machinery,
+    // just with a prompt that includes the existing (broken) code + the
+    // specific issues the validator found, asking the model to rewrite it
+    // correctly in the same section-by-section way.
+    body.querySelector('#ai-fix')?.addEventListener('click', async () => {
+      const fixBtn = body.querySelector('#ai-fix');
+      const existingCode = body.querySelector('#ai-output')?.value || '';
+      if (!existingCode) return;
+      let issues = [];
+      try { issues = JSON.parse(fixBtn.dataset.issues || '[]'); } catch {}
+      const prompt = (body.querySelector('#ai-prompt')?.value || '').trim();
+      const cat = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
+      const ext = '.sphere.js';
+      const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '') || 'fixed';
+      const filename = slug + ext;
+
+      body.querySelector('#ai-progress').textContent = 'Building context for fix…';
+      const systemPrompt = await getSystemPrompt('sphere', prompt, cat);
+      const userPrompt = [
+        'Fix this existing YourMine sphere file. Rewrite it completely, correctly this time.',
+        'Filename: ' + filename,
+        'Issues found by the validator (fix ALL of them):',
+        issues.map(i => '- ' + i).join('\n'),
+        '',
+        'Original (broken) code:',
+        '```',
+        existingCode,
+        '```',
+        '',
+        'Original requirements:',
+        prompt,
+      ].join('\n');
+
+      await runGeneration({ prompt, cat, type: 'sphere', filename, userPrompt, systemPrompt, isFix: true });
     });
 
     // Copy
