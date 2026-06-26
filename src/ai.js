@@ -479,6 +479,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // What we CAN do is detect upfront when conditions are clearly bad and
   // say so honestly, instead of letting the person wait through a failed
   // download/load.
+  function _withTimeout(promise, ms, message) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+    ]);
+  }
+
   async function checkWebGpuSupport() {
     if (typeof navigator === 'undefined' || !navigator.gpu) {
       return { supported: false, reason: 'WebGPU is not available in this browser. On iOS this needs a recent Safari; on Android, a recent Chrome.' };
@@ -486,9 +493,16 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     // navigator.gpu existing only means the API exists — it does NOT mean a
     // real adapter is behind it. Actually requesting one is the only honest
     // check; without this we only find out after downloading ~900MB.
+    // requestAdapter() can also just hang forever on some devices/browsers
+    // with zero feedback — time-box it so the compatibility check always
+    // resolves one way or the other instead of freezing the screen.
     let adapter;
     try {
-      adapter = await navigator.gpu.requestAdapter();
+      adapter = await _withTimeout(
+        navigator.gpu.requestAdapter(),
+        8000,
+        'GPU adapter request timed out after 8s — this usually means WebGPU is not really functional on this device/browser, even though the API exists.'
+      );
       if (!adapter) {
         return { supported: false, reason: 'Unable to find a compatible GPU on this device/browser. WebGPU API is present but no adapter responded — see https://webgpureport.org/ to check support.' };
       }
@@ -790,7 +804,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       document.head.appendChild(styleEl0);
     }
 
-    const _detectedEngine = await detectEngine();
+    let _detectedEngine;
+    try {
+      _detectedEngine = await _withTimeout(detectEngine(), 12000, 'Compatibility check timed out after 12s.');
+    } catch (e) {
+      _detectedEngine = { type: 'unsupported', label: 'Detection failed', models: [], reason: e.message + ' Your browser may not support the checks needed for local AI on this device.' };
+    }
 
     if (_detectedEngine.type === 'unsupported') {
       body.innerHTML =
@@ -798,10 +817,29 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           '<span style="font-size:32px">✗</span>' +
           '<div style="font-size:13px;font-weight:600;color:var(--text)">No local AI engine available on this device</div>' +
           '<div style="font-size:11px;color:var(--text3);line-height:1.6;max-width:320px">' + esc(_detectedEngine.reason || '') + '</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:8px">Check <a href="https://webgpureport.org/" target="_blank" style="color:var(--cyan)">webgpureport.org</a> on this device to confirm.</div>' +
-          '<button id="ai-recheck" class="ym-btn ym-btn-ghost" style="font-size:11px;margin-top:6px;padding:8px 16px">↺ Re-check</button>' +
+          '<div style="display:flex;gap:8px;width:100%;max-width:280px;margin-top:6px">' +
+            '<button id="ai-copy-prompt" class="ym-btn ym-btn-ghost" style="flex:1;font-size:11px;padding:10px">⎘ Copy prompt</button>' +
+            '<button id="ai-exit" class="ym-btn ym-btn-danger" style="flex:1;font-size:11px;padding:10px">✕ Exit</button>' +
+          '</div>' +
         '</div>';
-      body.querySelector('#ai-recheck')?.addEventListener('click', () => renderAIContent(body));
+      body.querySelector('#ai-copy-prompt')?.addEventListener('click', () => {
+        const promptText = 'yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
+        navigator.clipboard?.writeText(promptText).then(() => {
+          toast('Prompt copied — paste it in your AI', 'success');
+        }).catch(() => {
+          const ta = document.createElement('textarea');
+          ta.value = promptText; ta.style.cssText = 'position:fixed;opacity:0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          toast('Prompt copied — paste it in your AI', 'success');
+        });
+      });
+      body.querySelector('#ai-exit')?.addEventListener('click', () => {
+        // ai.js doesn't own the surrounding panel/navigation — build.js
+        // listens for this and routes back to the main Build flow.
+        window.dispatchEvent(new CustomEvent('ym:ai-exit'));
+      });
       return;
     }
     if (_detectedEngine.type === 'webllm' && _detectedEngine.risky) {
