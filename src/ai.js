@@ -395,6 +395,16 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     _webllmWorker = null;
   }
 
+  // Worker.terminate() must run when the page is actually closed/navigated
+  // away from, or the GPU work it's doing keeps running and can keep
+  // draining/heating the device even after the tab visually closes.
+  // pagehide fires more reliably than beforeunload on mobile browsers.
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', _resetWebllmState);
+    window.addEventListener('beforeunload', _resetWebllmState);
+  }
+
+
   async function _createEngine(onProgress) {
     if (_webllmProgress !== onProgress) _webllmProgress = onProgress || null;
     if (_webllmProgress) _webllmProgress({ text: 'Initializing engine (worker)…', progress: 0 });
@@ -853,14 +863,25 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       document.head.appendChild(styleEl);
     }
     const genWrap = document.createElement('div');
-    genWrap.style.cssText = 'padding:10px 14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)';
+    genWrap.style.cssText = 'padding:10px 14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);display:flex;gap:6px';
     genWrap.innerHTML =
-      '<button id="ai-generate" class="ym-btn ym-btn-accent" style="width:100%;font-size:13px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
+      '<button id="ai-generate" class="ym-btn ym-btn-accent" style="flex:1;font-size:13px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
         '<span id="ai-spinner" style="display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:ym-ai-spin .7s linear infinite;flex-shrink:0"></span>' +
         '<span id="ai-generate-label">✦ Generate</span>' +
       '</button>' +
-      '<div id="ai-progress" style="font-size:10px;color:var(--text3);margin-top:6px;min-height:14px;text-align:center"></div>';
+      '<button id="ai-stop" class="ym-btn ym-btn-danger" style="display:none;flex-shrink:0;font-size:13px;padding:12px 16px">✕ Stop</button>';
     body.appendChild(genWrap);
+    const progEl0 = document.createElement('div');
+    progEl0.id = 'ai-progress';
+    progEl0.style.cssText = 'font-size:10px;color:var(--text3);margin:6px 14px 0;min-height:14px;text-align:center;flex-shrink:0';
+    body.appendChild(progEl0);
+
+    let _stopRequested = false;
+    body.querySelector('#ai-stop').addEventListener('click', () => {
+      _stopRequested = true;
+      _resetWebllmState(); // hard-kills the worker immediately, no waiting for a timeout
+      toast('Stopped — engine terminated', 'info');
+    });
 
     // ── Block list — shows each section live as it streams in ─
     const blocksWrap = document.createElement('div');
@@ -929,6 +950,9 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const labelEl   = body.querySelector('#ai-generate-label');
 
       genBtn.disabled = true;
+      const stopBtn = body.querySelector('#ai-stop');
+      if (stopBtn) stopBtn.style.display = '';
+      _stopRequested = false;
       if (spinnerEl) spinnerEl.style.display = '';
       if (labelEl) labelEl.textContent = isFix ? 'Fixing…' : 'Generating…';
       if (fixBtn) fixBtn.style.display = 'none';
@@ -966,7 +990,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         const maxWait = 25; // matches the per-section timeout
         const remaining = Math.max(0, maxWait - Math.floor(elapsed));
-        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (will time out and retry automatically after ~' + remaining + 's more if stuck)</span>';
+        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (will time out and retry automatically after ~' + remaining + 's more if stuck — or tap Stop)</span>';
       }, 1000);
 
       try {
@@ -975,6 +999,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
 
         for await (const chunk of gen) {
+          if (_stopRequested) { progEl.innerHTML = '<span style="color:var(--text3)">■ Stopped by user</span>'; break; }
           _gotFirstChunk = true;
           fullCode += chunk;
           tokenCount++;
@@ -988,7 +1013,9 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         }
         clearInterval(heartbeat);
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        if (!fullCode) {
+        if (_stopRequested) {
+          // already showed the "Stopped by user" message above
+        } else if (!fullCode) {
           progEl.innerHTML = '<span style="color:var(--red)">✗ Model returned no output after ' + elapsed + 's — try again or shorten the prompt</span>';
         } else {
           progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's — ' + fullCode.length + ' chars</span>';
@@ -1010,6 +1037,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         toast(e.message, 'error');
       } finally {
         genBtn.disabled = false;
+        if (stopBtn) stopBtn.style.display = 'none';
         if (spinnerEl) spinnerEl.style.display = 'none';
         if (labelEl) labelEl.textContent = '✦ Generate';
       }
