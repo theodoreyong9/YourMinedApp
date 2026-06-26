@@ -405,14 +405,44 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
 
 
+  let _usingMainThreadFallback = false;
+
   async function _createEngine(onProgress) {
     if (_webllmProgress !== onProgress) _webllmProgress = onProgress || null;
-    if (_webllmProgress) _webllmProgress({ text: 'Initializing engine (worker)…', progress: 0 });
-    if (!_webllmWorker) _webllmWorker = _createWorker();
-    const engine = await window.webllm.CreateWebWorkerMLCEngine(_webllmWorker, WEBLLM_MODEL, {
-      initProgressCallback: (p) => {
-        if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress });
-      },
+
+    if (!_usingMainThreadFallback) {
+      // Try the Worker first (lets generation survive tab-switching). But a
+      // module Worker created from a Blob URL whose script does
+      // `import ... from '<remote CDN URL>'` can be silently blocked by some
+      // mobile browsers' security policy — the worker never finishes
+      // loading, the handshake never completes, and every call just hangs
+      // forever with zero error. Time-box the handshake so we can detect
+      // that and recover instead of hanging forever.
+      try {
+        if (_webllmProgress) _webllmProgress({ text: 'Initializing engine (worker)…', progress: 0 });
+        if (!_webllmWorker) _webllmWorker = _createWorker();
+        const engine = await _withTimeout(
+          window.webllm.CreateWebWorkerMLCEngine(_webllmWorker, WEBLLM_MODEL, {
+            initProgressCallback: (p) => { if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress }); },
+          }),
+          90000, // generous — this covers the ~900MB download too, on first run
+          'Worker engine handshake timed out'
+        );
+        return engine;
+      } catch (e) {
+        console.warn('[YM AI] Worker-based engine failed/timed out (' + e.message + '), falling back to main-thread engine. Generation will no longer survive tab-switching, but should actually respond.');
+        try { _webllmWorker?.terminate(); } catch {}
+        _webllmWorker = null;
+        _usingMainThreadFallback = true;
+        if (_webllmProgress) _webllmProgress({ text: 'Worker failed — retrying on main thread…', progress: 0 });
+      }
+    }
+
+    // Main-thread fallback — less resilient to backgrounding, but doesn't
+    // depend on a Worker successfully importing a remote module from a
+    // Blob URL, which is the most likely point of silent failure above.
+    const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
+      initProgressCallback: (p) => { if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress }); },
     });
     return engine;
   }
@@ -571,13 +601,28 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // `timeoutMs`, it throws instead of hanging silently forever. This is
   // what was missing: "Processing prompt…" with no timeout meant a stuck
   // model call just sat there with zero feedback and zero way out.
-  async function* withChunkTimeout(gen, timeoutMs, label) {
+  // A manually-resolvable "stop" signal. Previously, clicking Stop only
+  // terminated the worker silently — it did NOT unblock the `await` that
+  // was waiting on a response from that worker, because terminating a
+  // worker does not reject pending postMessage-based promises in most
+  // implementations. The UI looked stuck even after "Engine terminated"
+  // because the underlying wait was never actually cancelled. This fixes
+  // that: Stop now races against the wait directly, every time.
+  let _stopSignalResolve = null;
+  function _newStopSignal() {
+    return new Promise((resolve) => { _stopSignalResolve = resolve; });
+  }
+  function _triggerStop() {
+    if (_stopSignalResolve) { _stopSignalResolve(); _stopSignalResolve = null; }
+  }
+
+  async function* withChunkTimeout(gen, timeoutMs, label, stopSignal) {
     const it = gen[Symbol.asyncIterator] ? gen[Symbol.asyncIterator]() : gen;
     while (true) {
       let timer;
       let result;
       try {
-        result = await Promise.race([
+        const racers = [
           it.next(),
           new Promise((_, reject) => {
             timer = setTimeout(() => reject(new Error(
@@ -585,7 +630,9 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
               'Your progress so far is saved; try again (it will resume from the last completed section).'
             )), timeoutMs);
           }),
-        ]);
+        ];
+        if (stopSignal) racers.push(stopSignal.then(() => { throw new Error('__STOPPED_BY_USER__'); }));
+        result = await Promise.race(racers);
       } finally {
         clearTimeout(timer);
       }
@@ -716,7 +763,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // resumeState: { sections, completedIndex, assembled } — when provided,
   // skips planning and continues from where a previous run left off
   // (see the localStorage draft system below).
-  async function* sectionedGenerate(engine, model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState) {
+  async function* sectionedGenerate(engine, model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState, stopSignal) {
     let sections, startIndex = 0, assembled = '';
     if (resumeState && resumeState.sections) {
       sections = resumeState.sections;
@@ -747,7 +794,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         try {
           const gen = withChunkTimeout(
             streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900),
-            25000, 'Section "' + sec + '"'
+            25000, 'Section "' + sec + '"', stopSignal
           );
           for await (const chunk of gen) {
             secCode += chunk;
@@ -756,6 +803,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           }
           break; // succeeded
         } catch (e) {
+          if (e.message === '__STOPPED_BY_USER__') {
+            if (onSection) onSection(i, sections.length, sec, 'error', secCode);
+            saveDraft({ sections, completedIndex: i, assembled });
+            throw new Error('Stopped by user.');
+          }
           if (attempt >= 2) {
             if (onSection) onSection(i, sections.length, sec, 'error', secCode);
             saveDraft({ sections, completedIndex: i, assembled }); // keep what we have, don't advance past the failed section
@@ -962,8 +1014,9 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     let _stopRequested = false;
     body.querySelector('#ai-stop').addEventListener('click', () => {
       _stopRequested = true;
-      _resetWebllmState(); // hard-kills the worker immediately, no waiting for a timeout
-      toast('Stopped — engine terminated', 'info');
+      _triggerStop();       // unblocks the in-flight await immediately
+      _resetWebllmState();  // then kill the worker so it stops consuming GPU/CPU
+      toast('Stopped', 'info');
     });
 
     // ── Block list — shows each section live as it streams in ─
@@ -1036,6 +1089,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const stopBtn = body.querySelector('#ai-stop');
       if (stopBtn) stopBtn.style.display = '';
       _stopRequested = false;
+      const stopSignal = _newStopSignal();
       if (spinnerEl) spinnerEl.style.display = '';
       if (labelEl) labelEl.textContent = isFix ? 'Fixing…' : 'Generating…';
       if (fixBtn) fixBtn.style.display = 'none';
@@ -1078,7 +1132,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
       try {
         const gen = type === 'sphere'
-          ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState)
+          ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState, stopSignal)
           : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
 
         for await (const chunk of gen) {
@@ -1116,8 +1170,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         if (fullCode) { toast(isFix ? 'Fix applied!' : 'Code generated!', 'success'); clearDraft(); }
       } catch (e) {
         clearInterval(heartbeat);
-        progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + ' — your progress is saved, you can Continue after reload.</span>';
-        toast(e.message, 'error');
+        if (e.message === 'Stopped by user.') {
+          progEl.innerHTML = '<span style="color:var(--text3)">■ Stopped — progress saved, tap Continue to resume</span>';
+        } else {
+          progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + ' — your progress is saved, you can Continue after reload.</span>';
+          toast(e.message, 'error');
+        }
       } finally {
         genBtn.disabled = false;
         if (stopBtn) stopBtn.style.display = 'none';
