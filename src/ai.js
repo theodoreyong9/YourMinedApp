@@ -499,6 +499,33 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // one short section costs far less than losing one giant call near the end.
   const DEFAULT_MAX_TOKENS = 1200;
 
+  // Wraps an async generator so that if no new chunk arrives within
+  // `timeoutMs`, it throws instead of hanging silently forever. This is
+  // what was missing: "Processing prompt…" with no timeout meant a stuck
+  // model call just sat there with zero feedback and zero way out.
+  async function* withChunkTimeout(gen, timeoutMs, label) {
+    const it = gen[Symbol.asyncIterator] ? gen[Symbol.asyncIterator]() : gen;
+    while (true) {
+      let timer;
+      let result;
+      try {
+        result = await Promise.race([
+          it.next(),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(
+              label + ' got no response from the model for ' + Math.round(timeoutMs / 1000) + 's — it appears stuck. ' +
+              'Your progress so far is saved; try again (it will resume from the last completed section).'
+            )), timeoutMs);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+      if (result.done) return;
+      yield result.value;
+    }
+  }
+
   async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, maxTokens, _isRetry) {
     maxTokens = maxTokens || DEFAULT_MAX_TOKENS;
     if (engine.type === 'webllm') {
@@ -618,10 +645,20 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
 
   async function planSections(engine, model, systemPrompt, userPrompt) {
     let full = '';
-    // Manifest is tiny — cap tokens hard so this call is fast no matter what.
-    for await (const chunk of streamGenerate(engine, model, systemPrompt, userPrompt + SECTION_PLAN_SUFFIX, null, 150)) {
-      full += chunk;
-      if (full.length > 400) break;
+    try {
+      // Manifest is tiny — cap tokens hard AND time-box it, so a stuck
+      // model call here falls back to single-shot instead of hanging.
+      const gen = withChunkTimeout(
+        streamGenerate(engine, model, systemPrompt, userPrompt + SECTION_PLAN_SUFFIX, null, 150),
+        20000, 'Section planning'
+      );
+      for await (const chunk of gen) {
+        full += chunk;
+        if (full.length > 400) break;
+      }
+    } catch (e) {
+      console.warn('[YM AI] planSections timed out/failed, falling back to single-shot:', e.message);
+      return null;
     }
     try {
       const m = full.match(/\{[^}]*"sections"[^}]*\}/);
@@ -649,7 +686,8 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
         // Fallback: single-shot generation (still capped at DEFAULT_MAX_TOKENS)
         if (onSection) onSection(0, 1, 'full file', 'active', '');
         let full = '';
-        for await (const chunk of streamGenerate(engine, model, systemPrompt, userPrompt, onProgress)) {
+        const gen = withChunkTimeout(streamGenerate(engine, model, systemPrompt, userPrompt, onProgress), 45000, 'Generation');
+        for await (const chunk of gen) {
           full += chunk;
           if (onSection) onSection(0, 1, 'full file', 'active', full);
           yield chunk;
@@ -671,11 +709,32 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
         // the per-call prompt size that matters most for speed/reliability.
         'Context so far (already written, do not repeat):\n```\n' + assembled.slice(-600) + '\n```\n' +
         'Continue writing ONLY the next part for "' + sec + '". Output raw code only, no markdown fences, no repetition of prior code.';
+
       let secCode = '';
-      for await (const chunk of streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900)) {
-        secCode += chunk;
-        if (onSection) onSection(i, sections.length, sec, 'active', secCode);
-        yield chunk;
+      let attempt = 0;
+      while (attempt < 2) {
+        attempt++;
+        secCode = '';
+        try {
+          const gen = withChunkTimeout(
+            streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900),
+            30000, 'Section "' + sec + '"'
+          );
+          for await (const chunk of gen) {
+            secCode += chunk;
+            if (onSection) onSection(i, sections.length, sec, 'active', secCode);
+            yield chunk;
+          }
+          break; // succeeded
+        } catch (e) {
+          if (attempt >= 2) {
+            if (onSection) onSection(i, sections.length, sec, 'error', secCode);
+            saveDraft({ sections, completedIndex: i, assembled }); // keep what we have, don't advance past the failed section
+            throw e;
+          }
+          console.warn('[YM AI] section "' + sec + '" timed out, retrying once…', e.message);
+          if (onProgress) onProgress({ text: 'Section "' + sec + '" stuck — retrying…', progress: 1 });
+        }
       }
       assembled += '\n' + secCode;
       if (onSection) onSection(i, sections.length, sec, 'done', secCode);
@@ -913,7 +972,9 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
         if (_gotFirstChunk) return;
         if (_engine.type === 'webllm' && !_webllmReady) return;
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (no output yet is normal here)</span>';
+        const maxWait = 30; // matches the per-section/per-call timeout below
+        const remaining = Math.max(0, maxWait - Math.floor(elapsed));
+        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (will time out and retry automatically after ~' + remaining + 's more if stuck)</span>';
       }, 1000);
 
       try {
