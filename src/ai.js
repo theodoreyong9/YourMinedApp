@@ -770,13 +770,50 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
 
   // ── RENDER ────────────────────────────────────────────────────
-  function renderAIContent(body) {
+  async function renderAIContent(body) {
     body.innerHTML = '';
     body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:0';
 
+    // ── Compatibility check FIRST, before building any form ──────
+    // This used to happen silently in the background while the (disabled)
+    // form was already visible. Now nothing else renders until we know
+    // whether this device can actually run something.
+    body.innerHTML =
+      '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 20px;text-align:center">' +
+        '<span style="width:20px;height:20px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:ym-ai-spin .7s linear infinite"></span>' +
+        '<div style="font-size:11px;color:var(--text3)">Checking device compatibility…</div>' +
+      '</div>';
+    if (!document.getElementById('ym-ai-spin-style')) {
+      const styleEl0 = document.createElement('style');
+      styleEl0.id = 'ym-ai-spin-style';
+      styleEl0.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(styleEl0);
+    }
+
+    const _detectedEngine = await detectEngine();
+
+    if (_detectedEngine.type === 'unsupported') {
+      body.innerHTML =
+        '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 20px;text-align:center">' +
+          '<span style="font-size:32px">✗</span>' +
+          '<div style="font-size:13px;font-weight:600;color:var(--text)">No local AI engine available on this device</div>' +
+          '<div style="font-size:11px;color:var(--text3);line-height:1.6;max-width:320px">' + esc(_detectedEngine.reason || '') + '</div>' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:8px">Check <a href="https://webgpureport.org/" target="_blank" style="color:var(--cyan)">webgpureport.org</a> on this device to confirm.</div>' +
+          '<button id="ai-recheck" class="ym-btn ym-btn-ghost" style="font-size:11px;margin-top:6px;padding:8px 16px">↺ Re-check</button>' +
+        '</div>';
+      body.querySelector('#ai-recheck')?.addEventListener('click', () => renderAIContent(body));
+      return;
+    }
+    if (_detectedEngine.type === 'webllm' && _detectedEngine.risky) {
+      // Show the risk clearly up front, then continue into the normal UI
+      // below (still usable — just not guaranteed reliable on this device).
+      toast(_detectedEngine.riskyReason || 'Local AI on this device may be unreliable.', 'warn');
+    }
+
+    body.innerHTML = '';
     let _type = 'sphere';
-    let _engine = { type: 'none', label: 'Detecting…', models: [] };
-    let _model = '';
+    let _engine = _detectedEngine;
+    let _model = _engine.models[0] || '';
 
     // Engine + spec indicator
     const engRow = document.createElement('div');
@@ -813,11 +850,6 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       }
     }
 
-    detectEngine().then(eng => {
-      _engine = eng;
-      _model = eng.models[0] || '';
-      updateEngBadge();
-    });
     loadSpec().then(spec => { _specStatus = spec ? 'ok' : 'fallback'; updateEngBadge(); });
     updateEngBadge();
 
