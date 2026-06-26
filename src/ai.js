@@ -153,39 +153,51 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       lines.push('');
     }
     if (spec.required && spec.required.length) {
-      lines.push('## OBSERVED PATTERNS (frequency across mined repo — treat anything >70% as mandatory)');
-      spec.required.forEach(p => lines.push('- ' + p.pattern + ' — ' + p.freq + ' of files'));
+      lines.push('## OBSERVED PATTERNS (>70% of files)');
+      spec.required.slice(0, 6).forEach(p => lines.push('- ' + p.pattern + ' — ' + p.freq));
       lines.push('');
     }
     if (spec.constraints) {
       lines.push('## HARD CONSTRAINTS');
-      spec.constraints.forEach(c => lines.push('- ' + c));
+      spec.constraints.slice(0, 4).forEach(c => lines.push('- ' + c));
       lines.push('');
     }
     if (spec.skeleton_by_intent) {
       const chosen = pickSkeleton(spec.skeleton_by_intent, userPrompt);
       lines.push('## SKELETON — start from this structure, fill it in, do not invent a new one');
-      lines.push('### ' + chosen.intent + (chosen.matched ? ' (matched from your prompt)' : ' (default — no strong match found)'));
+      lines.push('### ' + chosen.intent);
       lines.push(chosen.code);
       lines.push('');
     }
     if (similarExamples && similarExamples.length) {
-      lines.push('## SIMILAR EXISTING FILES (real, mined from the repo — follow their conventions, do not copy verbatim)');
-      similarExamples.forEach(ex => {
-        lines.push('### ' + ex.filename + (ex.description ? ' — ' + ex.description : ''));
-        lines.push('```');
-        lines.push(ex.snippet);
-        lines.push('```');
-      });
+      lines.push('## SIMILAR EXISTING FILE (real, mined from the repo — follow its conventions, do not copy verbatim)');
+      // Only the single best match by default — more examples means a
+      // bigger prompt the model has to read before it can respond at all,
+      // which is exactly what was causing the "stuck at 0 lines" hang.
+      const ex = similarExamples[0];
+      lines.push('### ' + ex.filename + (ex.description ? ' — ' + ex.description : ''));
+      lines.push('```');
+      lines.push(ex.snippet);
+      lines.push('```');
       lines.push('');
     }
     if (spec.anti_patterns) {
       lines.push('## ANTI-PATTERNS — never do these');
-      spec.anti_patterns.forEach(a => lines.push('- ' + a));
+      spec.anti_patterns.slice(0, 4).forEach(a => lines.push('- ' + a));
       lines.push('');
     }
     lines.push('Output ONLY the complete file content. No explanation, no markdown fences.');
-    return lines.join('\n');
+    let prompt = lines.join('\n');
+    // Hard cap — a smaller prompt means faster prefill on a 1.5B model
+    // before the first token can even appear. If still too long, trim from
+    // the middle (keep the start: core rules; and the end: the instruction).
+    const HARD_CAP = 3200;
+    if (prompt.length > HARD_CAP) {
+      const headKeep = Math.floor(HARD_CAP * 0.7);
+      const tailKeep = HARD_CAP - headKeep;
+      prompt = prompt.slice(0, headKeep) + '\n…(trimmed for speed)…\n' + prompt.slice(-tailKeep);
+    }
+    return prompt;
   }
 
   // ── INTENT DETECTION ─────────────────────────────────────────
@@ -202,6 +214,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   function pickSkeleton(skeletonMap, userPrompt) {
     const keys = Object.keys(skeletonMap);
     if (!keys.length) return { intent: null, code: '', matched: false };
+    const intent = detectIntent(userPrompt, keys);
+    return { intent, code: skeletonMap[intent], matched: true };
+  }
+
+  function detectIntent(userPrompt, candidateKeys) {
+    const keys = candidateKeys || Object.keys(INTENT_KEYWORDS);
     const p = (userPrompt || '').toLowerCase();
     let best = null, bestScore = 0;
     keys.forEach(key => {
@@ -209,10 +227,23 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const score = words.reduce((acc, w) => acc + (p.includes(w) ? 1 : 0), 0);
       if (score > bestScore) { bestScore = score; best = key; }
     });
-    if (best) return { intent: best, code: skeletonMap[best], matched: true };
-    // Default to "widget" if present, else the first available skeleton
-    const fallbackKey = skeletonMap.widget ? 'widget' : keys[0];
-    return { intent: fallbackKey, code: skeletonMap[fallbackKey], matched: false };
+    if (best) return best;
+    return keys.includes('widget') ? 'widget' : keys[0];
+  }
+
+  // Deterministic, fixed section plans per intent — no model call needed.
+  // This is what used to be a separate "ask the model for a JSON plan"
+  // round-trip; that extra call was itself a common stuck point (model
+  // never responds → whole generation hangs before any code appears).
+  // Skipping it removes one full model round-trip and one failure mode.
+  const FIXED_SECTION_PLANS = {
+    widget:         ['structure_and_state', 'render_panel'],
+    p2p_game:       ['structure_and_state', 'p2p_handlers', 'render_panel', 'broadcast_data'],
+    social_overlay: ['structure_and_state', 'render_panel', 'peer_section'],
+  };
+  function getFixedSectionPlan(userPrompt) {
+    const intent = detectIntent(userPrompt);
+    return FIXED_SECTION_PLANS[intent] || FIXED_SECTION_PLANS.widget;
   }
 
   // ── SIMILAR FILE RETRIEVAL ───────────────────────────────────
@@ -281,7 +312,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     const spec = await loadSpec();
     let similarExamples = [];
     if (type === 'sphere' && userPrompt) {
-      try { similarExamples = await retrieveSimilarSpheres(userPrompt, category, 3); } catch {}
+      try { similarExamples = await retrieveSimilarSpheres(userPrompt, category, 1); } catch {}
     }
     return renderSpecAsSystemPrompt(spec, type, userPrompt, similarExamples);
   }
@@ -637,38 +668,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // finishes faster, and if one call fails only that section is lost —
   // not the whole file. onSection lets the UI render each block as it
   // starts/streams/finishes, instead of one opaque blob of text.
-  const SECTION_PLAN_SUFFIX = `
-
-Before writing any code, first output a single line of JSON describing the sections you will write, like:
-{"sections":["header_and_state","ui_render","p2p_logic","helpers"]}
-Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`;
-
-  async function planSections(engine, model, systemPrompt, userPrompt) {
-    let full = '';
-    try {
-      // Manifest is tiny — cap tokens hard AND time-box it, so a stuck
-      // model call here falls back to single-shot instead of hanging.
-      const gen = withChunkTimeout(
-        streamGenerate(engine, model, systemPrompt, userPrompt + SECTION_PLAN_SUFFIX, null, 150),
-        20000, 'Section planning'
-      );
-      for await (const chunk of gen) {
-        full += chunk;
-        if (full.length > 400) break;
-      }
-    } catch (e) {
-      console.warn('[YM AI] planSections timed out/failed, falling back to single-shot:', e.message);
-      return null;
-    }
-    try {
-      const m = full.match(/\{[^}]*"sections"[^}]*\}/);
-      if (m) {
-        const parsed = JSON.parse(m[0]);
-        if (Array.isArray(parsed.sections) && parsed.sections.length) return parsed.sections.slice(0, 5);
-      }
-    } catch {}
-    return null; // fall back to single-shot
-  }
+  //
+  // Section planning used to be a model call (ask for a JSON manifest
+  // before writing code). That call was itself getting stuck with no
+  // output — one more model round-trip is one more place to hang. It's
+  // now done locally and instantly via getFixedSectionPlan(), based on the
+  // same intent detection the context builder already uses for skeleton
+  // selection. No model call, no extra latency, no extra failure point.
 
   // resumeState: { sections, completedIndex, assembled } — when provided,
   // skips planning and continues from where a previous run left off
@@ -681,21 +687,7 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
       assembled = resumeState.assembled || '';
       if (onSection) sections.forEach((s, i) => onSection(i, sections.length, s, i < startIndex ? 'done' : 'pending', i < startIndex ? null : ''));
     } else {
-      sections = await planSections(engine, model, systemPrompt, userPrompt);
-      if (!sections) {
-        // Fallback: single-shot generation (still capped at DEFAULT_MAX_TOKENS)
-        if (onSection) onSection(0, 1, 'full file', 'active', '');
-        let full = '';
-        const gen = withChunkTimeout(streamGenerate(engine, model, systemPrompt, userPrompt, onProgress), 45000, 'Generation');
-        for await (const chunk of gen) {
-          full += chunk;
-          if (onSection) onSection(0, 1, 'full file', 'active', full);
-          yield chunk;
-        }
-        if (onSection) onSection(0, 1, 'full file', 'done', full);
-        return;
-      }
-      if (onProgress) onProgress({ text: 'Plan: ' + sections.join(', '), progress: 1 });
+      sections = getFixedSectionPlan(userPrompt);
       if (onSection) sections.forEach((s, i) => onSection(i, sections.length, s, 'pending', ''));
     }
 
@@ -718,7 +710,7 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
         try {
           const gen = withChunkTimeout(
             streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900),
-            30000, 'Section "' + sec + '"'
+            25000, 'Section "' + sec + '"'
           );
           for await (const chunk of gen) {
             secCode += chunk;
@@ -972,7 +964,7 @@ Keep it to 3-5 sections max. Output ONLY that JSON line. Do not write code yet.`
         if (_gotFirstChunk) return;
         if (_engine.type === 'webllm' && !_webllmReady) return;
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        const maxWait = 30; // matches the per-section/per-call timeout below
+        const maxWait = 25; // matches the per-section timeout
         const remaining = Math.max(0, maxWait - Math.floor(elapsed));
         progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (will time out and retry automatically after ~' + remaining + 's more if stuck)</span>';
       }, 1000);
