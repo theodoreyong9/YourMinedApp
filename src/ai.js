@@ -486,13 +486,26 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     // navigator.gpu existing only means the API exists — it does NOT mean a
     // real adapter is behind it. Actually requesting one is the only honest
     // check; without this we only find out after downloading ~900MB.
+    let adapter;
     try {
-      const adapter = await navigator.gpu.requestAdapter();
+      adapter = await navigator.gpu.requestAdapter();
       if (!adapter) {
         return { supported: false, reason: 'Unable to find a compatible GPU on this device/browser. WebGPU API is present but no adapter responded — see https://webgpureport.org/ to check support.' };
       }
     } catch (e) {
       return { supported: false, reason: 'GPU adapter request failed: ' + e.message };
+    }
+    // Chrome Android only has REAL hardware WebGPU on Qualcomm Adreno 600+
+    // and Mali-G78+ GPUs (~78% of Chrome Android devices as of early 2026).
+    // On the rest, navigator.gpu still exists and requestAdapter() still
+    // "succeeds" — but silently falls back to a software/CPU adapter that
+    // is far too slow for this (a single token can take longer than our
+    // timeout, while pegging the CPU and lagging the whole phone). The
+    // WebGPU spec exposes exactly this via adapter.isFallbackAdapter —
+    // check it and refuse before downloading anything, instead of letting
+    // the phone grind for a minute and finding out the hard way.
+    if (adapter.isFallbackAdapter) {
+      return { supported: false, reason: 'This device only has a software (CPU-emulated) WebGPU adapter, not real GPU acceleration — it would be far too slow and would lag the whole phone. This is a hardware/driver limitation, not something fixable in-app. Try Ollama/Lemonade on a desktop instead.' };
     }
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     const mem = navigator.deviceMemory; // not available on iOS, rough hint on Android/Chrome
