@@ -218,6 +218,9 @@ function _mountAI(wrap, buildContent){
   }
   boot();
 
+  function onAiExit(){ buildContent.innerHTML=''; renderFlow(buildContent); }
+  window.addEventListener('ym:ai-exit', onAiExit, { once: true });
+
   wrap.appendChild(_flowBack(buildContent, renderFlow));
 }
 
@@ -573,6 +576,7 @@ function renderBuildContent(body,presetType){
       function mountAI(){
         if(window.YM_AI && window.YM_AI.renderAIContent){
           window.YM_AI.renderAIContent(aiHost);
+          window.addEventListener('ym:ai-exit', ()=>{ _mode='code'; renderCodeAreaMain(); }, { once:true });
           // Add a "Use this code" bridge button under the AI output once rendered
           setTimeout(()=>{
             const outEl=aiHost.querySelector('#ai-output');
