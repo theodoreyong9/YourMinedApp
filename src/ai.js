@@ -894,13 +894,21 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       });
       return;
     }
-    if (_detectedEngine.type === 'webllm' && _detectedEngine.risky) {
-      // Show the risk clearly up front, then continue into the normal UI
-      // below (still usable — just not guaranteed reliable on this device).
+    // Always show a clear, persistent confirmation that the check ran —
+    // not just a toast (easy to miss) or a tiny colored dot in the badge.
+    let detectionBannerHTML = '';
+    if (_detectedEngine.type === 'ollama' || _detectedEngine.type === 'lemonade') {
+      detectionBannerHTML = '<div class="ym-notice success" style="font-size:11px;margin:8px 14px 0">✓ Device check complete — using ' + esc(_detectedEngine.label) + '</div>';
+    } else if (_detectedEngine.type === 'webllm' && _detectedEngine.risky) {
+      detectionBannerHTML = '<div class="ym-notice warn" style="font-size:11px;margin:8px 14px 0">⚠ Device check complete — GPU found, but: ' + esc(_detectedEngine.riskyReason || 'may be unreliable on this device') + '</div>';
       toast(_detectedEngine.riskyReason || 'Local AI on this device may be unreliable.', 'warn');
+    } else if (_detectedEngine.type === 'webllm') {
+      detectionBannerHTML = '<div class="ym-notice success" style="font-size:11px;margin:8px 14px 0">✓ Device check complete — compatible GPU detected, ready to generate</div>';
+      toast('Device check passed — WebGPU compatible', 'success');
     }
 
     body.innerHTML = '';
+    if (detectionBannerHTML) body.innerHTML = detectionBannerHTML;
     let _type = 'sphere';
     let _engine = _detectedEngine;
     let _model = _engine.models[0] || '';
