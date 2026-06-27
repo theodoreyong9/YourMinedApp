@@ -1126,12 +1126,38 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         renderBlock(idx, total, name, status, codeSoFar);
       }
 
+      // Load the model FIRST, fully separate from the per-chunk timeout
+      // used during actual generation below. This was the real bug: model
+      // loading (a ~900MB download, routinely >25s) was happening lazily
+      // inside the first section's call, racing against that section's 25s
+      // timeout — so a perfectly normal download was being misdiagnosed as
+      // "stuck" before the model ever got a chance to respond.
+      if (_engine.type === 'webllm' && !_webllmReady) {
+        try {
+          await Promise.race([
+            initWebLLM(onProgress),
+            stopSignal.then(() => { throw new Error('Stopped by user.'); }),
+          ]);
+        } catch (e) {
+          if (e.message === 'Stopped by user.') {
+            progEl.innerHTML = '<span style="color:var(--text3)">■ Stopped — progress saved, tap Continue to resume</span>';
+          } else {
+            progEl.innerHTML = '<span style="color:var(--red)">✗ Model failed to load: ' + esc(e.message) + '</span>';
+            toast(e.message, 'error');
+          }
+          genBtn.disabled = false;
+          if (stopBtn) stopBtn.style.display = 'none';
+          if (spinnerEl) spinnerEl.style.display = 'none';
+          if (labelEl) labelEl.textContent = '✦ Generate';
+          return fullCode;
+        }
+      }
+
       let tokenCount = 0;
       const t0 = Date.now();
       let _gotFirstChunk = false;
       const heartbeat = setInterval(() => {
         if (_gotFirstChunk) return;
-        if (_engine.type === 'webllm' && !_webllmReady) return;
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         const maxWait = 25; // matches the per-section timeout
         const remaining = Math.max(0, maxWait - Math.floor(elapsed));
