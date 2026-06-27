@@ -603,9 +603,26 @@ function renderPeerProfile(container,profile){
     var mySpheres=(window.YM&&window.YM.getProfile&&window.YM.getProfile().spheres)||[];
     var shared=profile.spheres.filter(function(s){return mySpheres.includes(s);});
     var others=profile.spheres.filter(function(s){return!mySpheres.includes(s);});
-    // ── Enrichir profile.broadcastData avec les données locales des sphères actives ──
-    // En preview (Before/After) le profil n'a pas de broadcastData car pas reçu via P2P.
-    // On le reconstruit en appelant broadcastData() sur chaque sphère active localement.
+    // ── Enrichir profile depuis le gossip cache (données P2P fraîches) ──
+    // Priorité 1 : gossip cache de social.sphere.js (données reçues via P2P + relay)
+    // Priorité 2 : broadcastData() local (pour preview Before/After sans réseau)
+    if(window.YM_Social&&window.YM_Social.getEnrichedProfile){
+      var _gossipProfile=window.YM_Social.getEnrichedProfile(profile.uuid);
+      if(_gossipProfile){
+        // Fusionner : les données du profil passé (potentiellement plus à jour côté identity)
+        // avec les données fraîches du gossip (broadcastData live)
+        profile=Object.assign({},_gossipProfile,{
+          // Garder l'avatar/nom/bio du profil passé si plus récent ou si gossip est partial
+          name:profile.name||_gossipProfile.name,
+          bio:profile.bio||_gossipProfile.bio,
+          avatar:profile.avatar||_gossipProfile.avatar,
+          // broadcastData du gossip est prioritaire (données live)
+          broadcastData:_gossipProfile.broadcastData||profile.broadcastData,
+        });
+      }
+    }
+    // Fallback : si toujours pas de broadcastData, reconstruire depuis les sphères locales
+    // (utile pour Before/After preview sans connexion P2P)
     if(!profile.broadcastData){
       var _bd={};
       (profile.spheres||[]).forEach(function(sf){
@@ -614,7 +631,7 @@ function renderPeerProfile(container,profile){
           try{var d=sph.broadcastData();if(d)_bd[sf]=d;}catch(e){}
         }
       });
-      if(Object.keys(_bd).length) profile=Object.assign({},profile,{broadcastData:_bd});
+      if(Object.keys(_bd).length)profile=Object.assign({},profile,{broadcastData:_bd});
     }
     var ctx={uuid:profile.uuid,isNear:isNear,isReciproc:isReciproc,profile:profile};
     if(shared.length){var st2=document.createElement('div');st2.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin:12px 0 6px';st2.textContent='Spheres in common';container.appendChild(st2);shared.forEach(function(sf){_renderPeerAccordion(container,sf,ctx);});}
