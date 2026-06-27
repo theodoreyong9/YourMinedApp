@@ -56,6 +56,25 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
   function toast(m, t) { if (window.YM_toast) window.YM_toast(m, t); }
 
+  // ── DIAGNOSTIC LOG ───────────────────────────────────────────
+  // On mobile there's no convenient devtools console to read. Without
+  // visibility into what's actually happening, every "fix" so far has been
+  // a guess. This makes the real timeline visible in the app itself,
+  // including — critically — what an abandoned (timed-out) call eventually
+  // does. Our timeout logic uses Promise.race: when the timer wins, we
+  // throw OUR error, but the real model call keeps running unobserved. If
+  // it later succeeds or fails, that information was being thrown away.
+  // Now it gets logged, which is the only way to actually tell "truly
+  // stuck forever" apart from "just slower than our timeout guess".
+  const _debugLog = [];
+  function dlog(msg) {
+    const t = ((performance.now ? performance.now() : Date.now()) / 1000).toFixed(2);
+    _debugLog.push('[' + t + 's] ' + msg);
+    if (_debugLog.length > 200) _debugLog.shift();
+    console.log('[YM AI]', msg);
+    if (window.__ymAiDebugUpdate) window.__ymAiDebugUpdate();
+  }
+
   // ── DRAFT PERSISTENCE ────────────────────────────────────────
   // Saved at every section boundary (not mid-section — that would need
   // exact token-level resume, not worth the complexity). On reload, if a
@@ -378,15 +397,21 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   async function _createEngine(onProgress) {
     if (_webllmProgress !== onProgress) _webllmProgress = onProgress || null;
     if (_webllmProgress) _webllmProgress({ text: 'Initializing engine…', progress: 0 });
+    dlog('CreateMLCEngine() called for model ' + WEBLLM_MODEL);
+    const _t0 = performance.now ? performance.now() : Date.now();
     const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
-      initProgressCallback: (p) => { if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress }); },
+      initProgressCallback: (p) => {
+        dlog('load progress: ' + Math.round((p.progress || 0) * 100) + '% — ' + (p.text || ''));
+        if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress });
+      },
     });
+    dlog('CreateMLCEngine() resolved after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's — engine object obtained');
     return engine;
   }
 
 
   async function initWebLLM(onProgress, _isRetry) {
-    if (_webllmReady && _webllmEngine) return _webllmEngine;
+    if (_webllmReady && _webllmEngine) { dlog('initWebLLM: already ready, reusing engine'); return _webllmEngine; }
     if (_webllmLoading && !_isRetry) {
       // Wait for existing load
       await new Promise(r => { const iv = setInterval(() => { if (!_webllmLoading) { clearInterval(iv); r(); } }, 300); });
@@ -395,10 +420,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     }
     _webllmLoading = true;
     _webllmProgress = onProgress || null;
+    dlog('initWebLLM: starting' + (_isRetry ? ' (retry)' : ''));
     await _acquireWakeLock();
     try {
       // Load WebLLM from CDN
       if (!window.webllm) {
+        dlog('loading webllm library from CDN…');
         await new Promise((resolve, reject) => {
           const s = document.createElement('script');
           s.type = 'module';
@@ -411,11 +438,15 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           window.addEventListener('webllm-loaded', resolve, { once: true });
           setTimeout(() => reject(new Error('WebLLM CDN timeout')), 30000);
         });
+        dlog('webllm library loaded from CDN');
+      } else {
+        dlog('webllm library already present');
       }
       let engine;
       try {
         engine = await _createEngine(onProgress);
       } catch (e) {
+        dlog('engine creation FAILED: ' + e.message);
         if (_isGpuContextLostError(e) && !_isRetry) {
           // Screen-off / backgrounding likely killed the GPU context mid-load.
           // Reset state and retry once, now that the page is visible again.
@@ -430,6 +461,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       _webllmEngine = engine;
       window.__webllm = engine;
       _webllmReady = true;
+      dlog('initWebLLM: ready — _webllmReady=true');
       return engine;
     } finally {
       _webllmLoading = false;
@@ -590,12 +622,17 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       await _acquireWakeLock();
       try {
         let stream;
+        const promptChars = systemPrompt.length + userPrompt.length;
+        dlog('calling chat.completions.create — prompt ~' + promptChars + ' chars, max_tokens=' + maxTokens);
+        const _t0 = performance.now ? performance.now() : Date.now();
         try {
           stream = await llm.chat.completions.create({
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
             temperature: 0.3, max_tokens: maxTokens, stream: true,
           });
+          dlog('create() resolved after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's — stream object obtained, now waiting for first chunk…');
         } catch (e) {
+          dlog('create() THREW after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's: ' + e.message);
           if (_isGpuContextLostError(e)) {
             _resetWebllmState();
             if (!_isRetry) {
@@ -608,11 +645,18 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           throw e;
         }
         try {
+          let gotAny = false;
           for await (const chunk of stream) {
+            if (!gotAny) {
+              gotAny = true;
+              dlog('FIRST CHUNK received after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's total');
+            }
             const d = chunk.choices?.[0]?.delta?.content || '';
             if (d) yield d;
           }
+          dlog('stream finished normally, ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's total');
         } catch (e) {
+          dlog('stream iteration THREW after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's: ' + e.message);
           if (_isGpuContextLostError(e)) {
             _resetWebllmState();
             throw new Error('GPU context was lost mid-generation (screen turned off or app backgrounded?). The partial output above was lost — reopen the AI tab and try again, keeping the screen on.');
@@ -725,13 +769,23 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
       let secCode = '';
       let attempt = 0;
+      // The very first model call of a session can include GPU shader
+      // compilation/warm-up that isn't reflected in the download progress
+      // bar at all — it happens silently on the first real inference call.
+      // On a mobile GPU this can easily take longer than our normal 25s
+      // per-chunk budget, which is exactly what looked like "stuck at the
+      // first step" before. Give that one call much more room; everything
+      // after it (same engine, already warmed up) uses the normal budget.
+      const isVeryFirstCall = (i === startIndex) && !resumeState;
       while (attempt < 2) {
         attempt++;
         secCode = '';
+        const thisTimeoutMs = (isVeryFirstCall && attempt === 1) ? 75000 : 25000;
         try {
+          dlog('section "' + sec + '" attempt ' + attempt + ' — timeout budget ' + (thisTimeoutMs/1000) + 's' + (isVeryFirstCall && attempt === 1 ? ' (first call — includes possible GPU warm-up)' : ''));
           const gen = withChunkTimeout(
             streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900),
-            25000, 'Section "' + sec + '"', stopSignal
+            thisTimeoutMs, 'Section "' + sec + '"', stopSignal
           );
           for await (const chunk of gen) {
             secCode += chunk;
@@ -999,8 +1053,43 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '</div>' +
       '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
       '<div id="ai-validate" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' +
-      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>';
+      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>' +
+      '<button id="ai-diag-toggle" style="width:100%;font-size:10px;padding:6px;margin-bottom:6px;text-align:left" class="ym-btn ym-btn-ghost">🔍 Diagnostics (0)</button>' +
+      '<textarea id="ai-diag-log" readonly style="display:none;width:100%;height:140px;font-family:var(--font-m);font-size:9px;line-height:1.5;box-sizing:border-box;margin-bottom:6px;background:rgba(0,0,0,.2);color:var(--text3);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px"></textarea>' +
+      '<button id="ai-diag-copy" style="display:none;width:100%;font-size:10px;padding:6px;margin-bottom:14px" class="ym-btn ym-btn-ghost">⎘ Copy diagnostics</button>';
     body.appendChild(outWrap);
+
+    // Diagnostics panel — shows the real call timeline, including what
+    // happened to calls our own timeout already gave up on. This is what
+    // lets us tell "actually stuck" apart from "just slower than we guessed".
+    const diagToggle = outWrap.querySelector('#ai-diag-toggle');
+    const diagLog = outWrap.querySelector('#ai-diag-log');
+    const diagCopy = outWrap.querySelector('#ai-diag-copy');
+    function refreshDiagPanel() {
+      diagToggle.textContent = '🔍 Diagnostics (' + _debugLog.length + ')';
+      if (diagLog.style.display !== 'none') {
+        diagLog.value = _debugLog.join('\n');
+        diagLog.scrollTop = diagLog.scrollHeight;
+      }
+    }
+    window.__ymAiDebugUpdate = refreshDiagPanel;
+    diagToggle.addEventListener('click', () => {
+      const show = diagLog.style.display === 'none';
+      diagLog.style.display = show ? '' : 'none';
+      diagCopy.style.display = show ? '' : 'none';
+      if (show) refreshDiagPanel();
+    });
+    diagCopy.addEventListener('click', () => {
+      const text = _debugLog.join('\n');
+      navigator.clipboard?.writeText(text).then(() => toast('Diagnostics copied', 'success')).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        toast('Diagnostics copied', 'success');
+      });
+    });
+    refreshDiagPanel();
 
     // Type toggle wiring
     function setType(t) {
@@ -1146,6 +1235,9 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         } else {
           progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + ' — your progress is saved, you can Continue after reload.</span>';
           toast(e.message, 'error');
+          const diagLogEl = body.querySelector('#ai-diag-log');
+          const diagCopyEl = body.querySelector('#ai-diag-copy');
+          if (diagLogEl) { diagLogEl.style.display = ''; if (diagCopyEl) diagCopyEl.style.display = ''; if (window.__ymAiDebugUpdate) window.__ymAiDebugUpdate(); }
         }
       } finally {
         genBtn.disabled = false;
