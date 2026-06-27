@@ -769,22 +769,21 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
       let secCode = '';
       let attempt = 0;
-      // The very first model call of a session can include GPU shader
-      // compilation/warm-up that isn't reflected in the download progress
-      // bar at all — it happens silently on the first real inference call.
-      // On a mobile GPU this can easily take longer than our normal 25s
-      // per-chunk budget, which is exactly what looked like "stuck at the
-      // first step" before. Give that one call much more room; everything
-      // after it (same engine, already warmed up) uses the normal budget.
-      const isVeryFirstCall = (i === startIndex) && !resumeState;
       while (attempt < 2) {
         attempt++;
         secCode = '';
-        const thisTimeoutMs = (isVeryFirstCall && attempt === 1) ? 75000 : 25000;
+        // Real data from this device: a full model reload from cache takes
+        // 40-90s (not a guess — measured). If the engine isn't currently
+        // ready, THIS call is going to include that reload, on the first
+        // call of a session AND on any retry after a GPU-context-loss
+        // (which forces a full reset). Budget for that reality instead of
+        // a flat 25s that guarantees failure whenever a reload is needed.
+        const needsReload = engine.type === 'webllm' && !_webllmReady;
+        const thisTimeoutMs = needsReload ? 100000 : 25000;
         try {
-          dlog('section "' + sec + '" attempt ' + attempt + ' — timeout budget ' + (thisTimeoutMs/1000) + 's' + (isVeryFirstCall && attempt === 1 ? ' (first call — includes possible GPU warm-up)' : ''));
+          dlog('section "' + sec + '" attempt ' + attempt + ' — timeout budget ' + (thisTimeoutMs/1000) + 's' + (needsReload ? ' (engine not ready — includes reload)' : ''));
           const gen = withChunkTimeout(
-            streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 900),
+            streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 350),
             thisTimeoutMs, 'Section "' + sec + '"', stopSignal
           );
           for await (const chunk of gen) {
