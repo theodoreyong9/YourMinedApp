@@ -325,38 +325,15 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   let _webllmEngine = null;
   let _webllmProgress = null; // callback for progress updates
   let _wakeLock = null;
-  let _webllmWorker = null;
 
-  // Run inference in a dedicated Web Worker instead of the main thread.
-  // Why: when a tab is backgrounded, browsers throttle the main thread
-  // heavily (timers slowed/paused), which is what breaks generation when
-  // you switch tabs or minimize the browser. A Worker is NOT throttled the
-  // same way on desktop and most Android browsers, so generation keeps
-  // running while you're elsewhere in the app or in another tab.
-  // Honest limit: this does NOT survive the OS fully suspending the browser
-  // app itself (screen off, app swiped away, iOS backgrounding) — that is
-  // an OS-level suspension no web page can override.
-  function _createWorker() {
-    const code = `
-      import * as webllm from '${WEBLLM_CDN}';
-      const handler = new webllm.WebWorkerMLCEngineHandler();
-      self.onmessage = (msg) => { handler.onmessage(msg); };
-    `;
-    const blob = new Blob([code], { type: 'application/javascript' });
-    const url = URL.createObjectURL(blob);
-    const worker = new Worker(url, { type: 'module' });
-    worker.addEventListener('error', (e) => console.error('[YM AI] worker error:', e.message));
-    return worker;
-  }
-
-  // On mobile, the screen turning off (or the tab being backgrounded) while
-  // the ~900MB model downloads can cause the browser to tear down the
-  // WebGPU device/instance. When that happens, WebLLM throws something like
-  // "A valid external Instance reference no longer exists" once the screen
-  // comes back — not a bug in our code, a lost GPU context. We mitigate by
-  // (1) holding a screen wake lock during load, (2) running in a Worker so
-  // backgrounding the tab itself doesn't throttle generation, and
-  // (3) detecting the lost engine and transparently recreating it once.
+  // Single main-thread engine. A Worker-based version was tried (to survive
+  // tab-switching) but caused more problems than it solved on real devices:
+  // a module Worker importing the CDN module from a Blob URL could silently
+  // fail to ever finish its handshake, and falling back to main-thread after
+  // a timeout risked a second model download running in parallel with the
+  // worker's still-in-flight one — exactly the "everything downloads twice
+  // and crashes" failure this caused. Simpler and more debuggable beats
+  // "survives backgrounding" when the fancier version doesn't reliably work.
   async function _acquireWakeLock() {
     try {
       if ('wakeLock' in navigator) {
@@ -391,56 +368,16 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     _webllmReady = false;
     _webllmEngine = null;
     window.__webllm = null;
-    try { _webllmWorker?.terminate(); } catch {}
-    _webllmWorker = null;
   }
 
-  // Worker.terminate() must run when the page is actually closed/navigated
-  // away from, or the GPU work it's doing keeps running and can keep
-  // draining/heating the device even after the tab visually closes.
-  // pagehide fires more reliably than beforeunload on mobile browsers.
   if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', _resetWebllmState);
     window.addEventListener('beforeunload', _resetWebllmState);
   }
 
-
-  let _usingMainThreadFallback = false;
-
   async function _createEngine(onProgress) {
     if (_webllmProgress !== onProgress) _webllmProgress = onProgress || null;
-
-    if (!_usingMainThreadFallback) {
-      // Try the Worker first (lets generation survive tab-switching). But a
-      // module Worker created from a Blob URL whose script does
-      // `import ... from '<remote CDN URL>'` can be silently blocked by some
-      // mobile browsers' security policy — the worker never finishes
-      // loading, the handshake never completes, and every call just hangs
-      // forever with zero error. Time-box the handshake so we can detect
-      // that and recover instead of hanging forever.
-      try {
-        if (_webllmProgress) _webllmProgress({ text: 'Initializing engine (worker)…', progress: 0 });
-        if (!_webllmWorker) _webllmWorker = _createWorker();
-        const engine = await _withTimeout(
-          window.webllm.CreateWebWorkerMLCEngine(_webllmWorker, WEBLLM_MODEL, {
-            initProgressCallback: (p) => { if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress }); },
-          }),
-          90000, // generous — this covers the ~900MB download too, on first run
-          'Worker engine handshake timed out'
-        );
-        return engine;
-      } catch (e) {
-        console.warn('[YM AI] Worker-based engine failed/timed out (' + e.message + '), falling back to main-thread engine. Generation will no longer survive tab-switching, but should actually respond.');
-        try { _webllmWorker?.terminate(); } catch {}
-        _webllmWorker = null;
-        _usingMainThreadFallback = true;
-        if (_webllmProgress) _webllmProgress({ text: 'Worker failed — retrying on main thread…', progress: 0 });
-      }
-    }
-
-    // Main-thread fallback — less resilient to backgrounding, but doesn't
-    // depend on a Worker successfully importing a remote module from a
-    // Blob URL, which is the most likely point of silent failure above.
+    if (_webllmProgress) _webllmProgress({ text: 'Initializing engine…', progress: 0 });
     const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
       initProgressCallback: (p) => { if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress }); },
     });
@@ -557,7 +494,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       return { supported: true, risky: true, reason: 'This device reports ~' + mem + 'GB RAM — local AI generation may fail or be very slow. Ollama/Lemonade on a desktop is more reliable.' };
     }
     if (isMobile) {
-      return { supported: true, risky: true, reason: 'Generation runs in a background worker, so switching tabs is fine — but locking the screen or closing the app can still interrupt it (OS-level, outside the browser\'s control).' };
+      return { supported: true, risky: true, reason: 'Generation runs on the main thread — switching tabs, locking the screen, or backgrounding the app can interrupt it. Keep this tab open and active during generation.' };
     }
     return { supported: true, risky: false };
   }
