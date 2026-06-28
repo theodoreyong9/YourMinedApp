@@ -905,57 +905,42 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       });
       return;
     }
-    // Always show a clear, persistent confirmation that the check ran —
-    // not just a toast (easy to miss) or a tiny colored dot in the badge.
-    let detectionBannerHTML = '';
-    if (_detectedEngine.type === 'ollama' || _detectedEngine.type === 'lemonade') {
-      detectionBannerHTML = '<div class="ym-notice success" style="font-size:11px;margin:8px 14px 0">✓ Device check complete — using ' + esc(_detectedEngine.label) + '</div>';
-    } else if (_detectedEngine.type === 'webllm' && _detectedEngine.risky) {
-      detectionBannerHTML = '<div class="ym-notice warn" style="font-size:11px;margin:8px 14px 0">⚠ Device check complete — GPU found, but: ' + esc(_detectedEngine.riskyReason || 'may be unreliable on this device') + '</div>';
-      toast(_detectedEngine.riskyReason || 'Local AI on this device may be unreliable.', 'warn');
-    } else if (_detectedEngine.type === 'webllm') {
-      detectionBannerHTML = '<div class="ym-notice success" style="font-size:11px;margin:8px 14px 0">✓ Device check complete — compatible GPU detected, ready to generate</div>';
-      toast('Device check passed — WebGPU compatible', 'success');
+    if (_detectedEngine.type === 'webllm' && _detectedEngine.risky) {
+      dlog('device check: risky — ' + _detectedEngine.riskyReason);
+    } else {
+      dlog('device check: OK — ' + _detectedEngine.label);
     }
 
     body.innerHTML = '';
-    if (detectionBannerHTML) body.innerHTML = detectionBannerHTML;
     let _type = 'sphere';
     let _engine = _detectedEngine;
     let _model = _engine.models[0] || '';
 
-    // Engine + spec indicator
-    const engRow = document.createElement('div');
-    engRow.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap';
-    body.appendChild(engRow);
-    const warnRow = document.createElement('div');
-    warnRow.style.cssText = 'display:none;padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    body.appendChild(warnRow);
+    // One clean status line. Silent when things are fine — only speaks up
+    // when there's something the person actually needs to know.
+    const statusRow = document.createElement('div');
+    statusRow.style.cssText = 'padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;font-size:11px;color:var(--text3)';
+    body.appendChild(statusRow);
 
     let _specStatus = 'loading'; // loading | ok | fallback
 
     function updateEngBadge() {
-      const ok = _engine.type !== 'none' && _engine.type !== 'unsupported';
-      const specLabel = _specStatus === 'ok' ? 'spec ✓' : (_specStatus === 'fallback' ? 'spec: fallback' : 'spec…');
-      engRow.innerHTML =
-        '<div style="width:6px;height:6px;border-radius:50%;flex-shrink:0;background:' + (ok ? 'var(--green)' : 'var(--red)') + '"></div>' +
-        '<span style="font-size:9px;color:var(--text3);flex:1;min-width:0">' + esc(_webllmReady && _engine.type==='webllm' ? 'WebLLM ' + WEBLLM_MODEL + ' ✓' : _engine.label) + '</span>' +
-        '<span style="font-size:9px;color:' + (_specStatus==='ok'?'var(--green)':'var(--text3)') + ';flex-shrink:0">' + esc(specLabel) + '</span>' +
-        (_engine.models.length > 1 ?
-          '<select id="ai-model" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text2);font-size:10px;border-radius:6px;padding:2px 6px;cursor:pointer">' +
-          _engine.models.map(m => '<option value="' + esc(m) + '"' + (m === _model ? ' selected' : '') + '>' + esc(m) + '</option>').join('') +
-          '</select>' : '');
-      body.querySelector('#ai-model')?.addEventListener('change', e => { _model = e.target.value; });
-
       if (_engine.type === 'unsupported') {
-        warnRow.style.display = '';
-        warnRow.innerHTML = '<div class="ym-notice error" style="font-size:10px">✗ ' + esc(_engine.reason || 'No AI engine available on this device.') + '</div>';
+        statusRow.innerHTML = '<span style="color:var(--red)">✗</span><span>No local AI available on this device</span>';
         body.querySelector('#ai-generate') && (body.querySelector('#ai-generate').disabled = true);
-      } else if (_engine.type === 'webllm' && _engine.risky && !_webllmReady) {
-        warnRow.style.display = '';
-        warnRow.innerHTML = '<div class="ym-notice warn" style="font-size:10px">⚠ ' + esc(_engine.riskyReason || 'Mobile generation can be unreliable.') + '</div>';
-      } else {
-        warnRow.style.display = 'none';
+        return;
+      }
+      if (_engine.type === 'webllm' && _engine.risky && !_webllmReady) {
+        statusRow.innerHTML = '<span style="color:var(--gold)">⚠</span><span>' + esc(_engine.riskyReason || 'May be unreliable on this device') + '</span>';
+        return;
+      }
+      // Nothing wrong to report — keep it minimal, like other AI apps do.
+      statusRow.innerHTML = '<span style="color:var(--green)">●</span><span>Ready' + (_engine.models.length > 1 ? '' : '') + '</span>';
+      if (_engine.models.length > 1) {
+        statusRow.innerHTML += '<select id="ai-model" style="margin-left:auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text2);font-size:10px;border-radius:6px;padding:2px 6px;cursor:pointer">' +
+          _engine.models.map(m => '<option value="' + esc(m) + '"' + (m === _model ? ' selected' : '') + '>' + esc(m) + '</option>').join('') +
+          '</select>';
+        body.querySelector('#ai-model')?.addEventListener('change', e => { _model = e.target.value; });
       }
     }
 
@@ -1079,7 +1064,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
       '<div id="ai-validate" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' +
       '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>' +
-      '<button id="ai-diag-toggle" style="width:100%;font-size:10px;padding:6px;margin-bottom:6px;text-align:left" class="ym-btn ym-btn-ghost">🔍 Diagnostics (0)</button>' +
+      '<button id="ai-diag-toggle" style="background:none;border:none;color:var(--text3);font-size:9px;padding:4px 0;text-align:left;cursor:pointer;text-decoration:underline">Diagnostics</button>' +
       '<textarea id="ai-diag-log" readonly style="display:none;width:100%;height:140px;font-family:var(--font-m);font-size:9px;line-height:1.5;box-sizing:border-box;margin-bottom:6px;background:rgba(0,0,0,.2);color:var(--text3);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px"></textarea>' +
       '<button id="ai-diag-copy" style="display:none;width:100%;font-size:10px;padding:6px;margin-bottom:14px" class="ym-btn ym-btn-ghost">⎘ Copy diagnostics</button>';
     body.appendChild(outWrap);
@@ -1091,7 +1076,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     const diagLog = outWrap.querySelector('#ai-diag-log');
     const diagCopy = outWrap.querySelector('#ai-diag-copy');
     function refreshDiagPanel() {
-      diagToggle.textContent = '🔍 Diagnostics (' + _debugLog.length + ')';
+      diagToggle.textContent = 'Diagnostics (' + _debugLog.length + ')';
       if (diagLog.style.display !== 'none') {
         diagLog.value = _debugLog.join('\n');
         diagLog.scrollTop = diagLog.scrollHeight;
@@ -1191,10 +1176,10 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           ]);
         } catch (e) {
           if (e.message === 'Stopped by user.') {
-            progEl.innerHTML = '<span style="color:var(--text3)">■ Stopped — progress saved, tap Continue to resume</span>';
+            progEl.textContent = '■ Stopped';
           } else {
-            progEl.innerHTML = '<span style="color:var(--red)">✗ Model failed to load: ' + esc(e.message) + '</span>';
-            toast(e.message, 'error');
+            progEl.innerHTML = '<span style="color:var(--red)">Failed to load — try again</span>';
+            dlog('model load failed: ' + e.message);
           }
           genBtn.disabled = false;
           if (stopBtn) stopBtn.style.display = 'none';
@@ -1207,11 +1192,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       let tokenCount = 0;
       const t0 = Date.now();
       let _gotFirstChunk = false;
+      let _dotCount = 0;
       const heartbeat = setInterval(() => {
         if (_gotFirstChunk) return;
-        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Waiting for the model… ' + elapsed + 's (no automatic timeout — tap Stop if you want to cancel)</span>';
-      }, 1000);
+        _dotCount = (_dotCount % 3) + 1;
+        progEl.textContent = 'Thinking' + '.'.repeat(_dotCount);
+      }, 500);
 
       try {
         const gen = type === 'sphere'
@@ -1219,27 +1205,25 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
 
         for await (const chunk of gen) {
-          if (_stopRequested) { progEl.innerHTML = '<span style="color:var(--text3)">■ Stopped by user</span>'; break; }
+          if (_stopRequested) { progEl.textContent = '■ Stopped'; break; }
           _gotFirstChunk = true;
           fullCode += chunk;
           tokenCount++;
           outEl.value = fullCode;
           outEl.scrollTop = outEl.scrollHeight;
           charsEl.textContent = fullCode.length + ' chars';
-          if (tokenCount % 5 === 0) {
-            const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-            progEl.textContent = '⚡ Generating… ' + fullCode.length + ' chars · ' + elapsed + 's';
-          }
+          progEl.textContent = 'Writing…';
         }
         clearInterval(heartbeat);
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         if (_stopRequested) {
-          // already showed the "Stopped by user" message above
+          // already showed "Stopped" above
         } else if (!fullCode) {
-          progEl.innerHTML = '<span style="color:var(--red)">✗ Model returned no output after ' + elapsed + 's — try again or shorten the prompt</span>';
+          progEl.innerHTML = '<span style="color:var(--red)">No response — try again</span>';
         } else {
-          progEl.innerHTML = '<span style="color:var(--green)">✓ Done in ' + elapsed + 's — ' + fullCode.length + ' chars</span>';
+          progEl.innerHTML = '<span style="color:var(--green)">✓ Done</span>';
         }
+        dlog('generation finished — ' + fullCode.length + ' chars in ' + elapsed + 's');
 
         if (type === 'sphere' && fullCode) {
           const issues = validateSphereCode(fullCode, filename);
@@ -1254,13 +1238,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       } catch (e) {
         clearInterval(heartbeat);
         if (e.message === 'Stopped by user.') {
-          progEl.innerHTML = '<span style="color:var(--text3)">■ Stopped — progress saved, tap Continue to resume</span>';
+          progEl.textContent = '■ Stopped';
         } else {
-          progEl.innerHTML = '<span style="color:var(--red)">✗ ' + esc(e.message) + ' — your progress is saved, you can Continue after reload.</span>';
-          toast(e.message, 'error');
-          const diagLogEl = body.querySelector('#ai-diag-log');
-          const diagCopyEl = body.querySelector('#ai-diag-copy');
-          if (diagLogEl) { diagLogEl.style.display = ''; if (diagCopyEl) diagCopyEl.style.display = ''; if (window.__ymAiDebugUpdate) window.__ymAiDebugUpdate(); }
+          progEl.innerHTML = '<span style="color:var(--red)">Something went wrong — try again</span>';
+          dlog('generation error: ' + e.message);
+          if (window.__ymAiDebugUpdate) window.__ymAiDebugUpdate();
         }
       } finally {
         genBtn.disabled = false;
