@@ -344,15 +344,32 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   let _webllmEngine = null;
   let _webllmProgress = null; // callback for progress updates
   let _wakeLock = null;
+  let _webllmWorker = null;
 
-  // Single main-thread engine. A Worker-based version was tried (to survive
-  // tab-switching) but caused more problems than it solved on real devices:
-  // a module Worker importing the CDN module from a Blob URL could silently
-  // fail to ever finish its handshake, and falling back to main-thread after
-  // a timeout risked a second model download running in parallel with the
-  // worker's still-in-flight one — exactly the "everything downloads twice
-  // and crashes" failure this caused. Simpler and more debuggable beats
-  // "survives backgrounding" when the fancier version doesn't reliably work.
+  // Dedicated Worker (not a Service Worker — different thing entirely).
+  // WebGPU has always been natively supported in dedicated Workers, so this
+  // is the correct mechanism for surviving tab-switching while the page
+  // stays open. The previous attempt at this broke for an unrelated reason:
+  // an artificial 90s handshake timeout would sometimes fire while the
+  // worker was still legitimately loading (measured: 40-90s is normal on
+  // slower devices), and falling back to a second, main-thread engine
+  // without first cancelling the worker's in-flight download caused two
+  // simultaneous ~900MB downloads. The fix is not to drop the Worker — it's
+  // to not race it against a guessed timeout and not run two engines at
+  // once. One engine type, decided once, no fallback mid-flight.
+  function _createWorker() {
+    const code = `
+      import * as webllm from '${WEBLLM_CDN}';
+      const handler = new webllm.WebWorkerMLCEngineHandler();
+      self.onmessage = (msg) => { handler.onmessage(msg); };
+    `;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    const worker = new Worker(url, { type: 'module' });
+    worker.addEventListener('error', (e) => dlog('worker error event: ' + e.message));
+    return worker;
+  }
+
   async function _acquireWakeLock() {
     try {
       if ('wakeLock' in navigator) {
@@ -387,8 +404,14 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     _webllmReady = false;
     _webllmEngine = null;
     window.__webllm = null;
+    try { _webllmWorker?.terminate(); } catch {}
+    _webllmWorker = null;
   }
 
+  // Terminate the worker when the page is actually closed/navigated away
+  // from — otherwise it (and the GPU work it's doing) can keep running
+  // after the tab visually closes. pagehide is more reliable than
+  // beforeunload on mobile browsers.
   if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', _resetWebllmState);
     window.addEventListener('beforeunload', _resetWebllmState);
@@ -396,16 +419,19 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
   async function _createEngine(onProgress) {
     if (_webllmProgress !== onProgress) _webllmProgress = onProgress || null;
-    if (_webllmProgress) _webllmProgress({ text: 'Initializing engine…', progress: 0 });
-    dlog('CreateMLCEngine() called for model ' + WEBLLM_MODEL);
+    if (_webllmProgress) _webllmProgress({ text: 'Initializing engine (worker)…', progress: 0 });
+    dlog('CreateWebWorkerMLCEngine() called for model ' + WEBLLM_MODEL);
     const _t0 = performance.now ? performance.now() : Date.now();
-    const engine = await window.webllm.CreateMLCEngine(WEBLLM_MODEL, {
+    if (!_webllmWorker) _webllmWorker = _createWorker();
+    // No timeout race here — a slow load is not a stuck load. If it never
+    // resolves, that's what Stop is for.
+    const engine = await window.webllm.CreateWebWorkerMLCEngine(_webllmWorker, WEBLLM_MODEL, {
       initProgressCallback: (p) => {
         dlog('load progress: ' + Math.round((p.progress || 0) * 100) + '% — ' + (p.text || ''));
         if (_webllmProgress) _webllmProgress({ text: p.text, progress: p.progress });
       },
     });
-    dlog('CreateMLCEngine() resolved after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's — engine object obtained');
+    dlog('CreateWebWorkerMLCEngine() resolved after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's — engine object obtained');
     return engine;
   }
 
@@ -452,6 +478,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           // Reset state and retry once, now that the page is visible again.
           console.warn('[YM AI] GPU context lost during load, retrying once…');
           _webllmEngine = null; _webllmReady = false;
+          try { _webllmWorker?.terminate(); } catch {}
+          _webllmWorker = null;
           if (onProgress) onProgress({ text: 'GPU context lost (screen off?) — retrying…', progress: 0 });
           _webllmLoading = false;
           return await initWebLLM(onProgress, true);
@@ -1005,8 +1033,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     let _stopRequested = false;
     body.querySelector('#ai-stop').addEventListener('click', () => {
       _stopRequested = true;
-      _triggerStop();       // unblocks the in-flight await immediately
-      _resetWebllmState();  // then kill the worker so it stops consuming GPU/CPU
+      dlog('Stop clicked — calling engine.interruptGenerate() if available');
+      // This is the real interrupt: it tells the WebLLM engine itself to
+      // stop the in-flight generation. Without this, "stop" only abandoned
+      // our own promise — the engine kept computing in the background,
+      // which is why it looked like Stop did nothing.
+      try { _webllmEngine?.interruptGenerate?.(); } catch (e) { dlog('interruptGenerate() failed: ' + e.message); }
+      _triggerStop(); // also unblocks our own wrapper immediately
       toast('Stopped', 'info');
     });
 
