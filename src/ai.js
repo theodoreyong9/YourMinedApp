@@ -585,25 +585,23 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     if (_stopSignalResolve) { _stopSignalResolve(); _stopSignalResolve = null; }
   }
 
-  async function* withChunkTimeout(gen, timeoutMs, label, stopSignal) {
+  // No timer-based timeout anymore — only Stop interrupts. Guessed timeout
+  // durations (25s, 75s, 100s...) kept being wrong for real device behavior
+  // (model loads/reloads taking 40-90s, generation bursts varying wildly)
+  // and caused premature aborts/retries that made things worse, not better.
+  // If the model is going to respond, let it; if it's truly stuck, the
+  // person can see that nothing is happening and tap Stop themselves.
+  async function* withStopSignal(gen, stopSignal) {
     const it = gen[Symbol.asyncIterator] ? gen[Symbol.asyncIterator]() : gen;
     while (true) {
-      let timer;
       let result;
-      try {
-        const racers = [
+      if (stopSignal) {
+        result = await Promise.race([
           it.next(),
-          new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error(
-              label + ' got no response from the model for ' + Math.round(timeoutMs / 1000) + 's — it appears stuck. ' +
-              'Your progress so far is saved; try again (it will resume from the last completed section).'
-            )), timeoutMs);
-          }),
-        ];
-        if (stopSignal) racers.push(stopSignal.then(() => { throw new Error('__STOPPED_BY_USER__'); }));
-        result = await Promise.race(racers);
-      } finally {
-        clearTimeout(timer);
+          stopSignal.then(() => { throw new Error('__STOPPED_BY_USER__'); }),
+        ]);
+      } else {
+        result = await it.next();
       }
       if (result.done) return;
       yield result.value;
@@ -772,19 +770,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       while (attempt < 2) {
         attempt++;
         secCode = '';
-        // Real data from this device: a full model reload from cache takes
-        // 40-90s (not a guess — measured). If the engine isn't currently
-        // ready, THIS call is going to include that reload, on the first
-        // call of a session AND on any retry after a GPU-context-loss
-        // (which forces a full reset). Budget for that reality instead of
-        // a flat 25s that guarantees failure whenever a reload is needed.
-        const needsReload = engine.type === 'webllm' && !_webllmReady;
-        const thisTimeoutMs = needsReload ? 100000 : 25000;
         try {
-          dlog('section "' + sec + '" attempt ' + attempt + ' — timeout budget ' + (thisTimeoutMs/1000) + 's' + (needsReload ? ' (engine not ready — includes reload)' : ''));
-          const gen = withChunkTimeout(
+          dlog('section "' + sec + '" attempt ' + attempt + ' — no timeout, runs until done or Stop is tapped');
+          const gen = withStopSignal(
             streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 350),
-            thisTimeoutMs, 'Section "' + sec + '"', stopSignal
+            stopSignal
           );
           for await (const chunk of gen) {
             secCode += chunk;
@@ -798,13 +788,16 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
             saveDraft({ sections, completedIndex: i, assembled });
             throw new Error('Stopped by user.');
           }
+          // Only a real thrown error (e.g. GPU context lost) lands here now
+          // — never a guessed timeout. One retry for that case; if it
+          // happens again, stop and say so honestly instead of looping.
           if (attempt >= 2) {
             if (onSection) onSection(i, sections.length, sec, 'error', secCode);
-            saveDraft({ sections, completedIndex: i, assembled }); // keep what we have, don't advance past the failed section
+            saveDraft({ sections, completedIndex: i, assembled });
             throw e;
           }
-          console.warn('[YM AI] section "' + sec + '" timed out, retrying once…', e.message);
-          if (onProgress) onProgress({ text: 'Section "' + sec + '" stuck — retrying…', progress: 1 });
+          console.warn('[YM AI] section "' + sec + '" errored, retrying once…', e.message);
+          if (onProgress) onProgress({ text: 'Error: ' + e.message + ' — retrying…', progress: 1 });
         }
       }
       assembled += '\n' + secCode;
@@ -1184,9 +1177,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const heartbeat = setInterval(() => {
         if (_gotFirstChunk) return;
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        const maxWait = 25; // matches the per-section timeout
-        const remaining = Math.max(0, maxWait - Math.floor(elapsed));
-        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Processing prompt… ' + elapsed + 's (will time out and retry automatically after ~' + remaining + 's more if stuck — or tap Stop)</span>';
+        progEl.innerHTML = '<span style="color:var(--cyan)">⏳ Waiting for the model… ' + elapsed + 's (no automatic timeout — tap Stop if you want to cancel)</span>';
       }, 1000);
 
       try {
