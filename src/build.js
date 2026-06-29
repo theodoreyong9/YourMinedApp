@@ -220,8 +220,6 @@ function _mountAI(wrap, buildContent){
 
   function onAiExit(){ buildContent.innerHTML=''; renderFlow(buildContent); }
   window.addEventListener('ym:ai-exit', onAiExit, { once: true });
-
-  wrap.appendChild(_flowBack(buildContent, renderFlow));
 }
 
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
