@@ -764,30 +764,53 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       // (Section name/progress is already visible in the block list below —
       // no need to also repeat it in the main status line.)
       if (onSection) onSection(i, sections.length, sec, 'active', '');
-      const secPrompt = userPrompt +
-        '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
-        // Keep carried-over context short (~600 chars, not 1500) — this is
-        // the per-call prompt size that matters most for speed/reliability.
-        'Context so far (already written, do not repeat):\n```\n' + assembled.slice(-600) + '\n```\n' +
-        'Continue writing ONLY the next part for "' + sec + '". Output raw code only, no markdown fences, no repetition of prior code.';
 
       let secCode = '';
       let attempt = 0;
+      // Instead of one long call per section, do several short bursts with
+      // a pause between them. The device's GPU context was observed to
+      // spontaneously die ~11s into continuous generation — almost
+      // certainly a thermal/power cutoff, not something we can negotiate
+      // with. Keeping each individual call short and giving the GPU a
+      // breather between calls is the lever we actually have: it can't
+      // guarantee stability, but it directly targets the one measured
+      // failure pattern instead of guessing at something else.
+      const MICRO_BURST_TOKENS = 120;
+      const MICRO_BURST_PAUSE_MS = 600;
+      const MAX_BURSTS_PER_SECTION = 6;
       while (attempt < 2) {
         attempt++;
         secCode = '';
         try {
-          dlog('section "' + sec + '" attempt ' + attempt + ' — no timeout, runs until done or Stop is tapped');
-          const gen = withStopSignal(
-            streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 350),
-            stopSignal
-          );
-          for await (const chunk of gen) {
-            secCode += chunk;
-            if (onSection) onSection(i, sections.length, sec, 'active', secCode);
-            yield chunk;
+          for (let burst = 0; burst < MAX_BURSTS_PER_SECTION; burst++) {
+            if (burst > 0) {
+              dlog('pausing ' + MICRO_BURST_PAUSE_MS + 'ms before next burst (let GPU settle)…');
+              await new Promise(r => setTimeout(r, MICRO_BURST_PAUSE_MS));
+            }
+            const burstPrompt = userPrompt +
+              '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
+              'Already written for this section so far (do not repeat):\n```\n' + secCode.slice(-600) + '\n```\n' +
+              'Continue writing ONLY the next part for "' + sec + '". If this section is already complete, output nothing. Output raw code only, no markdown fences.';
+            dlog('section "' + sec + '" burst ' + (burst + 1) + '/' + MAX_BURSTS_PER_SECTION + ' (attempt ' + attempt + ', ' + MICRO_BURST_TOKENS + ' tokens max)');
+            let burstCode = '';
+            const gen = withStopSignal(
+              streamGenerate(engine, model, systemPrompt, burstPrompt, onProgress, MICRO_BURST_TOKENS),
+              stopSignal
+            );
+            for await (const chunk of gen) {
+              burstCode += chunk;
+              secCode += chunk;
+              if (onSection) onSection(i, sections.length, sec, 'active', secCode);
+              yield chunk;
+            }
+            // Model signaled it has nothing more to add for this section —
+            // stop bursting instead of spending more calls/GPU time on it.
+            if (!burstCode || burstCode.trim().length < 3) {
+              dlog('section "' + sec + '" — model produced no further content, section considered done');
+              break;
+            }
           }
-          break; // succeeded
+          break; // attempt succeeded
         } catch (e) {
           if (e.message === '__STOPPED_BY_USER__') {
             if (onSection) onSection(i, sections.length, sec, 'error', secCode);
@@ -1182,16 +1205,26 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState, stopSignal)
           : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
 
+        let _lastDomUpdate = 0;
         for await (const chunk of gen) {
           if (_stopRequested) { progEl.textContent = '■ Stopped'; break; }
           _gotFirstChunk = true;
           fullCode += chunk;
           tokenCount++;
-          outEl.value = fullCode;
-          outEl.scrollTop = outEl.scrollHeight;
-          charsEl.textContent = fullCode.length + ' chars';
+          const now = Date.now();
+          if (now - _lastDomUpdate > 150) {
+            outEl.value = fullCode;
+            outEl.scrollTop = outEl.scrollHeight;
+            charsEl.textContent = fullCode.length + ' chars';
+            _lastDomUpdate = now;
+          }
           progEl.textContent = 'Writing…';
         }
+        // Make sure the very last bit is always shown, even if it landed
+        // inside the throttle window above.
+        outEl.value = fullCode;
+        outEl.scrollTop = outEl.scrollHeight;
+        charsEl.textContent = fullCode.length + ' chars';
         clearInterval(heartbeat);
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         if (_stopRequested) {
