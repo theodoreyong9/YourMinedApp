@@ -338,7 +338,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
   // ── WEBLLM CONFIG ────────────────────────────────────────────
   const WEBLLM_CDN = 'https://esm.run/@mlc-ai/web-llm';
-  const WEBLLM_MODEL = 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC'; // ~900MB, fast on mobile
+  // Switched from Qwen2.5-1.5B (~1630MB VRAM) to Qwen2.5-Coder-0.5B
+  // (~945MB VRAM, officially tagged "Low Resource" in WebLLM's own model
+  // list) — code-specialized AND ~42% less GPU memory pressure. This is a
+  // real lever on sustained GPU load, not another parameter tweak around
+  // the same heavy model.
+  const WEBLLM_MODEL = 'Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC';
   let _webllmLoading = false;
   let _webllmReady = false;
   let _webllmEngine = null;
@@ -991,8 +996,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
     optsWrap.innerHTML =
       '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
-      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">' +
-      '<div style="font-size:9px;color:var(--text3);margin-top:6px">Generation runs in short chunks automatically — more reliable than one long call.</div>';
+      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">';
     body.appendChild(optsWrap);
 
     // Generate button
@@ -1064,43 +1068,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '</div>' +
       '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
       '<div id="ai-validate" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' +
-      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>' +
-      '<button id="ai-diag-toggle" style="background:none;border:none;color:var(--text3);font-size:9px;padding:4px 0;text-align:left;cursor:pointer;text-decoration:underline">Diagnostics</button>' +
-      '<textarea id="ai-diag-log" readonly style="display:none;width:100%;height:140px;font-family:var(--font-m);font-size:9px;line-height:1.5;box-sizing:border-box;margin-bottom:6px;background:rgba(0,0,0,.2);color:var(--text3);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px"></textarea>' +
-      '<button id="ai-diag-copy" style="display:none;width:100%;font-size:10px;padding:6px;margin-bottom:14px" class="ym-btn ym-btn-ghost">⎘ Copy diagnostics</button>';
+      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>';
     body.appendChild(outWrap);
-
-    // Diagnostics panel — shows the real call timeline, including what
-    // happened to calls our own timeout already gave up on. This is what
-    // lets us tell "actually stuck" apart from "just slower than we guessed".
-    const diagToggle = outWrap.querySelector('#ai-diag-toggle');
-    const diagLog = outWrap.querySelector('#ai-diag-log');
-    const diagCopy = outWrap.querySelector('#ai-diag-copy');
-    function refreshDiagPanel() {
-      diagToggle.textContent = 'Diagnostics (' + _debugLog.length + ')';
-      if (diagLog.style.display !== 'none') {
-        diagLog.value = _debugLog.join('\n');
-        diagLog.scrollTop = diagLog.scrollHeight;
-      }
-    }
-    window.__ymAiDebugUpdate = refreshDiagPanel;
-    diagToggle.addEventListener('click', () => {
-      const show = diagLog.style.display === 'none';
-      diagLog.style.display = show ? '' : 'none';
-      diagCopy.style.display = show ? '' : 'none';
-      if (show) refreshDiagPanel();
-    });
-    diagCopy.addEventListener('click', () => {
-      const text = _debugLog.join('\n');
-      navigator.clipboard?.writeText(text).then(() => toast('Diagnostics copied', 'success')).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
-        document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); document.body.removeChild(ta);
-        toast('Diagnostics copied', 'success');
-      });
-    });
-    refreshDiagPanel();
 
     // Type toggle wiring
     function setType(t) {
@@ -1253,7 +1222,6 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         } else {
           progEl.innerHTML = '<span style="color:var(--red)">Something went wrong — try again</span>';
           dlog('generation error: ' + e.message);
-          if (window.__ymAiDebugUpdate) window.__ymAiDebugUpdate();
         }
       } finally {
         genBtn.disabled = false;
