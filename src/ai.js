@@ -517,44 +517,24 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     if (typeof navigator === 'undefined' || !navigator.gpu) {
       return { supported: false, reason: 'WebGPU is not available in this browser. On iOS this needs a recent Safari; on Android, a recent Chrome.' };
     }
-    // navigator.gpu existing only means the API exists — it does NOT mean a
-    // real adapter is behind it. Actually requesting one is the only honest
-    // check; without this we only find out after downloading ~900MB.
-    // requestAdapter() can also just hang forever on some devices/browsers
-    // with zero feedback — time-box it so the compatibility check always
-    // resolves one way or the other instead of freezing the screen.
-    let adapter;
-    try {
-      adapter = await _withTimeout(
-        navigator.gpu.requestAdapter(),
-        8000,
-        'GPU adapter request timed out after 8s — this usually means WebGPU is not really functional on this device/browser, even though the API exists.'
-      );
-      if (!adapter) {
-        return { supported: false, reason: 'Unable to find a compatible GPU on this device/browser. WebGPU API is present but no adapter responded — see https://webgpureport.org/ to check support.' };
-      }
-    } catch (e) {
-      return { supported: false, reason: 'GPU adapter request failed: ' + e.message };
-    }
-    // Chrome Android only has REAL hardware WebGPU on Qualcomm Adreno 600+
-    // and Mali-G78+ GPUs (~78% of Chrome Android devices as of early 2026).
-    // On the rest, navigator.gpu still exists and requestAdapter() still
-    // "succeeds" — but silently falls back to a software/CPU adapter that
-    // is far too slow for this (a single token can take longer than our
-    // timeout, while pegging the CPU and lagging the whole phone). The
-    // WebGPU spec exposes exactly this via adapter.isFallbackAdapter —
-    // check it and refuse before downloading anything, instead of letting
-    // the phone grind for a minute and finding out the hard way.
-    if (adapter.isFallbackAdapter) {
-      return { supported: false, reason: 'This device only has a software (CPU-emulated) WebGPU adapter, not real GPU acceleration — it would be far too slow and would lag the whole phone. This is a hardware/driver limitation, not something fixable in-app. Try Ollama/Lemonade on a desktop instead.' };
-    }
+    // We used to also call navigator.gpu.requestAdapter() here on the main
+    // thread just to pre-check compatibility. That created a SECOND,
+    // separate WebGPU adapter/context alongside the one the Worker creates
+    // for the actual engine — and there is no API to release a GPUAdapter
+    // from JS once requested, so it lingers until garbage collected. Doing
+    // this on every panel visit (no full reload needed to retrigger it)
+    // accumulates live GPU contexts across a testing session, which is a
+    // very plausible contributor to the spontaneous "Instance reference no
+    // longer exists" device loss seen during generation. Removed: the
+    // Worker's own engine creation is the real, single, sufficient test —
+    // it already has clear error handling if the device truly can't run it.
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     const mem = navigator.deviceMemory; // not available on iOS, rough hint on Android/Chrome
     if (isMobile && typeof mem === 'number' && mem <= 2) {
       return { supported: true, risky: true, reason: 'This device reports ~' + mem + 'GB RAM — local AI generation may fail or be very slow. Ollama/Lemonade on a desktop is more reliable.' };
     }
     if (isMobile) {
-      return { supported: true, risky: true, reason: 'Generation runs on the main thread — switching tabs, locking the screen, or backgrounding the app can interrupt it. Keep this tab open and active during generation.' };
+      return { supported: true, risky: true, reason: 'Generation can be interrupted by backgrounding or screen lock on some devices. If generation fails repeatedly, a desktop with Ollama/Lemonade is more reliable.' };
     }
     return { supported: true, risky: false };
   }
@@ -784,7 +764,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
     for (let i = startIndex; i < sections.length; i++) {
       const sec = sections[i];
-      if (onProgress) onProgress({ text: 'Section ' + (i + 1) + '/' + sections.length + ': ' + sec, progress: 1 });
+      // (Section name/progress is already visible in the block list below —
+      // no need to also repeat it in the main status line.)
       if (onSection) onSection(i, sections.length, sec, 'active', '');
       const secPrompt = userPrompt +
         '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
@@ -824,8 +805,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
             saveDraft({ sections, completedIndex: i, assembled });
             throw e;
           }
-          console.warn('[YM AI] section "' + sec + '" errored, retrying once…', e.message);
-          if (onProgress) onProgress({ text: 'Error: ' + e.message + ' — retrying…', progress: 1 });
+          dlog('section "' + sec + '" error: ' + e.message + ' — retrying…');
+          if (onProgress) onProgress({ text: 'Retrying…', progress: 1 });
         }
       }
       assembled += '\n' + secCode;
