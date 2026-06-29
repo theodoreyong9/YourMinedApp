@@ -533,9 +533,6 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     if (isMobile && typeof mem === 'number' && mem <= 2) {
       return { supported: true, risky: true, reason: 'This device reports ~' + mem + 'GB RAM — local AI generation may fail or be very slow. Ollama/Lemonade on a desktop is more reliable.' };
     }
-    if (isMobile) {
-      return { supported: true, risky: true, reason: 'Generation can be interrupted by backgrounding or screen lock on some devices. If generation fails repeatedly, a desktop with Ollama/Lemonade is more reliable.' };
-    }
     return { supported: true, risky: false };
   }
 
