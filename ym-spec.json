@@ -1,20 +1,47 @@
 {
   "v": 1,
-  "generatedAt": "seed",
-  "totalFilesMined": 0,
-  "totalThemesMined": 0,
+  "generatedAt": "2026-06-29T08:22:12.288Z",
+  "totalFilesMined": 7,
+  "totalThemesMined": 1,
   "core": {
     "wrapper": "(function(){'use strict'; ... })();",
     "registry": "window.YM_S['FILENAME'] = { name, icon, category, description, activate(ctx){}, deactivate(){}, renderPanel(container){} };",
-    "required_methods": ["activate(ctx)", "deactivate()", "renderPanel(container)"],
-    "optional_methods": ["profileSection(container)", "peerSection(container, peerCtx)", "broadcastData()"],
-    "fields": ["name", "icon", "category", "description"]
+    "required_methods": [
+      "activate(ctx)",
+      "deactivate()",
+      "renderPanel(container)"
+    ],
+    "optional_methods": [
+      "profileSection(container)",
+      "peerSection(container, peerCtx)",
+      "broadcastData()"
+    ],
+    "fields": [
+      "name",
+      "icon",
+      "category",
+      "description"
+    ]
   },
   "ctx_api": {
-    "storage": ["ctx.storage.get(key)", "ctx.storage.set(key, val)", "ctx.storage.del(key)"],
-    "ui": ["ctx.toast(msg, type)", "ctx.openPanel(renderFn)", "ctx.setNotification(n)"],
-    "p2p": ["ctx.send(type, data)  // rate-limited 10/s", "ctx.onReceive((type, data, peerId) => {})"],
-    "profile": ["ctx.saveProfile(obj)", "ctx.loadProfile()"]
+    "storage": [
+      "ctx.storage.get(key)",
+      "ctx.storage.set(key, val)",
+      "ctx.storage.del(key)"
+    ],
+    "ui": [
+      "ctx.toast(msg, type)",
+      "ctx.openPanel(renderFn)",
+      "ctx.setNotification(n)"
+    ],
+    "p2p": [
+      "ctx.send(type, data)  // rate-limited 10/s",
+      "ctx.onReceive((type, data, peerId) => {})"
+    ],
+    "profile": [
+      "ctx.saveProfile(obj)",
+      "ctx.loadProfile()"
+    ]
   },
   "global_api": {
     "registry": "window.YM_sphereRegistry  // Map<filename, ctx> of active spheres",
@@ -24,17 +51,77 @@
     "social_near": "window.YM_Social?._nearUsers  // Map<uuid,{profile,ts,peerId,broadcastData}>",
     "widget_pages": "window.YM_Desk.registerWidgetPage(id,page) / registeredWidgetPage(id) / unregisterWidget(id)"
   },
-  "css_vars": ["--bg", "--text", "--text2", "--text3", "--gold", "--cyan", "--red", "--green", "--font-d", "--font-b", "--font-m"],
-  "ui_classes": [".ym-card", ".ym-card-title", ".ym-btn", ".ym-btn-accent", ".ym-btn-ghost", ".ym-btn-danger", ".ym-input", ".ym-notice", ".ym-tabs", ".ym-tab", ".pill"],
+  "css_vars": [
+    "--bg",
+    "--text",
+    "--text2",
+    "--text3",
+    "--gold",
+    "--cyan",
+    "--red",
+    "--green",
+    "--font-d",
+    "--font-b",
+    "--font-m"
+  ],
+  "ui_classes": [
+    ".ym-card",
+    ".ym-card-title",
+    ".ym-btn",
+    ".ym-btn-accent",
+    ".ym-btn-ghost",
+    ".ym-btn-danger",
+    ".ym-input",
+    ".ym-notice",
+    ".ym-tabs",
+    ".ym-tab",
+    ".pill"
+  ],
   "required": [
-    { "pattern": "iife_wrapper", "freq": "100%" },
-    { "pattern": "window.YM_S registry assignment", "freq": "100%" },
-    { "pattern": "activate()", "freq": "100%" },
-    { "pattern": "deactivate() as top-level method", "freq": "95%" },
-    { "pattern": "renderPanel()", "freq": "90%" },
-    { "pattern": "ctx.toast", "freq": "70%" },
-    { "pattern": "ctx.storage.get", "freq": "55%" },
-    { "pattern": "ctx.storage.set", "freq": "55%" }
+    {
+      "pattern": "window.YM_S registry assignment",
+      "freq": "100%"
+    },
+    {
+      "pattern": "activate()",
+      "freq": "100%"
+    },
+    {
+      "pattern": "renderPanel()",
+      "freq": "100%"
+    },
+    {
+      "pattern": "peerSection()",
+      "freq": "100%"
+    },
+    {
+      "pattern": "deactivate() as top-level method",
+      "freq": "86%"
+    },
+    {
+      "pattern": "profileSection()",
+      "freq": "86%"
+    },
+    {
+      "pattern": "broadcastData()",
+      "freq": "71%"
+    },
+    {
+      "pattern": "ctx.setNotification",
+      "freq": "57%"
+    },
+    {
+      "pattern": "ctx.onReceive",
+      "freq": "57%"
+    },
+    {
+      "pattern": "ctx.openPanel",
+      "freq": "43%"
+    },
+    {
+      "pattern": "ctx.toast",
+      "freq": "43%"
+    }
   ],
   "constraints": [
     "activate() must complete in <8s — never await slow calls inline",
@@ -50,10 +137,8 @@
   },
   "anti_patterns": [
     "Do not use localStorage directly in a sphere — use ctx.storage.get/set/del instead",
-    "Do not await slow network calls directly inside activate() — defer to a background task or first panel open",
     "Never declare top-level vars outside the IIFE",
-    "Never assign deactivate via ctx.deactivate = ... — it must be a top-level method",
+    "Never assign deactivate via ctx.deactivate = ... — it must be a top-level method on the YM_S object",
     "Keep broadcastData() payload under 500 bytes"
   ]
 }
-
