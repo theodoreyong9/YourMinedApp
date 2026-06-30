@@ -333,13 +333,32 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     return results;
   }
 
+  // Compiled system-prompt cache. getSystemPrompt() does real work (fetch
+  // files.json if not cached, tokenize, score, rebuild a ~3KB string) —
+  // wasteful to repeat for the exact same (type, prompt, category) within
+  // one session, e.g. on draft Continue or a Fix retry. Small, bounded,
+  // in-memory only — never touches localStorage or claims to make the
+  // model itself faster, just avoids redoing CPU work mobile can't spare.
+  const _compiledPromptCache = new Map();
+  const _COMPILED_PROMPT_CACHE_MAX = 12;
+
   async function getSystemPrompt(type, userPrompt, category) {
+    const key = type + '|' + userPrompt + '|' + category;
+    if (_compiledPromptCache.has(key)) {
+      dlog('system prompt cache hit');
+      return _compiledPromptCache.get(key);
+    }
     const spec = await loadSpec();
     let similarExamples = [];
     if (type === 'sphere' && userPrompt) {
       try { similarExamples = await retrieveSimilarSpheres(userPrompt, category, 1); } catch {}
     }
-    return renderSpecAsSystemPrompt(spec, type, userPrompt, similarExamples);
+    const prompt = renderSpecAsSystemPrompt(spec, type, userPrompt, similarExamples);
+    _compiledPromptCache.set(key, prompt);
+    if (_compiledPromptCache.size > _COMPILED_PROMPT_CACHE_MAX) {
+      _compiledPromptCache.delete(_compiledPromptCache.keys().next().value); // drop oldest
+    }
+    return prompt;
   }
 
   // ── WEBLLM CONFIG ────────────────────────────────────────────
