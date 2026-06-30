@@ -162,6 +162,29 @@ function renderFlow(buildContent){
         buildContent.appendChild(scrollArea);
         _renderUpdateScore(scrollArea);
       }
+    },
+    {
+      icon:'&#128161;',
+      label:'Idea',
+      sub:'Get sphere ideas from your network',
+      action(){
+        buildContent.innerHTML='';
+        buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+        function boot(){
+          if(window.YM_AI && window.YM_AI.renderIdeaChat){
+            window.YM_AI.renderIdeaChat(buildContent);
+          }else{
+            buildContent.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading AI engine…</div>';
+            let n=0;
+            const iv=setInterval(()=>{
+              n++;
+              if(window.YM_AI && window.YM_AI.renderIdeaChat){clearInterval(iv);window.YM_AI.renderIdeaChat(buildContent);}
+              else if(n>40){clearInterval(iv);buildContent.innerHTML='<div style="padding:24px;text-align:center;color:var(--red);font-size:12px">AI module failed to load (ai.js missing?)</div>';}
+            },250);
+          }
+        }
+        boot();
+      }
     }
   ];
 
@@ -533,6 +556,23 @@ function renderBuildContent(body,presetType){
           const pubName=(nameTypeStep.querySelector('#pub-name-main')?.value||'').trim();
           if(!pubName){
             aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Enter a name above first — the AI will use it as the filename.</div>';
+            // Watch the name field directly — as soon as a name appears,
+            // mount the real AI panel automatically. No more "re-click AI"
+            // requirement. Listener is bound once and self-removes once a
+            // name shows up, since mountAI() will be called again with a
+            // real panel from that point on.
+            const nameInput=nameTypeStep.querySelector('#pub-name-main');
+            if(nameInput && !nameInput.dataset.aiWatchBound){
+              nameInput.dataset.aiWatchBound='1';
+              let debounceTimer=null;
+              nameInput.addEventListener('input',()=>{
+                if(_mode!=='ai')return; // only relevant while AI mode is the active code-area mode
+                clearTimeout(debounceTimer);
+                debounceTimer=setTimeout(()=>{
+                  if((nameInput.value||'').trim()) mountAI();
+                },300);
+              });
+            }
             return;
           }
           const ext=_pubType==='theme'?'.theme.html':'.sphere.js';
