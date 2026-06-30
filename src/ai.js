@@ -367,7 +367,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // very different GPU memory budgets. Both IDs confirmed to exist in
   // WebLLM's official prebuiltAppConfig model list with full WebGPU
   // support (mlc-ai/web-llm GitHub issue #683 / #819).
-  const WEBLLM_MODEL_MOBILE  = 'Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC'; // ~1.63GB VRAM — same size class this device already proved it can load (the earlier crash was the duplicate-GPU-adapter bug, since fixed, not a load failure). The 0.5B model was too weak to stay coherent (duplicate blocks, placeholder text, broken strings) — that's a model-capacity ceiling, not something cleanup/prompting can fully paper over.
+  const WEBLLM_MODEL_MOBILE  = 'Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC'; // ~945MB VRAM — reverted from the 1.5B. The earlier garbage output (duplicate blocks, "// Your code here", broken strings) on this same 0.5B model was traced to two real bugs, now fixed: (1) micro-bursting forced the model to "resume" every ~120 tokens, breaking continuity, and (2) the prompt literally contained the banned phrase "// Your code here" as a negative example, which weak models pattern-match and reproduce regardless of the negation. With both fixed, the smaller/faster model is the better bet for fluidity without the root causes of the garbage still present.
   const WEBLLM_MODEL_DESKTOP = 'Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC';  // ~5.1GB VRAM, much stronger code generation
   let WEBLLM_MODEL = WEBLLM_MODEL_MOBILE; // resolved per-device in checkWebGpuSupport(), before any download starts
   let _webllmLoading = false;
@@ -1151,11 +1151,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
       '<div id="ai-validate" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' +
       '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:10px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>' +
-      '<div id="ai-iterate-wrap" style="display:none;flex-direction:column;gap:6px;margin-bottom:14px">' +
-        '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Iterate</div>' +
+      '<div id="ai-iterate-wrap" style="display:none;flex-direction:column;gap:8px;margin-bottom:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:4px">' +
+        '<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);font-weight:600">✦ Iterate <span style="color:var(--text3);font-weight:400">— refine this code</span></div>' +
         '<div id="ai-iterate-log" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto"></div>' +
         '<div style="display:flex;gap:6px">' +
-          '<input id="ai-iterate-input" class="ym-input" placeholder="e.g. \'add a timer\', \'use cyan instead\'…" style="flex:1;font-size:11px">' +
+          '<input id="ai-iterate-input" class="ym-input" placeholder="Refine: add a timer, use cyan, fix the bug…" style="flex:1;font-size:11px">' +
           '<button id="ai-iterate-send" class="ym-btn ym-btn-accent" style="flex-shrink:0;font-size:11px;padding:0 14px">↑</button>' +
         '</div>' +
       '</div>';
@@ -1183,10 +1183,17 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     function renderIterateLog() {
       const log = outWrap.querySelector('#ai-iterate-log');
       log.innerHTML = '';
-      _iterateHistory.filter(m => m.role === 'user').forEach(m => {
+      _iterateHistory.forEach(m => {
         const row = document.createElement('div');
-        row.style.cssText = 'font-size:10px;color:var(--text3);padding:5px 8px;background:rgba(255,255,255,.03);border-radius:6px';
-        row.textContent = '↳ ' + m.content;
+        if (m.role === 'user') {
+          row.style.cssText = 'font-size:10px;color:var(--text2);padding:5px 8px;background:rgba(240,168,48,.06);border:1px solid rgba(240,168,48,.15);border-radius:6px';
+          row.textContent = '↳ ' + m.content;
+        } else {
+          // Show a short confirmation for assistant turns (the actual code is in the textarea)
+          const lines = (m.content || '').split('\n').length;
+          row.style.cssText = 'font-size:9px;color:var(--text3);padding:3px 8px';
+          row.textContent = '✓ Updated (' + lines + ' lines)';
+        }
         log.appendChild(row);
       });
       log.scrollTop = log.scrollHeight;
@@ -1195,8 +1202,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     function showIterateUI(filename) {
       _iterateFilename = filename;
       _iterateHistory = loadIterateHistory(filename);
-      outWrap.querySelector('#ai-iterate-wrap').style.display = 'flex';
+      const wrap = outWrap.querySelector('#ai-iterate-wrap');
+      wrap.style.display = 'flex';
       renderIterateLog();
+      // Scroll into view so it's impossible to miss after generation
+      setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
     }
 
     outWrap.querySelector('#ai-iterate-send').addEventListener('click', async () => {
