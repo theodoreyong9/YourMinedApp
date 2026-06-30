@@ -363,12 +363,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
   // ── WEBLLM CONFIG ────────────────────────────────────────────
   const WEBLLM_CDN = 'https://esm.run/@mlc-ai/web-llm';
-  // Switched from Qwen2.5-1.5B (~1630MB VRAM) to Qwen2.5-Coder-0.5B
-  // (~945MB VRAM, officially tagged "Low Resource" in WebLLM's own model
-  // list) — code-specialized AND ~42% less GPU memory pressure. This is a
-  // real lever on sustained GPU load, not another parameter tweak around
-  // the same heavy model.
-  const WEBLLM_MODEL = 'Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC';
+  // Model is chosen per-device, not hardcoded — mobile and desktop have
+  // very different GPU memory budgets. Both IDs confirmed to exist in
+  // WebLLM's official prebuiltAppConfig model list with full WebGPU
+  // support (mlc-ai/web-llm GitHub issue #683 / #819).
+  const WEBLLM_MODEL_MOBILE  = 'Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC'; // ~945MB VRAM, Low Resource
+  const WEBLLM_MODEL_DESKTOP = 'Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC';  // ~5.1GB VRAM, much stronger code generation
+  let WEBLLM_MODEL = WEBLLM_MODEL_MOBILE; // resolved per-device in checkWebGpuSupport(), before any download starts
   let _webllmLoading = false;
   let _webllmReady = false;
   let _webllmEngine = null;
@@ -560,6 +561,22 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     // it already has clear error handling if the device truly can't run it.
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     const mem = navigator.deviceMemory; // not available on iOS, rough hint on Android/Chrome
+
+    // Model selection: this is THE lever for "use a stronger model on
+    // desktop". Mobile always stays on the small Coder model — that's the
+    // one actually confirmed working after a lot of trial and error on a
+    // real device, not worth risking by upsizing it. Desktop with enough
+    // reported RAM gets the much stronger 7B Coder model (~5.1GB VRAM)
+    // instead. deviceMemory is capped at 8 by browsers for privacy, so
+    // "8" really means "8 or more" — treated as a safe enough signal here.
+    if (!isMobile && typeof mem === 'number' && mem >= 8) {
+      WEBLLM_MODEL = WEBLLM_MODEL_DESKTOP;
+      dlog('device check: desktop with ' + mem + 'GB+ RAM reported — using ' + WEBLLM_MODEL_DESKTOP);
+    } else {
+      WEBLLM_MODEL = WEBLLM_MODEL_MOBILE;
+      dlog('device check: ' + (isMobile ? 'mobile' : 'desktop, RAM signal unavailable/low') + ' — using ' + WEBLLM_MODEL_MOBILE);
+    }
+
     if (isMobile && typeof mem === 'number' && mem <= 2) {
       return { supported: true, risky: true, reason: 'This device reports ~' + mem + 'GB RAM — local AI generation may fail or be very slow. Ollama/Lemonade on a desktop is more reliable.' };
     }
@@ -643,25 +660,27 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     }
   }
 
-  async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, maxTokens, _isRetry) {
+  // Low-level: takes a full messages array, so callers can maintain a real
+  // growing conversation (system + alternating user/assistant turns) rather
+  // than a single one-shot system+user pair. This is what makes "iterate on
+  // the same result" possible — we resend the whole history each call
+  // (the standard way to do multi-turn chat; WebLLM has no confirmed
+  // automatic KV reuse between separate calls, so this is honest about how
+  // continuity is actually achieved: by us, not by hidden engine magic).
+  async function* streamChatGenerate(engine, model, messages, onProgress, maxTokens, _isRetry) {
     maxTokens = maxTokens || DEFAULT_MAX_TOKENS;
     if (engine.type === 'webllm') {
-      // Auto-load if not ready (or reload if a previous run disposed the engine)
       const llm = await initWebLLM(onProgress);
       if (!llm) throw new Error('WebLLM failed to initialize');
-      // Generation itself can take a while too — keep the screen on so the
-      // GPU context doesn't get torn down mid-stream the same way it can
-      // during the initial model download.
       await _acquireWakeLock();
       try {
         let stream;
-        const promptChars = systemPrompt.length + userPrompt.length;
-        dlog('calling chat.completions.create — prompt ~' + promptChars + ' chars, max_tokens=' + maxTokens);
+        const promptChars = messages.reduce((n, m) => n + (m.content || '').length, 0);
+        dlog('calling chat.completions.create — ' + messages.length + ' messages, ~' + promptChars + ' chars, max_tokens=' + maxTokens);
         const _t0 = performance.now ? performance.now() : Date.now();
         try {
           stream = await llm.chat.completions.create({
-            messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-            temperature: 0.3, max_tokens: maxTokens, stream: true,
+            messages, temperature: 0.3, max_tokens: maxTokens, stream: true,
           });
           dlog('create() resolved after ' + (((performance.now ? performance.now() : Date.now()) - _t0) / 1000).toFixed(1) + 's — stream object obtained, now waiting for first chunk…');
         } catch (e) {
@@ -670,7 +689,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
             _resetWebllmState();
             if (!_isRetry) {
               if (onProgress) onProgress({ text: 'Engine was disposed (background/screen-off) — reloading and retrying…', progress: 0 });
-              yield* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, maxTokens, true);
+              yield* streamChatGenerate(engine, model, messages, onProgress, maxTokens, true);
               return;
             }
             throw new Error('The AI engine keeps getting disposed by the OS. Reopen the AI tab, keep this tab in the foreground with the screen on, and try again.');
@@ -705,7 +724,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const resp = await fetch('http://localhost:13305/api/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], stream: true, max_tokens: maxTokens }),
+        body: JSON.stringify({ model, messages, stream: true, max_tokens: maxTokens }),
       });
       if (!resp.ok) throw new Error('Lemonade error ' + resp.status);
       yield* readSSE(resp);
@@ -715,7 +734,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const resp = await fetch('http://localhost:11434/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }], stream: true }),
+        body: JSON.stringify({ model, messages, stream: true }),
       });
       if (!resp.ok) throw new Error('Ollama error ' + resp.status);
       const reader = resp.body.getReader();
@@ -738,6 +757,17 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       throw new Error(engine.reason || 'No AI engine available on this device. Install Lemonade or Ollama, or use a browser with WebGPU support.');
     }
     throw new Error('No engine available. Install Lemonade or Ollama, or enable WebGPU.');
+  }
+
+  // Backward-compatible wrapper — single system+user turn, used by the
+  // sectioned code generator which doesn't need full conversation history
+  // (each section call is already short-lived and self-contained).
+  async function* streamGenerate(engine, model, systemPrompt, userPrompt, onProgress, maxTokens, _isRetry) {
+    yield* streamChatGenerate(
+      engine, model,
+      [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+      onProgress, maxTokens, _isRetry
+    );
   }
 
   async function* readSSE(resp) {
@@ -1145,8 +1175,109 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '</div>' +
       '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
       '<div id="ai-validate" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' +
-      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>';
+      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:10px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>' +
+      '<div id="ai-iterate-wrap" style="display:none;flex-direction:column;gap:6px;margin-bottom:14px">' +
+        '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Iterate</div>' +
+        '<div id="ai-iterate-log" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto"></div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<input id="ai-iterate-input" class="ym-input" placeholder="e.g. \'add a timer\', \'use cyan instead\'…" style="flex:1;font-size:11px">' +
+          '<button id="ai-iterate-send" class="ym-btn ym-btn-accent" style="flex-shrink:0;font-size:11px;padding:0 14px">↑</button>' +
+        '</div>' +
+      '</div>';
     body.appendChild(outWrap);
+
+    // ── ITERATE — small persisted chat over the generated code ───
+    // Each turn: user instruction + the FULL current code go to the model,
+    // which is asked to return the FULL revised file (not a diff — small
+    // models handle "rewrite the whole thing" far more reliably than
+    // patches). History is kept (and resent in full each turn) so the
+    // model has continuity across iterations, same mechanism as Idea Chat.
+    const ITERATE_KEY_PREFIX = 'ym_ai_iterate_';
+    let _iterateHistory = []; // [{role, content}], content for assistant = full code at that turn
+    let _iterateFilename = '';
+
+    function iterateKey(fn) { return ITERATE_KEY_PREFIX + fn; }
+    function loadIterateHistory(fn) {
+      try { const raw = localStorage.getItem(iterateKey(fn)); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; }
+      catch { return []; }
+    }
+    function saveIterateHistory(fn, hist) {
+      try { localStorage.setItem(iterateKey(fn), JSON.stringify(hist.slice(-16))); } catch {}
+    }
+
+    function renderIterateLog() {
+      const log = outWrap.querySelector('#ai-iterate-log');
+      log.innerHTML = '';
+      _iterateHistory.filter(m => m.role === 'user').forEach(m => {
+        const row = document.createElement('div');
+        row.style.cssText = 'font-size:10px;color:var(--text3);padding:5px 8px;background:rgba(255,255,255,.03);border-radius:6px';
+        row.textContent = '↳ ' + m.content;
+        log.appendChild(row);
+      });
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function showIterateUI(filename) {
+      _iterateFilename = filename;
+      _iterateHistory = loadIterateHistory(filename);
+      outWrap.querySelector('#ai-iterate-wrap').style.display = 'flex';
+      renderIterateLog();
+    }
+
+    outWrap.querySelector('#ai-iterate-send').addEventListener('click', async () => {
+      const inputEl = outWrap.querySelector('#ai-iterate-input');
+      const sendBtn = outWrap.querySelector('#ai-iterate-send');
+      const outEl = outWrap.querySelector('#ai-output');
+      const valEl = outWrap.querySelector('#ai-validate');
+      const instruction = (inputEl.value || '').trim();
+      if (!instruction || !_iterateFilename) return;
+      const currentCode = outEl.value || '';
+      inputEl.value = '';
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+      sendBtn.textContent = '…';
+
+      _iterateHistory.push({ role: 'user', content: instruction });
+      renderIterateLog();
+
+      try {
+        const systemPrompt = await getSystemPrompt('sphere', instruction, '');
+        const iterateSystem = systemPrompt + '\n\nYou are iterating on an existing file. The user will give a short instruction. Reply with the COMPLETE revised file content only — no explanation, no markdown fences, no diff. Always keep the IIFE wrapper and the same window.YM_S key.';
+        const chatMessages = [
+          { role: 'system', content: iterateSystem },
+          { role: 'user', content: 'Current file (' + _iterateFilename + '):\n' + currentCode },
+          { role: 'assistant', content: 'Understood, ready for your instruction.' },
+          ...(_iterateHistory.slice(0, -1)), // prior turns, excluding the one just pushed
+          { role: 'user', content: instruction },
+        ];
+        let full = '';
+        for await (const chunk of streamChatGenerate(_engine, _model, chatMessages, null, 900)) {
+          full += chunk;
+          outEl.value = full;
+          outEl.scrollTop = outEl.scrollHeight;
+        }
+        full = cleanupGeneratedCode(full);
+        outEl.value = full;
+        _iterateHistory.push({ role: 'assistant', content: full });
+        saveIterateHistory(_iterateFilename, _iterateHistory);
+
+        const issues = validateSphereCode(full, _iterateFilename);
+        valEl.innerHTML = issues.length
+          ? '<span style="color:var(--red)">⚠ ' + issues.map(esc).join(' · ') + '</span>'
+          : '<span style="color:var(--green)">✓ Structure looks valid</span>';
+        toast('Updated', 'success');
+      } catch (e) {
+        toast(e.message, 'error');
+      } finally {
+        inputEl.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = '↑';
+        inputEl.focus();
+      }
+    });
+    outWrap.querySelector('#ai-iterate-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') outWrap.querySelector('#ai-iterate-send').click();
+    });
 
     // Type toggle wiring — no-op if the caller already fixed the type
     function setType(t) {
@@ -1297,7 +1428,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
             valEl.innerHTML = '<span style="color:var(--green)">✓ Structure looks valid</span>';
           }
         }
-        if (fullCode) { toast(isFix ? 'Fix applied!' : 'Code generated!', 'success'); clearDraft(); }
+        if (fullCode) {
+          toast(isFix ? 'Fix applied!' : 'Code generated!', 'success');
+          clearDraft();
+          if (type === 'sphere' && typeof showIterateUI === 'function') showIterateUI(filename);
+        }
       } catch (e) {
         clearInterval(heartbeat);
         if (e.message === 'Stopped by user.') {
@@ -1457,8 +1592,214 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     }, 500);
   })();
 
+  // ── IDEA CHAT ────────────────────────────────────────────────
+  // Replaces idea.sphere.js's direct calls to api.anthropic.com — those
+  // can't actually work from the browser without exposing a real API key
+  // client-side, which this codebase deliberately never does (see
+  // _userToken handling in build.js: tokens are memory-only, never sent
+  // anywhere but GitHub's own API). This reimplementation analyzes the
+  // same local data (active spheres + nearby peers) but runs the
+  // suggestion model through our existing local engine (WebLLM/Ollama/
+  // Lemonade), and — the actual feature requested — keeps a small,
+  // persisted back-and-forth conversation so you can ask follow-ups
+  // ("make it more social", "another idea but for Games") instead of only
+  // getting one disposable suggestion per click.
+  const IDEA_CHAT_KEY = 'ym_idea_chat_v1';
+  const IDEA_CHAT_MAX_TURNS = 12; // user+assistant pairs kept; older ones trimmed
+
+  function loadIdeaChat() {
+    try {
+      const raw = localStorage.getItem(IDEA_CHAT_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch { return []; }
+  }
+  function saveIdeaChat(messages) {
+    try {
+      const trimmed = messages.slice(-IDEA_CHAT_MAX_TURNS * 2);
+      localStorage.setItem(IDEA_CHAT_KEY, JSON.stringify(trimmed));
+    } catch {}
+  }
+  function clearIdeaChat() {
+    try { localStorage.removeItem(IDEA_CHAT_KEY); } catch {}
+  }
+
+  function collectNetworkSnapshot() {
+    const mySpheres = [];
+    if (window.YM_sphereRegistry) {
+      window.YM_sphereRegistry.forEach((obj, name) => {
+        mySpheres.push({ name: obj.name || name, category: obj.category || 'Other' });
+      });
+    }
+    const profile = window.YM?.getProfile?.() || {};
+    const peers = [];
+    const sharedPatterns = {};
+    const nearUsers = window.YM_Social?._nearUsers;
+    if (nearUsers) {
+      nearUsers.forEach((userData) => {
+        const p = userData.profile || {};
+        const peerSpheres = p.spheres || [];
+        peers.push({ name: p.name || 'Anonymous', bio: p.bio || '', spheres: peerSpheres });
+        peerSpheres.forEach(sid => { sharedPatterns[sid] = (sharedPatterns[sid] || 0) + 1; });
+      });
+    }
+    return { mySpheres, myBio: profile.bio || '', peers, sharedPatterns };
+  }
+
+  function buildIdeaSystemPrompt(snapshot) {
+    const mySphereNames = snapshot.mySpheres.map(s => s.name + ' (' + s.category + ')').join(', ') || 'none yet';
+    const topShared = Object.entries(snapshot.sharedPatterns)
+      .sort((a, b) => b[1] - a[1]).slice(0, 6)
+      .map(([id, count]) => id.replace('.sphere.js', '') + ' x' + count).join(', ') || 'no peer data yet';
+    const peerBios = snapshot.peers.filter(p => p.bio).slice(0, 5)
+      .map(p => '"' + p.bio.slice(0, 60) + '"').join(', ') || 'none';
+
+    return [
+      'You are a brainstorming assistant inside YourMine, a decentralized PWA where users install small modular "spheres" (mini-apps).',
+      'You suggest ONE concrete new sphere idea per reply, in plain text — short, like a real conversation, not JSON.',
+      'Format each suggestion as:',
+      'Name — one-line tagline',
+      'Why: one short sentence tying it to a real pattern below.',
+      '',
+      'NETWORK DATA (your only source of truth — do not invent trends or news, you have no internet access):',
+      '- This user\'s active spheres: ' + mySphereNames,
+      '- This user\'s bio: "' + (snapshot.myBio || 'none') + '"',
+      '- Most common spheres among ' + snapshot.peers.length + ' nearby peers: ' + topShared,
+      '- Peer bios: ' + peerBios,
+      '',
+      'Keep replies under 4 sentences. If the user asks a follow-up (different category, "another one", "more social", etc.), give a NEW idea matching that request — never repeat a previous suggestion.',
+    ].join('\n');
+  }
+
+  async function renderIdeaChat(body) {
+    body.innerHTML = '';
+    body.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;padding:0';
+
+    body.innerHTML =
+      '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 20px;text-align:center">' +
+        '<span style="width:20px;height:20px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:ym-ai-spin .7s linear infinite"></span>' +
+        '<div style="font-size:11px;color:var(--text3)">Checking device compatibility…</div>' +
+      '</div>';
+    if (!document.getElementById('ym-ai-spin-style')) {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'ym-ai-spin-style';
+      styleEl.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(styleEl);
+    }
+
+    let engine;
+    try {
+      engine = await _withTimeout(detectEngine(), 12000, 'Compatibility check timed out after 12s.');
+    } catch (e) {
+      engine = { type: 'unsupported', reason: e.message };
+    }
+    if (engine.type === 'unsupported') {
+      body.innerHTML =
+        '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 20px;text-align:center">' +
+          '<span style="font-size:32px">✗</span>' +
+          '<div style="font-size:13px;font-weight:600;color:var(--text)">No local AI available on this device</div>' +
+          '<div style="font-size:11px;color:var(--text3);line-height:1.6;max-width:320px">' + esc(engine.reason || '') + '</div>' +
+        '</div>';
+      return;
+    }
+    const model = engine.models[0] || '';
+
+    body.innerHTML = '';
+    const headRow = document.createElement('div');
+    headRow.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px';
+    headRow.innerHTML =
+      '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Idea Chat</div>' +
+      '<button id="idea-clear" style="background:none;border:none;color:var(--text3);font-size:9px;cursor:pointer;text-decoration:underline">Clear</button>';
+    body.appendChild(headRow);
+
+    const msgList = document.createElement('div');
+    msgList.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0';
+    body.appendChild(msgList);
+
+    const inputRow = document.createElement('div');
+    inputRow.style.cssText = 'padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;gap:6px';
+    inputRow.innerHTML =
+      '<input id="idea-input" class="ym-input" placeholder="Ask for an idea, or a follow-up…" style="flex:1;font-size:12px">' +
+      '<button id="idea-send" class="ym-btn ym-btn-accent" style="flex-shrink:0;font-size:12px;padding:0 16px">↑</button>';
+    body.appendChild(inputRow);
+
+    let messages = loadIdeaChat(); // [{role,content}] — no system entry stored, rebuilt fresh each send
+
+    function renderBubble(role, text) {
+      const bubble = document.createElement('div');
+      const isUser = role === 'user';
+      bubble.style.cssText = 'max-width:85%;align-self:' + (isUser ? 'flex-end' : 'flex-start') +
+        ';background:' + (isUser ? 'rgba(240,168,48,.12)' : 'rgba(255,255,255,.04)') +
+        ';border:1px solid ' + (isUser ? 'rgba(240,168,48,.25)' : 'rgba(255,255,255,.08)') +
+        ';border-radius:12px;padding:9px 12px;font-size:12px;line-height:1.5;color:var(--text2);white-space:pre-wrap';
+      bubble.textContent = text;
+      msgList.appendChild(bubble);
+      msgList.scrollTop = msgList.scrollHeight;
+      return bubble;
+    }
+
+    function renderHistory() {
+      msgList.innerHTML = '';
+      if (!messages.length) {
+        const hint = document.createElement('div');
+        hint.style.cssText = 'text-align:center;color:var(--text3);font-size:11px;padding:20px';
+        hint.textContent = 'Ask for a sphere idea based on your network — e.g. "suggest something" or "give me a Games idea".';
+        msgList.appendChild(hint);
+        return;
+      }
+      messages.forEach(m => renderBubble(m.role, m.content));
+    }
+    renderHistory();
+
+    headRow.querySelector('#idea-clear').addEventListener('click', () => {
+      messages = [];
+      clearIdeaChat();
+      renderHistory();
+    });
+
+    async function send() {
+      const inputEl = body.querySelector('#idea-input');
+      const sendBtn = body.querySelector('#idea-send');
+      const text = (inputEl.value || '').trim();
+      if (!text) return;
+      inputEl.value = '';
+      inputEl.disabled = true;
+      sendBtn.disabled = true;
+
+      messages.push({ role: 'user', content: text });
+      renderBubble('user', text);
+      const thinking = renderBubble('assistant', 'Thinking…');
+
+      try {
+        const snapshot = collectNetworkSnapshot();
+        const systemPrompt = buildIdeaSystemPrompt(snapshot);
+        const chatMessages = [{ role: 'system', content: systemPrompt }, ...messages];
+        let full = '';
+        for await (const chunk of streamChatGenerate(engine, model, chatMessages, null, 350)) {
+          full += chunk;
+          thinking.textContent = full;
+          msgList.scrollTop = msgList.scrollHeight;
+        }
+        if (!full.trim()) full = '(no response — try again)';
+        thinking.textContent = full;
+        messages.push({ role: 'assistant', content: full });
+        saveIdeaChat(messages);
+      } catch (e) {
+        thinking.textContent = 'Error: ' + e.message;
+        thinking.style.color = 'var(--red)';
+      } finally {
+        inputEl.disabled = false;
+        sendBtn.disabled = false;
+        inputEl.focus();
+      }
+    }
+    body.querySelector('#idea-send').addEventListener('click', send);
+    body.querySelector('#idea-input').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  }
+
   window.YM_AI = {
     renderAIContent,
+    renderIdeaChat,
     getSystemPrompt,
     loadSpec,
     validateSphereCode,
