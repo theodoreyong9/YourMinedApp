@@ -208,8 +208,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     lines.push('## STRICT OUTPUT RULES (follow exactly)');
     lines.push('- icon MUST be a single emoji character, e.g. icon: \'🎲\' — NEVER a file path or .png/.jpg/.svg filename');
     lines.push('- Write EXACTLY ONE window.YM_S[...] = {...} block. Never restart or repeat it.');
-    lines.push('- NEVER write the literal text "// Your code here" or any placeholder comment — write real, complete code.');
-    lines.push('- NEVER use markdown code fences (```). Output raw JavaScript only, nothing else.');
+    lines.push('- Write the real, working implementation for every function body. Do not leave any function empty or stubbed.');
+    lines.push('- Output plain JavaScript text only, with no Markdown formatting of any kind.');
     lines.push('- Escape every single quote inside string literals (use \\\' or use double quotes for that string).');
     lines.push('Output ONLY the complete file content. No explanation, no markdown fences.');
     let prompt = lines.join('\n');
@@ -367,7 +367,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   // very different GPU memory budgets. Both IDs confirmed to exist in
   // WebLLM's official prebuiltAppConfig model list with full WebGPU
   // support (mlc-ai/web-llm GitHub issue #683 / #819).
-  const WEBLLM_MODEL_MOBILE  = 'Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC'; // ~945MB VRAM, Low Resource
+  const WEBLLM_MODEL_MOBILE  = 'Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC'; // ~1.63GB VRAM — same size class this device already proved it can load (the earlier crash was the duplicate-GPU-adapter bug, since fixed, not a load failure). The 0.5B model was too weak to stay coherent (duplicate blocks, placeholder text, broken strings) — that's a model-capacity ceiling, not something cleanup/prompting can fully paper over.
   const WEBLLM_MODEL_DESKTOP = 'Qwen2.5-Coder-7B-Instruct-q4f16_1-MLC';  // ~5.1GB VRAM, much stronger code generation
   let WEBLLM_MODEL = WEBLLM_MODEL_MOBILE; // resolved per-device in checkWebGpuSupport(), before any download starts
   let _webllmLoading = false;
@@ -833,48 +833,23 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
       let secCode = '';
       let attempt = 0;
-      // Instead of one long call per section, do several short bursts with
-      // a pause between them. The device's GPU context was observed to
-      // spontaneously die ~11s into continuous generation — almost
-      // certainly a thermal/power cutoff, not something we can negotiate
-      // with. Keeping each individual call short and giving the GPU a
-      // breather between calls is the lever we actually have: it can't
-      // guarantee stability, but it directly targets the one measured
-      // failure pattern instead of guessing at something else.
-      const MICRO_BURST_TOKENS = 120;
-      const MICRO_BURST_PAUSE_MS = 600;
-      const MAX_BURSTS_PER_SECTION = 6;
+      const secPrompt = userPrompt +
+        '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
+        'Context so far (already written, do not repeat):\n```\n' + assembled.slice(-600) + '\n```\n' +
+        'Continue writing ONLY the next part for "' + sec + '". Output raw code only, no markdown fences, no repetition of prior code.';
       while (attempt < 2) {
         attempt++;
         secCode = '';
         try {
-          for (let burst = 0; burst < MAX_BURSTS_PER_SECTION; burst++) {
-            if (burst > 0) {
-              dlog('pausing ' + MICRO_BURST_PAUSE_MS + 'ms before next burst (let GPU settle)…');
-              await new Promise(r => setTimeout(r, MICRO_BURST_PAUSE_MS));
-            }
-            const burstPrompt = userPrompt +
-              '\n\nYou are now writing ONLY the "' + sec + '" section of ' + filename + '.\n' +
-              'Already written for this section so far (do not repeat):\n```\n' + secCode.slice(-600) + '\n```\n' +
-              'Continue writing ONLY the next part for "' + sec + '". If this section is already complete, output nothing. Output raw code only, no markdown fences.';
-            dlog('section "' + sec + '" burst ' + (burst + 1) + '/' + MAX_BURSTS_PER_SECTION + ' (attempt ' + attempt + ', ' + MICRO_BURST_TOKENS + ' tokens max)');
-            let burstCode = '';
-            const gen = withStopSignal(
-              streamGenerate(engine, model, systemPrompt, burstPrompt, onProgress, MICRO_BURST_TOKENS),
-              stopSignal
-            );
-            for await (const chunk of gen) {
-              burstCode += chunk;
-              secCode += chunk;
-              if (onSection) onSection(i, sections.length, sec, 'active', secCode);
-              yield chunk;
-            }
-            // Model signaled it has nothing more to add for this section —
-            // stop bursting instead of spending more calls/GPU time on it.
-            if (!burstCode || burstCode.trim().length < 3) {
-              dlog('section "' + sec + '" — model produced no further content, section considered done');
-              break;
-            }
+          dlog('section "' + sec + '" attempt ' + attempt + ' — single continuous call');
+          const gen = withStopSignal(
+            streamGenerate(engine, model, systemPrompt, secPrompt, onProgress, 500),
+            stopSignal
+          );
+          for await (const chunk of gen) {
+            secCode += chunk;
+            if (onSection) onSection(i, sections.length, sec, 'active', secCode);
+            yield chunk;
           }
           break; // attempt succeeded
         } catch (e) {
@@ -1337,8 +1312,13 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           progEl.textContent = p.text || 'Generating…';
         }
       }
+      let _lastBlockUpdate = 0;
       function onSection(idx, total, name, status, codeSoFar) {
-        renderBlock(idx, total, name, status, codeSoFar);
+        // Always update immediately for state changes (pending/active/done/
+        // error) — only throttle the rapid 'still streaming' updates.
+        if (status !== 'active') { renderBlock(idx, total, name, status, codeSoFar); _lastBlockUpdate = Date.now(); return; }
+        const now = Date.now();
+        if (now - _lastBlockUpdate > 150) { renderBlock(idx, total, name, status, codeSoFar); _lastBlockUpdate = now; }
       }
 
       // Load the model FIRST, fully separate from the per-chunk timeout
@@ -1667,8 +1647,26 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '- Most common spheres among ' + snapshot.peers.length + ' nearby peers: ' + topShared,
       '- Peer bios: ' + peerBios,
       '',
-      'Keep replies under 4 sentences. If the user asks a follow-up (different category, "another one", "more social", etc.), give a NEW idea matching that request — never repeat a previous suggestion.',
+      'If the user asks a follow-up (different category, "another one", "more social", etc.), give a NEW idea matching that request — never repeat a previous suggestion.',
+      'Stop writing immediately after the Why line. Do not add anything else.',
     ].join('\n');
+  }
+
+  // Defensive cleanup for chat replies: small models sometimes keep
+  // generating past their actual answer and start reproducing nearby
+  // instruction text verbatim (a known failure mode, not specific to this
+  // app). Truncate at the first sign of that rather than showing it.
+  const IDEA_LEAK_MARKERS = [
+    'NETWORK DATA', 'You are a brainstorming assistant', 'Format each suggestion as',
+    'Stop writing immediately', 'This user\'s active spheres:', 'Most common spheres among',
+  ];
+  function sanitizeIdeaReply(text) {
+    let cut = text.length;
+    for (const marker of IDEA_LEAK_MARKERS) {
+      const idx = text.indexOf(marker);
+      if (idx !== -1 && idx < cut) cut = idx;
+    }
+    return text.slice(0, cut).trim() || text.trim(); // never return empty if the whole thing matched somehow
   }
 
   async function renderIdeaChat(body) {
@@ -1780,6 +1778,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
           thinking.textContent = full;
           msgList.scrollTop = msgList.scrollHeight;
         }
+        full = sanitizeIdeaReply(full);
         if (!full.trim()) full = '(no response — try again)';
         thinking.textContent = full;
         messages.push({ role: 'assistant', content: full });
