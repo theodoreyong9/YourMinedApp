@@ -205,6 +205,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       spec.anti_patterns.slice(0, 4).forEach(a => lines.push('- ' + a));
       lines.push('');
     }
+    lines.push('## STRICT OUTPUT RULES (follow exactly)');
+    lines.push('- icon MUST be a single emoji character, e.g. icon: \'🎲\' — NEVER a file path or .png/.jpg/.svg filename');
+    lines.push('- Write EXACTLY ONE window.YM_S[...] = {...} block. Never restart or repeat it.');
+    lines.push('- NEVER write the literal text "// Your code here" or any placeholder comment — write real, complete code.');
+    lines.push('- NEVER use markdown code fences (```). Output raw JavaScript only, nothing else.');
+    lines.push('- Escape every single quote inside string literals (use \\\' or use double quotes for that string).');
     lines.push('Output ONLY the complete file content. No explanation, no markdown fences.');
     let prompt = lines.join('\n');
     // Hard cap — a smaller prompt means faster prefill on a 1.5B model
@@ -762,6 +768,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     } else {
       sections = getFixedSectionPlan(userPrompt);
       if (onSection) sections.forEach((s, i) => onSection(i, sections.length, s, 'pending', ''));
+      // Save the plan immediately, before generating anything. Previously
+      // this only got saved on the first section's success/error — if the
+      // tab was closed (or the engine got killed) mid-first-section, there
+      // was nothing to resume from at all. Now there always is, from the
+      // very first moment.
+      saveDraft({ sections, completedIndex: 0, assembled: '' });
     }
 
     for (let i = startIndex; i < sections.length; i++) {
@@ -841,6 +853,32 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
 
   // ── VALIDATION (post-generation repair hints) ────────────────
+  // ── POST-GENERATION CLEANUP ───────────────────────────────────
+  // A 0.5B model frequently ignores "no markdown fences" / "no placeholder
+  // comments" instructions even when told explicitly. Rather than fight
+  // that purely with prompting, clean up the most common, mechanically
+  // detectable failure patterns automatically before showing/validating
+  // the result. This doesn't fix deeper coherence problems (duplicate
+  // logic, broken strings) but removes the cheap, common junk reliably.
+  function cleanupGeneratedCode(code) {
+    let out = code;
+    // Strip markdown code fences the model emitted despite instructions.
+    out = out.replace(/```(?:javascript|js|html)?\n?/gi, '');
+    // Drop placeholder comment lines — never acceptable as real code.
+    out = out.split('\n').filter(line => !/^\s*\/\/\s*your code here\s*$/i.test(line)).join('\n');
+    // If the model emitted multiple window.YM_S[...] = {...} assignments
+    // (seen in practice — it sometimes restarts the object definition
+    // entirely partway through), keep only the FIRST one's surrounding
+    // IIFE and discard the rest, since later ones are near-duplicates with
+    // a slightly different key, not a real multi-sphere file.
+    const ymsMatches = [...out.matchAll(/window\.YM_S\s*\[/g)];
+    if (ymsMatches.length > 1) {
+      const cutAt = ymsMatches[1].index;
+      out = out.slice(0, cutAt);
+    }
+    return out.trim();
+  }
+
   function validateSphereCode(code, filename) {
     const issues = [];
     if (!/^\s*\(function\s*\(\s*\)\s*\{/.test(code)) issues.push('Missing top-level IIFE wrapper');
@@ -849,11 +887,23 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     if (!/activate\s*\(/.test(code)) issues.push('Missing activate() method');
     if (!/deactivate\s*\(\)\s*\{/.test(code)) issues.push('Missing top-level deactivate() method');
     if (!/renderPanel\s*\(/.test(code)) issues.push('Missing renderPanel() method');
+    if (/```/.test(code)) issues.push('Contains markdown code fences (not raw code)');
+    if (/\/\/\s*your code here/i.test(code)) issues.push('Contains "// Your code here" placeholder instead of real code');
+    const ymsCount = (code.match(/window\.YM_S\s*\[/g) || []).length;
+    if (ymsCount > 1) issues.push('Multiple window.YM_S[...] assignments found (' + ymsCount + ') — should be exactly one');
+    const iconMatch = code.match(/icon\s*:\s*'([^']*)'/);
+    if (iconMatch && /\.(png|jpe?g|gif|svg|webp)$/i.test(iconMatch[1])) {
+      issues.push('icon is an invented image path ("' + iconMatch[1] + '") instead of a single emoji character');
+    }
+    const openBraces = (code.match(/\{/g) || []).length;
+    const closeBraces = (code.match(/\}/g) || []).length;
+    if (openBraces !== closeBraces) issues.push('Unbalanced braces (' + openBraces + ' open vs ' + closeBraces + ' close) — code is structurally broken');
     return issues;
   }
 
   // ── RENDER ────────────────────────────────────────────────────
-  async function renderAIContent(body) {
+  async function renderAIContent(body, opts) {
+    opts = opts || {};
     body.innerHTML = '';
     body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:0';
 
@@ -918,7 +968,7 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     }
 
     body.innerHTML = '';
-    let _type = 'sphere';
+    let _type = opts.fixedType || 'sphere';
     let _engine = _detectedEngine;
     let _model = _engine.models[0] || '';
 
@@ -953,16 +1003,24 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     loadSpec().then(spec => { _specStatus = spec ? 'ok' : 'fallback'; updateEngBadge(); });
     updateEngBadge();
 
-    // Type toggle
+    // Type toggle — only shown when the caller hasn't already decided this.
+    // The Publish form already has its own Sphere/Theme choice; asking
+    // again here was a redundant duplicate control.
     const typeRow = document.createElement('div');
-    typeRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    typeRow.innerHTML =
-      '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Generate</div>' +
-      '<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden">' +
-        '<button id="ai-type-sphere" style="background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer">⬡ Sphere</button>' +
-        '<button id="ai-type-theme"  style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Thème</button>' +
-      '</div>';
-    body.appendChild(typeRow);
+    if (opts.fixedType) {
+      typeRow.style.cssText = 'padding:6px 14px;flex-shrink:0;font-size:10px;color:var(--text3)';
+      typeRow.textContent = (opts.fixedType === 'theme' ? '🎨 Theme' : '⬡ Sphere') + (opts.fixedFilename ? ' — ' + opts.fixedFilename : '');
+      body.appendChild(typeRow);
+    } else {
+      typeRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
+      typeRow.innerHTML =
+        '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Generate</div>' +
+        '<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden">' +
+          '<button id="ai-type-sphere" style="background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer">⬡ Sphere</button>' +
+          '<button id="ai-type-theme"  style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Thème</button>' +
+        '</div>';
+      body.appendChild(typeRow);
+    }
 
     // ── Draft resume banner ──────────────────────────────────
     const draftRow = document.createElement('div');
@@ -1071,11 +1129,12 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:14px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>';
     body.appendChild(outWrap);
 
-    // Type toggle wiring
+    // Type toggle wiring — no-op if the caller already fixed the type
     function setType(t) {
       _type = t;
       const sBtn  = typeRow.querySelector('#ai-type-sphere');
       const thBtn = typeRow.querySelector('#ai-type-theme');
+      if (!sBtn || !thBtn) return;
       if (t === 'sphere') {
         sBtn.style.cssText  = 'background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer';
         thBtn.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
@@ -1084,8 +1143,8 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         sBtn.style.cssText  = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
       }
     }
-    typeRow.querySelector('#ai-type-sphere').addEventListener('click', () => setType('sphere'));
-    typeRow.querySelector('#ai-type-theme').addEventListener('click',  () => setType('theme'));
+    typeRow.querySelector('#ai-type-sphere')?.addEventListener('click', () => setType('sphere'));
+    typeRow.querySelector('#ai-type-theme')?.addEventListener('click',  () => setType('theme'));
 
     // Generate
     // Shared generation runner — used by Generate, draft Continue, and Fix.
@@ -1191,6 +1250,11 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         }
         // Make sure the very last bit is always shown, even if it landed
         // inside the throttle window above.
+        if (fullCode && type === 'sphere') {
+          const cleaned = cleanupGeneratedCode(fullCode);
+          if (cleaned !== fullCode) dlog('cleanup removed ' + (fullCode.length - cleaned.length) + ' chars (fences/placeholders/dup blocks)');
+          fullCode = cleaned;
+        }
         outEl.value = fullCode;
         outEl.scrollTop = outEl.scrollHeight;
         charsEl.textContent = fullCode.length + ' chars';
@@ -1237,9 +1301,20 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       const cat    = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
       if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
 
-      const ext      = _type === 'sphere' ? '.sphere.js' : '.theme.html';
-      const slug     = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '');
-      const filename = slug + ext;
+      // The filename must match exactly what's used to register/publish
+      // the sphere (window.YM_S key === filename). When the Publish form
+      // already has a name (checked for uniqueness/ownership there), use
+      // that — never invent a separate slug from the prompt text, which
+      // could silently produce a file that doesn't match what gets
+      // published.
+      let filename;
+      if (opts.fixedFilename) {
+        filename = opts.fixedFilename;
+      } else {
+        const ext  = _type === 'sphere' ? '.sphere.js' : '.theme.html';
+        const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '') || 'untitled';
+        filename = slug + ext;
+      }
 
       body.querySelector('#ai-progress').textContent = 'Building context (similar files + skeleton)…';
       const systemPrompt = await getSystemPrompt(_type, prompt, cat);
