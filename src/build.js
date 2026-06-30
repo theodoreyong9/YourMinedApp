@@ -134,19 +134,6 @@ function renderFlow(buildContent){
       }
     },
     {
-      icon:'&#129302;',
-      label:'AI',
-      sub:'Generate a sphere or theme with AI',
-      action(){
-        buildContent.innerHTML='';
-        buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-        const wrap=document.createElement('div');
-        wrap.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-        buildContent.appendChild(wrap);
-        _mountAI(wrap,buildContent);
-      }
-    },
-    {
       icon:'&#10022;',
       label:'Prompt',
       sub:'Copy the AI prompt to your clipboard',
@@ -197,31 +184,6 @@ function renderFlow(buildContent){
   buildContent.appendChild(grid);
 }
 
-// ── MOUNT AI TAB (with Back button) ───────────────────────────
-function _mountAI(wrap, buildContent){
-  const scrollArea=document.createElement('div');
-  scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;display:flex;flex-direction:column';
-  wrap.appendChild(scrollArea);
-
-  function boot(){
-    if(window.YM_AI && window.YM_AI.renderAIContent){
-      window.YM_AI.renderAIContent(scrollArea);
-    }else{
-      scrollArea.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading AI engine…</div>';
-      let n=0;
-      const iv=setInterval(()=>{
-        n++;
-        if(window.YM_AI && window.YM_AI.renderAIContent){clearInterval(iv);window.YM_AI.renderAIContent(scrollArea);}
-        else if(n>40){clearInterval(iv);scrollArea.innerHTML='<div style="padding:24px;text-align:center;color:var(--red);font-size:12px">AI module failed to load (ai.js missing?)</div>';}
-      },250);
-    }
-  }
-  boot();
-
-  function onAiExit(){ buildContent.innerHTML=''; renderFlow(buildContent); }
-  window.addEventListener('ym:ai-exit', onAiExit, { once: true });
-}
-
 // ── RENDER PRINCIPAL ──────────────────────────────────────────
 let _buildTab='rank';
 
@@ -238,11 +200,6 @@ async function render(containerArg,presetType){
   body.appendChild(buildContent);
   if(presetType==='theme'){
     renderBuildContent(buildContent,'theme');
-  }else if(presetType==='ai'){
-    const wrap=document.createElement('div');
-    wrap.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-    buildContent.appendChild(wrap);
-    _mountAI(wrap,buildContent);
   }else{
     renderFlow(buildContent);
   }
@@ -573,7 +530,14 @@ function renderBuildContent(body,presetType){
       codeAreaEl.appendChild(aiHost);
       function mountAI(){
         if(window.YM_AI && window.YM_AI.renderAIContent){
-          window.YM_AI.renderAIContent(aiHost);
+          const pubName=(nameTypeStep.querySelector('#pub-name-main')?.value||'').trim();
+          if(!pubName){
+            aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Enter a name above first — the AI will use it as the filename.</div>';
+            return;
+          }
+          const ext=_pubType==='theme'?'.theme.html':'.sphere.js';
+          const fixedFilename=pubName.replace(/\.(sphere\.js|theme\.html)$/,'')+ext;
+          window.YM_AI.renderAIContent(aiHost, { fixedType:_pubType, fixedFilename });
           window.addEventListener('ym:ai-exit', ()=>{ _mode='code'; renderCodeAreaMain(); }, { once:true });
           // Add a "Use this code" bridge button under the AI output once rendered
           setTimeout(()=>{
