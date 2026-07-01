@@ -547,69 +547,80 @@ function renderBuildContent(body,presetType){
     codeHead.querySelector('#mode-quick-main').style.cssText='font-size:9px;padding:3px 8px;'+(_mode==='quick'?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
     codeHead.querySelector('#mode-ai-main').style.cssText='font-size:9px;padding:3px 8px;'+(isAI?'background:rgba(240,168,48,.08);border-color:rgba(240,168,48,.3);color:var(--gold)':'');
     if(isAI){
-      // Mount the AI generator inline; "Use this code" copies result into the raw code textarea
-      const aiHost=document.createElement('div');
-      aiHost.style.cssText='border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden;max-height:520px;display:flex;flex-direction:column';
-      codeAreaEl.appendChild(aiHost);
-      function mountAI(){
-        if(window.YM_AI && window.YM_AI.renderAIContent){
-          const pubName=(nameTypeStep.querySelector('#pub-name-main')?.value||'').trim();
-          if(!pubName){
-            aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Enter a name above first — the AI will use it as the filename.</div>';
-            // Watch the name field directly — as soon as a name appears,
-            // mount the real AI panel automatically. No more "re-click AI"
-            // requirement. Listener is bound once and self-removes once a
-            // name shows up, since mountAI() will be called again with a
-            // real panel from that point on.
-            const nameInput=nameTypeStep.querySelector('#pub-name-main');
-            if(nameInput && !nameInput.dataset.aiWatchBound){
-              nameInput.dataset.aiWatchBound='1';
-              let debounceTimer=null;
-              nameInput.addEventListener('input',()=>{
-                if(_mode!=='ai')return; // only relevant while AI mode is the active code-area mode
-                clearTimeout(debounceTimer);
-                debounceTimer=setTimeout(()=>{
-                  if((nameInput.value||'').trim()) mountAI();
-                },300);
-              });
-            }
-            return;
-          }
-          const ext=_pubType==='theme'?'.theme.html':'.sphere.js';
-          const fixedFilename=pubName.replace(/\.(sphere\.js|theme\.html)$/,'')+ext;
-          window.YM_AI.renderAIContent(aiHost, { fixedType:_pubType, fixedFilename });
-          window.addEventListener('ym:ai-exit', ()=>{ _mode='code'; renderCodeAreaMain(); }, { once:true });
-          // Add a "Use this code" bridge button under the AI output once rendered
-          setTimeout(()=>{
-            const outEl=aiHost.querySelector('#ai-output');
-            const genWrap=aiHost.querySelector('#ai-generate')?.closest('div');
-            if(outEl && !aiHost.querySelector('#ai-use-code')){
-              const useBtn=document.createElement('button');
-              useBtn.id='ai-use-code';
-              useBtn.className='ym-btn ym-btn-accent';
-              useBtn.style.cssText='width:100%;font-size:12px;margin:8px 14px 14px;flex-shrink:0';
-              useBtn.textContent='↳ Use this code for publishing';
-              useBtn.addEventListener('click',()=>{
-                _mode='code';renderCodeAreaMain();
-                const codeTa=codeAreaEl.querySelector('#pub-code-main');
-                if(codeTa){codeTa.value=outEl.value;codeTa.dispatchEvent(new Event('input'));}
-                toast('Code transféré vers Code brut','success');
-              });
-              aiHost.appendChild(useBtn);
-            }
-          },300);
-        }else{
-          aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading AI engine…</div>';
-          let n=0;
-          const iv=setInterval(()=>{
-            n++;
-            if(window.YM_AI && window.YM_AI.renderAIContent){clearInterval(iv);mountAI();}
-            else if(n>40){clearInterval(iv);aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--red);font-size:12px">AI module failed to load (ai.js missing?)</div>';}
-          },250);
-        }
+      // Persist the aiHost across re-renders so returning to AI mode doesn't
+      // remount (and lose progress, iteration history, etc.).
+      if(!codeAreaEl._aiHost){
+        const aiHost=document.createElement('div');
+        // No max-height + overflow:hidden — that was cutting off the Iterate
+        // section entirely. Let the content scroll naturally inside aiHost.
+        aiHost.style.cssText='border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow-y:auto;display:flex;flex-direction:column;min-height:320px';
+        codeAreaEl._aiHost=aiHost;
       }
-      mountAI();
-      return;
+      const aiHost=codeAreaEl._aiHost;
+      codeAreaEl.appendChild(aiHost);
+
+      // Only mount once — if already mounted (has real children beyond a
+      // placeholder), don't wipe and restart.
+      const alreadyMounted = aiHost.querySelector('#ai-generate') || aiHost.querySelector('#ai-output');
+      if(!alreadyMounted){
+        function mountAI(){
+          if(window.YM_AI && window.YM_AI.renderAIContent){
+            const pubName=(nameTypeStep.querySelector('#pub-name-main')?.value||'').trim();
+            if(!pubName){
+              aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Enter a name above first — the AI will use it as the filename.</div>';
+              const nameInput=nameTypeStep.querySelector('#pub-name-main');
+              if(nameInput && !nameInput.dataset.aiWatchBound){
+                nameInput.dataset.aiWatchBound='1';
+                let debounceTimer=null;
+                nameInput.addEventListener('input',()=>{
+                  if(_mode!=='ai')return;
+                  clearTimeout(debounceTimer);
+                  debounceTimer=setTimeout(()=>{
+                    if((nameInput.value||'').trim()) mountAI();
+                  },300);
+                });
+              }
+              return;
+            }
+            const ext=_pubType==='theme'?'.theme.html':'.sphere.js';
+            const fixedFilename=pubName.replace(/\.(sphere\.js|theme\.html)$/,'')+ext;
+            window.YM_AI.renderAIContent(aiHost, { fixedType:_pubType, fixedFilename });
+            window.addEventListener('ym:ai-exit', ()=>{ _mode='code'; renderCodeAreaMain(); }, { once:true });
+            // "Use this code" bridge — inside the normal flow, not floating
+            // outside, so width:100% is relative to its container not body.
+            setTimeout(()=>{
+              const outEl=aiHost.querySelector('#ai-output');
+              if(outEl && !aiHost.querySelector('#ai-use-code')){
+                const useBtnWrap=document.createElement('div');
+                useBtnWrap.style.cssText='padding:0 14px 14px;flex-shrink:0';
+                const useBtn=document.createElement('button');
+                useBtn.id='ai-use-code';
+                useBtn.className='ym-btn ym-btn-accent';
+                useBtn.style.cssText='width:100%;font-size:12px;box-sizing:border-box';
+                useBtn.textContent='↳ Use this code for publishing';
+                useBtn.addEventListener('click',()=>{
+                  _mode='code';renderCodeAreaMain();
+                  const codeTa=codeAreaEl.querySelector('#pub-code-main');
+                  if(codeTa){codeTa.value=outEl.value;codeTa.dispatchEvent(new Event('input'));}
+                  toast('Code transferred','success');
+                });
+                useBtnWrap.appendChild(useBtn);
+                aiHost.appendChild(useBtnWrap);
+              }
+            },300);
+          }else{
+            aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--text3);font-size:12px">Loading AI engine…</div>';
+            let n=0;
+            const iv=setInterval(()=>{
+              n++;
+              if(window.YM_AI && window.YM_AI.renderAIContent){clearInterval(iv);mountAI();}
+              else if(n>40){clearInterval(iv);aiHost.innerHTML='<div style="padding:24px;text-align:center;color:var(--red);font-size:12px">AI module failed to load (ai.js missing?)</div>';}
+            },250);
+          }
+        }
+        mountAI();
+      }
+      return; // don't fall through to the code/quick area rendering below
     }
     if(isCode){
       const ph=_pubType==='theme'?'<!-- HTML theme code -->':'/* Visit github.com/theodoreyong9/YourMinedApp for sphere examples */';
