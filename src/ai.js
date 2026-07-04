@@ -926,635 +926,381 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
   }
 
   // ── RENDER ────────────────────────────────────────────────────
+
+  // ── RENDER ────────────────────────────────────────────────────
   async function renderAIContent(body, opts) {
     opts = opts || {};
     body.innerHTML = '';
     body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:0';
 
-    // ── Compatibility check FIRST, before building any form ──────
-    // This used to happen silently in the background while the (disabled)
-    // form was already visible. Now nothing else renders until we know
-    // whether this device can actually run something.
-    body.innerHTML =
-      '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 20px;text-align:center">' +
-        '<span style="width:20px;height:20px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:ym-ai-spin .7s linear infinite"></span>' +
-        '<div style="font-size:11px;color:var(--text3)">Checking device compatibility…</div>' +
-      '</div>';
     if (!document.getElementById('ym-ai-spin-style')) {
-      const styleEl0 = document.createElement('style');
-      styleEl0.id = 'ym-ai-spin-style';
-      styleEl0.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(styleEl0);
+      const s = document.createElement('style');
+      s.id = 'ym-ai-spin-style';
+      s.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(s);
     }
 
-    let _detectedEngine;
+    // ── 1. Compatibility check ─────────────────────────────────
+    body.innerHTML = '<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:10px;padding:40px 20px"><span style="width:16px;height:16px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:ym-ai-spin .7s linear infinite"></span><span style="font-size:11px;color:var(--text3)">Checking…</span></div>';
+
+    let _engine;
     try {
-      _detectedEngine = await _withTimeout(detectEngine(), 12000, 'Compatibility check timed out after 12s.');
+      _engine = await _withTimeout(detectEngine(), 12000, 'Compatibility check timed out.');
     } catch (e) {
-      _detectedEngine = { type: 'unsupported', label: 'Detection failed', models: [], reason: e.message + ' Your browser may not support the checks needed for local AI on this device.' };
+      _engine = { type: 'unsupported', reason: e.message };
     }
 
-    if (_detectedEngine.type === 'unsupported') {
-      body.innerHTML =
-        '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 20px;text-align:center">' +
-          '<span style="font-size:32px">✗</span>' +
-          '<div style="font-size:13px;font-weight:600;color:var(--text)">No local AI engine available on this device</div>' +
-          '<div style="font-size:11px;color:var(--text3);line-height:1.6;max-width:320px">' + esc(_detectedEngine.reason || '') + '</div>' +
-          '<div style="display:flex;gap:8px;width:100%;max-width:280px;margin-top:6px">' +
-            '<button id="ai-copy-prompt" class="ym-btn ym-btn-ghost" style="flex:1;font-size:11px;padding:10px">⎘ Copy prompt</button>' +
-            '<button id="ai-exit" class="ym-btn ym-btn-danger" style="flex:1;font-size:11px;padding:10px">✕ Exit</button>' +
-          '</div>' +
+    if (_engine.type === 'unsupported') {
+      body.innerHTML = '';
+      const err = document.createElement('div');
+      err.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 20px;text-align:center';
+      err.innerHTML =
+        '<span style="font-size:32px">✗</span>' +
+        '<div style="font-size:13px;font-weight:600;color:var(--text)">No local AI engine available</div>' +
+        '<div style="font-size:11px;color:var(--text3);line-height:1.6;max-width:300px">' + esc(_engine.reason || '') + '</div>' +
+        '<div style="display:flex;gap:8px;width:100%;max-width:260px">' +
+          '<button id="ai-copy-prompt" class="ym-btn ym-btn-ghost" style="flex:1;font-size:11px;padding:10px">⎘ Copy prompt</button>' +
+          '<button id="ai-exit" class="ym-btn ym-btn-danger" style="flex:1;font-size:11px;padding:10px">✕ Exit</button>' +
         '</div>';
+      body.appendChild(err);
       body.querySelector('#ai-copy-prompt')?.addEventListener('click', () => {
-        const promptText = 'yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
-        navigator.clipboard?.writeText(promptText).then(() => {
-          toast('Prompt copied — paste it in your AI', 'success');
-        }).catch(() => {
-          const ta = document.createElement('textarea');
-          ta.value = promptText; ta.style.cssText = 'position:fixed;opacity:0';
-          document.body.appendChild(ta); ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          toast('Prompt copied — paste it in your AI', 'success');
+        const p = 'yourmine-dapp.web.app/readme is the prompt realizing my will and you are the engine through which I will formulate the new orchestration.';
+        navigator.clipboard?.writeText(p).then(() => toast('Prompt copied', 'success')).catch(() => {
+          const ta = document.createElement('textarea'); ta.value = p; ta.style.cssText = 'position:fixed;opacity:0';
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+          toast('Prompt copied', 'success');
         });
       });
-      body.querySelector('#ai-exit')?.addEventListener('click', () => {
-        // ai.js doesn't own the surrounding panel/navigation — build.js
-        // listens for this and routes back to the main Build flow.
-        window.dispatchEvent(new CustomEvent('ym:ai-exit'));
-      });
+      body.querySelector('#ai-exit')?.addEventListener('click', () => window.dispatchEvent(new CustomEvent('ym:ai-exit')));
       return;
     }
-    if (_detectedEngine.type === 'webllm' && _detectedEngine.risky) {
-      dlog('device check: risky — ' + _detectedEngine.riskyReason);
-    } else {
-      dlog('device check: OK — ' + _detectedEngine.label);
-    }
 
+    dlog('engine: ' + _engine.label);
     body.innerHTML = '';
+
     let _type = opts.fixedType || 'sphere';
-    let _engine = _detectedEngine;
     let _model = _engine.models[0] || '';
 
-    // One clean status line. Silent when things are fine — only speaks up
-    // when there's something the person actually needs to know.
+    // ── 2. Status row ──────────────────────────────────────────
     const statusRow = document.createElement('div');
-    statusRow.style.cssText = 'padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;font-size:11px;color:var(--text3)';
+    statusRow.style.cssText = 'padding:8px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;font-size:11px;color:var(--text3);border-bottom:1px solid rgba(255,255,255,.06)';
+    statusRow.innerHTML = '<span style="color:var(--green)">●</span><span>' + esc(_engine.label) + '</span>';
     body.appendChild(statusRow);
 
-    let _specStatus = 'loading'; // loading | ok | fallback
-
-    function updateEngBadge() {
-      if (_engine.type === 'unsupported') {
-        statusRow.innerHTML = '<span style="color:var(--red)">✗</span><span>No local AI available on this device</span>';
-        body.querySelector('#ai-generate') && (body.querySelector('#ai-generate').disabled = true);
-        return;
-      }
-      if (_engine.type === 'webllm' && _engine.risky && !_webllmReady) {
-        statusRow.innerHTML = '<span style="color:var(--gold)">⚠</span><span>' + esc(_engine.riskyReason || 'May be unreliable on this device') + '</span>';
-        return;
-      }
-      // Nothing wrong to report — keep it minimal, like other AI apps do.
-      statusRow.innerHTML = '<span style="color:var(--green)">●</span><span>Ready' + (_engine.models.length > 1 ? '' : '') + '</span>';
-      if (_engine.models.length > 1) {
-        statusRow.innerHTML += '<select id="ai-model" style="margin-left:auto;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:var(--text2);font-size:10px;border-radius:6px;padding:2px 6px;cursor:pointer">' +
-          _engine.models.map(m => '<option value="' + esc(m) + '"' + (m === _model ? ' selected' : '') + '>' + esc(m) + '</option>').join('') +
-          '</select>';
-        body.querySelector('#ai-model')?.addEventListener('change', e => { _model = e.target.value; });
-      }
-    }
-
-    loadSpec().then(spec => { _specStatus = spec ? 'ok' : 'fallback'; updateEngBadge(); });
-    updateEngBadge();
-
-    // Type toggle — only shown when the caller hasn't already decided this.
-    // The Publish form already has its own Sphere/Theme choice; asking
-    // again here was a redundant duplicate control.
-    const typeRow = document.createElement('div');
+    // ── 3. Type indicator or toggle ───────────────────────────
     if (opts.fixedType) {
-      typeRow.style.cssText = 'padding:6px 14px;flex-shrink:0;font-size:10px;color:var(--text3)';
+      const typeRow = document.createElement('div');
+      typeRow.style.cssText = 'padding:6px 14px;flex-shrink:0;font-size:10px;color:var(--text3);border-bottom:1px solid rgba(255,255,255,.06)';
       typeRow.textContent = (opts.fixedType === 'theme' ? '🎨 Theme' : '⬡ Sphere') + (opts.fixedFilename ? ' — ' + opts.fixedFilename : '');
       body.appendChild(typeRow);
     } else {
+      const typeRow = document.createElement('div');
       typeRow.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
       typeRow.innerHTML =
-        '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Generate</div>' +
+        '<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);flex:1">Type</div>' +
         '<div style="display:flex;gap:0;border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden">' +
           '<button id="ai-type-sphere" style="background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer">⬡ Sphere</button>' +
-          '<button id="ai-type-theme"  style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Thème</button>' +
+          '<button id="ai-type-theme" style="background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer">🎨 Theme</button>' +
         '</div>';
       body.appendChild(typeRow);
+      function setType(t) {
+        _type = t;
+        typeRow.querySelector('#ai-type-sphere').style.cssText = 'background:' + (t==='sphere'?'rgba(240,168,48,.12)':'none') + ';border:none;color:' + (t==='sphere'?'var(--gold)':'var(--text3)') + ';font-size:10px;padding:5px 12px;cursor:pointer';
+        typeRow.querySelector('#ai-type-theme').style.cssText = 'background:' + (t==='theme'?'rgba(8,224,248,.12)':'none') + ';border:none;color:' + (t==='theme'?'var(--cyan)':'var(--text3)') + ';font-size:10px;padding:5px 12px;cursor:pointer';
+      }
+      typeRow.querySelector('#ai-type-sphere').addEventListener('click', () => setType('sphere'));
+      typeRow.querySelector('#ai-type-theme').addEventListener('click', () => setType('theme'));
     }
 
-    // ── Draft resume banner ──────────────────────────────────
-    const draftRow = document.createElement('div');
-    draftRow.style.cssText = 'display:none;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    body.appendChild(draftRow);
-
-    const _existingDraft = loadDraftRaw();
-    if (_existingDraft && _existingDraft.sections && _existingDraft.completedIndex < _existingDraft.sections.length) {
-      const ageMin = Math.round((Date.now() - (_existingDraft.ts || 0)) / 60000);
-      draftRow.style.display = '';
-      draftRow.innerHTML =
-        '<div class="ym-notice info" style="font-size:11px;margin-bottom:6px">' +
-          '↺ Unfinished draft found (' + _existingDraft.completedIndex + '/' + _existingDraft.sections.length + ' sections, ' + ageMin + 'min ago) — ' + esc(_existingDraft.filename || '') +
-        '</div>' +
-        '<div style="display:flex;gap:6px">' +
-          '<button id="draft-continue" class="ym-btn ym-btn-accent" style="flex:1;font-size:11px">↳ Continue</button>' +
-          '<button id="draft-discard" class="ym-btn ym-btn-ghost" style="flex:1;font-size:11px">✕ Discard</button>' +
-        '</div>';
-    }
-
-    // Prompt
+    // ── 4. Prompt + category ──────────────────────────────────
     const promptWrap = document.createElement('div');
     promptWrap.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
     promptWrap.innerHTML =
-      '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:8px">Prompt</div>' +
-      '<textarea id="ai-prompt" class="ym-input" rows="6" style="font-size:12px;font-family:var(--font-b);line-height:1.5;width:100%;box-sizing:border-box;resize:vertical" placeholder="Describe what to generate…"></textarea>';
+      '<textarea id="ai-prompt" class="ym-input" rows="5" style="font-size:12px;width:100%;box-sizing:border-box;resize:vertical;margin-bottom:6px" placeholder="Describe what to generate…"></textarea>' +
+      '<input id="ai-cat" class="ym-input" placeholder="Category (e.g. Tools, Games…)" style="font-size:11px;width:100%;box-sizing:border-box">';
     body.appendChild(promptWrap);
 
-    // Category
-    const optsWrap = document.createElement('div');
-    optsWrap.style.cssText = 'padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0';
-    optsWrap.innerHTML =
-      '<div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Category</div>' +
-      '<input id="ai-cat" class="ym-input" placeholder="Tools" style="font-size:11px;width:100%;box-sizing:border-box">';
-    body.appendChild(optsWrap);
-
-    // Generate button
-    if (!document.getElementById('ym-ai-spin-style')) {
-      const styleEl = document.createElement('style');
-      styleEl.id = 'ym-ai-spin-style';
-      styleEl.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(styleEl);
-    }
+    // ── 5. Generate button + progress ─────────────────────────
     const genWrap = document.createElement('div');
-    genWrap.style.cssText = 'padding:10px 14px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06);display:flex;gap:6px';
+    genWrap.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;flex-direction:column;gap:6px';
     genWrap.innerHTML =
-      '<button id="ai-generate" class="ym-btn ym-btn-accent" style="flex:1;font-size:13px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
-        '<span id="ai-spinner" style="display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:ym-ai-spin .7s linear infinite;flex-shrink:0"></span>' +
-        '<span id="ai-generate-label">✦ Generate</span>' +
-      '</button>' +
-      '<button id="ai-stop" class="ym-btn ym-btn-danger" style="display:none;flex-shrink:0;font-size:13px;padding:12px 16px">✕ Stop</button>';
+      '<div style="display:flex;gap:6px">' +
+        '<button id="ai-generate" class="ym-btn ym-btn-accent" style="flex:1;font-size:13px;padding:11px;display:flex;align-items:center;justify-content:center;gap:8px">' +
+          '<span id="ai-spinner" style="display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:ym-ai-spin .7s linear infinite;flex-shrink:0"></span>' +
+          '<span id="ai-gen-label">✦ Generate</span>' +
+        '</button>' +
+        '<button id="ai-stop" class="ym-btn ym-btn-danger" style="display:none;flex-shrink:0;font-size:13px;padding:11px 14px">✕</button>' +
+      '</div>' +
+      '<div id="ai-progress" style="font-size:11px;color:var(--text3);min-height:14px;text-align:center"></div>';
     body.appendChild(genWrap);
-    const progEl0 = document.createElement('div');
-    progEl0.id = 'ai-progress';
-    progEl0.style.cssText = 'font-size:10px;color:var(--text3);margin:6px 14px 0;min-height:14px;text-align:center;flex-shrink:0';
-    body.appendChild(progEl0);
 
+    // ── 6. Generated code ─────────────────────────────────────
+    const codeWrap = document.createElement('div');
+    codeWrap.style.cssText = 'flex:1;display:flex;flex-direction:column;padding:10px 14px;gap:6px;min-height:0';
+    codeWrap.innerHTML =
+      '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">' +
+        '<span style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text2);flex:1">Code</span>' +
+        '<span id="ai-chars" style="font-size:9px;color:var(--text3)"></span>' +
+        '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
+      '</div>' +
+      '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:160px;font-family:var(--font-m);font-size:10px;line-height:1.5;resize:none;box-sizing:border-box" placeholder="Generated code will appear here…" spellcheck="false"></textarea>' +
+      '<div id="ai-validate" style="font-size:10px;min-height:14px"></div>';
+    body.appendChild(codeWrap);
+
+    // ── 7. Iterate ────────────────────────────────────────────
+    // Shows immediately below the code — always visible once code exists.
+    // User types a short instruction, model rewrites the full file and
+    // updates the textarea. History is persisted per filename in localStorage.
+    const iterWrap = document.createElement('div');
+    iterWrap.style.cssText = 'padding:10px 14px 14px;border-top:1px solid rgba(255,255,255,.08);flex-shrink:0';
+    iterWrap.innerHTML =
+      '<div style="font-size:10px;font-weight:600;color:var(--text2);margin-bottom:8px">✦ Refine this code</div>' +
+      '<div id="ai-iter-log" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;max-height:120px;overflow-y:auto"></div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<input id="ai-iter-input" class="ym-input" placeholder="e.g. add a timer, use cyan accent…" style="flex:1;font-size:11px">' +
+        '<button id="ai-iter-send" class="ym-btn ym-btn-accent" style="flex-shrink:0;padding:0 14px;font-size:13px">↑</button>' +
+      '</div>';
+    body.appendChild(iterWrap);
+
+    // ── Wiring ────────────────────────────────────────────────
+    const progEl = genWrap.querySelector('#ai-progress');
+    const outEl = codeWrap.querySelector('#ai-output');
+    const charsEl = codeWrap.querySelector('#ai-chars');
+    const valEl = codeWrap.querySelector('#ai-validate');
+    const genBtn = genWrap.querySelector('#ai-generate');
+    const stopBtn = genWrap.querySelector('#ai-stop');
+    const spinnerEl = genWrap.querySelector('#ai-spinner');
+    const labelEl = genWrap.querySelector('#ai-gen-label');
+    const iterLog = iterWrap.querySelector('#ai-iter-log');
+    const iterInput = iterWrap.querySelector('#ai-iter-input');
+    const iterSend = iterWrap.querySelector('#ai-iter-send');
+
+    // Draft + iterate history
+    const ITERATE_KEY_PREFIX = 'ym_ai_iterate_';
+    let _iterFilename = opts.fixedFilename || '';
+    let _iterHistory = _iterFilename ? (() => {
+      try { const r = localStorage.getItem(ITERATE_KEY_PREFIX + _iterFilename); const a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; } catch { return []; }
+    })() : [];
+
+    function saveIterHistory() {
+      if (!_iterFilename) return;
+      try { localStorage.setItem(ITERATE_KEY_PREFIX + _iterFilename, JSON.stringify(_iterHistory.slice(-16))); } catch {}
+    }
+
+    function renderIterLog() {
+      iterLog.innerHTML = '';
+      _iterHistory.filter(m => m.role === 'user').forEach(m => {
+        const row = document.createElement('div');
+        row.style.cssText = 'font-size:10px;color:var(--text3);padding:4px 8px;background:rgba(255,255,255,.03);border-radius:6px';
+        row.textContent = '↳ ' + m.content;
+        iterLog.appendChild(row);
+      });
+      iterLog.scrollTop = iterLog.scrollHeight;
+    }
+    renderIterLog();
+
+    // Restore draft if present
+    const draft = loadDraftRaw();
+    if (draft && draft.assembled && opts.fixedFilename && draft.filename === opts.fixedFilename) {
+      outEl.value = draft.assembled;
+      charsEl.textContent = draft.assembled.length + ' chars';
+      progEl.innerHTML = '<span style="color:var(--text3)">Draft restored — tap Continue to finish or Generate to restart</span>';
+    }
+
+    // Stop signal
+    let _stopSignalResolve = null;
+    function _newStopSig() { return new Promise(r => { _stopSignalResolve = r; }); }
+    function _triggerStopSig() { if (_stopSignalResolve) { _stopSignalResolve(); _stopSignalResolve = null; } }
     let _stopRequested = false;
-    body.querySelector('#ai-stop').addEventListener('click', () => {
+
+    stopBtn.addEventListener('click', () => {
       _stopRequested = true;
-      dlog('Stop clicked — calling engine.interruptGenerate() if available');
-      // This is the real interrupt: it tells the WebLLM engine itself to
-      // stop the in-flight generation. Without this, "stop" only abandoned
-      // our own promise — the engine kept computing in the background,
-      // which is why it looked like Stop did nothing.
-      try { _webllmEngine?.interruptGenerate?.(); } catch (e) { dlog('interruptGenerate() failed: ' + e.message); }
-      _triggerStop(); // also unblocks our own wrapper immediately
+      _triggerStopSig();
+      try { _webllmEngine?.interruptGenerate?.(); } catch {}
       toast('Stopped', 'info');
     });
 
-    // ── Block list — shows each section live as it streams in ─
+    // Block list (sections)
     const blocksWrap = document.createElement('div');
-    blocksWrap.style.cssText = 'display:none;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto';
-    body.appendChild(blocksWrap);
+    blocksWrap.style.cssText = 'display:none;padding:6px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;flex-direction:column;gap:4px';
+    genWrap.after(blocksWrap);
 
-    function renderBlock(idx, total, name, status, codeSoFar) {
+    let _lastBlockUpdate = 0;
+    function renderBlock(idx, total, name, status, code) {
       blocksWrap.style.display = 'flex';
-      let card = blocksWrap.querySelector('[data-block="' + idx + '"]');
-      if (!card) {
-        card = document.createElement('div');
-        card.dataset.block = idx;
-        card.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)';
-        blocksWrap.appendChild(card);
-      }
-      const icon = status === 'done' ? '✓' : (status === 'active' ? '◐' : '○');
-      const color = status === 'done' ? 'var(--green)' : (status === 'active' ? 'var(--gold)' : 'var(--text3)');
-      const lines = codeSoFar ? codeSoFar.split('\n').length : 0;
-      card.innerHTML =
-        '<span style="color:' + color + ';flex-shrink:0;width:14px;text-align:center">' + icon + '</span>' +
-        '<span style="font-size:10px;color:var(--text2);flex:1;font-family:var(--font-m)">' + esc(name) + ' <span style="color:var(--text3)">(' + (idx+1) + '/' + total + ')</span></span>' +
-        '<span style="font-size:9px;color:var(--text3);flex-shrink:0">' + (status === 'active' ? lines + ' lines…' : (status === 'done' ? lines + ' lines ✓' : 'waiting')) + '</span>';
+      let card = blocksWrap.querySelector('[data-b="' + idx + '"]');
+      if (!card) { card = document.createElement('div'); card.dataset.b = idx; card.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;background:rgba(255,255,255,.03)'; blocksWrap.appendChild(card); }
+      const icon = status==='done'?'✓':status==='active'?'◐':'○';
+      const color = status==='done'?'var(--green)':status==='active'?'var(--gold)':'var(--text3)';
+      const lines = code ? code.split('\n').length : 0;
+      card.innerHTML = '<span style="color:' + color + ';width:14px;text-align:center">' + icon + '</span><span style="font-size:10px;color:var(--text2);flex:1;font-family:var(--font-m)">' + esc(name) + ' <span style="color:var(--text3)">(' + (idx+1) + '/' + total + ')</span></span><span style="font-size:9px;color:var(--text3)">' + (status==='active'?lines+'l…':status==='done'?lines+'l ✓':'') + '</span>';
+    }
+    function onSection(idx, total, name, status, code) {
+      if (status !== 'active') { renderBlock(idx, total, name, status, code); _lastBlockUpdate = Date.now(); return; }
+      const now = Date.now();
+      if (now - _lastBlockUpdate > 150) { renderBlock(idx, total, name, status, code); _lastBlockUpdate = now; }
     }
     function resetBlocks() { blocksWrap.innerHTML = ''; blocksWrap.style.display = 'none'; }
 
-    // Output
-    const outWrap = document.createElement('div');
-    outWrap.style.cssText = 'flex:1;display:flex;flex-direction:column;min-height:0;padding:10px 14px 0';
-    outWrap.innerHTML =
-      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-shrink:0">' +
-        '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Output</div>' +
-        '<span id="ai-chars" style="font-size:9px;color:var(--text3)">0 chars</span>' +
-        '<button id="ai-copy" class="ym-btn ym-btn-ghost" style="font-size:9px;padding:3px 9px">⎘ Copy</button>' +
-      '</div>' +
-      '<textarea id="ai-output" class="ym-input" style="flex:1;min-height:180px;font-family:var(--font-m);font-size:10px;line-height:1.6;resize:vertical;box-sizing:border-box;margin-bottom:6px" placeholder="Generated code appears here…" spellcheck="false"></textarea>' +
-      '<div id="ai-validate" style="font-size:10px;margin-bottom:6px;min-height:14px"></div>' +
-      '<button id="ai-fix" style="display:none;width:100%;font-size:11px;padding:8px;margin-bottom:10px" class="ym-btn ym-btn-ghost">🔧 Fix flagged issues (same chunked approach)</button>' +
-      '<div id="ai-iterate-wrap" style="display:none;flex-direction:column;gap:8px;margin-bottom:14px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px;margin-top:4px">' +
-        '<div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);font-weight:600">✦ Iterate <span style="color:var(--text3);font-weight:400">— refine this code</span></div>' +
-        '<div id="ai-iterate-log" style="display:flex;flex-direction:column;gap:6px;max-height:160px;overflow-y:auto"></div>' +
-        '<div style="display:flex;gap:6px">' +
-          '<input id="ai-iterate-input" class="ym-input" placeholder="Refine: add a timer, use cyan, fix the bug…" style="flex:1;font-size:11px">' +
-          '<button id="ai-iterate-send" class="ym-btn ym-btn-accent" style="flex-shrink:0;font-size:11px;padding:0 14px">↑</button>' +
-        '</div>' +
-      '</div>';
-    body.appendChild(outWrap);
-
-    // ── ITERATE — small persisted chat over the generated code ───
-    // Each turn: user instruction + the FULL current code go to the model,
-    // which is asked to return the FULL revised file (not a diff — small
-    // models handle "rewrite the whole thing" far more reliably than
-    // patches). History is kept (and resent in full each turn) so the
-    // model has continuity across iterations, same mechanism as Idea Chat.
-    const ITERATE_KEY_PREFIX = 'ym_ai_iterate_';
-    let _iterateHistory = []; // [{role, content}], content for assistant = full code at that turn
-    let _iterateFilename = '';
-
-    function iterateKey(fn) { return ITERATE_KEY_PREFIX + fn; }
-    function loadIterateHistory(fn) {
-      try { const raw = localStorage.getItem(iterateKey(fn)); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; }
-      catch { return []; }
-    }
-    function saveIterateHistory(fn, hist) {
-      try { localStorage.setItem(iterateKey(fn), JSON.stringify(hist.slice(-16))); } catch {}
-    }
-
-    function renderIterateLog() {
-      const log = outWrap.querySelector('#ai-iterate-log');
-      log.innerHTML = '';
-      _iterateHistory.forEach(m => {
-        const row = document.createElement('div');
-        if (m.role === 'user') {
-          row.style.cssText = 'font-size:10px;color:var(--text2);padding:5px 8px;background:rgba(240,168,48,.06);border:1px solid rgba(240,168,48,.15);border-radius:6px';
-          row.textContent = '↳ ' + m.content;
-        } else {
-          // Show a short confirmation for assistant turns (the actual code is in the textarea)
-          const lines = (m.content || '').split('\n').length;
-          row.style.cssText = 'font-size:9px;color:var(--text3);padding:3px 8px';
-          row.textContent = '✓ Updated (' + lines + ' lines)';
-        }
-        log.appendChild(row);
-      });
-      log.scrollTop = log.scrollHeight;
-    }
-
-    function showIterateUI(filename) {
-      _iterateFilename = filename;
-      _iterateHistory = loadIterateHistory(filename);
-      const wrap = outWrap.querySelector('#ai-iterate-wrap');
-      wrap.style.display = 'flex';
-      renderIterateLog();
-      // Scroll into view so it's impossible to miss after generation
-      setTimeout(() => wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
-    }
-
-    outWrap.querySelector('#ai-iterate-send').addEventListener('click', async () => {
-      const inputEl = outWrap.querySelector('#ai-iterate-input');
-      const sendBtn = outWrap.querySelector('#ai-iterate-send');
-      const outEl = outWrap.querySelector('#ai-output');
-      const valEl = outWrap.querySelector('#ai-validate');
-      const instruction = (inputEl.value || '').trim();
-      if (!instruction || !_iterateFilename) return;
-      const currentCode = outEl.value || '';
-      inputEl.value = '';
-      inputEl.disabled = true;
-      sendBtn.disabled = true;
-      sendBtn.textContent = '…';
-
-      _iterateHistory.push({ role: 'user', content: instruction });
-      renderIterateLog();
-
-      try {
-        const systemPrompt = await getSystemPrompt('sphere', instruction, '');
-        const iterateSystem = systemPrompt + '\n\nYou are iterating on an existing file. The user will give a short instruction. Reply with the COMPLETE revised file content only — no explanation, no markdown fences, no diff. Always keep the IIFE wrapper and the same window.YM_S key.';
-        const chatMessages = [
-          { role: 'system', content: iterateSystem },
-          { role: 'user', content: 'Current file (' + _iterateFilename + '):\n' + currentCode },
-          { role: 'assistant', content: 'Understood, ready for your instruction.' },
-          ...(_iterateHistory.slice(0, -1)), // prior turns, excluding the one just pushed
-          { role: 'user', content: instruction },
-        ];
-        let full = '';
-        for await (const chunk of streamChatGenerate(_engine, _model, chatMessages, null, 900)) {
-          full += chunk;
-          outEl.value = full;
-          outEl.scrollTop = outEl.scrollHeight;
-        }
-        full = cleanupGeneratedCode(full);
-        outEl.value = full;
-        _iterateHistory.push({ role: 'assistant', content: full });
-        saveIterateHistory(_iterateFilename, _iterateHistory);
-
-        const issues = validateSphereCode(full, _iterateFilename);
-        valEl.innerHTML = issues.length
-          ? '<span style="color:var(--red)">⚠ ' + issues.map(esc).join(' · ') + '</span>'
-          : '<span style="color:var(--green)">✓ Structure looks valid</span>';
-        toast('Updated', 'success');
-      } catch (e) {
-        toast(e.message, 'error');
-      } finally {
-        inputEl.disabled = false;
-        sendBtn.disabled = false;
-        sendBtn.textContent = '↑';
-        inputEl.focus();
-      }
-    });
-    outWrap.querySelector('#ai-iterate-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') outWrap.querySelector('#ai-iterate-send').click();
-    });
-
-    // Type toggle wiring — no-op if the caller already fixed the type
-    function setType(t) {
-      _type = t;
-      const sBtn  = typeRow.querySelector('#ai-type-sphere');
-      const thBtn = typeRow.querySelector('#ai-type-theme');
-      if (!sBtn || !thBtn) return;
-      if (t === 'sphere') {
-        sBtn.style.cssText  = 'background:rgba(240,168,48,.12);border:none;color:var(--gold);font-size:10px;padding:5px 12px;cursor:pointer';
-        thBtn.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
-      } else {
-        thBtn.style.cssText = 'background:rgba(8,224,248,.12);border:none;color:var(--cyan);font-size:10px;padding:5px 12px;cursor:pointer';
-        sBtn.style.cssText  = 'background:none;border:none;color:var(--text3);font-size:10px;padding:5px 12px;cursor:pointer';
-      }
-    }
-    typeRow.querySelector('#ai-type-sphere')?.addEventListener('click', () => setType('sphere'));
-    typeRow.querySelector('#ai-type-theme')?.addEventListener('click',  () => setType('theme'));
-
-    // Generate
-    // Shared generation runner — used by Generate, draft Continue, and Fix.
-    async function runGeneration({ prompt, cat, type, filename, userPrompt, systemPrompt, resumeState, isFix }) {
-      const outEl   = body.querySelector('#ai-output');
-      const progEl  = body.querySelector('#ai-progress');
-      const charsEl = body.querySelector('#ai-chars');
-      const valEl   = body.querySelector('#ai-validate');
-      const fixBtn  = body.querySelector('#ai-fix');
-      const genBtn  = body.querySelector('#ai-generate');
-      const spinnerEl = body.querySelector('#ai-spinner');
-      const labelEl   = body.querySelector('#ai-generate-label');
-
-      genBtn.disabled = true;
-      const stopBtn = body.querySelector('#ai-stop');
-      if (stopBtn) stopBtn.style.display = '';
+    // Generation function (shared by Generate and Iterate)
+    async function runGen(userPrompt, catValue, filename, extraMessages) {
+      genBtn.disabled = true; iterSend.disabled = true;
+      spinnerEl.style.display = '';
+      labelEl.textContent = 'Generating…';
+      stopBtn.style.display = '';
       _stopRequested = false;
-      const stopSignal = _newStopSignal();
-      if (spinnerEl) spinnerEl.style.display = '';
-      if (labelEl) labelEl.textContent = isFix ? 'Fixing…' : 'Generating…';
-      if (fixBtn) fixBtn.style.display = 'none';
+      const stopSignal = _newStopSig();
       resetBlocks();
-      if (!resumeState) outEl.value = '';
-      let fullCode = resumeState ? (resumeState.assembled || '') : '';
-      outEl.value = fullCode;
-      charsEl.textContent = fullCode.length + ' chars';
-      valEl.textContent = '';
-      progEl.textContent = _engine.type === 'webllm' && !_webllmReady ? 'Loading AI model (first time ~1GB) — keep screen on…' : 'Starting…';
+      progEl.textContent = 'Building context…';
 
-      if (!resumeState) {
-        saveDraft({ type, prompt, cat, filename, sections: null, completedIndex: 0, assembled: '' });
-      }
+      let systemPrompt;
+      try {
+        systemPrompt = await getSystemPrompt(_type, userPrompt, catValue);
+      } catch (e) { systemPrompt = FALLBACK_SYSTEM_SPHERE; }
 
-      function onProgress(p) {
-        if (!p) return;
-        if (p.progress < 1) {
-          const pct = Math.round(p.progress * 100);
-          progEl.innerHTML = '<span style="color:var(--cyan)">⬇ ' + pct + '% — ' + esc(p.text || 'Loading model…') + '</span>';
-        } else {
-          progEl.textContent = p.text || 'Generating…';
-        }
-      }
-      let _lastBlockUpdate = 0;
-      function onSection(idx, total, name, status, codeSoFar) {
-        // Always update immediately for state changes (pending/active/done/
-        // error) — only throttle the rapid 'still streaming' updates.
-        if (status !== 'active') { renderBlock(idx, total, name, status, codeSoFar); _lastBlockUpdate = Date.now(); return; }
-        const now = Date.now();
-        if (now - _lastBlockUpdate > 150) { renderBlock(idx, total, name, status, codeSoFar); _lastBlockUpdate = now; }
-      }
-
-      // Load the model FIRST, fully separate from the per-chunk timeout
-      // used during actual generation below. This was the real bug: model
-      // loading (a ~900MB download, routinely >25s) was happening lazily
-      // inside the first section's call, racing against that section's 25s
-      // timeout — so a perfectly normal download was being misdiagnosed as
-      // "stuck" before the model ever got a chance to respond.
+      // Pre-load model before sectioned generation so the 40-90s load
+      // doesn't race against the first section's own timing.
       if (_engine.type === 'webllm' && !_webllmReady) {
+        progEl.textContent = 'Loading model…';
         try {
-          await Promise.race([
-            initWebLLM(onProgress),
-            stopSignal.then(() => { throw new Error('Stopped by user.'); }),
-          ]);
-        } catch (e) {
-          if (e.message === 'Stopped by user.') {
-            progEl.textContent = '■ Stopped';
-          } else {
-            progEl.innerHTML = '<span style="color:var(--red)">Failed to load — try again</span>';
-            dlog('model load failed: ' + e.message);
-          }
-          genBtn.disabled = false;
-          if (stopBtn) stopBtn.style.display = 'none';
-          if (spinnerEl) spinnerEl.style.display = 'none';
-          if (labelEl) labelEl.textContent = '✦ Generate';
-          return fullCode;
+          await Promise.race([initWebLLM(p => {
+            if (p && p.progress < 1) progEl.innerHTML = '<span style="color:var(--cyan)">⬇ ' + Math.round(p.progress*100) + '% — ' + esc(p.text||'') + '</span>';
+            else if (p) progEl.textContent = p.text || 'Loading…';
+          }), stopSignal.then(() => { throw new Error('Stopped by user.'); })]);
+        } catch(e) {
+          if (e.message === 'Stopped by user.') { progEl.textContent = '■ Stopped'; goto_finally(); return; }
+          progEl.innerHTML = '<span style="color:var(--red)">Failed to load — try again</span>';
+          goto_finally(); return;
         }
       }
 
-      let tokenCount = 0;
-      const t0 = Date.now();
-      let _gotFirstChunk = false;
-      let _dotCount = 0;
+      let fullCode = '';
+      let dotCount = 0;
+      let gotFirst = false;
+      let lastDomUpdate = 0;
       const heartbeat = setInterval(() => {
-        if (_gotFirstChunk) return;
-        _dotCount = (_dotCount % 3) + 1;
-        progEl.textContent = 'Thinking' + '.'.repeat(_dotCount);
+        if (gotFirst) return;
+        dotCount = (dotCount % 3) + 1;
+        progEl.textContent = 'Thinking' + '.'.repeat(dotCount);
       }, 500);
 
       try {
-        const gen = type === 'sphere'
-          ? sectionedGenerate(_engine, _model, systemPrompt, userPrompt, filename, onProgress, onSection, resumeState, stopSignal)
-          : streamGenerate(_engine, _model, systemPrompt, userPrompt, onProgress);
+        const gen = (_type === 'sphere' && !extraMessages)
+          ? sectionedGenerate(_engine, _model, systemPrompt, [
+              'Generate a YourMine sphere file.',
+              'Filename: ' + filename,
+              'Category: ' + catValue,
+              '',
+              'Requirements:',
+              userPrompt,
+            ].join('\n'), filename, null, onSection, loadDraftRaw()?.filename === filename ? loadDraftRaw() : null, stopSignal)
+          : withStopSignal(streamChatGenerate(_engine, _model,
+              extraMessages || [{ role:'system', content:systemPrompt }, { role:'user', content: userPrompt }],
+              null, 500), stopSignal);
 
-        let _lastDomUpdate = 0;
         for await (const chunk of gen) {
           if (_stopRequested) { progEl.textContent = '■ Stopped'; break; }
-          _gotFirstChunk = true;
+          gotFirst = true;
           fullCode += chunk;
-          tokenCount++;
           const now = Date.now();
-          if (now - _lastDomUpdate > 150) {
+          if (now - lastDomUpdate > 150) {
             outEl.value = fullCode;
             outEl.scrollTop = outEl.scrollHeight;
             charsEl.textContent = fullCode.length + ' chars';
-            _lastDomUpdate = now;
+            progEl.textContent = 'Writing…';
+            lastDomUpdate = now;
           }
-          progEl.textContent = 'Writing…';
         }
-        // Make sure the very last bit is always shown, even if it landed
-        // inside the throttle window above.
-        if (fullCode && type === 'sphere') {
-          const cleaned = cleanupGeneratedCode(fullCode);
-          if (cleaned !== fullCode) dlog('cleanup removed ' + (fullCode.length - cleaned.length) + ' chars (fences/placeholders/dup blocks)');
-          fullCode = cleaned;
-        }
-        outEl.value = fullCode;
-        outEl.scrollTop = outEl.scrollHeight;
-        charsEl.textContent = fullCode.length + ' chars';
         clearInterval(heartbeat);
-        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        if (_stopRequested) {
-          // already showed "Stopped" above
-        } else if (!fullCode) {
-          progEl.innerHTML = '<span style="color:var(--red)">No response — try again</span>';
-        } else {
-          progEl.innerHTML = '<span style="color:var(--green)">✓ Done</span>';
-        }
-        dlog('generation finished — ' + fullCode.length + ' chars in ' + elapsed + 's');
-
-        if (type === 'sphere' && fullCode) {
-          const issues = validateSphereCode(fullCode, filename);
-          if (issues.length) {
-            valEl.innerHTML = '<span style="color:var(--red)">⚠ ' + issues.map(esc).join(' · ') + '</span>';
-            if (fixBtn) { fixBtn.style.display = ''; fixBtn.dataset.issues = JSON.stringify(issues); }
-          } else {
-            valEl.innerHTML = '<span style="color:var(--green)">✓ Structure looks valid</span>';
-          }
-        }
         if (fullCode) {
-          toast(isFix ? 'Fix applied!' : 'Code generated!', 'success');
-          clearDraft();
-          if (type === 'sphere' && typeof showIterateUI === 'function') showIterateUI(filename);
+          if (_type === 'sphere') fullCode = cleanupGeneratedCode(fullCode);
+          outEl.value = fullCode;
+          charsEl.textContent = fullCode.length + ' chars';
+          if (!_stopRequested) {
+            progEl.innerHTML = '<span style="color:var(--green)">✓ Done</span>';
+            if (_type === 'sphere') {
+              const issues = validateSphereCode(fullCode, filename);
+              valEl.innerHTML = issues.length
+                ? '<span style="color:var(--red)">⚠ ' + issues.map(esc).join(' · ') + '</span>'
+                : '<span style="color:var(--green)">✓ Structure valid</span>';
+            }
+            clearDraft();
+            _iterFilename = filename;
+            _iterHistory = (() => { try { const r = localStorage.getItem(ITERATE_KEY_PREFIX + filename); const a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; } catch { return []; } })();
+            renderIterLog();
+          }
+        } else if (!_stopRequested) {
+          progEl.innerHTML = '<span style="color:var(--red)">No response — try again</span>';
         }
       } catch (e) {
         clearInterval(heartbeat);
-        if (e.message === 'Stopped by user.') {
-          progEl.textContent = '■ Stopped';
-        } else {
-          progEl.innerHTML = '<span style="color:var(--red)">Something went wrong — try again</span>';
-          dlog('generation error: ' + e.message);
-        }
+        progEl.innerHTML = '<span style="color:var(--red)">Something went wrong — try again</span>';
+        dlog('gen error: ' + e.message);
       } finally {
-        genBtn.disabled = false;
-        if (stopBtn) stopBtn.style.display = 'none';
-        if (spinnerEl) spinnerEl.style.display = 'none';
-        if (labelEl) labelEl.textContent = '✦ Generate';
+        goto_finally();
       }
-      return fullCode;
+
+      function goto_finally() {
+        genBtn.disabled = false; iterSend.disabled = false;
+        spinnerEl.style.display = 'none';
+        labelEl.textContent = '✦ Generate';
+        stopBtn.style.display = 'none';
+      }
     }
 
-    body.querySelector('#ai-generate').addEventListener('click', async () => {
-      const prompt = (body.querySelector('#ai-prompt')?.value || '').trim();
-      const cat    = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
-      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
-
-      // The filename must match exactly what's used to register/publish
-      // the sphere (window.YM_S key === filename). When the Publish form
-      // already has a name (checked for uniqueness/ownership there), use
-      // that — never invent a separate slug from the prompt text, which
-      // could silently produce a file that doesn't match what gets
-      // published.
-      let filename;
-      if (opts.fixedFilename) {
-        filename = opts.fixedFilename;
-      } else {
-        const ext  = _type === 'sphere' ? '.sphere.js' : '.theme.html';
-        const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '') || 'untitled';
-        filename = slug + ext;
-      }
-
-      body.querySelector('#ai-progress').textContent = 'Building context (similar files + skeleton)…';
-      const systemPrompt = await getSystemPrompt(_type, prompt, cat);
-      const userPrompt = [
-        'Generate a YourMine ' + _type + ' file.',
-        'Filename: ' + filename,
-        'Category: ' + cat,
-        '',
-        'Requirements:',
-        prompt,
-      ].join('\n');
-
-      await runGeneration({ prompt, cat, type: _type, filename, userPrompt, systemPrompt });
-    });
-
-    // Draft continue/discard
-    draftRow.querySelector('#draft-continue')?.addEventListener('click', async () => {
-      const d = loadDraftRaw();
-      if (!d) return;
-      body.querySelector('#ai-prompt').value = d.prompt || '';
-      body.querySelector('#ai-cat').value = d.cat || '';
-      setType(d.type || 'sphere');
-      draftRow.style.display = 'none';
-      const systemPrompt = await getSystemPrompt(d.type, d.prompt, d.cat);
-      const userPrompt = [
-        'Generate a YourMine ' + d.type + ' file.',
-        'Filename: ' + d.filename,
-        'Category: ' + d.cat,
-        '',
-        'Requirements:',
-        d.prompt,
-      ].join('\n');
-      await runGeneration({
-        prompt: d.prompt, cat: d.cat, type: d.type, filename: d.filename,
-        userPrompt, systemPrompt,
-        resumeState: { sections: d.sections, completedIndex: d.completedIndex, assembled: d.assembled },
-      });
-    });
-    draftRow.querySelector('#draft-discard')?.addEventListener('click', () => {
-      clearDraft();
-      draftRow.style.display = 'none';
-      toast('Draft discarded', 'info');
-    });
-
-    // Fix flagged issues — reuses the exact same chunked-generation machinery,
-    // just with a prompt that includes the existing (broken) code + the
-    // specific issues the validator found, asking the model to rewrite it
-    // correctly in the same section-by-section way.
-    body.querySelector('#ai-fix')?.addEventListener('click', async () => {
-      const fixBtn = body.querySelector('#ai-fix');
-      const existingCode = body.querySelector('#ai-output')?.value || '';
-      if (!existingCode) return;
-      let issues = [];
-      try { issues = JSON.parse(fixBtn.dataset.issues || '[]'); } catch {}
+    // Generate button
+    genBtn.addEventListener('click', async () => {
       const prompt = (body.querySelector('#ai-prompt')?.value || '').trim();
       const cat = (body.querySelector('#ai-cat')?.value || '').trim() || 'Tools';
-      const ext = '.sphere.js';
-      const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '') || 'fixed';
-      const filename = slug + ext;
-
-      body.querySelector('#ai-progress').textContent = 'Building context for fix…';
-      const systemPrompt = await getSystemPrompt('sphere', prompt, cat);
-      const userPrompt = [
-        'Fix this existing YourMine sphere file. Rewrite it completely, correctly this time.',
-        'Filename: ' + filename,
-        'Issues found by the validator (fix ALL of them):',
-        issues.map(i => '- ' + i).join('\n'),
-        '',
-        'Original (broken) code:',
-        '```',
-        existingCode,
-        '```',
-        '',
-        'Original requirements:',
-        prompt,
-      ].join('\n');
-
-      await runGeneration({ prompt, cat, type: 'sphere', filename, userPrompt, systemPrompt, isFix: true });
+      if (!prompt) { toast('Enter a prompt first', 'warn'); return; }
+      const ext = _type === 'sphere' ? '.sphere.js' : '.theme.html';
+      const filename = opts.fixedFilename || (prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24).replace(/-$/, '') + ext);
+      outEl.value = '';
+      charsEl.textContent = '';
+      valEl.textContent = '';
+      saveDraft({ type: _type, prompt, cat, filename, sections: null, completedIndex: 0, assembled: '' });
+      await runGen(prompt, cat, filename, null);
     });
+
+    // Iterate send
+    async function sendIteration() {
+      const instruction = (iterInput.value || '').trim();
+      if (!instruction) return;
+      const currentCode = outEl.value || '';
+      if (!currentCode) { toast('Generate something first', 'warn'); return; }
+      iterInput.value = '';
+      _iterHistory.push({ role: 'user', content: instruction });
+      renderIterLog();
+      saveIterHistory();
+      labelEl.textContent = 'Refining…';
+      const sysPrompt = await getSystemPrompt('sphere', instruction, '');
+      const iterSysPrompt = sysPrompt + '\n\nYou are iterating on an existing file. Reply with the COMPLETE revised file. Same window.YM_S key, same IIFE wrapper. No explanation.';
+      const msgs = [
+        { role: 'system', content: iterSysPrompt },
+        { role: 'user', content: 'Current file:\n' + currentCode + '\n\nInstruction: ' + instruction },
+      ];
+      await runGen(instruction, '', _iterFilename, msgs);
+      if (outEl.value) {
+        _iterHistory.push({ role: 'assistant', content: outEl.value });
+        saveIterHistory();
+        renderIterLog();
+      }
+    }
+    iterSend.addEventListener('click', sendIteration);
+    iterInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendIteration(); });
 
     // Copy
     body.querySelector('#ai-copy').addEventListener('click', () => {
-      const code = body.querySelector('#ai-output')?.value || '';
+      const code = outEl.value || '';
       if (!code) { toast('Nothing to copy', 'warn'); return; }
-      navigator.clipboard?.writeText(code)
-        .then(() => toast('Copied!', 'success'))
-        .catch(() => {
-          const ta = document.createElement('textarea');
-          ta.value = code; ta.style.cssText = 'position:fixed;opacity:0';
-          document.body.appendChild(ta); ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          toast('Copied!', 'success');
-        });
+      navigator.clipboard?.writeText(code).then(() => toast('Copied!', 'success')).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = code; ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+        toast('Copied!', 'success');
+      });
     });
   }
+
 
   // ── PATCH YM_Build.render ──────────────────────────────────────
   // Ensures YM_Build exposes the AI tab even if build.js loaded first
@@ -1681,129 +1427,91 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
 
   async function renderIdeaChat(body) {
     body.innerHTML = '';
-    body.style.cssText = 'flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;padding:0';
+    body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:16px;gap:12px';
 
-    body.innerHTML =
-      '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 20px;text-align:center">' +
-        '<span style="width:20px;height:20px;border:2px solid rgba(255,255,255,.15);border-top-color:var(--gold);border-radius:50%;animation:ym-ai-spin .7s linear infinite"></span>' +
-        '<div style="font-size:11px;color:var(--text3)">Checking device compatibility…</div>' +
-      '</div>';
-    if (!document.getElementById('ym-ai-spin-style')) {
-      const styleEl = document.createElement('style');
-      styleEl.id = 'ym-ai-spin-style';
-      styleEl.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(styleEl);
-    }
+    // ── Network snapshot ──────────────────────────────────────
+    const snapshot = collectNetworkSnapshot();
 
+    // ── Engine check ──────────────────────────────────────────
     let engine;
     try {
-      engine = await _withTimeout(detectEngine(), 12000, 'Compatibility check timed out after 12s.');
+      engine = await _withTimeout(detectEngine(), 12000, 'Compatibility check timed out.');
     } catch (e) {
       engine = { type: 'unsupported', reason: e.message };
     }
+
+    // ── What we see ───────────────────────────────────────────
+    const infoCard = document.createElement('div');
+    infoCard.style.cssText = 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px;font-size:11px;color:var(--text3);line-height:1.7';
+    const sphereNames = snapshot.mySpheres.map(s => s.name).join(', ') || 'none';
+    const peerCount = snapshot.peers.length;
+    const topShared = Object.entries(snapshot.sharedPatterns).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id])=>id.replace('.sphere.js','')).join(', ') || '—';
+    infoCard.innerHTML =
+      '<div style="color:var(--text2);font-weight:600;margin-bottom:6px">What I see</div>' +
+      '<div>Your spheres: <span style="color:var(--text)">' + esc(sphereNames) + '</span></div>' +
+      '<div>' + peerCount + ' peer' + (peerCount!==1?'s':'') + ' nearby' + (topShared!=='—' ? ' · most common: <span style="color:var(--gold)">' + esc(topShared) + '</span>' : '') + '</div>';
+    body.appendChild(infoCard);
+
+    // ── Result area ───────────────────────────────────────────
+    const resultArea = document.createElement('div');
+    resultArea.style.cssText = 'flex:1;min-height:80px';
+    body.appendChild(resultArea);
+
+    // ── Analyse button ────────────────────────────────────────
+    const btn = document.createElement('button');
+    btn.className = 'ym-btn ym-btn-accent';
+    btn.style.cssText = 'width:100%;font-size:13px;padding:13px;display:flex;align-items:center;justify-content:center;gap:8px';
+    btn.innerHTML = '<span id="idea-spinner" style="display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:ym-ai-spin .7s linear infinite;flex-shrink:0"></span><span id="idea-btn-label">✦ Get an idea</span>';
+    body.appendChild(btn);
+
+    if (!document.getElementById('ym-ai-spin-style')) {
+      const s = document.createElement('style');
+      s.id = 'ym-ai-spin-style';
+      s.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(s);
+    }
+
     if (engine.type === 'unsupported') {
-      body.innerHTML =
-        '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 20px;text-align:center">' +
-          '<span style="font-size:32px">✗</span>' +
-          '<div style="font-size:13px;font-weight:600;color:var(--text)">No local AI available on this device</div>' +
-          '<div style="font-size:11px;color:var(--text3);line-height:1.6;max-width:320px">' + esc(engine.reason || '') + '</div>' +
-        '</div>';
+      btn.disabled = true;
+      resultArea.innerHTML = '<div style="font-size:11px;color:var(--red);line-height:1.6">' + esc(engine.reason || 'No local AI available on this device.') + '</div>';
       return;
     }
+
     const model = engine.models[0] || '';
 
-    body.innerHTML = '';
-    const headRow = document.createElement('div');
-    headRow.style.cssText = 'padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;align-items:center;gap:8px';
-    headRow.innerHTML =
-      '<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);flex:1">Idea Chat</div>' +
-      '<button id="idea-clear" style="background:none;border:none;color:var(--text3);font-size:9px;cursor:pointer;text-decoration:underline">Clear</button>';
-    body.appendChild(headRow);
-
-    const msgList = document.createElement('div');
-    msgList.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0';
-    body.appendChild(msgList);
-
-    const inputRow = document.createElement('div');
-    inputRow.style.cssText = 'padding:10px 14px;border-top:1px solid rgba(255,255,255,.06);flex-shrink:0;display:flex;gap:6px';
-    inputRow.innerHTML =
-      '<input id="idea-input" class="ym-input" placeholder="Ask for an idea, or a follow-up…" style="flex:1;font-size:12px">' +
-      '<button id="idea-send" class="ym-btn ym-btn-accent" style="flex-shrink:0;font-size:12px;padding:0 16px">↑</button>';
-    body.appendChild(inputRow);
-
-    let messages = loadIdeaChat(); // [{role,content}] — no system entry stored, rebuilt fresh each send
-
-    function renderBubble(role, text) {
-      const bubble = document.createElement('div');
-      const isUser = role === 'user';
-      bubble.style.cssText = 'max-width:85%;align-self:' + (isUser ? 'flex-end' : 'flex-start') +
-        ';background:' + (isUser ? 'rgba(240,168,48,.12)' : 'rgba(255,255,255,.04)') +
-        ';border:1px solid ' + (isUser ? 'rgba(240,168,48,.25)' : 'rgba(255,255,255,.08)') +
-        ';border-radius:12px;padding:9px 12px;font-size:12px;line-height:1.5;color:var(--text2);white-space:pre-wrap';
-      bubble.textContent = text;
-      msgList.appendChild(bubble);
-      msgList.scrollTop = msgList.scrollHeight;
-      return bubble;
-    }
-
-    function renderHistory() {
-      msgList.innerHTML = '';
-      if (!messages.length) {
-        const hint = document.createElement('div');
-        hint.style.cssText = 'text-align:center;color:var(--text3);font-size:11px;padding:20px';
-        hint.textContent = 'Ask for a sphere idea based on your network — e.g. "suggest something" or "give me a Games idea".';
-        msgList.appendChild(hint);
-        return;
-      }
-      messages.forEach(m => renderBubble(m.role, m.content));
-    }
-    renderHistory();
-
-    headRow.querySelector('#idea-clear').addEventListener('click', () => {
-      messages = [];
-      clearIdeaChat();
-      renderHistory();
-    });
-
-    async function send() {
-      const inputEl = body.querySelector('#idea-input');
-      const sendBtn = body.querySelector('#idea-send');
-      const text = (inputEl.value || '').trim();
-      if (!text) return;
-      inputEl.value = '';
-      inputEl.disabled = true;
-      sendBtn.disabled = true;
-
-      messages.push({ role: 'user', content: text });
-      renderBubble('user', text);
-      const thinking = renderBubble('assistant', 'Thinking…');
+    btn.addEventListener('click', async () => {
+      const spinner = btn.querySelector('#idea-spinner');
+      const label = btn.querySelector('#idea-btn-label');
+      btn.disabled = true;
+      spinner.style.display = '';
+      label.textContent = 'Analysing…';
+      resultArea.innerHTML = '';
 
       try {
-        const snapshot = collectNetworkSnapshot();
-        const systemPrompt = buildIdeaSystemPrompt(snapshot);
-        const chatMessages = [{ role: 'system', content: systemPrompt }, ...messages];
+        const freshSnap = collectNetworkSnapshot();
+        const systemPrompt = buildIdeaSystemPrompt(freshSnap);
+        const messages = [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: 'Suggest one sphere idea based on what you see in this network.' },
+        ];
         let full = '';
-        for await (const chunk of streamChatGenerate(engine, model, chatMessages, null, 350)) {
+        const card = document.createElement('div');
+        card.style.cssText = 'background:rgba(240,168,48,.06);border:1px solid rgba(240,168,48,.2);border-radius:12px;padding:14px;font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-wrap';
+        resultArea.appendChild(card);
+        for await (const chunk of streamChatGenerate(engine, model, messages, null, 280)) {
           full += chunk;
-          thinking.textContent = full;
-          msgList.scrollTop = msgList.scrollHeight;
+          card.textContent = full;
         }
         full = sanitizeIdeaReply(full);
-        if (!full.trim()) full = '(no response — try again)';
-        thinking.textContent = full;
-        messages.push({ role: 'assistant', content: full });
-        saveIdeaChat(messages);
+        card.textContent = full || '(no response — try again)';
       } catch (e) {
-        thinking.textContent = 'Error: ' + e.message;
-        thinking.style.color = 'var(--red)';
+        resultArea.innerHTML = '<div style="font-size:11px;color:var(--red)">' + esc(e.message) + '</div>';
       } finally {
-        inputEl.disabled = false;
-        sendBtn.disabled = false;
-        inputEl.focus();
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        label.textContent = '↺ Another idea';
       }
-    }
-    body.querySelector('#idea-send').addEventListener('click', send);
-    body.querySelector('#idea-input').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+    });
   }
 
   window.YM_AI = {
