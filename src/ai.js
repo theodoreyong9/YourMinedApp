@@ -1425,12 +1425,45 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
     return text.slice(0, cut).trim() || text.trim(); // never return empty if the whole thing matched somehow
   }
 
+  const IDEA_RESULT_KEY = 'ym_idea_last_result';
+
   async function renderIdeaChat(body) {
     body.innerHTML = '';
     body.style.cssText = 'flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;min-height:0;padding:16px;gap:12px';
 
+    if (!document.getElementById('ym-ai-spin-style')) {
+      const s = document.createElement('style');
+      s.id = 'ym-ai-spin-style';
+      s.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
+      document.head.appendChild(s);
+    }
+
     // ── Network snapshot ──────────────────────────────────────
     const snapshot = collectNetworkSnapshot();
+    const sphereNames = snapshot.mySpheres.map(s => s.name).join(', ') || 'none';
+    const peerCount = snapshot.peers.length;
+    const topShared = Object.entries(snapshot.sharedPatterns).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id])=>id.replace('.sphere.js','')).join(', ') || '—';
+
+    const infoCard = document.createElement('div');
+    infoCard.style.cssText = 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px;font-size:11px;color:var(--text3);line-height:1.7;flex-shrink:0';
+    infoCard.innerHTML =
+      '<div style="color:var(--text2);font-weight:600;margin-bottom:6px">What I see</div>' +
+      '<div>Your spheres: <span style="color:var(--text)">' + esc(sphereNames) + '</span></div>' +
+      '<div>' + peerCount + ' peer' + (peerCount!==1?'s':'') + ' nearby' + (topShared!=='—'?' · most common: <span style="color:var(--gold)">' + esc(topShared) + '</span>':'') + '</div>';
+    body.appendChild(infoCard);
+
+    // ── Result area — restore previous result if available ────
+    const resultArea = document.createElement('div');
+    resultArea.style.cssText = 'flex:1;min-height:60px';
+    body.appendChild(resultArea);
+
+    const savedResult = (() => { try { return localStorage.getItem(IDEA_RESULT_KEY) || ''; } catch { return ''; } })();
+    if (savedResult) {
+      const card = document.createElement('div');
+      card.style.cssText = 'background:rgba(240,168,48,.06);border:1px solid rgba(240,168,48,.2);border-radius:12px;padding:14px;font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-wrap';
+      card.textContent = savedResult;
+      resultArea.appendChild(card);
+    }
 
     // ── Engine check ──────────────────────────────────────────
     let engine;
@@ -1440,44 +1473,32 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       engine = { type: 'unsupported', reason: e.message };
     }
 
-    // ── What we see ───────────────────────────────────────────
-    const infoCard = document.createElement('div');
-    infoCard.style.cssText = 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px;font-size:11px;color:var(--text3);line-height:1.7';
-    const sphereNames = snapshot.mySpheres.map(s => s.name).join(', ') || 'none';
-    const peerCount = snapshot.peers.length;
-    const topShared = Object.entries(snapshot.sharedPatterns).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id])=>id.replace('.sphere.js','')).join(', ') || '—';
-    infoCard.innerHTML =
-      '<div style="color:var(--text2);font-weight:600;margin-bottom:6px">What I see</div>' +
-      '<div>Your spheres: <span style="color:var(--text)">' + esc(sphereNames) + '</span></div>' +
-      '<div>' + peerCount + ' peer' + (peerCount!==1?'s':'') + ' nearby' + (topShared!=='—' ? ' · most common: <span style="color:var(--gold)">' + esc(topShared) + '</span>' : '') + '</div>';
-    body.appendChild(infoCard);
-
-    // ── Result area ───────────────────────────────────────────
-    const resultArea = document.createElement('div');
-    resultArea.style.cssText = 'flex:1;min-height:80px';
-    body.appendChild(resultArea);
-
-    // ── Analyse button ────────────────────────────────────────
+    // ── Button ────────────────────────────────────────────────
     const btn = document.createElement('button');
     btn.className = 'ym-btn ym-btn-accent';
-    btn.style.cssText = 'width:100%;font-size:13px;padding:13px;display:flex;align-items:center;justify-content:center;gap:8px';
-    btn.innerHTML = '<span id="idea-spinner" style="display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:ym-ai-spin .7s linear infinite;flex-shrink:0"></span><span id="idea-btn-label">✦ Get an idea</span>';
+    btn.style.cssText = 'width:100%;font-size:13px;padding:13px;display:flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0';
+    btn.innerHTML =
+      '<span id="idea-spinner" style="display:none;width:13px;height:13px;border:2px solid rgba(0,0,0,.25);border-top-color:currentColor;border-radius:50%;animation:ym-ai-spin .7s linear infinite;flex-shrink:0"></span>' +
+      '<span id="idea-btn-label">' + (savedResult ? '↺ Another idea' : '✦ Get an idea') + '</span>';
     body.appendChild(btn);
-
-    if (!document.getElementById('ym-ai-spin-style')) {
-      const s = document.createElement('style');
-      s.id = 'ym-ai-spin-style';
-      s.textContent = '@keyframes ym-ai-spin{to{transform:rotate(360deg)}}';
-      document.head.appendChild(s);
-    }
 
     if (engine.type === 'unsupported') {
       btn.disabled = true;
-      resultArea.innerHTML = '<div style="font-size:11px;color:var(--red);line-height:1.6">' + esc(engine.reason || 'No local AI available on this device.') + '</div>';
+      if (!savedResult) resultArea.innerHTML = '<div style="font-size:11px;color:var(--red);line-height:1.6">' + esc(engine.reason || 'No local AI available.') + '</div>';
       return;
     }
 
     const model = engine.models[0] || '';
+
+    // Stop signal — so leaving the panel while generating actually stops it
+    let _ideaStopResolve = null;
+    function _ideaStop() { if (_ideaStopResolve) { _ideaStopResolve(); _ideaStopResolve = null; } }
+
+    // Stop generation when the panel is navigated away from (body removed)
+    const observer = new MutationObserver(() => {
+      if (!body.isConnected) { _ideaStop(); try { _webllmEngine?.interruptGenerate?.(); } catch {} observer.disconnect(); }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
 
     btn.addEventListener('click', async () => {
       const spinner = btn.querySelector('#idea-spinner');
@@ -1486,6 +1507,9 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
       spinner.style.display = '';
       label.textContent = 'Analysing…';
       resultArea.innerHTML = '';
+
+      _ideaStopResolve = null;
+      const stopSignal = new Promise(r => { _ideaStopResolve = r; });
 
       try {
         const freshSnap = collectNetworkSnapshot();
@@ -1498,18 +1522,29 @@ Output ONLY the complete file content. No explanation, no markdown fences.`;
         const card = document.createElement('div');
         card.style.cssText = 'background:rgba(240,168,48,.06);border:1px solid rgba(240,168,48,.2);border-radius:12px;padding:14px;font-size:12px;color:var(--text2);line-height:1.7;white-space:pre-wrap';
         resultArea.appendChild(card);
-        for await (const chunk of streamChatGenerate(engine, model, messages, null, 280)) {
+
+        const gen = withStopSignal(streamChatGenerate(engine, model, messages, null, 280), stopSignal);
+        for await (const chunk of gen) {
           full += chunk;
           card.textContent = full;
         }
         full = sanitizeIdeaReply(full);
-        card.textContent = full || '(no response — try again)';
+        if (full) {
+          card.textContent = full;
+          try { localStorage.setItem(IDEA_RESULT_KEY, full); } catch {}
+        } else {
+          card.textContent = '(no response — try again)';
+        }
       } catch (e) {
-        resultArea.innerHTML = '<div style="font-size:11px;color:var(--red)">' + esc(e.message) + '</div>';
+        if (e.message !== '__STOPPED_BY_USER__') {
+          resultArea.innerHTML = '<div style="font-size:11px;color:var(--red)">' + esc(e.message) + '</div>';
+        }
       } finally {
-        btn.disabled = false;
-        spinner.style.display = 'none';
-        label.textContent = '↺ Another idea';
+        if (body.isConnected) {
+          btn.disabled = false;
+          spinner.style.display = 'none';
+          label.textContent = '↺ Another idea';
+        }
       }
     });
   }
