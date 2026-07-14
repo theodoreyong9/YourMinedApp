@@ -1796,6 +1796,56 @@ window.parent.postMessage({ type: 'ym:resize', height: 600 }, '*');
 ---
 ---
 
+---
+## Service Worker — Pluggable Fetch Strategies
+
+`sw.js` exposes a single extension point so plugins can override the fetch
+strategy for specific routes, without touching the core file.
+
+### Default behaviour
+
+Same-origin requests use **network-first with cache fallback**. Cross-origin
+requests are **network-only**, no fallback. This is unchanged unless a plugin
+claims the request.
+
+### Registering an override
+
+```js
+// Any script loaded via importScripts() in sw.js, or concatenated at build time
+self.__swOverride = self.__swOverride || [];
+
+self.__swOverride.push({
+  match:   (url, req) => url.pathname.startsWith('/plugin-assets/'),
+  respond: (req) => caches.match(req).then(c => c || fetch(req)) // cache-first
+});
+```
+
+- `match(url, req)` → `true` to claim the request, `false` to pass
+- `respond(req)` → must return a `Response` promise
+- The **first** registered override that matches wins — order follows load order
+- If no override matches, the default network-first/cache-fallback applies
+
+### Built-in strategies
+
+```js
+self.__swStrategies = {
+  networkFirst: (req) => fetch(req).catch(() => caches.match(req)),
+  cacheFirst:   (req) => caches.match(req).then(c => c || fetch(req)),
+  cacheOnly:    (req) => caches.match(req),
+  networkOnly:  (req) => fetch(req),
+};
+```
+
+### Loading plugin code into the SW
+
+Since `sw.js` and plugin files must be same-origin (`importScripts` cannot
+reliably load cross-origin JS with correct MIME/caching guarantees), plugin
+files are copied into the deploy output at build time, then loaded via:
+
+```js
+importScripts('./sw-plugins.js'); // concatenation of all active plugin files
+```
+
 # API Reference
 
 ## Global API Reference
