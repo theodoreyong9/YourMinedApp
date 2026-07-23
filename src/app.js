@@ -1091,7 +1091,18 @@
    *      TOUTES les erreurs WebSocket/Trystero en silence.
    *      Logs diagnostics complets + retry automatique.
    * ═══════════════════════════════════════════════════════════ */
-  const YM_RELAYS = window.YM_RELAYS_OVERRIDE || ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
+  // FIX: relays filtrés pour accepter les kinds éphémères (20000-29999) utilisés par Trystero
+  // wss://relay.nostr.wirednet.jp retiré — bloque "ephemeral kind range" (kind 22823)
+  // wss://nos.lol retiré — restrictif sur les kinds éphémères
+  // Remplacés par des relays permissifs et stables
+  const YM_RELAYS = window.YM_RELAYS_OVERRIDE || [
+    'wss://relay.damus.io',          // permissif, supporte tous les kinds
+    'wss://nostr.oxtr.dev',          // ok sur kinds éphémères
+    'wss://relay.snort.social',      // permissif
+    'wss://nostr.wine',              // stable, kinds éphémères ok
+    'wss://relay.nostr.band',        // permissif
+    'wss://nostr-pub.wellorder.net', // accepte kinds éphémères
+  ];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
 
@@ -1110,16 +1121,28 @@
   async function initP2P() {
     _log('initP2P — attempt', _p2pRetryCount + 1, '/ relays:', YM_RELAYS);
 
-    // ── Ignore les erreurs WebSocket "bruyantes" sans les cacher ──
-    // On installe un handler qui les capture proprement sans supprimer
-    // la visibilité des vraies erreurs dans DevTools.
+    // ── Intercepte les erreurs WebSocket sans les cacher ──────────────────
+    // On les loggue proprement avec [YM] pour pouvoir les diagnostiquer,
+    // puis on les stoppe pour éviter les toasts/crashes côté app.
     window.addEventListener('error', e => {
       if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) {
-        // On laisse passer dans DevTools mais on empêche la propagation
-        // pour éviter les toasts inutiles côté app
+        _warn('WebSocket error (caught):', e.message);
         e.stopImmediatePropagation();
       }
     }, true);
+
+    // ── Intercepte les logs Trystero "relay failure" ───────────────────────
+    // Trystero appelle console.warn pour signaler les relays bloquants.
+    // On les capture pour les logguer proprement sans les supprimer.
+    const _origWarn = console.warn.bind(console);
+    console.warn = function(...args) {
+      const msg = typeof args[0] === 'string' ? args[0] : '';
+      if (msg.includes('Trystero') || msg.includes('relay failure') || msg.includes('blocked')) {
+        _warn('Trystero relay issue:', ...args);
+        return; // on l'a déjà loggué proprement avec [YM]
+      }
+      _origWarn(...args);
+    };
 
     // ── Transport override ──────────────────────────────────────────
     if (window.YM_TRANSPORT) {
@@ -1162,13 +1185,14 @@
         const { joinRoom } = await import(cdn);
         _log('initP2P — Trystero loaded from', cdn);
 
+        _log('initP2P — joining room with relays:', YM_RELAYS);
         const room = joinRoom({ appId: YM_APPID, relayUrls: YM_RELAYS }, YM_ROOM);
-        _log('initP2P — joinRoom() called, waiting for peers…');
+        _log('initP2P — joinRoom() called ✓ | appId:', YM_APPID, '| room:', YM_ROOM);
 
         const [send, recv] = room.makeAction('ym');
 
         recv((data, pid) => {
-          _log('p2p-recv from', pid, '| type:', data?.type, '| sphere:', data?.sphere);
+          _log('p2p-recv ✓ from', pid?.slice(0,8), '| type:', data?.type, '| sphere:', data?.sphere, '| uuid:', data?.uuid?.slice(0,8));
           if ((data && data.type === 'social:presence') || cR(pid))
             window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
         });
