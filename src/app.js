@@ -1076,10 +1076,10 @@
   // aucun pair (rate-limit, panne, timeout), on bascule automatiquement
   // sur le groupe suivant, en boucle, sans intervention manuelle.
   const YM_RELAY_GROUPS = window.YM_RELAY_GROUPS_OVERRIDE || [
-    ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp'],
-    ['wss://relay.damus.io', 'wss://nostr.oxtr.dev', 'wss://relay.snort.social'],
-    ['wss://nostr.wine', 'wss://relay.nostr.band', 'wss://nostr-pub.wellorder.net'],
-    ['wss://relay.nostr.bg', 'wss://nostr.mom', 'wss://relay.current.fyi'],
+    ['wss://nos.lol', 'wss://relay.primal.net', 'wss://nostr.oxtr.dev'],
+    ['wss://relay.damus.io', 'wss://relay.snort.social', 'wss://nostr.wine'],
+    ['wss://relay.nostr.band', 'wss://nostr-pub.wellorder.net', 'wss://nos.lol'],
+    ['wss://relay.nostr.bg', 'wss://nostr.mom', 'wss://relay.primal.net'],
   ];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
@@ -1088,13 +1088,14 @@
   const P2P_ERROR_THRESHOLD = 3;     // 3 erreurs relais consécutives → rotate immédiat
   const P2P_RETRY_BACKOFF   = [5000, 10000, 20000, 40000, 60000];
 
-  let _p2pGroupIdx      = 0;
-  let _p2pRoom          = null;
-  let _p2pPeerFound     = false;
-  let _p2pErrorCount    = 0;
-  let _p2pRetryAttempt  = 0;
-  let _p2pDestroyed     = false;
+  let _p2pGroupIdx       = 0;
+  let _p2pRoom           = null;
+  let _p2pPeerFound      = false;
+  let _p2pErrorCount     = 0;
+  let _p2pRetryAttempt   = 0;
+  let _p2pDestroyed      = false;
   let _p2pPeerCheckTimer = null;
+  let _p2pRotating       = false; // guard anti-rotation en cascade
   let _p2pDiagState = { group: null, relays: [], connectedPeers: 0, lastError: null, attempt: 0 };
 
   function _nextGroup() {
@@ -1108,13 +1109,17 @@
   }
 
   async function _rotateAndReconnect(reason) {
-    if (_p2pDestroyed) return;
+    if (_p2pDestroyed || _p2pRotating) return;
+    _p2pRotating = true;
     console.warn('[YM P2P] rotating relay group — reason:', reason);
     await _leaveCurrentRoom();
     _p2pErrorCount = 0;
     _p2pPeerFound = false;
     const group = _nextGroup();
     await _joinWithGroup(group);
+    // Le guard reste actif 10s après la rotation pour laisser
+    // les anciens WebSockets se fermer sans déclencher un nouveau rotate
+    setTimeout(() => { _p2pRotating = false; }, 10000);
   }
 
   function _scheduleRetryIfStillIsolated() {
@@ -1167,20 +1172,22 @@
           room,
         };
 
-        // Détecte les erreurs relais remontées par Trystero (rate-limit, timeout…)
-        const origWarn = console.warn, origErr = console.error;
-        const errorWatcher = (msg) => {
-          if (typeof msg === 'string' && (msg.includes('relay failure') || msg.includes('rate-limited') || msg.includes('WebSocket'))) {
+        // Détecte les erreurs relais via unhandledrejection — sans jamais wrapper console
+        // (wrapper console.warn depuis errorWatcher crée une boucle infinie)
+        const _relayErrorHandler = (e) => {
+          if (_p2pRoom !== room) return; // on ne gère que la room active
+          const msg = (e?.reason?.message || String(e?.reason || '') || '').toLowerCase();
+          if (msg.includes('relay') || msg.includes('rate') || msg.includes('websocket')) {
             _p2pErrorCount++;
             _p2pDiagState.lastError = msg;
             if (_p2pErrorCount >= P2P_ERROR_THRESHOLD && !_p2pPeerFound) {
               _p2pErrorCount = 0;
+              window.removeEventListener('unhandledrejection', _relayErrorHandler);
               _rotateAndReconnect('too-many-relay-errors');
             }
           }
         };
-        console.warn = function (...a) { errorWatcher(a[0]); return origWarn.apply(console, a); };
-        console.error = function (...a) { errorWatcher(a[0]); return origErr.apply(console, a); };
+        window.addEventListener('unhandledrejection', _relayErrorHandler);
 
         setTimeout(() => send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
         setInterval(() => { if (!document.hidden && _p2pRoom === room) send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
