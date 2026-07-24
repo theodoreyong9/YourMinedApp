@@ -1172,22 +1172,8 @@
           room,
         };
 
-        // Détecte les erreurs relais via unhandledrejection — sans jamais wrapper console
-        // (wrapper console.warn depuis errorWatcher crée une boucle infinie)
-        const _relayErrorHandler = (e) => {
-          if (_p2pRoom !== room) return; // on ne gère que la room active
-          const msg = (e?.reason?.message || String(e?.reason || '') || '').toLowerCase();
-          if (msg.includes('relay') || msg.includes('rate') || msg.includes('websocket')) {
-            _p2pErrorCount++;
-            _p2pDiagState.lastError = msg;
-            if (_p2pErrorCount >= P2P_ERROR_THRESHOLD && !_p2pPeerFound) {
-              _p2pErrorCount = 0;
-              window.removeEventListener('unhandledrejection', _relayErrorHandler);
-              _rotateAndReconnect('too-many-relay-errors');
-            }
-          }
-        };
-        window.addEventListener('unhandledrejection', _relayErrorHandler);
+        // Pas de détection automatique d'erreurs relais — le failover se fait
+        // uniquement par timeout (12s sans pair → _scheduleRetryIfStillIsolated)
 
         setTimeout(() => send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
         setInterval(() => { if (!document.hidden && _p2pRoom === room) send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
