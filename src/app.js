@@ -1098,41 +1098,12 @@
   const YM_RELAYS = window.YM_RELAYS_OVERRIDE || ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
-  /* ── Serveur(s) TURN ──────────────────────────────────────────────────
-   * STUN seul (comportement par défaut de Trystero) ne suffit pas dès que
-   * l'un des deux pairs est derrière un NAT strict/symétrique — typiquement
-   * un réseau mobile opérateur (4G/5G). Sans TURN, deux pairs sur des
-   * réseaux différents peuvent tout simplement ne JAMAIS réussir à établir
-   * de connexion directe, ce qui se traduit par "ils ne se voient jamais",
-   * sans erreur visible (la connexion échoue en silence côté ICE).
-   * Remplaçable via window.YM_TURN_OVERRIDE avant le chargement de app.js.
-   * Les identifiants ci-dessous sont ceux, historiquement gratuits et
-   * publics, du Open Relay Project — à remplacer par des identifiants
-   * personnels (metered.ca, Cloudflare TURN, coturn auto-hébergé…) si
-   * ceux-ci s'avèrent instables ou dépréciés.
-   * ──────────────────────────────────────────────────────────────────── */
-  const YM_TURN = window.YM_TURN_OVERRIDE || [
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-  ];
 
   async function initP2P() {
-    /* ── Interrupteur de debug ────────────────────────────────────────
-     * Par défaut, les erreurs contenant "WebSocket"/"wss://"/"Trystero"
-     * sont masquées pour ne pas polluer la console en usage normal. Pour
-     * voir les VRAIES erreurs de connexion (négociation ICE, relais
-     * injoignable, etc.) lors d'un diagnostic, exécuter dans la console :
-     *   localStorage.setItem('ym_debug_p2p','1')
-     * puis recharger la page. Pour revenir au comportement silencieux :
-     *   localStorage.removeItem('ym_debug_p2p')
-     * ──────────────────────────────────────────────────────────────── */
-    if (localStorage.getItem('ym_debug_p2p') !== '1') {
-      window.addEventListener('error', e => { if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) e.stopImmediatePropagation(); }, true);
-      const _w = console.warn, _e = console.error;
-      console.warn  = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('Trystero') || arguments[0].includes('wss://'))) return; _w.apply(console, arguments); };
-      console.error = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('WebSocket') || arguments[0].includes('wss://'))) return; _e.apply(console, arguments); };
-    }
+    window.addEventListener('error', e => { if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) e.stopImmediatePropagation(); }, true);
+    const _w = console.warn, _e = console.error;
+    console.warn  = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('Trystero') || arguments[0].includes('wss://'))) return; _w.apply(console, arguments); };
+    console.error = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('WebSocket') || arguments[0].includes('wss://'))) return; _e.apply(console, arguments); };
 
     // ── Transport override ──────────────────────────────────────────
     // Any theme or sphere can provide a custom transport by declaring:
@@ -1182,7 +1153,7 @@
     for (const cdn of ['https://cdn.jsdelivr.net/npm/trystero@0.21.0/+esm', 'https://esm.run/trystero@0.21.0']) {
       try {
         const { joinRoom } = await import(cdn);
-        const room = joinRoom({ appId: YM_APPID, relayUrls: YM_RELAYS, turnConfig: YM_TURN }, YM_ROOM);
+        const room = joinRoom({ appId: YM_APPID, relayUrls: YM_RELAYS }, YM_ROOM);
         const [send, recv] = room.makeAction('ym');
         recv((data, pid) => {
           if ((data && data.type === 'social:presence') || cR(pid))
