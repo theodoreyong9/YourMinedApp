@@ -2,6 +2,28 @@
   YourMine — Default Theme
   GitHub: theodoreyong9/YourMinedApp/src/themes/default.html
 -->
+<!-- ── Auto-nettoyage (fix sans toucher à index.html) ───────────
+     index.html n'a jamais supprimé les <style>/DOM d'un thème
+     précédemment injecté. Ce script fait le ménage lui-même, dès
+     qu'il s'exécute — donc AVANT que ce thème n'ajoute ses propres
+     éléments (#ym-wp, #ym-bg, #nav-bar…), en supprimant :
+       1. tout <style> marqué d'un autre thème que "default"
+       2. tout élément DOM aux mêmes IDs laissé par un thème précédent
+     Empêche les halos / le CSS de deux thèmes de se superposer. ─── -->
+<script>
+(function(){
+  document.querySelectorAll('style[data-ym-theme-style]').forEach(function(n){
+    if(n.getAttribute('data-ym-theme-style')!=='default') n.remove();
+  });
+  ['ym-wp','ym-bg','ym-loader','toasts','desktop','drag-ghost','page-dots','nav-bar',
+   'folder-dlg','bg-dlg','panel-overlay','panel-spheres','panel-profile','panel-build',
+   'panel-mine','panel-sphere','panel-profile-view','ym-sign-dlg','panel-switcher',
+   'pwa-install-btn'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.remove();
+  });
+})();
+</script>
 <!-- ── Fonts ─────────────────────────────────────────────────── -->
 <script>
 window.YM_THEME_META = {"name":"Default","icon":"🏠","description":"Default YourMine theme"};
@@ -25,7 +47,7 @@ window.YM_WALLPAPER_PRESETS = [
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=block" rel="stylesheet">
 
 <!-- ── Styles ────────────────────────────────────────────────── -->
-<style>
+<style data-ym-theme-style="default">
 :root{
   color-scheme:dark;
   --bg:#06060e;
@@ -46,16 +68,17 @@ body::before{content:"";position:fixed;top:0;left:0;width:100%;height:env(safe-a
 body *{scrollbar-width:thin;scrollbar-color:rgba(240,168,48,.18) transparent}
 ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:rgba(240,168,48,.18);border-radius:1px}
 #ym-wp{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat}
-/* ── FIX fond léger dégradé ──────────────────────────────────
-   Un SEUL radial-gradient discret (au lieu de deux qui pouvaient se
-   superposer et créer des halos en trop si le CSS d'un autre thème
-   restait chargé en même temps). Opacité réduite tant qu'aucun
-   wallpaper n'est actif, un peu plus marquée avec un wallpaper. */
-#ym-bg{position:fixed;inset:0;z-index:1;pointer-events:none;background:var(--bg)}
-#ym-bg::before{content:'';position:absolute;inset:-20%;background:radial-gradient(ellipse at 30% 20%,rgba(240,168,48,.05),transparent 60%);opacity:.6}
-#ym-bg::after{display:none}
+/* ── Fond à deux halos ────────────────────────────────────────
+   Design d'origine restauré : maintenant que index.html nettoie
+   correctement l'injection d'un thème avant d'en charger un autre
+   (voir cleanupPreviousTheme), il n'y a plus de risque que ces
+   halos se superposent à ceux d'un autre thème resté chargé par
+   erreur — donc plus besoin de rester minimaliste ici. */
+#ym-bg{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:var(--bg)}
+#ym-bg::before{content:'';position:absolute;width:90vmax;height:90vmax;border-radius:50%;background:radial-gradient(circle,rgba(8,224,248,.11),transparent 68%);top:-28vmax;right:-18vmax}
+#ym-bg::after{content:'';position:absolute;width:75vmax;height:75vmax;border-radius:50%;background:radial-gradient(circle,rgba(240,168,48,.09),transparent 68%);bottom:-20vmax;left:-14vmax}
 body.has-wallpaper #ym-bg{background:transparent}
-body.has-wallpaper #ym-bg::before{opacity:.3}
+body.has-wallpaper #ym-bg::before,body.has-wallpaper #ym-bg::after{opacity:.35}
 #desktop{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));z-index:10;overflow:hidden;touch-action:none}
 #desktop-slider{display:flex;height:100%;overflow:hidden;transition:transform .4s cubic-bezier(.4,0,.2,1);will-change:transform}
 .desktop-page{flex:0 0 100vw;width:100vw;height:calc(100dvh - var(--dock-h) - var(--safe-b));display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);padding:6px 12px 10px;gap:6px;overflow:hidden;position:relative}
@@ -184,6 +207,8 @@ textarea.ym-input{resize:vertical;font-family:var(--font-m);font-size:12px}
 .formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .formula-var{background:rgba(255,255,255,.03);border-radius:6px;padding:7px 8px;font-size:11px;color:var(--text2);line-height:1.4}
 .formula-var b{color:var(--gold);font-family:var(--font-m)}
+body.has-wallpaper #ym-wp{animation:wpPan 60s linear infinite alternate}
+@keyframes wpPan{0%{background-position:0% center}100%{background-position:100% center}}
 #panel-switcher{position:fixed;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));max-height:calc(80dvh - var(--dock-h) - var(--safe-b));background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);z-index:298;transform:translateY(calc(100% + 20px));transition:transform .4s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;border-radius:30px 30px 0 0;overflow:hidden}
 #panel-switcher::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 #panel-switcher.open{transform:translateY(0);z-index:303}
