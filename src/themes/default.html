@@ -46,11 +46,16 @@ body::before{content:"";position:fixed;top:0;left:0;width:100%;height:env(safe-a
 body *{scrollbar-width:thin;scrollbar-color:rgba(240,168,48,.18) transparent}
 ::-webkit-scrollbar{width:2px}::-webkit-scrollbar-thumb{background:rgba(240,168,48,.18);border-radius:1px}
 #ym-wp{position:fixed;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat}
-#ym-bg{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;background:var(--bg)}
-#ym-bg::before{content:'';position:absolute;width:90vmax;height:90vmax;border-radius:50%;background:radial-gradient(circle,rgba(8,224,248,.11),transparent 68%);top:-28vmax;right:-18vmax}
-#ym-bg::after{content:'';position:absolute;width:75vmax;height:75vmax;border-radius:50%;background:radial-gradient(circle,rgba(240,168,48,.09),transparent 68%);bottom:-20vmax;left:-14vmax}
+/* ── FIX fond léger dégradé ──────────────────────────────────
+   Un SEUL radial-gradient discret (au lieu de deux qui pouvaient se
+   superposer et créer des halos en trop si le CSS d'un autre thème
+   restait chargé en même temps). Opacité réduite tant qu'aucun
+   wallpaper n'est actif, un peu plus marquée avec un wallpaper. */
+#ym-bg{position:fixed;inset:0;z-index:1;pointer-events:none;background:var(--bg)}
+#ym-bg::before{content:'';position:absolute;inset:-20%;background:radial-gradient(ellipse at 30% 20%,rgba(240,168,48,.05),transparent 60%);opacity:.6}
+#ym-bg::after{display:none}
 body.has-wallpaper #ym-bg{background:transparent}
-body.has-wallpaper #ym-bg::before,body.has-wallpaper #ym-bg::after{opacity:.35}
+body.has-wallpaper #ym-bg::before{opacity:.3}
 #desktop{position:fixed;top:0;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));z-index:10;overflow:hidden;touch-action:none}
 #desktop-slider{display:flex;height:100%;overflow:hidden;transition:transform .4s cubic-bezier(.4,0,.2,1);will-change:transform}
 .desktop-page{flex:0 0 100vw;width:100vw;height:calc(100dvh - var(--dock-h) - var(--safe-b));display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);padding:6px 12px 10px;gap:6px;overflow:hidden;position:relative}
@@ -179,8 +184,6 @@ textarea.ym-input{resize:vertical;font-family:var(--font-m);font-size:12px}
 .formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
 .formula-var{background:rgba(255,255,255,.03);border-radius:6px;padding:7px 8px;font-size:11px;color:var(--text2);line-height:1.4}
 .formula-var b{color:var(--gold);font-family:var(--font-m)}
-body.has-wallpaper #ym-wp{animation:wpPan 60s linear infinite alternate}
-@keyframes wpPan{0%{background-position:0% center}100%{background-position:100% center}}
 #panel-switcher{position:fixed;left:0;right:0;bottom:calc(var(--dock-h) + var(--safe-b));max-height:calc(80dvh - var(--dock-h) - var(--safe-b));background:var(--glass-heavy);backdrop-filter:var(--blur-heavy);-webkit-backdrop-filter:var(--blur-heavy);z-index:298;transform:translateY(calc(100% + 20px));transition:transform .4s cubic-bezier(.32,.72,0,1);display:flex;flex-direction:column;border-radius:30px 30px 0 0;overflow:hidden}
 #panel-switcher::before{content:'';position:absolute;top:0;left:8%;right:8%;height:1px;z-index:2;background:linear-gradient(90deg,transparent,rgba(240,168,48,.4) 20%,rgba(255,255,255,.15) 50%,rgba(8,224,248,.35) 80%,transparent)}
 #panel-switcher.open{transform:translateY(0);z-index:303}
@@ -307,11 +310,12 @@ body.has-wallpaper #ym-wp{animation:wpPan 60s linear infinite alternate}
     if(!url||url===activeUrl())return;
     localStorage.setItem(THEME_KEY,url);
     localStorage.removeItem(THEME_CACHE);
+    localStorage.removeItem('ym_theme_cache_for');
     if(location.pathname!=='/')history.replaceState(null,'','/');
     window.YM_toast&&window.YM_toast('\u2746 '+label+'\u2026','success',600);
     if(window.YM&&window.YM.setTheme){window.YM.setTheme(url);return;}
     fetch(url).then(function(r){return r.ok?r.text():null;}).then(function(html){
-      if(html)try{localStorage.setItem(THEME_CACHE,html);}catch(e){}
+      if(html)try{localStorage.setItem(THEME_CACHE,html);localStorage.setItem('ym_theme_cache_for',url);}catch(e){}
       setTimeout(function(){location.reload();},100);
     }).catch(function(){setTimeout(function(){location.reload();},100);});
   }
