@@ -1141,15 +1141,24 @@
   /* ═══════════════════════════════════════════════════════════
    * P2P — VERSION COMPLÈTEMENT INSTRUMENTÉE
    * ═══════════════════════════════════════════════════════════ */
-  // ── Relays Nostr — liste mise à jour (wirednet supprimé, mort)
-  // Trystero nécessite qu'au moins UN relay commun soit OPEN sur les deux clients
+  // ── Relays Nostr — damus supprimé (rate-limit agressif "noting too much")
   const YM_RELAYS = window.YM_RELAYS_OVERRIDE || [
-    'wss://relay.damus.io',          // Damus — très fiable, grande audience
-    'wss://nos.lol',                  // nos.lol — stable
-    'wss://nostr.wine',               // nostr.wine — fiable
-    'wss://relay.snort.social',       // Snort — bien établi
-    'wss://nostr-pub.wellorder.net',  // wellorder — stable
-    'wss://relay.nostr.band',         // nostr.band — fiable
+    'wss://nos.lol',
+    'wss://nostr.wine',
+    'wss://relay.snort.social',
+    'wss://nostr-pub.wellorder.net',
+    'wss://relay.nostr.bg',
+  ];
+  // ── TURN servers — nécessaires pour NAT symétrique (mobile ↔ PC domestique)
+  // Sans TURN, WebRTC ne peut pas traverser les NAT symétriques → joins: 0 pour toujours
+  const YM_ICE_SERVERS = window.YM_ICE_OVERRIDE || [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // openrelayproject — TURN public gratuit, fiable
+    { urls: 'turn:openrelay.metered.ca:80',             username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443',            username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:openrelay.metered.ca:80?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
   ];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
@@ -1160,6 +1169,49 @@
     L('P2P', `AppId: "${YM_APPID}" | Room: "${YM_ROOM}"`);
     L('P2P', `navigator.onLine: ${navigator.onLine}`);
     L('P2P', `YM_TRANSPORT override: ${!!window.YM_TRANSPORT}`);
+
+    // ── Monkey-patch RTCPeerConnection pour diagnostiquer ICE/NAT ────────────
+    // Chaque PC créé par Trystero = une tentative de connexion avec un pair
+    // Sans TURN : ICE reste en "checking" puis "failed" → pas de peer join
+    // Avec TURN  : ICE trouve un relais → "connected" → peer join ✓
+    if (!window._ymRTCPatched) {
+      window._ymRTCPatched = true;
+      const _OrigRTC = window.RTCPeerConnection;
+      let _pcCount = 0;
+      window.RTCPeerConnection = function(config) {
+        const id = ++_pcCount;
+        const iceUrls = (config?.iceServers || []).map(s => Array.isArray(s.urls) ? s.urls[0] : s.urls);
+        L('P2P', `[RTC #${id}] NEW RTCPeerConnection — iceServers: ${JSON.stringify(iceUrls)}`);
+        const pc = new _OrigRTC(config);
+        pc.addEventListener('iceconnectionstatechange', () => {
+          L('P2P', `[RTC #${id}] iceConnectionState → ${pc.iceConnectionState}`);
+          if (pc.iceConnectionState === 'failed') {
+            L('P2P', `[RTC #${id}] ❌ ICE FAILED — connexion WebRTC impossible (NAT symétrique probable, TURN nécessaire)`);
+          }
+          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            L('P2P', `[RTC #${id}] ✅ ICE CONNECTED — pair WebRTC établi!`);
+          }
+        });
+        pc.addEventListener('icegatheringstatechange', () => {
+          L('P2P', `[RTC #${id}] iceGatheringState → ${pc.iceGatheringState}`);
+        });
+        pc.addEventListener('connectionstatechange', () => {
+          L('P2P', `[RTC #${id}] connectionState → ${pc.connectionState}`);
+        });
+        pc.addEventListener('icecandidate', e => {
+          if (e.candidate) {
+            L('P2P', `[RTC #${id}] candidate: type=${e.candidate.type} proto=${e.candidate.protocol} addr=${e.candidate.address}`);
+          } else {
+            L('P2P', `[RTC #${id}] gathering complete (fin des candidats ICE)`);
+          }
+        });
+        return pc;
+      };
+      // Copier le prototype pour que instanceof RTCPeerConnection continue de fonctionner
+      window.RTCPeerConnection.prototype = _OrigRTC.prototype;
+      Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
+      L('P2P', `RTCPeerConnection monkey-patched ✓`);
+    }
 
     // Silencer les erreurs WebSocket dans la console (mais pas dans nos logs)
     window.addEventListener('error', e => {
@@ -1260,8 +1312,12 @@
           continue;
         }
 
-        L('P2P', `  joinRoom({ appId:"${YM_APPID}", relayUrls:${JSON.stringify(YM_RELAYS)} }, "${YM_ROOM}")…`);
-        const room = joinRoom({ appId: YM_APPID, relayUrls: YM_RELAYS }, YM_ROOM);
+        L('P2P', `  joinRoom({ appId:"${YM_APPID}", relayUrls:${JSON.stringify(YM_RELAYS)}, rtcConfig:{iceServers:${YM_ICE_SERVERS.length}} }, "${YM_ROOM}")…`);
+        const room = joinRoom({
+          appId: YM_APPID,
+          relayUrls: YM_RELAYS,
+          rtcConfig: { iceServers: YM_ICE_SERVERS },
+        }, YM_ROOM);
         L('P2P', `  joinRoom OK ✓ — room type: ${typeof room}`);
 
         // ── Check relay socket states après 3s ──────────────────────────────
