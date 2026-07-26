@@ -1,15 +1,35 @@
 /**
  * app.js — YourMine core logic
  * GitHub: theodoreyong9/YourMinedApp/src/app.js
+ * DEBUG BUILD — logs préfixés [YM:*]
  */
 
 ;(function () {
   'use strict';
 
+  // ── LOGGER GLOBAL ──────────────────────────────────────────────────────────
+  // Accessible depuis la console : window.YM_LOGS pour voir tout l'historique
+  window.YM_LOGS = [];
+  window.YM_LOG = function(tag, ...args) {
+    const entry = { ts: new Date().toISOString(), tag, args };
+    window.YM_LOGS.push(entry);
+    const style = {
+      'P2P':    'color:#08e0f8;font-weight:bold',
+      'MSG':    'color:#30e880;font-weight:bold',
+      'SPHERE': 'color:#f0a830;font-weight:bold',
+      'RATE':   'color:#ff6b35;font-weight:bold',
+      'INIT':   'color:#c084fc;font-weight:bold',
+      'SCRIPT': 'color:#a3e635;font-weight:bold',
+    }[tag] || 'color:#aaa';
+    console.log(`%c[YM:${tag}]`, style, ...args);
+  };
+  const L = (tag, ...args) => window.YM_LOG(tag, ...args);
+
+  L('INIT', '🚀 app.js starting');
+
   const toast = (...a) => window.YM_toast(...a);
   const esc   = (...a) => window.YM_escHtml(...a);
 
-  // Profile key — set by test theme, cleared when switching to non-test theme
   const PK = () => localStorage.getItem('ym_profile_key') || 'ym_profile_v1';
   const AK = 'ym_activity_v1';
 
@@ -37,9 +57,26 @@
     localStorage.setItem(AK, JSON.stringify(l));
   }
 
+  // ── RATE LIMITERS — instrumentés ──────────────────────────────────────────
   const p2pS = new Map(), p2pR = new Map(), GAP = 3000;
-  function cS(id) { const n = Date.now(); if (n - (p2pS.get(id) || 0) < GAP) return false; p2pS.set(id, n); return true; }
-  function cR(id) { const n = Date.now(); if (n - (p2pR.get(id) || 0) < GAP) return false; p2pR.set(id, n); return true; }
+  function cS(id) {
+    const n = Date.now();
+    if (n - (p2pS.get(id) || 0) < GAP) {
+      L('RATE', `cS BLOCKED send to ${id.slice(0,8)}… (gap ${n-(p2pS.get(id)||0)}ms < ${GAP}ms)`);
+      return false;
+    }
+    p2pS.set(id, n);
+    return true;
+  }
+  function cR(id) {
+    const n = Date.now();
+    if (n - (p2pR.get(id) || 0) < GAP) {
+      L('RATE', `cR BLOCKED recv from ${id.slice(0,8)}… (gap ${n-(p2pR.get(id)||0)}ms < ${GAP}ms)`);
+      return false;
+    }
+    p2pR.set(id, n);
+    return true;
+  }
 
   const overlay = document.getElementById('panel-overlay');
   const sw      = document.getElementById('panel-switcher');
@@ -102,11 +139,9 @@
     else if (tab === 'liste' && l) {
       l.style.cssText = 'display:flex; flex:1; flex-direction:column; overflow:hidden; min-height:0;';
       if (window.YM_Liste) {
-        // Always re-render to ensure fresh state
         window.YM_Liste.render(l);
       } else {
         l.innerHTML = '<div style="padding:16px;color:var(--text3);font-size:12px">Loading…</div>';
-        // Retry once YM_Liste is available
         const iv = setInterval(() => {
           if (window.YM_Liste) { clearInterval(iv); window.YM_Liste.render(l); }
         }, 300);
@@ -405,7 +440,6 @@
       b.classList.remove('active');
     });
     if (!panelId) return;
-    // Find which button matches this panel+tab combo, respecting YM_NAV_CONFIG
     let matched = null;
     document.querySelectorAll('.dbtn').forEach(b => {
       const cfg = window.YM_NAV_CONFIG?.[b.id];
@@ -417,7 +451,6 @@
         }
       }
     });
-    // Fallback to static map
     if (!matched) {
       const map = { 'panel-profile': 'btn-profile', 'panel-mine': 'btn-figure', 'panel-spheres': 'btn-figure' };
       const btnId = map[panelId];
@@ -515,7 +548,6 @@
     if (!_panel) return;
     const el = document.getElementById(_panel);
 
-    // Take snapshot at reduce time — panel is full and representative
     if (_panel === 'panel-sphere' && _currentSphereId) {
       const panelEl = document.getElementById('panel-sphere');
       if (panelEl && _openSpheres.has(_currentSphereId)) {
@@ -631,7 +663,6 @@
     const fp = document.getElementById('panel-folder');
     if (fp && fp.classList.contains('open') && window.YM_closeFolderPanel) { window.YM_closeFolderPanel(); return; }
     if (_panel) { reducePanel(); return; }
-    // No panel open — if not on page 0, go back to page 0
     if (window._deskCurPage > 0 && window.YM_Desk) {
       window.YM_Desk.goPage(0, true);
     }
@@ -643,7 +674,6 @@
   history.replaceState({ t: 'root', stack: [] }, '', window.location.pathname + window.location.search + (window.location.hash || '#'));
 
   window.addEventListener('popstate', e => {
-    // Let theme router handle first if declared
     if (window.YM_ROUTER && typeof window.YM_ROUTER.onPop === 'function') {
       if (window.YM_ROUTER.onPop(e) === true) return;
     }
@@ -768,23 +798,18 @@
    * ═══════════════════════════════════════════════════════════ */
   document.getElementById('btn-back').addEventListener('click', () => {
     const _cfg = window.YM_NAV_CONFIG?.['btn-back'];
-    // Switcher open
     if (sw.classList.contains('open')) {
       if (_cfg?.onSwitcher) { _cfg.onSwitcher(); return; }
       closeSwitcher(); return;
     }
-    // Panel open + history
     if (_panel && (_openPanels.size + _openSpheres.size > 0)) {
       if (_cfg?.onPanel) { _cfg.onPanel(); return; }
       reducePanel();
       requestAnimationFrame(() => { renderSwitcherCards(); sw.classList.add('open'); });
       return;
     }
-    // Panel open, no history
     if (_panel) { reducePanel(); return; }
-    // History but no panel
     if (_openPanels.size + _openSpheres.size > 0) { renderSwitcherCards(); sw.classList.add('open'); return; }
-    // Nothing open — fully configurable
     if (_cfg?.onEmpty) { _cfg.onEmpty(); return; }
     openPanel('panel-spheres');
     if (window.YM_Liste) window.YM_Liste.render();
@@ -800,14 +825,6 @@
   const psbtn = document.getElementById('profile-share-btn');
   if (psbtn) psbtn.addEventListener('click', () => { if (window.YM_Profile) window.YM_Profile.showShare(); });
 
-  /* ── YM_NAV_CONFIG ────────────────────────────────────────────────────
-   * Themes can override btn-figure / btn-wallet by declaring before load:
-   * window.YM_NAV_CONFIG = {
-   *   'btn-figure': { panel:'panel-spheres', tab:null, onOpen: fn },
-   *   'btn-wallet': { panel:'panel-mine',    tab:'wallet' }
-   * }
-   * All keys optional — defaults apply if not declared.
-   * ──────────────────────────────────────────────────────────────────── */
   function _wireNavBtn(btnId, defaultPanel, defaultTab, defaultOnOpen) {
     const btn = document.getElementById(btnId);
     if (!btn) return;
@@ -870,7 +887,10 @@
     function _rateOk(arr, max, win) {
       const now = Date.now();
       while (arr.length && now - arr[0] > win) arr.shift();
-      if (arr.length >= max) return false;
+      if (arr.length >= max) {
+        L('RATE', `ctx.send BLOCKED for "${name}" — ${arr.length}/${max} msgs in ${win}ms`);
+        return false;
+      }
       arr.push(now); return true;
     }
 
@@ -878,16 +898,35 @@
       addHeaderBtn: () => {}, addPill: () => {}, addFigureTab: () => {}, addTabBadge: () => {},
       saveProfile: SP, loadProfile: LP, updateFigureCount() {},
       send(type, data, pid) {
-        if (!window.YM_P2P) return false;
+        if (!window.YM_P2P) {
+          L('MSG', `ctx.send("${type}") SKIPPED — window.YM_P2P is ${window.YM_P2P}`);
+          return false;
+        }
         if (!_rateOk(_sendTs, _SEND_MAX, _SEND_WIN)) return false;
         try {
-          if (pid) { if (!cS(pid)) return false; window.YM_P2P.sendTo(pid, { sphere: name, type, data }); }
-          else       window.YM_P2P.broadcast({ sphere: name, type, data });
+          if (pid) {
+            if (!cS(pid)) return false;
+            L('MSG', `ctx.send → sendTo peer ${pid.slice(0,8)}… type="${type}"`);
+            window.YM_P2P.sendTo(pid, { sphere: name, type, data });
+          } else {
+            L('MSG', `ctx.send → broadcast type="${type}" sphere="${name}"`);
+            window.YM_P2P.broadcast({ sphere: name, type, data });
+          }
           return true;
-        } catch { return false; }
+        } catch(e) {
+          L('MSG', `ctx.send ERROR: ${e.message}`);
+          return false;
+        }
       },
       onReceive(cb) {
-        const h = e => { try { if (e.detail.msg.sphere === name) cb(e.detail.msg.type, e.detail.msg.data, e.detail.peerId); } catch (e2) { console.warn('[YM ctx] onReceive:', name, e2.message); } };
+        const h = e => {
+          try {
+            if (e.detail.msg.sphere === name) {
+              L('MSG', `ctx.onReceive sphere="${name}" type="${e.detail.msg.type}" from=${e.detail.peerId?.slice(0,8)}…`);
+              cb(e.detail.msg.type, e.detail.msg.data, e.detail.peerId);
+            }
+          } catch (e2) { console.warn('[YM ctx] onReceive:', name, e2.message); }
+        };
         window.addEventListener('ym:p2p-data', h); _l.push(h);
       },
       storage: {
@@ -917,7 +956,11 @@
   const MANDATORY_SPHERES = ['social.sphere.js'];
 
   async function activateSphere(name, obj) {
-    if (window.YM_sphereRegistry.has(name)) return;
+    L('SPHERE', `activateSphere("${name}") called — already in registry: ${window.YM_sphereRegistry.has(name)}`);
+    if (window.YM_sphereRegistry.has(name)) {
+      L('SPHERE', `"${name}" already active, skipping`);
+      return;
+    }
 
     if (!MANDATORY_SPHERES.includes(name)) {
       window.dispatchEvent(new CustomEvent('ym:sphere-before-activate', {
@@ -927,18 +970,23 @@
     const ctx = mkCtx(name);
     obj._ctx = ctx;
     window.YM_sphereRegistry.set(name, obj);
+    L('SPHERE', `"${name}" added to registry. Registry size: ${window.YM_sphereRegistry.size}`);
+
     if (window.YM_Desk) window.YM_Desk.addIcon(name, obj.icon || '⬡', obj.name || name.replace('.sphere.js', ''));
     else setTimeout(() => { if (window.YM_Desk) window.YM_Desk.addIcon(name, obj.icon || '⬡', obj.name || name.replace('.sphere.js', '')); }, 500);
 
     if (typeof obj.activate === 'function') {
       _sA = true;
+      L('SPHERE', `"${name}" calling activate()…`);
       try {
         const timeoutP = new Promise((_, rej) => setTimeout(() => rej(new Error('activation timeout')), _ACT_TIMEOUT));
         const activateP = (() => { try { const r = obj.activate(ctx); return r && r.then ? r : Promise.resolve(); } catch (e) { return Promise.reject(e); } })();
         await Promise.race([activateP, timeoutP]);
         _sA = false;
+        L('SPHERE', `"${name}" activate() completed ✓`);
       } catch (e) {
         _sA = false;
+        L('SPHERE', `"${name}" activate() FAILED: ${e.message}`);
         console.warn('[YM] activate failed:', name, e.message);
         toast((obj.name || name) + ' failed to load: ' + e.message, 'error');
         try { if (typeof obj.deactivate === 'function') obj.deactivate(); } catch {}
@@ -947,11 +995,15 @@
         if (window.YM_Desk) window.YM_Desk.removeIcon(name);
         return;
       }
+    } else {
+      L('SPHERE', `"${name}" has no activate() function`);
     }
+
     const p = OC();
     if (!p.spheres.includes(name)) { p.spheres.push(name); SP({ spheres: p.spheres }); }
     log('activate', { sphere: name });
     window.dispatchEvent(new CustomEvent('ym:sphere-activated', { detail: { name } }));
+    L('SPHERE', `"${name}" fully activated ✓ — dispatched ym:sphere-activated`);
   }
 
   function deactivateSphere(name) {
@@ -977,12 +1029,9 @@
 
     const listeEl = document.getElementById('panel-mine-liste');
     if (listeEl && listeEl.style.display !== 'none' && window.YM_Liste) {
-      // Let liste.js update in-place via _setInactive — already called above
-      // Just refresh the list content without clearing the container
       const _sli = listeEl.querySelector('#sphere-list-inner');
       const _savedScroll = _sli ? _sli.scrollTop : 0;
       if (_sli) {
-        // Only re-render the list items, not the whole container
         window.YM_Liste.renderList && window.YM_Liste.renderList(_sli.parentElement?.parentElement || listeEl);
         requestAnimationFrame(() => requestAnimationFrame(() => {
           const _sli2 = listeEl.querySelector('#sphere-list-inner');
@@ -1026,8 +1075,6 @@
 
     const body = document.getElementById('panel-sphere-body');
     body.innerHTML = '';
-    // Panels use overflow:hidden by default — open it for spheres with renderPanel
-    // so touch/pointer events reach canvas elements properly
     if (typeof s.renderPanel === 'function') {
       body.style.overflowY = 'auto';
       body.style.touchAction = 'manipulation';
@@ -1056,7 +1103,6 @@
     });
     _currentSphereId = id;
 
-    // Fullscreen for spheres that declare it
     const _spPanel = document.getElementById('panel-sphere');
     if(_spPanel){
       if(s.fullscreen){
@@ -1093,48 +1139,82 @@
   localStorage.removeItem = function (k)    { if (window._ym_sl && k === PK()) { console.warn('[YM] blocked'); return; } return _lsR(k); };
 
   /* ═══════════════════════════════════════════════════════════
-   * P2P (Trystero — or any YM_TRANSPORT override)
+   * P2P — VERSION COMPLÈTEMENT INSTRUMENTÉE
    * ═══════════════════════════════════════════════════════════ */
   const YM_RELAYS = window.YM_RELAYS_OVERRIDE || ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
 
   async function initP2P() {
-    window.addEventListener('error', e => { if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) e.stopImmediatePropagation(); }, true);
-    const _w = console.warn, _e = console.error;
-    console.warn  = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('Trystero') || arguments[0].includes('wss://'))) return; _w.apply(console, arguments); };
-    console.error = function () { if (typeof arguments[0] === 'string' && (arguments[0].includes('WebSocket') || arguments[0].includes('wss://'))) return; _e.apply(console, arguments); };
+    L('P2P', '=== initP2P() START ===');
+    L('P2P', `Relays: ${JSON.stringify(YM_RELAYS)}`);
+    L('P2P', `AppId: "${YM_APPID}" | Room: "${YM_ROOM}"`);
+    L('P2P', `navigator.onLine: ${navigator.onLine}`);
+    L('P2P', `YM_TRANSPORT override: ${!!window.YM_TRANSPORT}`);
 
-    // ── Transport override ──────────────────────────────────────────
-    // Any theme or sphere can provide a custom transport by declaring:
-    //   window.YM_TRANSPORT = {
-    //     connect(roomId, appId),
-    //     send(peerId, data),       // direct message — null peerId = broadcast
-    //     onMessage(callback),      // callback(peerId, data)
-    //     onPeerJoin(callback),     // callback(peerId)
-    //     onPeerLeave(callback),    // callback(peerId)
-    //   }
+    // Silencer les erreurs WebSocket dans la console (mais pas dans nos logs)
+    window.addEventListener('error', e => {
+      if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) {
+        L('P2P', `WebSocket error intercepted: ${e.message}`);
+        e.stopImmediatePropagation();
+      }
+    }, true);
+
+    const _origWarn  = console.warn;
+    const _origError = console.error;
+    console.warn  = function () {
+      const msg = typeof arguments[0] === 'string' ? arguments[0] : '';
+      if (msg.includes('Trystero') || msg.includes('wss://')) {
+        L('P2P', `[Trystero warn] ${Array.from(arguments).join(' ')}`);
+        return;
+      }
+      _origWarn.apply(console, arguments);
+    };
+    console.error = function () {
+      const msg = typeof arguments[0] === 'string' ? arguments[0] : '';
+      if (msg.includes('WebSocket') || msg.includes('wss://')) {
+        L('P2P', `[WebSocket error] ${Array.from(arguments).join(' ')}`);
+        return;
+      }
+      _origError.apply(console, arguments);
+    };
+
+    // ── YM_TRANSPORT override ──────────────────────────────────────────────
     if (window.YM_TRANSPORT) {
+      L('P2P', 'Using YM_TRANSPORT override…');
       try {
         const t = window.YM_TRANSPORT;
+        L('P2P', 'Calling t.connect()…');
         await t.connect(YM_ROOM, YM_APPID);
+        L('P2P', 'YM_TRANSPORT.connect() OK ✓');
+
         t.onMessage((pid, data) => {
-          if ((data && data.type === 'social:presence') || cR(pid))
+          L('MSG', `YM_TRANSPORT.onMessage from ${pid.slice(0,8)}… type="${data?.type}" sphere="${data?.sphere}"`);
+          if ((data && data.type === 'social:presence') || cR(pid)) {
+            L('MSG', `→ dispatching ym:p2p-data`);
             window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
+          } else {
+            L('MSG', `→ cR blocked dispatch for ${pid.slice(0,8)}…`);
+          }
         });
         t.onPeerJoin(id => {
+          L('P2P', `YM_TRANSPORT: peer JOINED ${id.slice(0,8)}…`);
           window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
           setTimeout(() => t.send(id, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 200);
         });
         t.onPeerLeave(id => {
+          L('P2P', `YM_TRANSPORT: peer LEFT ${id.slice(0,8)}…`);
           p2pS.delete(id); p2pR.delete(id);
           window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         });
+
         window.YM_P2P = {
-          broadcast(d)     { t.send(null, d); },
-          sendTo(id, d)    { if (cS(id)) t.send(id, d); },
+          broadcast(d)     { L('MSG', `YM_P2P.broadcast type="${d?.type}"`); t.send(null, d); },
+          sendTo(id, d)    { if (cS(id)) { L('MSG', `YM_P2P.sendTo ${id.slice(0,8)}… type="${d?.type}"`); t.send(id, d); } },
           transport: t,
         };
+        L('P2P', 'window.YM_P2P created via YM_TRANSPORT ✓');
+
         setTimeout(() => t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
         setInterval(() => { if (!document.hidden) t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
         document.addEventListener('visibilitychange', () => {
@@ -1146,68 +1226,164 @@
           }
         });
         return;
-      } catch(e) { _w('[YM] YM_TRANSPORT failed, falling back to Trystero:', e.message); }
+      } catch(e) {
+        L('P2P', `YM_TRANSPORT FAILED: ${e.message} — falling back to Trystero`);
+        _origWarn('[YM] YM_TRANSPORT failed, falling back to Trystero:', e.message);
+      }
     }
 
-    // ── Default: Trystero over Nostr ────────────────────────────────
-    for (const cdn of ['https://cdn.jsdelivr.net/npm/trystero@0.21.0/+esm', 'https://esm.run/trystero@0.21.0']) {
+    // ── Trystero via Nostr ─────────────────────────────────────────────────
+    const cdns = [
+      'https://cdn.jsdelivr.net/npm/trystero@0.21.0/+esm',
+      'https://esm.run/trystero@0.21.0'
+    ];
+
+    for (const cdn of cdns) {
+      L('P2P', `Trying CDN: ${cdn}`);
       try {
-        const { joinRoom } = await import(cdn);
+        L('P2P', `  import("${cdn}")…`);
+        const module = await import(cdn);
+        L('P2P', `  import OK ✓ — keys: ${Object.keys(module).join(', ')}`);
+
+        const { joinRoom } = module;
+        if (typeof joinRoom !== 'function') {
+          L('P2P', `  joinRoom is not a function! type=${typeof joinRoom}`);
+          continue;
+        }
+
+        L('P2P', `  joinRoom({ appId:"${YM_APPID}", relayUrls:${JSON.stringify(YM_RELAYS)} }, "${YM_ROOM}")…`);
         const room = joinRoom({ appId: YM_APPID, relayUrls: YM_RELAYS }, YM_ROOM);
+        L('P2P', `  joinRoom OK ✓ — room type: ${typeof room}`);
+
+        L('P2P', `  room.makeAction("ym")…`);
         const [send, recv] = room.makeAction('ym');
+        L('P2P', `  makeAction OK ✓ — send: ${typeof send}, recv: ${typeof recv}`);
+
+        // ── Compteur de messages reçus ──
+        let _recvCount = 0;
+
         recv((data, pid) => {
-          if ((data && data.type === 'social:presence') || cR(pid))
+          _recvCount++;
+          L('MSG', `recv #${_recvCount} from ${pid?.slice(0,8)}… sphere="${data?.sphere}" type="${data?.type}"`);
+          L('MSG', `  social:presence check: ${data?.type === 'social:presence'} | cR: will check next`);
+
+          if ((data && data.type === 'social:presence') || cR(pid)) {
+            L('MSG', `  → dispatching ym:p2p-data event`);
             window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
+          } else {
+            L('MSG', `  → BLOCKED by cR rate limiter for ${pid?.slice(0,8)}…`);
+          }
         });
+
+        let _joinCount = 0;
         room.onPeerJoin(id => {
+          _joinCount++;
+          L('P2P', `✅ PEER JOIN #${_joinCount}: ${id} (${id.slice(0,8)}…)`);
+          L('P2P', `   Dispatching ym:peer-join`);
           window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
-          setTimeout(() => send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }, [id]), 200);
+          L('P2P', `   Sending presence-req to new peer in 200ms…`);
+          setTimeout(() => {
+            L('P2P', `   Sending presence-req to ${id.slice(0,8)}… now`);
+            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }, [id]);
+          }, 200);
         });
+
         room.onPeerLeave(id => {
+          L('P2P', `❌ PEER LEAVE: ${id.slice(0,8)}…`);
           p2pS.delete(id); p2pR.delete(id);
           window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         });
+
         window.YM_P2P = {
-          broadcast(d) { send(d); },
-          sendTo(id, d) { if (cS(id)) send(d, [id]); },
+          broadcast(d) {
+            L('MSG', `YM_P2P.broadcast type="${d?.type}" sphere="${d?.sphere}"`);
+            send(d);
+          },
+          sendTo(id, d) {
+            if (cS(id)) {
+              L('MSG', `YM_P2P.sendTo ${id.slice(0,8)}… type="${d?.type}"`);
+              send(d, [id]);
+            }
+          },
           room,
+          _cdn: cdn,
+          _recvCount: () => _recvCount,
+          _joinCount: () => _joinCount,
         };
-        setTimeout(() => send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
-        setInterval(() => { if (!document.hidden) send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
+        L('P2P', `✅ window.YM_P2P created via Trystero (${cdn})`);
+        L('P2P', `   Sending initial presence-req broadcast in 800ms…`);
+
+        setTimeout(() => {
+          L('P2P', `Sending initial social:presence-req broadcast`);
+          send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+        }, 800);
+
+        setInterval(() => {
+          if (!document.hidden) {
+            L('P2P', `[30s heartbeat] sending presence-req broadcast`);
+            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+          }
+        }, 30000);
+
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) {
             requestAnimationFrame(() => {
+              L('P2P', `[visibilitychange→visible] sending presence-req`);
               send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
               window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: '_self_' } }));
             });
           }
         });
-        return;
-      } catch (e) { _w('[YM] P2P:', cdn, e.message); }
+
+        // ── Diagnostic périodique (toutes les 10s pendant 2 min) ──────────
+        let _diagCount = 0;
+        const _diagInterval = setInterval(() => {
+          _diagCount++;
+          L('P2P', `[DIAG #${_diagCount}] YM_P2P exists: ${!!window.YM_P2P} | joins: ${_joinCount} | recvd: ${_recvCount} | socialActive: ${window.YM_sphereRegistry?.has('social.sphere.js')} | nearUsers: ${window.YM_Social?._nearUsers?.size ?? '?'}`);
+          if (_diagCount >= 12) clearInterval(_diagInterval);
+        }, 10000);
+
+        return; // SUCCESS — sortir du for loop
+
+      } catch (e) {
+        L('P2P', `❌ CDN ${cdn} FAILED: ${e.message}`);
+        L('P2P', `   stack: ${e.stack?.split('\n')[0]}`);
+        _origWarn('[YM] P2P:', cdn, e.message);
+      }
     }
+
+    L('P2P', '❌ ALL CDNs FAILED — P2P disabled. window.YM_P2P remains undefined');
+    L('P2P', 'Check: 1) Network blocks ESM CDNs?  2) CSP headers?  3) import() allowed?');
   }
 
   /* ═══════════════════════════════════════════════════════════
    * LOADERS
    * ═══════════════════════════════════════════════════════════ */
   function loadScript(src) {
+    L('SCRIPT', `loadScript("${src.split('/').pop()}")`);
     if (src.startsWith('https://')) {
       const url = src + (src.includes('?') ? '&' : '?') + '_=' + Date.now();
       return fetch(url)
-        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + src); return r.text(); })
+        .then(r => {
+          if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + src);
+          L('SCRIPT', `  fetch OK (${r.status}) for ${src.split('/').pop()}`);
+          return r.text();
+        })
         .then(code => new Promise((res, rej) => {
           const blob    = new Blob([code], { type: 'text/javascript' });
           const blobUrl = URL.createObjectURL(blob);
           const s = document.createElement('script');
           s.src     = blobUrl;
-          s.onload  = () => { URL.revokeObjectURL(blobUrl); res(); };
-          s.onerror = () => { URL.revokeObjectURL(blobUrl); rej(new Error('exec failed: ' + src)); };
+          s.onload  = () => { URL.revokeObjectURL(blobUrl); L('SCRIPT', `  ✓ executed ${src.split('/').pop()}`); res(); };
+          s.onerror = () => { URL.revokeObjectURL(blobUrl); L('SCRIPT', `  ✗ exec FAILED ${src.split('/').pop()}`); rej(new Error('exec failed: ' + src)); };
           document.head.appendChild(s);
         }));
     }
     return new Promise((res, rej) => {
       const s = document.createElement('script');
-      s.src = src; s.onload = res; s.onerror = rej;
+      s.src = src;
+      s.onload  = () => { L('SCRIPT', `  ✓ loaded ${src}`); res(); };
+      s.onerror = () => { L('SCRIPT', `  ✗ FAILED ${src}`); rej(); };
       document.head.appendChild(s);
     });
   }
@@ -1294,6 +1470,7 @@
   }
 
   async function loadSphereURL(url, name) {
+    L('SPHERE', `loadSphereURL("${name || url.split('/').pop()}")`);
     if (_sA) { console.warn('[YM] blocked nested load'); return null; }
 
     const isExternal = !url.includes('.sphere.js') &&
@@ -1305,7 +1482,7 @@
     }
     const r = await _f(url);
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    const _p  = { YM: window.YM, YM_Desk: window.YM_Desk, YM_sphereRegistry: window.YM_sphereRegistry, YM_P2P: window.YM_P2P, fetch: window.fetch };
+    const _p  = { YM: window.YM, YM_Desk: window.YM_Desk, YM_sphereRegistry: window.YM_sphereRegistry, YM_P2P: window.YM_P2P };
     const _ps = Object.assign({}, window.YM_S);
     window._ym_sl = name;
     const blob    = new Blob([await r.text()], { type: 'text/javascript' });
@@ -1326,7 +1503,6 @@
   /* ═══════════════════════════════════════════════════════════
    * window.YM — API publique
    * ═══════════════════════════════════════════════════════════ */
-  // Inject fullscreen CSS for spheres
   (function(){
     const st=document.createElement('style');
     st.textContent='#panel-sphere.ym-panel--fullscreen{position:fixed!important;inset:0!important;z-index:1999!important;border-radius:0!important;max-height:100dvh!important;height:100dvh!important;width:100vw!important;}';
@@ -1352,7 +1528,6 @@
       if (!url) return;
       if (prevUrl !== undefined) localStorage.setItem('ym_prev_theme', prevUrl);
       localStorage.setItem('ym_theme_url', url);
-      // Clear test profile key when switching to a non-test theme
       if (!url.includes('test')) localStorage.removeItem('ym_profile_key');
       fetch(url).then(r => r.ok ? r.text() : null).then(html => {
         if (html) try { localStorage.setItem('ym_theme_cache', html); } catch(e) {}
@@ -1396,7 +1571,7 @@
   const GH_BASE = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
 
   async function _applyRandomThemeOnFirstVisit() {
-    if (localStorage.getItem('ym_theme_url')) return; // already has a theme
+    if (localStorage.getItem('ym_theme_url')) return;
     try {
       const reg = (window.YM_REGISTRY_OVERRIDE && window.YM_REGISTRY_OVERRIDE.themesUrl)
         || 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/themes-files.json';
@@ -1414,16 +1589,26 @@
   }
 
   async function init() {
+    L('INIT', '=== init() START ===');
     OC();
+    const myProfile = LP();
+    L('INIT', `Profile: uuid=${myProfile?.uuid?.slice(0,8)}… name="${myProfile?.name}" spheres=${JSON.stringify(myProfile?.spheres)}`);
+
     await _applyRandomThemeOnFirstVisit();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
-    for (const m of ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js']) {
+    const scripts = ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js'];
+    for (const m of scripts) {
       try {
+        L('SCRIPT', `Loading ${m}…`);
         const url = (m === 'liste.js' && window.YM_LISTE_URL) ? window.YM_LISTE_URL : GH_BASE + m;
         await loadScript(url);
+        L('SCRIPT', `  ${m} done`);
       }
-      catch (e) { console.warn('[YM]', m, e.message); }
+      catch (e) {
+        L('SCRIPT', `  ${m} FAILED: ${e.message}`);
+        console.warn('[YM]', m, e.message);
+      }
     }
 
     _wrapSignWithConfirmation();
@@ -1432,36 +1617,69 @@
     window.addEventListener('ym:wallet-unlocked', () => switchMineTab('wallet'));
     window.addEventListener('ym:wallet-locked',   () => switchMineTab('wallet'));
 
-    // Desk renders first — spheres activate after
-    initP2P();
+    // ── Écouter les événements P2P globaux pour le debug ──────────────────
+    window.addEventListener('ym:peer-join',  e => L('P2P', `[EVENT] ym:peer-join peerId=${e.detail?.peerId?.slice(0,8)}…`));
+    window.addEventListener('ym:peer-leave', e => L('P2P', `[EVENT] ym:peer-leave peerId=${e.detail?.peerId?.slice(0,8)}…`));
+    window.addEventListener('ym:p2p-data',   e => L('MSG', `[EVENT] ym:p2p-data sphere="${e.detail?.msg?.sphere}" type="${e.detail?.msg?.type}" from=${e.detail?.peerId?.slice(0,8)}…`));
+
+    L('INIT', 'Starting P2P (fire and forget)…');
+    initP2P(); // intentionnellement pas awaité
 
     setTimeout(async function() {
-      // Activate from cache immediately — don't wait for network fetch
+      L('INIT', `=== sphere restore START === (YM_P2P exists: ${!!window.YM_P2P})`);
+
       const p = LP();
+      L('INIT', `Spheres to restore: ${JSON.stringify(p?.spheres)}`);
+
       if (p && p.spheres && p.spheres.length) {
         await Promise.allSettled(
           p.spheres
             .filter(sname => !window.YM_sphereRegistry || !window.YM_sphereRegistry.has(sname))
-            .map(sname => window.YM_Liste
-              ? window.YM_Liste.activateSphereByName(sname).catch(e => console.warn('[YM] restore:', sname, e.message))
-              : Promise.resolve()
-            )
+            .map(sname => {
+              L('SPHERE', `Restoring sphere "${sname}"…`);
+              return window.YM_Liste
+                ? window.YM_Liste.activateSphereByName(sname).catch(e => {
+                    L('SPHERE', `Restore FAILED "${sname}": ${e.message}`);
+                  })
+                : Promise.resolve();
+            })
         );
       }
-      // Fetch fresh sphere list in background
+
       try { if (window.YM_Liste && window.YM_Liste.fetchSphereList) window.YM_Liste.fetchSphereList(); } catch {}
 
       const _socId = 'social.sphere.js';
+      L('SPHERE', `social.sphere.js in registry: ${window.YM_sphereRegistry?.has(_socId)}`);
       if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
-        try { await window.YM_Liste.activateSphereByName(_socId); }
-        catch (e) { console.warn('[YM] social:', e.message); }
+        L('SPHERE', `Activating social.sphere.js…`);
+        try {
+          await window.YM_Liste.activateSphereByName(_socId);
+          L('SPHERE', `social.sphere.js activated ✓`);
+        }
+        catch (e) { L('SPHERE', `social.sphere.js FAILED: ${e.message}`); console.warn('[YM] social:', e.message); }
       }
 
-      // Theme-required spheres — defined in YM_THEME_META.requiredSpheres
+      // Vérification finale après tout
+      setTimeout(() => {
+        L('INIT', '=== FINAL STATE DIAGNOSTIC ===');
+        L('INIT', `window.YM_P2P: ${!!window.YM_P2P}`);
+        if (window.YM_P2P) {
+          L('INIT', `  _cdn: ${window.YM_P2P._cdn}`);
+          L('INIT', `  joins received: ${window.YM_P2P._joinCount?.()}`);
+          L('INIT', `  messages received: ${window.YM_P2P._recvCount?.()}`);
+        }
+        L('INIT', `social in registry: ${window.YM_sphereRegistry?.has(_socId)}`);
+        L('INIT', `YM_Social exists: ${!!window.YM_Social}`);
+        L('INIT', `nearUsers size: ${window.YM_Social?._nearUsers?.size ?? 'N/A'}`);
+        L('INIT', `gossipCache size: ${window.YM_Social?._gossipCache?.size ?? 'N/A'}`);
+        L('INIT', `=== Pour voir tous les logs : window.YM_LOGS ===`);
+        L('INIT', `=== Diagnostic complet  : copy(JSON.stringify(window.YM_LOGS,null,2)) ===`);
+      }, 5000);
+
       const _themeMeta = window.YM_THEME_META || {};
       const _required = Array.isArray(_themeMeta.requiredSpheres) ? _themeMeta.requiredSpheres : [];
       for (const _rId of _required) {
-        if (_rId === _socId) continue; // already activated
+        if (_rId === _socId) continue;
         if (window.YM_Liste && !window.YM_sphereRegistry.has(_rId)) {
           try { await window.YM_Liste.activateSphereByName(_rId); }
           catch (e) { console.warn('[YM] theme required sphere:', _rId, e.message); }
@@ -1534,6 +1752,8 @@
         window._pwaPrompt = null;
       });
     }
+
+    L('INIT', '=== init() END ===');
   }
 
   /* Lance tout */
