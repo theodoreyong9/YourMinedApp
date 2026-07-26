@@ -1149,16 +1149,20 @@
     'wss://nostr-pub.wellorder.net',
     'wss://relay.nostr.bg',
   ];
-  // ── TURN servers — nécessaires pour NAT symétrique (mobile ↔ PC domestique)
-  // Sans TURN, WebRTC ne peut pas traverser les NAT symétriques → joins: 0 pour toujours
+  // ── TURN servers — openrelay.metered.ca mort (aucun candidat relay dans les logs)
+  // Symptôme confirmé : iceGatheringState=gathering mais 0 candidat type=relay
+  // freeturn.net : free/free, fiable pour les tests
   const YM_ICE_SERVERS = window.YM_ICE_OVERRIDE || [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    // openrelayproject — TURN public gratuit, fiable
-    { urls: 'turn:openrelay.metered.ca:80',             username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443',            username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:80?transport=tcp',  username: 'openrelayproject', credential: 'openrelayproject' },
+    // freeturn.net — TURN public gratuit, marche sans compte
+    { urls: 'turn:freeturn.net:3479',  username: 'free', credential: 'free' },
+    { urls: 'turns:freeturn.net:5349', username: 'free', credential: 'free' },
+    // Metered domaine alternatif (a.relay vs openrelay)
+    { urls: 'turn:a.relay.metered.ca:80',              username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:a.relay.metered.ca:443',             username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turns:a.relay.metered.ca:443',            username: 'openrelayproject', credential: 'openrelayproject' },
+    { urls: 'turn:a.relay.metered.ca:80?transport=tcp',username: 'openrelayproject', credential: 'openrelayproject' },
   ];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
@@ -1181,28 +1185,51 @@
       window.RTCPeerConnection = function(config) {
         const id = ++_pcCount;
         const iceUrls = (config?.iceServers || []).map(s => Array.isArray(s.urls) ? s.urls[0] : s.urls);
-        L('P2P', `[RTC #${id}] NEW RTCPeerConnection — iceServers: ${JSON.stringify(iceUrls)}`);
+        const turnCount = iceUrls.filter(u => u.startsWith('turn:')||u.startsWith('turns:')).length;
+
+        // ── Limite ghost peers : ne pas créer plus de 8 connexions simultanées ──
+        // Au-delà c'est des zombies Nostr d'anciennes sessions, inutiles
+        if (_pcCount > 8) {
+          L('P2P', `[RTC #${id}] 🚫 SKIPPED (ghost peer limit) — ${_pcCount-1} connexions déjà en cours`);
+          // On laisse Trystero créer la connexion mais on la ferme immédiatement
+          const pc = new _OrigRTC(config);
+          setTimeout(() => { try { pc.close(); } catch(e) {} }, 100);
+          return pc;
+        }
+
+        L('P2P', `[RTC #${id}] NEW — STUN:${iceUrls.filter(u=>u.startsWith('stun:')).length} TURN:${turnCount}`);
         const pc = new _OrigRTC(config);
+        let _relayCount = 0;
+
         pc.addEventListener('iceconnectionstatechange', () => {
           L('P2P', `[RTC #${id}] iceConnectionState → ${pc.iceConnectionState}`);
           if (pc.iceConnectionState === 'failed') {
-            L('P2P', `[RTC #${id}] ❌ ICE FAILED — connexion WebRTC impossible (NAT symétrique probable, TURN nécessaire)`);
+            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relayCount=${_relayCount} (${_relayCount===0?'TURN mort/bloqué — pas de candidat relay':'TURN présent mais connexion impossible'})`);
           }
           if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-            L('P2P', `[RTC #${id}] ✅ ICE CONNECTED — pair WebRTC établi!`);
+            L('P2P', `[RTC #${id}] ✅ ICE CONNECTED !! relayCount=${_relayCount}`);
           }
         });
         pc.addEventListener('icegatheringstatechange', () => {
           L('P2P', `[RTC #${id}] iceGatheringState → ${pc.iceGatheringState}`);
+          if (pc.iceGatheringState === 'complete') {
+            L('P2P', `[RTC #${id}] gathering COMPLETE — relay candidates: ${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY — TURN ne fonctionne pas':'✓'}`);
+          }
         });
         pc.addEventListener('connectionstatechange', () => {
           L('P2P', `[RTC #${id}] connectionState → ${pc.connectionState}`);
         });
         pc.addEventListener('icecandidate', e => {
           if (e.candidate) {
-            L('P2P', `[RTC #${id}] candidate: type=${e.candidate.type} proto=${e.candidate.protocol} addr=${e.candidate.address}`);
+            if (e.candidate.type === 'relay') {
+              _relayCount++;
+              L('P2P', `[RTC #${id}] ✅ RELAY candidate #${_relayCount} — ${e.candidate.address} (TURN fonctionne!)`);
+            } else if (e.candidate.type === 'srflx') {
+              L('P2P', `[RTC #${id}] srflx — IP publique: ${e.candidate.address}`);
+            }
+            // host silencieux (trop de bruit)
           } else {
-            L('P2P', `[RTC #${id}] gathering complete (fin des candidats ICE)`);
+            L('P2P', `[RTC #${id}] gathering complete — relay: ${_relayCount}, srflx: visible`);
           }
         });
         return pc;
