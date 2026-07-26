@@ -1141,7 +1141,16 @@
   /* ═══════════════════════════════════════════════════════════
    * P2P — VERSION COMPLÈTEMENT INSTRUMENTÉE
    * ═══════════════════════════════════════════════════════════ */
-  const YM_RELAYS = window.YM_RELAYS_OVERRIDE || ['wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.nostr.wirednet.jp', 'wss://nostr.oxtr.dev'];
+  // ── Relays Nostr — liste mise à jour (wirednet supprimé, mort)
+  // Trystero nécessite qu'au moins UN relay commun soit OPEN sur les deux clients
+  const YM_RELAYS = window.YM_RELAYS_OVERRIDE || [
+    'wss://relay.damus.io',          // Damus — très fiable, grande audience
+    'wss://nos.lol',                  // nos.lol — stable
+    'wss://nostr.wine',               // nostr.wine — fiable
+    'wss://relay.snort.social',       // Snort — bien établi
+    'wss://nostr-pub.wellorder.net',  // wellorder — stable
+    'wss://relay.nostr.band',         // nostr.band — fiable
+  ];
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
 
@@ -1245,7 +1254,7 @@
         const module = await import(cdn);
         L('P2P', `  import OK ✓ — keys: ${Object.keys(module).join(', ')}`);
 
-        const { joinRoom } = module;
+        const { joinRoom, getRelaySockets } = module;
         if (typeof joinRoom !== 'function') {
           L('P2P', `  joinRoom is not a function! type=${typeof joinRoom}`);
           continue;
@@ -1254,6 +1263,54 @@
         L('P2P', `  joinRoom({ appId:"${YM_APPID}", relayUrls:${JSON.stringify(YM_RELAYS)} }, "${YM_ROOM}")…`);
         const room = joinRoom({ appId: YM_APPID, relayUrls: YM_RELAYS }, YM_ROOM);
         L('P2P', `  joinRoom OK ✓ — room type: ${typeof room}`);
+
+        // ── Check relay socket states après 3s ──────────────────────────────
+        // readyState: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
+        // Au moins 1 relay OPEN (=1) sur les deux clients est nécessaire
+        if (typeof getRelaySockets === 'function') {
+          setTimeout(() => {
+            try {
+              const sockets = getRelaySockets();
+              const entries = Object.entries(sockets);
+              L('P2P', `─── RELAY SOCKET STATES (3s après joinRoom) ───`);
+              if (!entries.length) {
+                L('P2P', `  ⚠️ getRelaySockets() returned empty — Trystero n'a aucun relay!`);
+              }
+              let openCount = 0;
+              entries.forEach(([url, ws]) => {
+                const STATE = ['CONNECTING','OPEN','CLOSING','CLOSED'];
+                const state = STATE[ws.readyState] || ws.readyState;
+                const icon  = ws.readyState === 1 ? '✅' : ws.readyState === 0 ? '⏳' : '❌';
+                if (ws.readyState === 1) openCount++;
+                L('P2P', `  ${icon} ${url} → ${state}`);
+              });
+              L('P2P', `  Total: ${openCount}/${entries.length} relays OPEN`);
+              if (openCount === 0) {
+                L('P2P', `  🚨 AUCUN RELAY OPEN — les peers ne peuvent pas se découvrir!`);
+                L('P2P', `  Vérifie: CSP headers, firewall, ou ajoute d'autres relays dans YM_RELAYS_OVERRIDE`);
+              }
+              L('P2P', `─────────────────────────────────────────────`);
+            } catch(e) {
+              L('P2P', `  getRelaySockets() ERROR: ${e.message}`);
+            }
+          }, 3000);
+
+          // Re-check à 10s pour voir si ça change
+          setTimeout(() => {
+            try {
+              const sockets = getRelaySockets();
+              const entries = Object.entries(sockets);
+              const open = entries.filter(([,ws]) => ws.readyState === 1).map(([url]) => url);
+              const closed = entries.filter(([,ws]) => ws.readyState !== 1).map(([url]) => url);
+              L('P2P', `─── RELAY SOCKET STATES (10s) ───`);
+              L('P2P', `  OPEN (${open.length}): ${open.join(', ') || 'aucun'}`);
+              L('P2P', `  CLOSED/OTHER (${closed.length}): ${closed.join(', ') || 'aucun'}`);
+              L('P2P', `─────────────────────────────────`);
+            } catch(e) {}
+          }, 10000);
+        } else {
+          L('P2P', `  ⚠️ getRelaySockets non disponible dans cette version de Trystero`);
+        }
 
         L('P2P', `  room.makeAction("ym")…`);
         const [send, recv] = room.makeAction('ym');
@@ -1309,6 +1366,7 @@
           _cdn: cdn,
           _recvCount: () => _recvCount,
           _joinCount: () => _joinCount,
+          _getRelaySockets: typeof getRelaySockets === 'function' ? getRelaySockets : null,
         };
         L('P2P', `✅ window.YM_P2P created via Trystero (${cdn})`);
         L('P2P', `   Sending initial presence-req broadcast in 800ms…`);
@@ -1339,7 +1397,16 @@
         let _diagCount = 0;
         const _diagInterval = setInterval(() => {
           _diagCount++;
-          L('P2P', `[DIAG #${_diagCount}] YM_P2P exists: ${!!window.YM_P2P} | joins: ${_joinCount} | recvd: ${_recvCount} | socialActive: ${window.YM_sphereRegistry?.has('social.sphere.js')} | nearUsers: ${window.YM_Social?._nearUsers?.size ?? '?'}`);
+          let openRelays = '?';
+          if (typeof getRelaySockets === 'function') {
+            try {
+              const s = getRelaySockets();
+              const entries = Object.entries(s);
+              const open = entries.filter(([,ws]) => ws.readyState === 1);
+              openRelays = `${open.length}/${entries.length}`;
+            } catch(e) { openRelays = 'err'; }
+          }
+          L('P2P', `[DIAG #${_diagCount}] YM_P2P: ✓ | relaysOpen: ${openRelays} | joins: ${_joinCount} | recvd: ${_recvCount} | social: ${window.YM_sphereRegistry?.has('social.sphere.js')} | near: ${window.YM_Social?._nearUsers?.size ?? '?'}`);
           if (_diagCount >= 12) clearInterval(_diagInterval);
         }, 10000);
 
@@ -1667,6 +1734,17 @@
           L('INIT', `  _cdn: ${window.YM_P2P._cdn}`);
           L('INIT', `  joins received: ${window.YM_P2P._joinCount?.()}`);
           L('INIT', `  messages received: ${window.YM_P2P._recvCount?.()}`);
+          // Relay states
+          try {
+            const rs = window.YM_P2P._getRelaySockets?.();
+            if (rs) {
+              const STATE = ['CONNECTING','OPEN','CLOSING','CLOSED'];
+              Object.entries(rs).forEach(([url, ws]) => {
+                const icon = ws.readyState === 1 ? '✅' : '❌';
+                L('INIT', `  ${icon} relay ${url.replace('wss://','')}: ${STATE[ws.readyState]||ws.readyState}`);
+              });
+            }
+          } catch(e) {}
         }
         L('INIT', `social in registry: ${window.YM_sphereRegistry?.has(_socId)}`);
         L('INIT', `YM_Social exists: ${!!window.YM_Social}`);
