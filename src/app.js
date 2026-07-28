@@ -1,9 +1,10 @@
+window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué par NAT
 /**
  * app.js — YourMine core logic
  * GitHub: theodoreyong9/YourMinedApp/src/app.js
  * DEBUG BUILD — logs préfixés [YM:*]
  */
-window.YM_FORCE_NOSTR_DT = true;
+
 ;(function () {
   'use strict';
 
@@ -1322,10 +1323,12 @@ window.YM_FORCE_NOSTR_DT = true;
       _getRelaySockets: _oldP2P?._getRelaySockets,
     };
 
-    // ── Heartbeat toutes les 25s ────────────────────────────────────────────
+    // ── Heartbeat toutes les 5s — toujours rapide ──────────────────────────
+    // Raison : peer qui charge après = détecté en max 5s au lieu de 25s
+    // Coût : ~144KB/h par peer (events éphémères non stockés) — négligeable
     const _dtHB = setInterval(() => {
       if (!document.hidden) dtPublish({ _ym: 1, t: 'hi', from: _pubkey });
-    }, 25000);
+    }, 5000);
 
     // ── Nettoyage des peers fantômes (>90s sans heartbeat) ─────────────────
     const _dtClean = setInterval(() => {
@@ -1367,10 +1370,28 @@ window.YM_FORCE_NOSTR_DT = true;
     if (!window._ymRTCPatched) {
       window._ymRTCPatched = true;
       const _OrigRTC = window.RTCPeerConnection;
-      // Exposé pour les tests console : new window._YM_ORIG_RTC({iceServers:[...]})
-      window._YM_ORIG_RTC = _OrigRTC;
       let _pcCount = 0;
       let _pcActive = 0; // connexions réellement ouvertes (pas skipped)
+
+      // ── Test TURN depuis la console (Edge bloque new window._OrigRTC) ──────
+      // Usage : window.YM_TEST_TURN([{urls:'turn:freeturn.net:3479',username:'free',credential:'free'}],'freeturn')
+      //   .then(r => console.log((r.relays.length?'✅':'❌')+' '+r.label+': relay='+r.relays.length+(r.TIMEOUT?' TIMEOUT':'')))
+      window.YM_TEST_TURN = async function(servers, label) {
+        const pc = new _OrigRTC({ iceServers: Array.isArray(servers) ? servers : [servers] });
+        pc.createDataChannel('t');
+        await pc.setLocalDescription(await pc.createOffer());
+        return new Promise(function(resolve) {
+          var relays = [], srflx = [];
+          pc.onicecandidate = function(e) {
+            if (!e.candidate) { pc.close(); resolve({ label: label||'test', relays: relays, srflx: srflx }); return; }
+            if (e.candidate.type === 'relay') relays.push(e.candidate.address);
+            if (e.candidate.type === 'srflx') srflx.push(e.candidate.address);
+          };
+          setTimeout(function() { pc.close(); resolve({ label: label||'test', relays: relays, srflx: srflx, TIMEOUT: true }); }, 8000);
+        });
+      };
+      // Test rapide multi-TURN : Promise.all([window.YM_TEST_TURN([{urls:'turn:freeturn.net:3479',username:'free',credential:'free'}],'UDP'),window.YM_TEST_TURN([{urls:'turns:freeturn.net:5349',username:'free',credential:'free'}],'TLS')]).then(r=>r.forEach(x=>console.log((x.relays.length?'✅':'❌')+' '+x.label+': relay='+x.relays.length+(x.TIMEOUT?' TIMEOUT':''))))
+
       window.RTCPeerConnection = function(config) {
         const id = ++_pcCount;
         const iceUrls = (config?.iceServers || []).map(s => Array.isArray(s.urls) ? s.urls[0] : s.urls);
@@ -1399,7 +1420,7 @@ window.YM_FORCE_NOSTR_DT = true;
         pc.addEventListener('iceconnectionstatechange', () => {
           L('P2P', `[RTC #${id}] iceConnectionState → ${pc.iceConnectionState}`);
           if (pc.iceConnectionState === 'failed') {
-            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relay=${_relayCount} (${_relayCount===0?'TURN bloqué':'TURN présent mais connexion impossible'})`);
+            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relay=${_relayCount} (${_relayCount===0?'TURN bloqué':'TURN présent mais impossible'})`);
             _onClose();
           }
           if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
@@ -1408,7 +1429,19 @@ window.YM_FORCE_NOSTR_DT = true;
         });
         pc.addEventListener('icegatheringstatechange', () => {
           if (pc.iceGatheringState === 'complete') {
-            L('P2P', `[RTC #${id}] gathering COMPLETE — relay:${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY — TURN ne répond pas':'✓'}`);
+            L('P2P', `[RTC #${id}] gathering COMPLETE — relay:${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY':'✓'}`);
+            // Si pas de candidat relay : TURN bloqué sur ce réseau
+            // Après 3 connexions confirmées sans relay → activer NDT sans attendre 45s
+            if (_relayCount === 0) {
+              window._ymNoTurnCount = (window._ymNoTurnCount || 0) + 1;
+              L('P2P', `[RTC #${id}] TURN absent (${window._ymNoTurnCount} connexions confirmées sans relay)`);
+              if (window._ymNoTurnCount >= 3 && !window._ymNostrDT && _joinCount === 0) {
+                L('P2P', `[Fallback] ⚡ 3 connexions sans TURN → NDT immédiat (pas besoin d'attendre 45s)`);
+                clearTimeout(_dtFallbackTimer);
+                _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
+                  .catch(e => L('P2P', `[NostrDT] early trigger FAILED: ${e.message}`));
+              }
+            }
           }
         });
         pc.addEventListener('icecandidate', e => {
@@ -1417,7 +1450,7 @@ window.YM_FORCE_NOSTR_DT = true;
               _relayCount++;
               L('P2P', `[RTC #${id}] ✅ RELAY #${_relayCount} — ${e.candidate.address} (TURN ok!)`);
             } else if (e.candidate.type === 'srflx') {
-              L('P2P', `[RTC #${id}] srflx — IP: ${e.candidate.address}`);
+              L('P2P', `[RTC #${id}] srflx — ${e.candidate.address}`);
             }
           } else {
             L('P2P', `[RTC #${id}] gathering complete — relay:${_relayCount}`);
@@ -1427,11 +1460,7 @@ window.YM_FORCE_NOSTR_DT = true;
       };
       window.RTCPeerConnection.prototype = _OrigRTC.prototype;
       Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
-      L('P2P', `RTCPeerConnection monkey-patched ✓ (window._YM_ORIG_RTC = original pour tests console)`);
-      // Copier le prototype pour que instanceof RTCPeerConnection continue de fonctionner
-      window.RTCPeerConnection.prototype = _OrigRTC.prototype;
-      Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
-      L('P2P', `RTCPeerConnection monkey-patched ✓`);
+      L('P2P', `RTCPeerConnection monkey-patched ✓ | window.YM_TEST_TURN() dispo pour tests TURN`);
     }
 
     // Silencer les erreurs WebSocket dans la console (mais pas dans nos logs)
@@ -1687,25 +1716,31 @@ window.YM_FORCE_NOSTR_DT = true;
           if (_diagCount >= 12) clearInterval(_diagInterval);
         }, 10000);
 
-        // ── Fallback Nostr Direct Transport (si WebRTC/TURN bloqué) ──────────
-        // Se déclenche après 60s sans aucun peer join
-        // Utilise les WebSockets Nostr déjà ouverts pour envoyer les données directement
-        // sans WebRTC — traverse tout NAT/firewall autorisant wss://
+        // ── Fallback Nostr Direct Transport ──────────────────────────────────
+        // Se déclenche après 45s sans peer WebRTC, ou immédiatement si forcé
+        // Force immédiat : window.YM_FORCE_NOSTR_DT = true puis recharger
+        const _dtDelay = window.YM_FORCE_NOSTR_DT ? 1000 : 45000;
+        L('P2P', `[Fallback] NostrDT se déclenchera dans ${_dtDelay/1000}s si aucun peer WebRTC`);
         const _dtFallbackTimer = setTimeout(() => {
           if (_joinCount === 0 && !window._ymNostrDT) {
-            L('P2P', `[Fallback] 60s sans peer join — activation Nostr Direct Transport`);
+            L('P2P', `[Fallback] ⚡ Activation Nostr Direct Transport (${_dtDelay/1000}s sans peer WebRTC)`);
             _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
               .catch(e => L('P2P', `[NostrDT] FAILED: ${e.message}`));
+          } else {
+            L('P2P', `[Fallback] Annulé — joins:${_joinCount} _ymNostrDT:${!!window._ymNostrDT}`);
           }
-        }, 60000);
-        // Annuler le fallback si un peer WebRTC arrive avant
-        window.addEventListener('ym:peer-join', function _cancelDT(e) {
-          if (e.detail?.peerId !== '_self_') {
+        }, _dtDelay);
+        // Annuler si un vrai peer WebRTC rejoint (pas _self_)
+        function _cancelDTOnRealJoin(e) {
+          if (e.detail?.peerId && e.detail.peerId !== '_self_') {
             clearTimeout(_dtFallbackTimer);
-            window.removeEventListener('ym:peer-join', _cancelDT);
-            L('P2P', `[Fallback] Peer WebRTC reçu — Nostr Direct Transport annulé`);
+            window.removeEventListener('ym:peer-join', _cancelDTOnRealJoin);
+            L('P2P', `[Fallback] ✓ Peer WebRTC reçu (${e.detail.peerId.slice(0,8)}…) — NostrDT annulé`);
           }
-        });
+        }
+        window.addEventListener('ym:peer-join', _cancelDTOnRealJoin);
+        // Exposer pour forcer manuellement depuis la console :
+        window.YM_START_NOSTR_DT = () => _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS);
 
         return; // SUCCESS — sortir du for loop
 
