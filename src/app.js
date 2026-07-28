@@ -3,7 +3,7 @@
  * GitHub: theodoreyong9/YourMinedApp/src/app.js
  * DEBUG BUILD — logs préfixés [YM:*]
  */
-
+window.YM_FORCE_NOSTR_DT = true;
 ;(function () {
   'use strict';
 
