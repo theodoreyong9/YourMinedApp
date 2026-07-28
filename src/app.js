@@ -1167,6 +1167,192 @@
   const YM_APPID  = window.YM_APPID_OVERRIDE  || 'yourmine-v1';
   const YM_ROOM   = window.YM_ROOM_OVERRIDE   || 'ym-main';
 
+  /* ═══════════════════════════════════════════════════════════
+   * NOSTR DIRECT TRANSPORT
+   * Fallback quand WebRTC/TURN est bloqué au niveau réseau.
+   * Les données passent directement via WebSocket (wss://) sur les
+   * relays Nostr déjà ouverts — aucun WebRTC, aucun TURN requis.
+   * Activé automatiquement après 60s sans peer join WebRTC.
+   * ═══════════════════════════════════════════════════════════ */
+  async function _startNostrDirectTransport(appId, roomId, relayUrls) {
+    if (window._ymNostrDT) return;
+    window._ymNostrDT = true;
+
+    L('P2P', '════ NOSTR DIRECT TRANSPORT ════');
+    L('P2P', 'WebRTC/TURN bloqué → communication via WebSocket Nostr pur');
+
+    // ── Signing Nostr events — charge nostr-tools pour des events valides ──
+    // Les relays stricts rejettent les events sans signature valide
+    let _sign = null;
+    let _pubkey = null;
+
+    // Tente de charger nostr-tools pour un signing valide
+    try {
+      const nt = await import('https://esm.sh/nostr-tools@1.17.0');
+      // Réutiliser ou générer une clé privée persistante
+      let privkey = localStorage.getItem('ym_nostr_dt_sk');
+      if (!privkey || privkey.length !== 64) {
+        privkey = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem('ym_nostr_dt_sk', privkey);
+      }
+      _pubkey = nt.getPublicKey(privkey);
+      _sign = (event) => nt.finishEvent(event, privkey);
+      L('P2P', `[NostrDT] nostr-tools chargé ✓ — pubkey: ${_pubkey.slice(0,16)}…`);
+    } catch(e) {
+      L('P2P', `[NostrDT] nostr-tools failed (${e.message}) → utilisation d'events non-signés`);
+      // Fallback : event avec ID et signature aléatoires (accepté par les relays laxistes)
+      const rndHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)))
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+      _pubkey = rndHex(32);
+      _sign = (ev) => ({ ...ev, id: rndHex(32), sig: rndHex(64) });
+    }
+
+    const _dtRoom   = `ym:${appId}:${roomId}`;
+    const _dtSubId  = 'ymdt' + Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2,'0')).join('');
+    const _dtSocks  = [];
+    const _dtPeers  = new Map();  // peerId → lastSeen ts
+
+    function dtPublish(content) {
+      const unsigned = {
+        pubkey:     _pubkey,
+        created_at: Math.floor(Date.now() / 1000),
+        kind:       20000, // ephemeral — non persisté sur le relay
+        tags:       [['t', _dtRoom]],
+        content:    JSON.stringify(content),
+      };
+      let ev;
+      try { ev = _sign(unsigned); } catch(e) { return; }
+      const msg = JSON.stringify(['EVENT', ev]);
+      let sent = 0;
+      _dtSocks.filter(ws => ws.readyState === 1).forEach(ws => { ws.send(msg); sent++; });
+      if (sent === 0) L('P2P', `[NostrDT] ⚠️ Aucun relay OPEN pour publier type="${content.t}"`);
+    }
+
+    for (const url of (relayUrls || ['wss://nos.lol','wss://nostr.wine','wss://relay.snort.social','wss://nostr-pub.wellorder.net'])) {
+      const ws = new WebSocket(url);
+      _dtSocks.push(ws);
+
+      ws.addEventListener('open', () => {
+        L('P2P', `[NostrDT] ${url.replace('wss://','')}: OPEN ✓`);
+        // Subscribe aux events du room
+        ws.send(JSON.stringify(['REQ', _dtSubId, {
+          kinds: [20000],
+          '#t':  [_dtRoom],
+          since: Math.floor(Date.now() / 1000) - 5,
+        }]));
+        // Annoncer notre présence
+        dtPublish({ _ym: 1, t: 'hi', from: _pubkey });
+      });
+
+      ws.addEventListener('message', e => {
+        try {
+          const parsed = JSON.parse(e.data);
+          if (parsed[0] === 'NOTICE') { L('P2P', `[NostrDT] NOTICE from ${url.replace('wss://','')}: ${parsed[1]}`); return; }
+          if (parsed[0] === 'OK')     { L('P2P', `[NostrDT] OK from ${url.replace('wss://','')}: ${JSON.stringify(parsed.slice(1))}`); return; }
+          if (parsed[0] !== 'EVENT')  return;
+
+          const ev = parsed[2];
+          if (ev.pubkey === _pubkey) return; // propre message
+
+          let c;
+          try { c = JSON.parse(ev.content); } catch { return; }
+          if (!c._ym) return;
+
+          const from = c.from || ev.pubkey;
+          if (!from) return;
+
+          if (c.t === 'hi') {
+            const wasNew = !_dtPeers.has(from);
+            _dtPeers.set(from, Date.now());
+            if (wasNew) {
+              L('P2P', `[NostrDT] ✅ PEER JOIN: ${from.slice(0,8)}… (total: ${_dtPeers.size})`);
+              window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: from } }));
+              // Répondre pour qu'ils nous voient aussi
+              dtPublish({ _ym: 1, t: 'hi', from: _pubkey });
+              // Demander leur présence social immédiatement
+              setTimeout(() => {
+                dtPublish({ _ym: 1, t: 'd', from: _pubkey, to: from,
+                  data: { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} } });
+              }, 300);
+            }
+          } else if (c.t === 'bye') {
+            if (_dtPeers.has(from)) {
+              _dtPeers.delete(from);
+              p2pS.delete(from); p2pR.delete(from);
+              L('P2P', `[NostrDT] PEER LEAVE: ${from.slice(0,8)}…`);
+              window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: from } }));
+            }
+          } else if (c.t === 'd') {
+            if (!c.to || c.to === _pubkey) {
+              const data = c.data;
+              // Toujours laisser passer social:presence (bypass rate limit)
+              if ((data && data.type === 'social:presence') || cR(from)) {
+                L('MSG', `[NostrDT] recv sphere="${data?.sphere}" type="${data?.type}" from=${from.slice(0,8)}…`);
+                window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: from, msg: data } }));
+              }
+            }
+          }
+        } catch(e2) { L('P2P', `[NostrDT] parse error: ${e2.message}`); }
+      });
+
+      ws.addEventListener('close',  () => L('P2P', `[NostrDT] ${url.replace('wss://','')}: CLOSED`));
+      ws.addEventListener('error',  () => L('P2P', `[NostrDT] ${url.replace('wss://','')}: ERROR`));
+    }
+
+    // ── Remplacer YM_P2P pour acheminer les données via Nostr ──────────────
+    const _oldP2P = window.YM_P2P;
+    window.YM_P2P = {
+      // Diffusion → tous les peers connus via Nostr
+      broadcast(d) {
+        L('MSG', `[NostrDT] broadcast type="${d?.type}" sphere="${d?.sphere}"`);
+        dtPublish({ _ym: 1, t: 'd', from: _pubkey, to: null, data: d });
+      },
+      // Envoi direct → un peer spécifique
+      sendTo(id, d) {
+        L('MSG', `[NostrDT] sendTo ${id?.slice(0,8)}… type="${d?.type}"`);
+        dtPublish({ _ym: 1, t: 'd', from: _pubkey, to: id, data: d });
+      },
+      _nostrDT: true,
+      _dtPeers,
+      _cdn: _oldP2P?._cdn,
+      _recvCount: _oldP2P?._recvCount,
+      _joinCount: _oldP2P?._joinCount,
+      _getRelaySockets: _oldP2P?._getRelaySockets,
+    };
+
+    // ── Heartbeat toutes les 25s ────────────────────────────────────────────
+    const _dtHB = setInterval(() => {
+      if (!document.hidden) dtPublish({ _ym: 1, t: 'hi', from: _pubkey });
+    }, 25000);
+
+    // ── Nettoyage des peers fantômes (>90s sans heartbeat) ─────────────────
+    const _dtClean = setInterval(() => {
+      const now = Date.now();
+      for (const [id, ts] of _dtPeers) {
+        if (now - ts > 90000) {
+          _dtPeers.delete(id);
+          L('P2P', `[NostrDT] peer expired: ${id.slice(0,8)}…`);
+          window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
+        }
+      }
+    }, 30000);
+
+    // ── Diagnostic NostrDT toutes les 15s ──────────────────────────────────
+    let _ndtDiag = 0;
+    const _dtDiagIv = setInterval(() => {
+      _ndtDiag++;
+      const open = _dtSocks.filter(ws => ws.readyState === 1).length;
+      L('P2P', `[NostrDT DIAG #${_ndtDiag}] sockets:${open}/${_dtSocks.length} peers:${_dtPeers.size} near:${window.YM_Social?._nearUsers?.size ?? '?'}`);
+      if (_ndtDiag >= 20) clearInterval(_dtDiagIv);
+    }, 15000);
+
+    toast('P2P via Nostr Direct (WebRTC/TURN bloqué)', 'info');
+    L('P2P', `[NostrDT] ✅ Actif — room: ${_dtRoom} — pubkey: ${_pubkey.slice(0,16)}…`);
+    L('P2P', `[NostrDT] 💡 Les deux appareils doivent être sur cette version pour se voir`);
+  }
+
   async function initP2P() {
     L('P2P', '=== initP2P() START ===');
     L('P2P', `Relays: ${JSON.stringify(YM_RELAYS)}`);
@@ -1181,59 +1367,67 @@
     if (!window._ymRTCPatched) {
       window._ymRTCPatched = true;
       const _OrigRTC = window.RTCPeerConnection;
+      // Exposé pour les tests console : new window._YM_ORIG_RTC({iceServers:[...]})
+      window._YM_ORIG_RTC = _OrigRTC;
       let _pcCount = 0;
+      let _pcActive = 0; // connexions réellement ouvertes (pas skipped)
       window.RTCPeerConnection = function(config) {
         const id = ++_pcCount;
         const iceUrls = (config?.iceServers || []).map(s => Array.isArray(s.urls) ? s.urls[0] : s.urls);
         const turnCount = iceUrls.filter(u => u.startsWith('turn:')||u.startsWith('turns:')).length;
 
-        // ── Limite ghost peers : ne pas créer plus de 8 connexions simultanées ──
-        // Au-delà c'est des zombies Nostr d'anciennes sessions, inutiles
-        if (_pcCount > 8) {
-          L('P2P', `[RTC #${id}] 🚫 SKIPPED (ghost peer limit) — ${_pcCount-1} connexions déjà en cours`);
-          // On laisse Trystero créer la connexion mais on la ferme immédiatement
+        // Limite : max 8 connexions ACTIVES simultanées (pas le total cumulé)
+        if (_pcActive >= 8) {
+          L('P2P', `[RTC #${id}] 🚫 SKIPPED (${_pcActive} actives, limite 8)`);
           const pc = new _OrigRTC(config);
-          setTimeout(() => { try { pc.close(); } catch(e) {} }, 100);
+          setTimeout(() => { try { pc.close(); } catch(e) {} }, 50);
           return pc;
         }
 
-        L('P2P', `[RTC #${id}] NEW — STUN:${iceUrls.filter(u=>u.startsWith('stun:')).length} TURN:${turnCount}`);
+        _pcActive++;
+        L('P2P', `[RTC #${id}] NEW — STUN:${iceUrls.filter(u=>u.startsWith('stun:')).length} TURN:${turnCount} | actives:${_pcActive}`);
         const pc = new _OrigRTC(config);
         let _relayCount = 0;
 
+        const _onClose = () => { _pcActive = Math.max(0, _pcActive - 1); };
+        pc.addEventListener('connectionstatechange', () => {
+          L('P2P', `[RTC #${id}] connectionState → ${pc.connectionState}`);
+          if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
+            _onClose();
+          }
+        });
         pc.addEventListener('iceconnectionstatechange', () => {
           L('P2P', `[RTC #${id}] iceConnectionState → ${pc.iceConnectionState}`);
           if (pc.iceConnectionState === 'failed') {
-            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relayCount=${_relayCount} (${_relayCount===0?'TURN mort/bloqué — pas de candidat relay':'TURN présent mais connexion impossible'})`);
+            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relay=${_relayCount} (${_relayCount===0?'TURN bloqué':'TURN présent mais connexion impossible'})`);
+            _onClose();
           }
           if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-            L('P2P', `[RTC #${id}] ✅ ICE CONNECTED !! relayCount=${_relayCount}`);
+            L('P2P', `[RTC #${id}] ✅ ICE CONNECTED !! relay=${_relayCount}`);
           }
         });
         pc.addEventListener('icegatheringstatechange', () => {
-          L('P2P', `[RTC #${id}] iceGatheringState → ${pc.iceGatheringState}`);
           if (pc.iceGatheringState === 'complete') {
-            L('P2P', `[RTC #${id}] gathering COMPLETE — relay candidates: ${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY — TURN ne fonctionne pas':'✓'}`);
+            L('P2P', `[RTC #${id}] gathering COMPLETE — relay:${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY — TURN ne répond pas':'✓'}`);
           }
-        });
-        pc.addEventListener('connectionstatechange', () => {
-          L('P2P', `[RTC #${id}] connectionState → ${pc.connectionState}`);
         });
         pc.addEventListener('icecandidate', e => {
           if (e.candidate) {
             if (e.candidate.type === 'relay') {
               _relayCount++;
-              L('P2P', `[RTC #${id}] ✅ RELAY candidate #${_relayCount} — ${e.candidate.address} (TURN fonctionne!)`);
+              L('P2P', `[RTC #${id}] ✅ RELAY #${_relayCount} — ${e.candidate.address} (TURN ok!)`);
             } else if (e.candidate.type === 'srflx') {
-              L('P2P', `[RTC #${id}] srflx — IP publique: ${e.candidate.address}`);
+              L('P2P', `[RTC #${id}] srflx — IP: ${e.candidate.address}`);
             }
-            // host silencieux (trop de bruit)
           } else {
-            L('P2P', `[RTC #${id}] gathering complete — relay: ${_relayCount}, srflx: visible`);
+            L('P2P', `[RTC #${id}] gathering complete — relay:${_relayCount}`);
           }
         });
         return pc;
       };
+      window.RTCPeerConnection.prototype = _OrigRTC.prototype;
+      Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
+      L('P2P', `RTCPeerConnection monkey-patched ✓ (window._YM_ORIG_RTC = original pour tests console)`);
       // Copier le prototype pour que instanceof RTCPeerConnection continue de fonctionner
       window.RTCPeerConnection.prototype = _OrigRTC.prototype;
       Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
@@ -1492,6 +1686,26 @@
           L('P2P', `[DIAG #${_diagCount}] YM_P2P: ✓ | relaysOpen: ${openRelays} | joins: ${_joinCount} | recvd: ${_recvCount} | social: ${window.YM_sphereRegistry?.has('social.sphere.js')} | near: ${window.YM_Social?._nearUsers?.size ?? '?'}`);
           if (_diagCount >= 12) clearInterval(_diagInterval);
         }, 10000);
+
+        // ── Fallback Nostr Direct Transport (si WebRTC/TURN bloqué) ──────────
+        // Se déclenche après 60s sans aucun peer join
+        // Utilise les WebSockets Nostr déjà ouverts pour envoyer les données directement
+        // sans WebRTC — traverse tout NAT/firewall autorisant wss://
+        const _dtFallbackTimer = setTimeout(() => {
+          if (_joinCount === 0 && !window._ymNostrDT) {
+            L('P2P', `[Fallback] 60s sans peer join — activation Nostr Direct Transport`);
+            _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
+              .catch(e => L('P2P', `[NostrDT] FAILED: ${e.message}`));
+          }
+        }, 60000);
+        // Annuler le fallback si un peer WebRTC arrive avant
+        window.addEventListener('ym:peer-join', function _cancelDT(e) {
+          if (e.detail?.peerId !== '_self_') {
+            clearTimeout(_dtFallbackTimer);
+            window.removeEventListener('ym:peer-join', _cancelDT);
+            L('P2P', `[Fallback] Peer WebRTC reçu — Nostr Direct Transport annulé`);
+          }
+        });
 
         return; // SUCCESS — sortir du for loop
 
