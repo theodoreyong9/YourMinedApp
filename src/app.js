@@ -1236,7 +1236,14 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         } catch(e2) {  }
       });
 
-      ws.addEventListener('close',  () =>       ws.addEventListener('error',  () =>     }
+      ws.addEventListener('close', () => {
+        const idx = _dtSocks.indexOf(ws);
+        if (idx !== -1) _dtSocks.splice(idx, 1);
+      });
+      ws.addEventListener('error', () => {
+        try { ws.close(); } catch (e) {}
+      });
+    }
 
     // ── Remplacer YM_P2P pour acheminer les données via Nostr ──────────────
     const _oldP2P = window.YM_P2P;
@@ -1328,7 +1335,8 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
                             if (window._ymNoTurnCount >= 3 && !window._ymNostrDT && _joinCount === 0) {
                                 clearTimeout(_dtFallbackTimer);
                 _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
-                  .catch(e =>               }
+                  .catch(e => console.warn('[YM] NDT start failed:', e.message));
+              }
             }
           }
         });
@@ -1434,11 +1442,8 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           relayUrls: YM_RELAYS,
           rtcConfig: { iceServers: YM_ICE_SERVERS },
         }, YM_ROOM);
-        
-        } else {
-                  }
 
-                const [send, recv] = room.makeAction('ym');
+        const [send, recv] = room.makeAction('ym');
         
         // ── Compteur de messages reçus ──
         let _recvCount = 0;
@@ -1507,9 +1512,9 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         const _dtDelay = window.YM_FORCE_NOSTR_DT ? 1000 : 45000;
                 const _dtFallbackTimer = setTimeout(() => {
           if (_joinCount === 0 && !window._ymNostrDT) {
-                        _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
-              .catch(e =>           } else {
-                      }
+            _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
+              .catch(e => console.warn('[YM] NDT start failed:', e.message));
+          }
         }, _dtDelay);
         // Annuler si un vrai peer WebRTC rejoint (pas _self_)
         function _cancelDTOnRealJoin(e) {
@@ -1784,10 +1789,23 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
     window.addEventListener('ym:wallet-unlocked', () => switchMineTab('wallet'));
     window.addEventListener('ym:wallet-locked',   () => switchMineTab('wallet'));
 
-            }
-          } catch(e) {}
-        }
-      }, 5000);
+    setTimeout(async () => {
+      const _socId = 'social.sphere.js';
+
+      // Attendre que YM_Liste soit prêt (chargé via loadScript ci-dessus), 5s max
+      if (!window.YM_Liste) {
+        await new Promise(resolve => {
+          const iv = setInterval(() => {
+            if (window.YM_Liste) { clearInterval(iv); resolve(); }
+          }, 200);
+          setTimeout(() => { clearInterval(iv); resolve(); }, 5000);
+        });
+      }
+
+      if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
+        try { await window.YM_Liste.activateSphereByName(_socId); }
+        catch (e) { console.warn('[YM] mandatory sphere activation failed:', e.message); }
+      }
 
       const _themeMeta = window.YM_THEME_META || {};
       const _required = Array.isArray(_themeMeta.requiredSpheres) ? _themeMeta.requiredSpheres : [];
@@ -1798,7 +1816,6 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           catch (e) { console.warn('[YM] theme required sphere:', _rId, e.message); }
         }
       }
-
     }, 0);
 
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
