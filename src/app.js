@@ -1139,39 +1139,18 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
    * relays Nostr déjà ouverts — aucun WebRTC, aucun TURN requis.
    * Activé automatiquement après 60s sans peer join WebRTC.
    * ═══════════════════════════════════════════════════════════ */
-  async function _startNostrDirectTransport(appId, roomId, relayUrls) {
+  function _startNostrDirectTransport(appId, roomId, relayUrls) {
     if (window._ymNostrDT) return;
     window._ymNostrDT = true;
 
-    console.log('[YM:P2P] ', '════ NOSTR DIRECT TRANSPORT ════');
-    console.log('[YM:P2P] ', 'WebRTC/TURN bloqué → communication via WebSocket Nostr pur');
-
-    // ── Signing Nostr events — charge nostr-tools pour des events valides ──
-    // Les relays stricts rejettent les events sans signature valide
-    let _sign = null;
-    let _pubkey = null;
-
-    // Tente de charger nostr-tools pour un signing valide
-    try {
-      const nt = await import('https://esm.sh/nostr-tools@1.17.0');
-      // Réutiliser ou générer une clé privée persistante
-      let privkey = localStorage.getItem('ym_nostr_dt_sk');
-      if (!privkey || privkey.length !== 64) {
-        privkey = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-          .map(b => b.toString(16).padStart(2, '0')).join('');
-        localStorage.setItem('ym_nostr_dt_sk', privkey);
-      }
-      _pubkey = nt.getPublicKey(privkey);
-      _sign = (event) => nt.finishEvent(event, privkey);
-      console.log('[YM:P2P] ', `[NostrDT] nostr-tools chargé ✓ — pubkey: ${_pubkey.slice(0,16)}…`);
-    } catch(e) {
-      console.log('[YM:P2P] ', `[NostrDT] nostr-tools failed (${e.message}) → utilisation d'events non-signés`);
-      // Fallback : event avec ID et signature aléatoires (accepté par les relays laxistes)
-      const rndHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)))
-        .map(b => b.toString(16).padStart(2, '0')).join('');
-      _pubkey = rndHex(32);
-      _sign = (ev) => ({ ...ev, id: rndHex(32), sig: rndHex(64) });
+    // Events non-signés — nos.lol, nostr.wine, snort acceptent kind:20000 sans vérification
+    // Pas d'import externe = démarrage instantané
+    function rndHex(n) {
+      return Array.from(crypto.getRandomValues(new Uint8Array(n)))
+        .map(b => b.toString(16).padStart(2,'0')).join('');
     }
+    const _pubkey = rndHex(32);
+    function _sign(ev) { return { ...ev, id: rndHex(32), sig: rndHex(64) }; }
 
     const _dtRoom   = `ym:${appId}:${roomId}`;
     const _dtSubId  = 'ymdt' + Array.from(crypto.getRandomValues(new Uint8Array(4)))
@@ -1192,16 +1171,14 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
       const msg = JSON.stringify(['EVENT', ev]);
       let sent = 0;
       _dtSocks.filter(ws => ws.readyState === 1).forEach(ws => { ws.send(msg); sent++; });
-      if (sent === 0) console.log('[YM:P2P] ', `[NostrDT] ⚠️ Aucun relay OPEN pour publier type="${content.t}"`);
-    }
+      if (sent === 0)     }
 
     for (const url of (relayUrls || ['wss://nos.lol','wss://nostr.wine','wss://relay.snort.social','wss://nostr-pub.wellorder.net'])) {
       const ws = new WebSocket(url);
       _dtSocks.push(ws);
 
       ws.addEventListener('open', () => {
-        console.log('[YM:P2P] ', `[NostrDT] ${url.replace('wss://','')}: OPEN ✓`);
-        // Subscribe aux events du room
+                // Subscribe aux events du room
         ws.send(JSON.stringify(['REQ', _dtSubId, {
           kinds: [20000],
           '#t':  [_dtRoom],
@@ -1214,8 +1191,8 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
       ws.addEventListener('message', e => {
         try {
           const parsed = JSON.parse(e.data);
-          if (parsed[0] === 'NOTICE') { console.log('[YM:P2P] ', `[NostrDT] NOTICE from ${url.replace('wss://','')}: ${parsed[1]}`); return; }
-          if (parsed[0] === 'OK')     { console.log('[YM:P2P] ', `[NostrDT] OK from ${url.replace('wss://','')}: ${JSON.stringify(parsed.slice(1))}`); return; }
+          if (parsed[0] === 'NOTICE') { return; }
+          if (parsed[0] === 'OK')     { return; }
           if (parsed[0] !== 'EVENT')  return;
 
           const ev = parsed[2];
@@ -1232,8 +1209,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
             const wasNew = !_dtPeers.has(from);
             _dtPeers.set(from, Date.now());
             if (wasNew) {
-              console.log('[YM:P2P] ', `[NostrDT] ✅ PEER JOIN: ${from.slice(0,8)}… (total: ${_dtPeers.size})`);
-              window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: from } }));
+                            window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: from } }));
               // Répondre pour qu'ils nous voient aussi
               dtPublish({ _ym: 1, t: 'hi', from: _pubkey });
               // Demander leur présence social immédiatement
@@ -1246,8 +1222,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
             if (_dtPeers.has(from)) {
               _dtPeers.delete(from);
               p2pS.delete(from); p2pR.delete(from);
-              console.log('[YM:P2P] ', `[NostrDT] PEER LEAVE: ${from.slice(0,8)}…`);
-              window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: from } }));
+                            window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: from } }));
             }
           } else if (c.t === 'd') {
             if (!c.to || c.to === _pubkey) {
@@ -1258,12 +1233,10 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
               }
             }
           }
-        } catch(e2) { console.log('[YM:P2P] ', `[NostrDT] parse error: ${e2.message}`); }
+        } catch(e2) {  }
       });
 
-      ws.addEventListener('close',  () => console.log('[YM:P2P] ', `[NostrDT] ${url.replace('wss://','')}: CLOSED`));
-      ws.addEventListener('error',  () => console.log('[YM:P2P] ', `[NostrDT] ${url.replace('wss://','')}: ERROR`));
-    }
+      ws.addEventListener('close',  () =>       ws.addEventListener('error',  () =>     }
 
     // ── Remplacer YM_P2P pour acheminer les données via Nostr ──────────────
     const _oldP2P = window.YM_P2P;
@@ -1297,24 +1270,16 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
       for (const [id, ts] of _dtPeers) {
         if (now - ts > 90000) {
           _dtPeers.delete(id);
-          console.log('[YM:P2P] ', `[NostrDT] peer expired: ${id.slice(0,8)}…`);
-          window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
+                    window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         }
       }
     }, 30000);
 
     toast('P2P via Nostr Direct (WebRTC/TURN bloqué)', 'info');
-    console.log('[YM:P2P] ', `[NostrDT] ✅ Actif — room: ${_dtRoom} — pubkey: ${_pubkey.slice(0,16)}…`);
-    console.log('[YM:P2P] ', `[NostrDT] 💡 Les deux appareils doivent être sur cette version pour se voir`);
-  }
+          }
 
   async function initP2P() {
-    console.log('[YM:P2P] ', '=== initP2P() START ===');
-    console.log('[YM:P2P] ', `Relays: ${JSON.stringify(YM_RELAYS)}`);
-    console.log('[YM:P2P] ', `AppId: "${YM_APPID}" | Room: "${YM_ROOM}"`);
-    console.log('[YM:P2P] ', `navigator.onLine: ${navigator.onLine}`);
-    console.log('[YM:P2P] ', `YM_TRANSPORT override: ${!!window.YM_TRANSPORT}`);
-
+                    
     // ── Monkey-patch RTCPeerConnection pour diagnostiquer ICE/NAT ────────────
     // Chaque PC créé par Trystero = une tentative de connexion avec un pair
     // Sans TURN : ICE reste en "checking" puis "failed" → pas de peer join
@@ -1332,48 +1297,38 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
 
         // Limite : max 8 connexions ACTIVES simultanées (pas le total cumulé)
         if (_pcActive >= 8) {
-          console.log('[YM:P2P] ', `[RTC #${id}] 🚫 SKIPPED (${_pcActive} actives, limite 8)`);
-          const pc = new _OrigRTC(config);
+                    const pc = new _OrigRTC(config);
           setTimeout(() => { try { pc.close(); } catch(e) {} }, 50);
           return pc;
         }
 
         _pcActive++;
-        console.log('[YM:P2P] ', `[RTC #${id}] NEW — STUN:${iceUrls.filter(u=>u.startsWith('stun:')).length} TURN:${turnCount} | actives:${_pcActive}`);
-        const pc = new _OrigRTC(config);
+                const pc = new _OrigRTC(config);
         let _relayCount = 0;
 
         const _onClose = () => { _pcActive = Math.max(0, _pcActive - 1); };
         pc.addEventListener('connectionstatechange', () => {
-          console.log('[YM:P2P] ', `[RTC #${id}] connectionState → ${pc.connectionState}`);
-          if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
+                    if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
             _onClose();
           }
         });
         pc.addEventListener('iceconnectionstatechange', () => {
-          console.log('[YM:P2P] ', `[RTC #${id}] iceConnectionState → ${pc.iceConnectionState}`);
-          if (pc.iceConnectionState === 'failed') {
-            console.log('[YM:P2P] ', `[RTC #${id}] ❌ ICE FAILED — relay=${_relayCount} (${_relayCount===0?'TURN bloqué':'TURN présent mais impossible'})`);
-            _onClose();
+                    if (pc.iceConnectionState === 'failed') {
+                        _onClose();
           }
           if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-            console.log('[YM:P2P] ', `[RTC #${id}] ✅ ICE CONNECTED !! relay=${_relayCount}`);
-          }
+                      }
         });
         pc.addEventListener('icegatheringstatechange', () => {
           if (pc.iceGatheringState === 'complete') {
-            console.log('[YM:P2P] ', `[RTC #${id}] gathering COMPLETE — relay:${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY':'✓'}`);
-            // Si pas de candidat relay : TURN bloqué sur ce réseau
+                        // Si pas de candidat relay : TURN bloqué sur ce réseau
             // Après 3 connexions confirmées sans relay → activer NDT sans attendre 45s
             if (_relayCount === 0) {
               window._ymNoTurnCount = (window._ymNoTurnCount || 0) + 1;
-              console.log('[YM:P2P] ', `[RTC #${id}] TURN absent (${window._ymNoTurnCount} connexions confirmées sans relay)`);
-              if (window._ymNoTurnCount >= 3 && !window._ymNostrDT && _joinCount === 0) {
-                console.log('[YM:P2P] ', `[Fallback] ⚡ 3 connexions sans TURN → NDT immédiat (pas besoin d'attendre 45s)`);
-                clearTimeout(_dtFallbackTimer);
+                            if (window._ymNoTurnCount >= 3 && !window._ymNostrDT && _joinCount === 0) {
+                                clearTimeout(_dtFallbackTimer);
                 _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
-                  .catch(e => console.log('[YM:P2P] ', `[NostrDT] early trigger FAILED: ${e.message}`));
-              }
+                  .catch(e =>               }
             }
           }
         });
@@ -1381,26 +1336,21 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           if (e.candidate) {
             if (e.candidate.type === 'relay') {
               _relayCount++;
-              console.log('[YM:P2P] ', `[RTC #${id}] ✅ RELAY #${_relayCount} — ${e.candidate.address} (TURN ok!)`);
-            } else if (e.candidate.type === 'srflx') {
-              console.log('[YM:P2P] ', `[RTC #${id}] srflx — ${e.candidate.address}`);
-            }
+                          } else if (e.candidate.type === 'srflx') {
+                          }
           } else {
-            console.log('[YM:P2P] ', `[RTC #${id}] gathering complete — relay:${_relayCount}`);
-          }
+                      }
         });
         return pc;
       };
       window.RTCPeerConnection.prototype = _OrigRTC.prototype;
       Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
-      console.log('[YM:P2P] ', `RTCPeerConnection monkey-patched ✓ | window.YM_TEST_TURN() dispo pour tests TURN`);
-    }
+          }
 
     // Silencer les erreurs WebSocket dans la console (mais pas dans nos logs)
     window.addEventListener('error', e => {
       if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) {
-        console.log('[YM:P2P] ', `WebSocket error intercepted: ${e.message}`);
-        e.stopImmediatePropagation();
+                e.stopImmediatePropagation();
       }
     }, true);
 
@@ -1409,29 +1359,24 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
     console.warn  = function () {
       const msg = typeof arguments[0] === 'string' ? arguments[0] : '';
       if (msg.includes('Trystero') || msg.includes('wss://')) {
-        console.log('[YM:P2P] ', `[Trystero warn] ${Array.from(arguments).join(' ')}`);
-        return;
+                return;
       }
       _origWarn.apply(console, arguments);
     };
     console.error = function () {
       const msg = typeof arguments[0] === 'string' ? arguments[0] : '';
       if (msg.includes('WebSocket') || msg.includes('wss://')) {
-        console.log('[YM:P2P] ', `[WebSocket error] ${Array.from(arguments).join(' ')}`);
-        return;
+                return;
       }
       _origError.apply(console, arguments);
     };
 
     // ── YM_TRANSPORT override ──────────────────────────────────────────────
     if (window.YM_TRANSPORT) {
-      console.log('[YM:P2P] ', 'Using YM_TRANSPORT override…');
-      try {
+            try {
         const t = window.YM_TRANSPORT;
-        console.log('[YM:P2P] ', 'Calling t.connect()…');
-        await t.connect(YM_ROOM, YM_APPID);
-        console.log('[YM:P2P] ', 'YM_TRANSPORT.connect() OK ✓');
-
+                await t.connect(YM_ROOM, YM_APPID);
+        
         t.onMessage((pid, data) => {
           if ((data && data.type === 'social:presence') || cR(pid)) {
             window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
@@ -1439,13 +1384,11 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           }
         });
         t.onPeerJoin(id => {
-          console.log('[YM:P2P] ', `YM_TRANSPORT: peer JOINED ${id.slice(0,8)}…`);
-          window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
+                    window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
           setTimeout(() => t.send(id, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 200);
         });
         t.onPeerLeave(id => {
-          console.log('[YM:P2P] ', `YM_TRANSPORT: peer LEFT ${id.slice(0,8)}…`);
-          p2pS.delete(id); p2pR.delete(id);
+                    p2pS.delete(id); p2pR.delete(id);
           window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         });
 
@@ -1454,8 +1397,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           sendTo(id, d)    { if (cS(id)) { L('MSG', `YM_P2P.sendTo ${id.slice(0,8)}… type="${d?.type}"`); t.send(id, d); } },
           transport: t,
         };
-        console.log('[YM:P2P] ', 'window.YM_P2P created via YM_TRANSPORT ✓');
-
+        
         setTimeout(() => t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
         setInterval(() => { if (!document.hidden) t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
         document.addEventListener('visibilitychange', () => {
@@ -1468,8 +1410,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         });
         return;
       } catch(e) {
-        console.log('[YM:P2P] ', `YM_TRANSPORT FAILED: ${e.message} — falling back to Trystero`);
-        _origWarn('[YM] YM_TRANSPORT failed, falling back to Trystero:', e.message);
+                _origWarn('[YM] YM_TRANSPORT failed, falling back to Trystero:', e.message);
       }
     }
 
@@ -1480,34 +1421,25 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
     ];
 
     for (const cdn of cdns) {
-      console.log('[YM:P2P] ', `Trying CDN: ${cdn}`);
-      try {
-        console.log('[YM:P2P] ', `  import("${cdn}")…`);
-        const module = await import(cdn);
-        console.log('[YM:P2P] ', `  import OK ✓ — keys: ${Object.keys(module).join(', ')}`);
-
+            try {
+                const module = await import(cdn);
+        
         const { joinRoom, getRelaySockets } = module;
         if (typeof joinRoom !== 'function') {
-          console.log('[YM:P2P] ', `  joinRoom is not a function! type=${typeof joinRoom}`);
-          continue;
+                    continue;
         }
 
-        console.log('[YM:P2P] ', `  joinRoom({ appId:"${YM_APPID}", relayUrls:${JSON.stringify(YM_RELAYS)}, rtcConfig:{iceServers:${YM_ICE_SERVERS.length}} }, "${YM_ROOM}")…`);
-        const room = joinRoom({
+                const room = joinRoom({
           appId: YM_APPID,
           relayUrls: YM_RELAYS,
           rtcConfig: { iceServers: YM_ICE_SERVERS },
         }, YM_ROOM);
-        console.log('[YM:P2P] ', `  joinRoom OK ✓ — room type: ${typeof room}`);
-
+        
         } else {
-          console.log('[YM:P2P] ', `  ⚠️ getRelaySockets non disponible dans cette version de Trystero`);
-        }
+                  }
 
-        console.log('[YM:P2P] ', `  room.makeAction("ym")…`);
-        const [send, recv] = room.makeAction('ym');
-        console.log('[YM:P2P] ', `  makeAction OK ✓ — send: ${typeof send}, recv: ${typeof recv}`);
-
+                const [send, recv] = room.makeAction('ym');
+        
         // ── Compteur de messages reçus ──
         let _recvCount = 0;
 
@@ -1523,19 +1455,14 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         let _joinCount = 0;
         room.onPeerJoin(id => {
           _joinCount++;
-          console.log('[YM:P2P] ', `✅ PEER JOIN #${_joinCount}: ${id} (${id.slice(0,8)}…)`);
-          console.log('[YM:P2P] ', `   Dispatching ym:peer-join`);
-          window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
-          console.log('[YM:P2P] ', `   Sending presence-req to new peer in 200ms…`);
-          setTimeout(() => {
-            console.log('[YM:P2P] ', `   Sending presence-req to ${id.slice(0,8)}… now`);
-            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }, [id]);
+                              window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
+                    setTimeout(() => {
+                        send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }, [id]);
           }, 200);
         });
 
         room.onPeerLeave(id => {
-          console.log('[YM:P2P] ', `❌ PEER LEAVE: ${id.slice(0,8)}…`);
-          p2pS.delete(id); p2pR.delete(id);
+                    p2pS.delete(id); p2pR.delete(id);
           window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         });
 
@@ -1554,26 +1481,21 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           _joinCount: () => _joinCount,
           _getRelaySockets: typeof getRelaySockets === 'function' ? getRelaySockets : null,
         };
-        console.log('[YM:P2P] ', `✅ window.YM_P2P created via Trystero (${cdn})`);
-        console.log('[YM:P2P] ', `   Sending initial presence-req broadcast in 800ms…`);
-
+                
         setTimeout(() => {
-          console.log('[YM:P2P] ', `Sending initial social:presence-req broadcast`);
-          send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+                    send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
         }, 800);
 
         setInterval(() => {
           if (!document.hidden) {
-            console.log('[YM:P2P] ', `[30s heartbeat] sending presence-req broadcast`);
-            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+                        send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
           }
         }, 30000);
 
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) {
             requestAnimationFrame(() => {
-              console.log('[YM:P2P] ', `[visibilitychange→visible] sending presence-req`);
-              send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+                            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
               window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: '_self_' } }));
             });
           }
@@ -1583,23 +1505,18 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         // Se déclenche après 45s sans peer WebRTC, ou immédiatement si forcé
         // Force immédiat : window.YM_FORCE_NOSTR_DT = true puis recharger
         const _dtDelay = window.YM_FORCE_NOSTR_DT ? 1000 : 45000;
-        console.log('[YM:P2P] ', `[Fallback] NostrDT se déclenchera dans ${_dtDelay/1000}s si aucun peer WebRTC`);
-        const _dtFallbackTimer = setTimeout(() => {
+                const _dtFallbackTimer = setTimeout(() => {
           if (_joinCount === 0 && !window._ymNostrDT) {
-            console.log('[YM:P2P] ', `[Fallback] ⚡ Activation Nostr Direct Transport (${_dtDelay/1000}s sans peer WebRTC)`);
-            _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
-              .catch(e => console.log('[YM:P2P] ', `[NostrDT] FAILED: ${e.message}`));
-          } else {
-            console.log('[YM:P2P] ', `[Fallback] Annulé — joins:${_joinCount} _ymNostrDT:${!!window._ymNostrDT}`);
-          }
+                        _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
+              .catch(e =>           } else {
+                      }
         }, _dtDelay);
         // Annuler si un vrai peer WebRTC rejoint (pas _self_)
         function _cancelDTOnRealJoin(e) {
           if (e.detail?.peerId && e.detail.peerId !== '_self_') {
             clearTimeout(_dtFallbackTimer);
             window.removeEventListener('ym:peer-join', _cancelDTOnRealJoin);
-            console.log('[YM:P2P] ', `[Fallback] ✓ Peer WebRTC reçu (${e.detail.peerId.slice(0,8)}…) — NostrDT annulé`);
-          }
+                      }
         }
         window.addEventListener('ym:peer-join', _cancelDTOnRealJoin);
         // Exposer pour forcer manuellement depuis la console :
@@ -1608,15 +1525,11 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         return; // SUCCESS — sortir du for loop
 
       } catch (e) {
-        console.log('[YM:P2P] ', `❌ CDN ${cdn} FAILED: ${e.message}`);
-        console.log('[YM:P2P] ', `   stack: ${e.stack?.split('\n')[0]}`);
-        _origWarn('[YM] P2P:', cdn, e.message);
+                        _origWarn('[YM] P2P:', cdn, e.message);
       }
     }
 
-    console.log('[YM:P2P] ', '❌ ALL CDNs FAILED — P2P disabled. window.YM_P2P remains undefined');
-    console.log('[YM:P2P] ', 'Check: 1) Network blocks ESM CDNs?  2) CSP headers?  3) import() allowed?');
-  }
+          }
 
   /* ═══════════════════════════════════════════════════════════
    * LOADERS
