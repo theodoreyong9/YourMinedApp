@@ -1,8 +1,6 @@
-window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué par NAT
 /**
  * app.js — YourMine core logic
  * GitHub: theodoreyong9/YourMinedApp/src/app.js
- * DEBUG BUILD — logs préfixés [YM:*]
  */
 
 ;(function () {
@@ -1326,7 +1324,6 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
       }
     }, 30000);
 
-    toast('P2P via Nostr Direct (WebRTC/TURN bloqué)', 'info');
     L('P2P', `[NostrDT] ✅ Actif — room: ${_dtRoom} — pubkey: ${_pubkey.slice(0,16)}…`);
     L('P2P', `[NostrDT] 💡 Les deux appareils doivent être sur cette version pour se voir`);
   }
