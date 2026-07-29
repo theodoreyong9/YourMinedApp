@@ -1171,7 +1171,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
       const msg = JSON.stringify(['EVENT', ev]);
       let sent = 0;
       _dtSocks.filter(ws => ws.readyState === 1).forEach(ws => { ws.send(msg); sent++; });
-      if (sent === 0)     }
+    }
 
     for (const url of (relayUrls || ['wss://nos.lol','wss://nostr.wine','wss://relay.snort.social','wss://nostr-pub.wellorder.net'])) {
       const ws = new WebSocket(url);
