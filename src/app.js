@@ -1,14 +1,12 @@
+window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué par NAT
 /**
  * app.js — YourMine core logic
  * GitHub: theodoreyong9/YourMinedApp/src/app.js
+ * DEBUG BUILD — logs préfixés [YM:*]
  */
 
 ;(function () {
   'use strict';
-
-  // ── LOGGER GLOBAL — désactivé (no-op) ───────────────────────────────────────
-  window.YM_LOG = function () {};
-  const L = function () {};
 
   const toast = (...a) => window.YM_toast(...a);
   const esc   = (...a) => window.YM_escHtml(...a);
@@ -45,7 +43,6 @@
   function cS(id) {
     const n = Date.now();
     if (n - (p2pS.get(id) || 0) < GAP) {
-      L('RATE', `cS BLOCKED send to ${id.slice(0,8)}… (gap ${n-(p2pS.get(id)||0)}ms < ${GAP}ms)`);
       return false;
     }
     p2pS.set(id, n);
@@ -54,7 +51,6 @@
   function cR(id) {
     const n = Date.now();
     if (n - (p2pR.get(id) || 0) < GAP) {
-      L('RATE', `cR BLOCKED recv from ${id.slice(0,8)}… (gap ${n-(p2pR.get(id)||0)}ms < ${GAP}ms)`);
       return false;
     }
     p2pR.set(id, n);
@@ -871,7 +867,6 @@
       const now = Date.now();
       while (arr.length && now - arr[0] > win) arr.shift();
       if (arr.length >= max) {
-        L('RATE', `ctx.send BLOCKED for "${name}" — ${arr.length}/${max} msgs in ${win}ms`);
         return false;
       }
       arr.push(now); return true;
@@ -882,22 +877,18 @@
       saveProfile: SP, loadProfile: LP, updateFigureCount() {},
       send(type, data, pid) {
         if (!window.YM_P2P) {
-          L('MSG', `ctx.send("${type}") SKIPPED — window.YM_P2P is ${window.YM_P2P}`);
           return false;
         }
         if (!_rateOk(_sendTs, _SEND_MAX, _SEND_WIN)) return false;
         try {
           if (pid) {
             if (!cS(pid)) return false;
-            L('MSG', `ctx.send → sendTo peer ${pid.slice(0,8)}… type="${type}"`);
             window.YM_P2P.sendTo(pid, { sphere: name, type, data });
           } else {
-            L('MSG', `ctx.send → broadcast type="${type}" sphere="${name}"`);
             window.YM_P2P.broadcast({ sphere: name, type, data });
           }
           return true;
         } catch(e) {
-          L('MSG', `ctx.send ERROR: ${e.message}`);
           return false;
         }
       },
@@ -905,7 +896,6 @@
         const h = e => {
           try {
             if (e.detail.msg.sphere === name) {
-              L('MSG', `ctx.onReceive sphere="${name}" type="${e.detail.msg.type}" from=${e.detail.peerId?.slice(0,8)}…`);
               cb(e.detail.msg.type, e.detail.msg.data, e.detail.peerId);
             }
           } catch (e2) { console.warn('[YM ctx] onReceive:', name, e2.message); }
@@ -939,9 +929,7 @@
   const MANDATORY_SPHERES = ['social.sphere.js'];
 
   async function activateSphere(name, obj) {
-    L('SPHERE', `activateSphere("${name}") called — already in registry: ${window.YM_sphereRegistry.has(name)}`);
     if (window.YM_sphereRegistry.has(name)) {
-      L('SPHERE', `"${name}" already active, skipping`);
       return;
     }
 
@@ -953,23 +941,19 @@
     const ctx = mkCtx(name);
     obj._ctx = ctx;
     window.YM_sphereRegistry.set(name, obj);
-    L('SPHERE', `"${name}" added to registry. Registry size: ${window.YM_sphereRegistry.size}`);
 
     if (window.YM_Desk) window.YM_Desk.addIcon(name, obj.icon || '⬡', obj.name || name.replace('.sphere.js', ''));
     else setTimeout(() => { if (window.YM_Desk) window.YM_Desk.addIcon(name, obj.icon || '⬡', obj.name || name.replace('.sphere.js', '')); }, 500);
 
     if (typeof obj.activate === 'function') {
       _sA = true;
-      L('SPHERE', `"${name}" calling activate()…`);
       try {
         const timeoutP = new Promise((_, rej) => setTimeout(() => rej(new Error('activation timeout')), _ACT_TIMEOUT));
         const activateP = (() => { try { const r = obj.activate(ctx); return r && r.then ? r : Promise.resolve(); } catch (e) { return Promise.reject(e); } })();
         await Promise.race([activateP, timeoutP]);
         _sA = false;
-        L('SPHERE', `"${name}" activate() completed ✓`);
       } catch (e) {
         _sA = false;
-        L('SPHERE', `"${name}" activate() FAILED: ${e.message}`);
         console.warn('[YM] activate failed:', name, e.message);
         toast((obj.name || name) + ' failed to load: ' + e.message, 'error');
         try { if (typeof obj.deactivate === 'function') obj.deactivate(); } catch {}
@@ -979,14 +963,12 @@
         return;
       }
     } else {
-      L('SPHERE', `"${name}" has no activate() function`);
     }
 
     const p = OC();
     if (!p.spheres.includes(name)) { p.spheres.push(name); SP({ spheres: p.spheres }); }
     log('activate', { sphere: name });
     window.dispatchEvent(new CustomEvent('ym:sphere-activated', { detail: { name } }));
-    L('SPHERE', `"${name}" fully activated ✓ — dispatched ym:sphere-activated`);
   }
 
   function deactivateSphere(name) {
@@ -1157,39 +1139,18 @@
    * relays Nostr déjà ouverts — aucun WebRTC, aucun TURN requis.
    * Activé automatiquement après 60s sans peer join WebRTC.
    * ═══════════════════════════════════════════════════════════ */
-  async function _startNostrDirectTransport(appId, roomId, relayUrls) {
+  function _startNostrDirectTransport(appId, roomId, relayUrls) {
     if (window._ymNostrDT) return;
     window._ymNostrDT = true;
 
-    L('P2P', '════ NOSTR DIRECT TRANSPORT ════');
-    L('P2P', 'WebRTC/TURN bloqué → communication via WebSocket Nostr pur');
-
-    // ── Signing Nostr events — charge nostr-tools pour des events valides ──
-    // Les relays stricts rejettent les events sans signature valide
-    let _sign = null;
-    let _pubkey = null;
-
-    // Tente de charger nostr-tools pour un signing valide
-    try {
-      const nt = await import('https://esm.sh/nostr-tools@1.17.0');
-      // Réutiliser ou générer une clé privée persistante
-      let privkey = localStorage.getItem('ym_nostr_dt_sk');
-      if (!privkey || privkey.length !== 64) {
-        privkey = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-          .map(b => b.toString(16).padStart(2, '0')).join('');
-        localStorage.setItem('ym_nostr_dt_sk', privkey);
-      }
-      _pubkey = nt.getPublicKey(privkey);
-      _sign = (event) => nt.finishEvent(event, privkey);
-      L('P2P', `[NostrDT] nostr-tools chargé ✓ — pubkey: ${_pubkey.slice(0,16)}…`);
-    } catch(e) {
-      L('P2P', `[NostrDT] nostr-tools failed (${e.message}) → utilisation d'events non-signés`);
-      // Fallback : event avec ID et signature aléatoires (accepté par les relays laxistes)
-      const rndHex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)))
-        .map(b => b.toString(16).padStart(2, '0')).join('');
-      _pubkey = rndHex(32);
-      _sign = (ev) => ({ ...ev, id: rndHex(32), sig: rndHex(64) });
+    // Events non-signés — nos.lol, nostr.wine, snort acceptent kind:20000 sans vérification
+    // Pas d'import externe = démarrage instantané
+    function rndHex(n) {
+      return Array.from(crypto.getRandomValues(new Uint8Array(n)))
+        .map(b => b.toString(16).padStart(2,'0')).join('');
     }
+    const _pubkey = rndHex(32);
+    function _sign(ev) { return { ...ev, id: rndHex(32), sig: rndHex(64) }; }
 
     const _dtRoom   = `ym:${appId}:${roomId}`;
     const _dtSubId  = 'ymdt' + Array.from(crypto.getRandomValues(new Uint8Array(4)))
@@ -1210,7 +1171,6 @@
       const msg = JSON.stringify(['EVENT', ev]);
       let sent = 0;
       _dtSocks.filter(ws => ws.readyState === 1).forEach(ws => { ws.send(msg); sent++; });
-      if (sent === 0) L('P2P', `[NostrDT] ⚠️ Aucun relay OPEN pour publier type="${content.t}"`);
     }
 
     for (const url of (relayUrls || ['wss://nos.lol','wss://nostr.wine','wss://relay.snort.social','wss://nostr-pub.wellorder.net'])) {
@@ -1218,8 +1178,7 @@
       _dtSocks.push(ws);
 
       ws.addEventListener('open', () => {
-        L('P2P', `[NostrDT] ${url.replace('wss://','')}: OPEN ✓`);
-        // Subscribe aux events du room
+                // Subscribe aux events du room
         ws.send(JSON.stringify(['REQ', _dtSubId, {
           kinds: [20000],
           '#t':  [_dtRoom],
@@ -1232,8 +1191,8 @@
       ws.addEventListener('message', e => {
         try {
           const parsed = JSON.parse(e.data);
-          if (parsed[0] === 'NOTICE') { L('P2P', `[NostrDT] NOTICE from ${url.replace('wss://','')}: ${parsed[1]}`); return; }
-          if (parsed[0] === 'OK')     { L('P2P', `[NostrDT] OK from ${url.replace('wss://','')}: ${JSON.stringify(parsed.slice(1))}`); return; }
+          if (parsed[0] === 'NOTICE') { return; }
+          if (parsed[0] === 'OK')     { return; }
           if (parsed[0] !== 'EVENT')  return;
 
           const ev = parsed[2];
@@ -1250,8 +1209,7 @@
             const wasNew = !_dtPeers.has(from);
             _dtPeers.set(from, Date.now());
             if (wasNew) {
-              L('P2P', `[NostrDT] ✅ PEER JOIN: ${from.slice(0,8)}… (total: ${_dtPeers.size})`);
-              window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: from } }));
+                            window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: from } }));
               // Répondre pour qu'ils nous voient aussi
               dtPublish({ _ym: 1, t: 'hi', from: _pubkey });
               // Demander leur présence social immédiatement
@@ -1264,24 +1222,22 @@
             if (_dtPeers.has(from)) {
               _dtPeers.delete(from);
               p2pS.delete(from); p2pR.delete(from);
-              L('P2P', `[NostrDT] PEER LEAVE: ${from.slice(0,8)}…`);
-              window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: from } }));
+                            window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: from } }));
             }
           } else if (c.t === 'd') {
             if (!c.to || c.to === _pubkey) {
               const data = c.data;
               // Toujours laisser passer social:presence (bypass rate limit)
               if ((data && data.type === 'social:presence') || cR(from)) {
-                L('MSG', `[NostrDT] recv sphere="${data?.sphere}" type="${data?.type}" from=${from.slice(0,8)}…`);
                 window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: from, msg: data } }));
               }
             }
           }
-        } catch(e2) { L('P2P', `[NostrDT] parse error: ${e2.message}`); }
+        } catch(e2) {  }
       });
 
-      ws.addEventListener('close',  () => L('P2P', `[NostrDT] ${url.replace('wss://','')}: CLOSED`));
-      ws.addEventListener('error',  () => L('P2P', `[NostrDT] ${url.replace('wss://','')}: ERROR`));
+      ws.addEventListener('close',  () => {});
+      ws.addEventListener('error',  () => {});
     }
 
     // ── Remplacer YM_P2P pour acheminer les données via Nostr ──────────────
@@ -1289,12 +1245,10 @@
     window.YM_P2P = {
       // Diffusion → tous les peers connus via Nostr
       broadcast(d) {
-        L('MSG', `[NostrDT] broadcast type="${d?.type}" sphere="${d?.sphere}"`);
         dtPublish({ _ym: 1, t: 'd', from: _pubkey, to: null, data: d });
       },
       // Envoi direct → un peer spécifique
       sendTo(id, d) {
-        L('MSG', `[NostrDT] sendTo ${id?.slice(0,8)}… type="${d?.type}"`);
         dtPublish({ _ym: 1, t: 'd', from: _pubkey, to: id, data: d });
       },
       _nostrDT: true,
@@ -1318,23 +1272,16 @@
       for (const [id, ts] of _dtPeers) {
         if (now - ts > 90000) {
           _dtPeers.delete(id);
-          L('P2P', `[NostrDT] peer expired: ${id.slice(0,8)}…`);
-          window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
+                    window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         }
       }
     }, 30000);
 
-    L('P2P', `[NostrDT] ✅ Actif — room: ${_dtRoom} — pubkey: ${_pubkey.slice(0,16)}…`);
-    L('P2P', `[NostrDT] 💡 Les deux appareils doivent être sur cette version pour se voir`);
-  }
+    toast('P2P via Nostr Direct (WebRTC/TURN bloqué)', 'info');
+          }
 
   async function initP2P() {
-    L('P2P', '=== initP2P() START ===');
-    L('P2P', `Relays: ${JSON.stringify(YM_RELAYS)}`);
-    L('P2P', `AppId: "${YM_APPID}" | Room: "${YM_ROOM}"`);
-    L('P2P', `navigator.onLine: ${navigator.onLine}`);
-    L('P2P', `YM_TRANSPORT override: ${!!window.YM_TRANSPORT}`);
-
+                    
     // ── Monkey-patch RTCPeerConnection pour diagnostiquer ICE/NAT ────────────
     // Chaque PC créé par Trystero = une tentative de connexion avec un pair
     // Sans TURN : ICE reste en "checking" puis "failed" → pas de peer join
@@ -1345,25 +1292,6 @@
       let _pcCount = 0;
       let _pcActive = 0; // connexions réellement ouvertes (pas skipped)
 
-      // ── Test TURN depuis la console (Edge bloque new window._OrigRTC) ──────
-      // Usage : window.YM_TEST_TURN([{urls:'turn:freeturn.net:3479',username:'free',credential:'free'}],'freeturn')
-      //   .then(r => console.log((r.relays.length?'✅':'❌')+' '+r.label+': relay='+r.relays.length+(r.TIMEOUT?' TIMEOUT':'')))
-      window.YM_TEST_TURN = async function(servers, label) {
-        const pc = new _OrigRTC({ iceServers: Array.isArray(servers) ? servers : [servers] });
-        pc.createDataChannel('t');
-        await pc.setLocalDescription(await pc.createOffer());
-        return new Promise(function(resolve) {
-          var relays = [], srflx = [];
-          pc.onicecandidate = function(e) {
-            if (!e.candidate) { pc.close(); resolve({ label: label||'test', relays: relays, srflx: srflx }); return; }
-            if (e.candidate.type === 'relay') relays.push(e.candidate.address);
-            if (e.candidate.type === 'srflx') srflx.push(e.candidate.address);
-          };
-          setTimeout(function() { pc.close(); resolve({ label: label||'test', relays: relays, srflx: srflx, TIMEOUT: true }); }, 8000);
-        });
-      };
-      // Test rapide multi-TURN : Promise.all([window.YM_TEST_TURN([{urls:'turn:freeturn.net:3479',username:'free',credential:'free'}],'UDP'),window.YM_TEST_TURN([{urls:'turns:freeturn.net:5349',username:'free',credential:'free'}],'TLS')]).then(r=>r.forEach(x=>console.log((x.relays.length?'✅':'❌')+' '+x.label+': relay='+x.relays.length+(x.TIMEOUT?' TIMEOUT':''))))
-
       window.RTCPeerConnection = function(config) {
         const id = ++_pcCount;
         const iceUrls = (config?.iceServers || []).map(s => Array.isArray(s.urls) ? s.urls[0] : s.urls);
@@ -1371,47 +1299,37 @@
 
         // Limite : max 8 connexions ACTIVES simultanées (pas le total cumulé)
         if (_pcActive >= 8) {
-          L('P2P', `[RTC #${id}] 🚫 SKIPPED (${_pcActive} actives, limite 8)`);
-          const pc = new _OrigRTC(config);
+                    const pc = new _OrigRTC(config);
           setTimeout(() => { try { pc.close(); } catch(e) {} }, 50);
           return pc;
         }
 
         _pcActive++;
-        L('P2P', `[RTC #${id}] NEW — STUN:${iceUrls.filter(u=>u.startsWith('stun:')).length} TURN:${turnCount} | actives:${_pcActive}`);
-        const pc = new _OrigRTC(config);
+                const pc = new _OrigRTC(config);
         let _relayCount = 0;
 
         const _onClose = () => { _pcActive = Math.max(0, _pcActive - 1); };
         pc.addEventListener('connectionstatechange', () => {
-          L('P2P', `[RTC #${id}] connectionState → ${pc.connectionState}`);
-          if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
+                    if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') {
             _onClose();
           }
         });
         pc.addEventListener('iceconnectionstatechange', () => {
-          L('P2P', `[RTC #${id}] iceConnectionState → ${pc.iceConnectionState}`);
-          if (pc.iceConnectionState === 'failed') {
-            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relay=${_relayCount} (${_relayCount===0?'TURN bloqué':'TURN présent mais impossible'})`);
-            _onClose();
+                    if (pc.iceConnectionState === 'failed') {
+                        _onClose();
           }
           if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-            L('P2P', `[RTC #${id}] ✅ ICE CONNECTED !! relay=${_relayCount}`);
-          }
+                      }
         });
         pc.addEventListener('icegatheringstatechange', () => {
           if (pc.iceGatheringState === 'complete') {
-            L('P2P', `[RTC #${id}] gathering COMPLETE — relay:${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY':'✓'}`);
-            // Si pas de candidat relay : TURN bloqué sur ce réseau
+                        // Si pas de candidat relay : TURN bloqué sur ce réseau
             // Après 3 connexions confirmées sans relay → activer NDT sans attendre 45s
             if (_relayCount === 0) {
               window._ymNoTurnCount = (window._ymNoTurnCount || 0) + 1;
-              L('P2P', `[RTC #${id}] TURN absent (${window._ymNoTurnCount} connexions confirmées sans relay)`);
               if (window._ymNoTurnCount >= 3 && !window._ymNostrDT && _joinCount === 0) {
-                L('P2P', `[Fallback] ⚡ 3 connexions sans TURN → NDT immédiat (pas besoin d'attendre 45s)`);
                 clearTimeout(_dtFallbackTimer);
-                _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
-                  .catch(e => L('P2P', `[NostrDT] early trigger FAILED: ${e.message}`));
+                _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS);
               }
             }
           }
@@ -1420,58 +1338,59 @@
           if (e.candidate) {
             if (e.candidate.type === 'relay') {
               _relayCount++;
-              L('P2P', `[RTC #${id}] ✅ RELAY #${_relayCount} — ${e.candidate.address} (TURN ok!)`);
             } else if (e.candidate.type === 'srflx') {
-              L('P2P', `[RTC #${id}] srflx — ${e.candidate.address}`);
             }
           } else {
-            L('P2P', `[RTC #${id}] gathering complete — relay:${_relayCount}`);
-          }
+                      }
         });
         return pc;
       };
       window.RTCPeerConnection.prototype = _OrigRTC.prototype;
       Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
-      L('P2P', `RTCPeerConnection monkey-patched ✓ | window.YM_TEST_TURN() dispo pour tests TURN`);
-    }
+          }
 
     // Silencer les erreurs WebSocket dans la console (mais pas dans nos logs)
     window.addEventListener('error', e => {
       if (e.message && (e.message.includes('WebSocket') || e.message.includes('wss://'))) {
-        L('P2P', `WebSocket error intercepted: ${e.message}`);
-        e.stopImmediatePropagation();
+                e.stopImmediatePropagation();
       }
     }, true);
 
     const _origWarn  = console.warn;
     const _origError = console.error;
+    console.warn  = function () {
+      const msg = typeof arguments[0] === 'string' ? arguments[0] : '';
+      if (msg.includes('Trystero') || msg.includes('wss://')) {
+                return;
+      }
+      _origWarn.apply(console, arguments);
+    };
+    console.error = function () {
+      const msg = typeof arguments[0] === 'string' ? arguments[0] : '';
+      if (msg.includes('WebSocket') || msg.includes('wss://')) {
+                return;
+      }
+      _origError.apply(console, arguments);
+    };
 
     // ── YM_TRANSPORT override ──────────────────────────────────────────────
     if (window.YM_TRANSPORT) {
-      L('P2P', 'Using YM_TRANSPORT override…');
-      try {
+            try {
         const t = window.YM_TRANSPORT;
-        L('P2P', 'Calling t.connect()…');
-        await t.connect(YM_ROOM, YM_APPID);
-        L('P2P', 'YM_TRANSPORT.connect() OK ✓');
-
+                await t.connect(YM_ROOM, YM_APPID);
+        
         t.onMessage((pid, data) => {
-          L('MSG', `YM_TRANSPORT.onMessage from ${pid.slice(0,8)}… type="${data?.type}" sphere="${data?.sphere}"`);
           if ((data && data.type === 'social:presence') || cR(pid)) {
-            L('MSG', `→ dispatching ym:p2p-data`);
             window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
           } else {
-            L('MSG', `→ cR blocked dispatch for ${pid.slice(0,8)}…`);
           }
         });
         t.onPeerJoin(id => {
-          L('P2P', `YM_TRANSPORT: peer JOINED ${id.slice(0,8)}…`);
-          window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
+                    window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
           setTimeout(() => t.send(id, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 200);
         });
         t.onPeerLeave(id => {
-          L('P2P', `YM_TRANSPORT: peer LEFT ${id.slice(0,8)}…`);
-          p2pS.delete(id); p2pR.delete(id);
+                    p2pS.delete(id); p2pR.delete(id);
           window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         });
 
@@ -1480,8 +1399,7 @@
           sendTo(id, d)    { if (cS(id)) { L('MSG', `YM_P2P.sendTo ${id.slice(0,8)}… type="${d?.type}"`); t.send(id, d); } },
           transport: t,
         };
-        L('P2P', 'window.YM_P2P created via YM_TRANSPORT ✓');
-
+        
         setTimeout(() => t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }), 800);
         setInterval(() => { if (!document.hidden) t.send(null, { sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }); }, 30000);
         document.addEventListener('visibilitychange', () => {
@@ -1494,8 +1412,7 @@
         });
         return;
       } catch(e) {
-        L('P2P', `YM_TRANSPORT FAILED: ${e.message} — falling back to Trystero`);
-        _origWarn('[YM] YM_TRANSPORT failed, falling back to Trystero:', e.message);
+                _origWarn('[YM] YM_TRANSPORT failed, falling back to Trystero:', e.message);
       }
     }
 
@@ -1506,71 +1423,54 @@
     ];
 
     for (const cdn of cdns) {
-      L('P2P', `Trying CDN: ${cdn}`);
-      try {
-        L('P2P', `  import("${cdn}")…`);
-        const module = await import(cdn);
-        L('P2P', `  import OK ✓ — keys: ${Object.keys(module).join(', ')}`);
-
+            try {
+                const module = await import(cdn);
+        
         const { joinRoom, getRelaySockets } = module;
         if (typeof joinRoom !== 'function') {
-          L('P2P', `  joinRoom is not a function! type=${typeof joinRoom}`);
-          continue;
+                    continue;
         }
 
-        L('P2P', `  joinRoom({ appId:"${YM_APPID}", relayUrls:${JSON.stringify(YM_RELAYS)}, rtcConfig:{iceServers:${YM_ICE_SERVERS.length}} }, "${YM_ROOM}")…`);
         const room = joinRoom({
           appId: YM_APPID,
           relayUrls: YM_RELAYS,
           rtcConfig: { iceServers: YM_ICE_SERVERS },
         }, YM_ROOM);
-        L('P2P', `  joinRoom OK ✓ — room type: ${typeof room}`);
 
         const [send, recv] = room.makeAction('ym');
-
+        
         // ── Compteur de messages reçus ──
         let _recvCount = 0;
 
         recv((data, pid) => {
           _recvCount++;
-          L('MSG', `recv #${_recvCount} from ${pid?.slice(0,8)}… sphere="${data?.sphere}" type="${data?.type}"`);
-          L('MSG', `  social:presence check: ${data?.type === 'social:presence'} | cR: will check next`);
 
           if ((data && data.type === 'social:presence') || cR(pid)) {
-            L('MSG', `  → dispatching ym:p2p-data event`);
             window.dispatchEvent(new CustomEvent('ym:p2p-data', { detail: { peerId: pid, msg: data } }));
           } else {
-            L('MSG', `  → BLOCKED by cR rate limiter for ${pid?.slice(0,8)}…`);
           }
         });
 
         let _joinCount = 0;
         room.onPeerJoin(id => {
           _joinCount++;
-          L('P2P', `✅ PEER JOIN #${_joinCount}: ${id} (${id.slice(0,8)}…)`);
-          L('P2P', `   Dispatching ym:peer-join`);
-          window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
-          L('P2P', `   Sending presence-req to new peer in 200ms…`);
-          setTimeout(() => {
-            L('P2P', `   Sending presence-req to ${id.slice(0,8)}… now`);
-            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }, [id]);
+                              window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: id } }));
+                    setTimeout(() => {
+                        send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} }, [id]);
           }, 200);
         });
 
         room.onPeerLeave(id => {
-          L('P2P', `❌ PEER LEAVE: ${id.slice(0,8)}…`);
-          p2pS.delete(id); p2pR.delete(id);
+                    p2pS.delete(id); p2pR.delete(id);
           window.dispatchEvent(new CustomEvent('ym:peer-leave', { detail: { peerId: id } }));
         });
 
         window.YM_P2P = {
           broadcast(d) {
-            L('MSG', `YM_P2P.broadcast type="${d?.type}" sphere="${d?.sphere}"`);
             send(d);
           },
           sendTo(id, d) {
             if (cS(id)) {
-              L('MSG', `YM_P2P.sendTo ${id.slice(0,8)}… type="${d?.type}"`);
               send(d, [id]);
             }
           },
@@ -1580,26 +1480,21 @@
           _joinCount: () => _joinCount,
           _getRelaySockets: typeof getRelaySockets === 'function' ? getRelaySockets : null,
         };
-        L('P2P', `✅ window.YM_P2P created via Trystero (${cdn})`);
-        L('P2P', `   Sending initial presence-req broadcast in 800ms…`);
-
+                
         setTimeout(() => {
-          L('P2P', `Sending initial social:presence-req broadcast`);
-          send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+                    send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
         }, 800);
 
         setInterval(() => {
           if (!document.hidden) {
-            L('P2P', `[30s heartbeat] sending presence-req broadcast`);
-            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+                        send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
           }
         }, 30000);
 
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) {
             requestAnimationFrame(() => {
-              L('P2P', `[visibilitychange→visible] sending presence-req`);
-              send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
+                            send({ sphere: 'social.sphere.js', type: 'social:presence-req', data: {} });
               window.dispatchEvent(new CustomEvent('ym:peer-join', { detail: { peerId: '_self_' } }));
             });
           }
@@ -1609,14 +1504,9 @@
         // Se déclenche après 45s sans peer WebRTC, ou immédiatement si forcé
         // Force immédiat : window.YM_FORCE_NOSTR_DT = true puis recharger
         const _dtDelay = window.YM_FORCE_NOSTR_DT ? 1000 : 45000;
-        L('P2P', `[Fallback] NostrDT se déclenchera dans ${_dtDelay/1000}s si aucun peer WebRTC`);
         const _dtFallbackTimer = setTimeout(() => {
           if (_joinCount === 0 && !window._ymNostrDT) {
-            L('P2P', `[Fallback] ⚡ Activation Nostr Direct Transport (${_dtDelay/1000}s sans peer WebRTC)`);
-            _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
-              .catch(e => L('P2P', `[NostrDT] FAILED: ${e.message}`));
-          } else {
-            L('P2P', `[Fallback] Annulé — joins:${_joinCount} _ymNostrDT:${!!window._ymNostrDT}`);
+            _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS);
           }
         }, _dtDelay);
         // Annuler si un vrai peer WebRTC rejoint (pas _self_)
@@ -1624,8 +1514,7 @@
           if (e.detail?.peerId && e.detail.peerId !== '_self_') {
             clearTimeout(_dtFallbackTimer);
             window.removeEventListener('ym:peer-join', _cancelDTOnRealJoin);
-            L('P2P', `[Fallback] ✓ Peer WebRTC reçu (${e.detail.peerId.slice(0,8)}…) — NostrDT annulé`);
-          }
+                      }
         }
         window.addEventListener('ym:peer-join', _cancelDTOnRealJoin);
         // Exposer pour forcer manuellement depuis la console :
@@ -1634,27 +1523,21 @@
         return; // SUCCESS — sortir du for loop
 
       } catch (e) {
-        L('P2P', `❌ CDN ${cdn} FAILED: ${e.message}`);
-        L('P2P', `   stack: ${e.stack?.split('\n')[0]}`);
-        _origWarn('[YM] P2P:', cdn, e.message);
+                        _origWarn('[YM] P2P:', cdn, e.message);
       }
     }
 
-    L('P2P', '❌ ALL CDNs FAILED — P2P disabled. window.YM_P2P remains undefined');
-    L('P2P', 'Check: 1) Network blocks ESM CDNs?  2) CSP headers?  3) import() allowed?');
-  }
+          }
 
   /* ═══════════════════════════════════════════════════════════
    * LOADERS
    * ═══════════════════════════════════════════════════════════ */
   function loadScript(src) {
-    L('SCRIPT', `loadScript("${src.split('/').pop()}")`);
     if (src.startsWith('https://')) {
       const url = src + (src.includes('?') ? '&' : '?') + '_=' + Date.now();
       return fetch(url)
         .then(r => {
           if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + src);
-          L('SCRIPT', `  fetch OK (${r.status}) for ${src.split('/').pop()}`);
           return r.text();
         })
         .then(code => new Promise((res, rej) => {
@@ -1758,7 +1641,6 @@
   }
 
   async function loadSphereURL(url, name) {
-    L('SPHERE', `loadSphereURL("${name || url.split('/').pop()}")`);
     if (_sA) { console.warn('[YM] blocked nested load'); return null; }
 
     const isExternal = !url.includes('.sphere.js') &&
@@ -1877,16 +1759,14 @@
   }
 
   async function init() {
-    L('INIT', '=== init() START ===');
     OC();
     const myProfile = LP();
-    L('INIT', `Profile: uuid=${myProfile?.uuid?.slice(0,8)}… name="${myProfile?.name}" spheres=${JSON.stringify(myProfile?.spheres)}`);
 
     await _applyRandomThemeOnFirstVisit();
     if (window.YM_Desk) window.YM_Desk.deskInit();
 
     const scripts = ['mine.js', 'liste.js', 'build.js', 'ai.js', 'profile.js'];
-    await Promise.allSettled(scripts.map(async (m) => {
+    for (const m of scripts) {
       try {
         const url = (m === 'liste.js' && window.YM_LISTE_URL) ? window.YM_LISTE_URL : GH_BASE + m;
         await loadScript(url);
@@ -1894,7 +1774,7 @@
       catch (e) {
         console.warn('[YM]', m, e.message);
       }
-    }));
+    }
 
     _wrapSignWithConfirmation();
     setTimeout(_wrapSignWithConfirmation, 2000);
@@ -1902,46 +1782,26 @@
     window.addEventListener('ym:wallet-unlocked', () => switchMineTab('wallet'));
     window.addEventListener('ym:wallet-locked',   () => switchMineTab('wallet'));
 
-    // ── Écouter les événements P2P globaux pour le debug ──────────────────
-    window.addEventListener('ym:peer-join',  e => L('P2P', `[EVENT] ym:peer-join peerId=${e.detail?.peerId?.slice(0,8)}…`));
-    window.addEventListener('ym:peer-leave', e => L('P2P', `[EVENT] ym:peer-leave peerId=${e.detail?.peerId?.slice(0,8)}…`));
-    window.addEventListener('ym:p2p-data',   e => L('MSG', `[EVENT] ym:p2p-data sphere="${e.detail?.msg?.sphere}" type="${e.detail?.msg?.type}" from=${e.detail?.peerId?.slice(0,8)}…`));
-
-    L('INIT', 'Starting P2P (fire and forget)…');
-    initP2P(); // intentionnellement pas awaité
+    initP2P();
 
     setTimeout(async function() {
-      L('INIT', `=== sphere restore START === (YM_P2P exists: ${!!window.YM_P2P})`);
-
       const p = LP();
-      L('INIT', `Spheres to restore: ${JSON.stringify(p?.spheres)}`);
-
       if (p && p.spheres && p.spheres.length) {
         await Promise.allSettled(
           p.spheres
             .filter(sname => !window.YM_sphereRegistry || !window.YM_sphereRegistry.has(sname))
-            .map(sname => {
-              L('SPHERE', `Restoring sphere "${sname}"…`);
-              return window.YM_Liste
-                ? window.YM_Liste.activateSphereByName(sname).catch(e => {
-                    L('SPHERE', `Restore FAILED "${sname}": ${e.message}`);
-                  })
-                : Promise.resolve();
-            })
+            .map(sname => window.YM_Liste
+              ? window.YM_Liste.activateSphereByName(sname).catch(e => console.warn('[YM] restore:', sname, e.message))
+              : Promise.resolve()
+            )
         );
       }
-
       try { if (window.YM_Liste && window.YM_Liste.fetchSphereList) window.YM_Liste.fetchSphereList(); } catch {}
 
       const _socId = 'social.sphere.js';
-      L('SPHERE', `social.sphere.js in registry: ${window.YM_sphereRegistry?.has(_socId)}`);
       if (window.YM_Liste && !window.YM_sphereRegistry.has(_socId)) {
-        L('SPHERE', `Activating social.sphere.js…`);
-        try {
-          await window.YM_Liste.activateSphereByName(_socId);
-          L('SPHERE', `social.sphere.js activated ✓`);
-        }
-        catch (e) { L('SPHERE', `social.sphere.js FAILED: ${e.message}`); console.warn('[YM] social:', e.message); }
+        try { await window.YM_Liste.activateSphereByName(_socId); }
+        catch (e) { console.warn('[YM] social:', e.message); }
       }
 
       const _themeMeta = window.YM_THEME_META || {};
@@ -2021,7 +1881,6 @@
       });
     }
 
-    L('INIT', '=== init() END ===');
   }
 
   /* Lance tout */
