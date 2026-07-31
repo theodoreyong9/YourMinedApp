@@ -635,9 +635,54 @@ function renderPeerProfile(container,profile){
     }
     var ctx={uuid:profile.uuid,isNear:isNear,isReciproc:isReciproc,profile:profile};
     if(shared.length){var st2=document.createElement('div');st2.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin:12px 0 6px';st2.textContent='Spheres in common';container.appendChild(st2);shared.forEach(function(sf){_renderPeerAccordion(container,sf,ctx);});}
-    if(others.length){var ot=document.createElement('div');ot.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';ot.textContent='Other spheres';container.appendChild(ot);
-      others.forEach(function(sphereFile){var sphereName=sphereFile.replace('.sphere.js','');var sphereObj=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sphereFile);var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm,8px);margin-bottom:6px;cursor:pointer;opacity:.7';var icon=(sphereObj&&sphereObj.icon)||'⬡';row.innerHTML='<span style="font-size:16px">'+icon+'</span><span style="font-size:12px;flex:1">'+sphereName+'</span><span style="font-size:11px;color:var(--accent)">↗ Find</span>';row.addEventListener('click',function(){if(window.YM_Liste&&window.YM_Liste._searchAndOpen)window.YM_Liste._searchAndOpen(sphereName);if(window.YM&&window.YM.openPanel)window.YM.openPanel('panel-spheres');});container.appendChild(row);});
+    if(others.length){
+      var ot=document.createElement('div');ot.style.cssText='font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin:12px 0 6px';ot.textContent='Other spheres';container.appendChild(ot);
+      var otherWrap=document.createElement('div');container.appendChild(otherWrap);
+      _renderOtherSpheres(otherWrap,others);
     }
+  }
+}
+
+// ── "Other spheres" — sphères que le pair a mais que je n'ai pas ────────────
+// FIX: on cherchait l'icône uniquement dans window.YM_sphereRegistry, qui ne
+// contient QUE les sphères actives sur CE device. Une "other sphere" par
+// définition n'est jamais dans mySpheres donc jamais active ici → l'icône
+// retombait systématiquement sur le placeholder générique '⬡'.
+// On lit désormais le manifeste sûr et non-exécutable maintenu par liste.js
+// (window.YM_Liste._sphereList — nom/icône/catégorie, jamais le code lui-même),
+// qui est rempli pour TOUTES les sphères du registre, actives ou non.
+// Si ce manifeste n'est pas encore chargé au premier rendu, on déclenche son
+// fetch et on re-rend juste cette section une fois les données disponibles.
+function _sphereMetaFor(sphereFile){
+  var list=window.YM_Liste&&window.YM_Liste._sphereList;
+  var meta=list&&list.find(function(s){return s.fileName===sphereFile;});
+  if(meta)return meta;
+  // Sphère active malgré tout (rare pour "other", mais robuste si jamais) :
+  var live=window.YM_sphereRegistry&&window.YM_sphereRegistry.get(sphereFile);
+  if(live)return{name:live.name,icon:live.icon,category:live.category,fileName:sphereFile};
+  return null;
+}
+function _renderOtherSpheres(container,others){
+  container.innerHTML='';
+  var listLoaded=!!(window.YM_Liste&&window.YM_Liste._sphereList&&window.YM_Liste._sphereList.length);
+  others.forEach(function(sphereFile){
+    var sphereName=sphereFile.replace('.sphere.js','');
+    var meta=_sphereMetaFor(sphereFile);
+    var icon=(meta&&meta.icon)||'⬡';
+    var iconIsUrl=icon&&(icon.indexOf('http')===0||icon.indexOf('/')===0);
+    var iconHtml=iconIsUrl
+      ?'<img src="'+esc(icon)+'" style="width:16px;height:16px;border-radius:3px;object-fit:contain">'
+      :'<span style="font-size:16px">'+esc(icon)+'</span>';
+    var displayName=(meta&&meta.name)||sphereName;
+    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm,8px);margin-bottom:6px;cursor:pointer;opacity:.7';
+    row.innerHTML=iconHtml+'<span style="font-size:12px;flex:1">'+esc(displayName)+'</span><span style="font-size:11px;color:var(--accent)">↗ Find</span>';
+    row.addEventListener('click',function(){if(window.YM_Liste&&window.YM_Liste._searchAndOpen)window.YM_Liste._searchAndOpen(sphereName);if(window.YM&&window.YM.openPanel)window.YM.openPanel('panel-spheres');});
+    container.appendChild(row);
+  });
+  if(!listLoaded&&window.YM_Liste&&window.YM_Liste.fetchSphereList){
+    window.YM_Liste.fetchSphereList().then(function(){
+      if(document.body.contains(container))_renderOtherSpheres(container,others);
+    }).catch(function(){});
   }
 }
 
