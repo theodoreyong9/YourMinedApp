@@ -1,10 +1,9 @@
-window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué par NAT
 /**
  * app.js — YourMine core logic
  * GitHub: theodoreyong9/YourMinedApp/src/app.js
  * DEBUG BUILD — logs préfixés [YM:*]
  */
-
+window.YM_FORCE_NOSTR_DT = true;
 ;(function () {
   'use strict';
 
@@ -711,21 +710,97 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
   }
 
   function checkURLRoute() {
+    // ── Résolution d'un profil publié (UUID ou nom) via le registre ────────
+    // Réutilise le même pattern que l'onglet Search de social.sphere.js :
+    // name.json (nom→uuid) + profile.json (uuid→{name,bio,spheres,profileSphere,…}).
+    // Renvoie un objet profile minimal si rien n'est trouvé dans le registre
+    // (fallback : {uuid} seul, enrichi ensuite via le gossip/contacts locaux
+    // par renderPeerProfile côté profile.js).
+    async function _resolveProfileSegment(seg) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg);
+      const registryUrl = (window.YM_REGISTRY_OVERRIDE && window.YM_REGISTRY_OVERRIDE.url) || '';
+      const repoMatch = registryUrl.match(/raw\.githubusercontent\.com\/([^/]+\/[^/]+)/);
+      const base = repoMatch ? 'https://raw.githubusercontent.com/' + repoMatch[1] + '/main'
+                              : 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main';
+      const t = '?t=' + Date.now();
+      let uuid = isUuid ? seg : null;
+      let profile = isUuid ? { uuid: seg } : null;
+      try {
+        if (!uuid) {
+          // seg est traité comme un nom publié — résoudre via name.json
+          const names = await fetch(base + '/name.json' + t, { mode: 'cors' }).then(r => r.ok ? r.json() : {});
+          uuid = names[seg] || null;
+          if (!uuid) return null;
+          profile = { uuid };
+        }
+        const profiles = await fetch(base + '/profile.json' + t, { mode: 'cors' }).then(r => r.ok ? r.json() : []);
+        const entry = Array.isArray(profiles) ? profiles.find(p => p.uuid === uuid) : null;
+        if (entry) profile = Object.assign({}, profile, entry);
+      } catch {}
+      return profile;
+    }
+
+    // Après ouverture d'un profil, si une sphère était demandée en plus
+    // (ex: uuid.profile/social.sphere), on tente de déplier l'accordéon
+    // correspondant DANS la vue profil déjà ouverte. NB: ceci ne fonctionne
+    // que pour les sphères listées sous "Spheres in common" (celles que
+    // l'on a soi-même activées) — les "Other spheres" ne sont pas des
+    // accordéons dépliables dans l'UI actuelle, juste un lien "↗ Find"
+    // vers la liste des sphères (voir la remarque sur les icônes plus bas).
+    function _tryExpandSphereInProfileView(sphereId, attemptsLeft) {
+      attemptsLeft = attemptsLeft == null ? 10 : attemptsLeft;
+      const body = document.getElementById('panel-profile-view-body');
+      if (!body) { if (attemptsLeft > 0) setTimeout(() => _tryExpandSphereInProfileView(sphereId, attemptsLeft - 1), 300); return; }
+      const label = sphereId.replace('.sphere.js', '');
+      const headers = Array.from(body.querySelectorAll('div'))
+        .filter(el => el.children.length && el.textContent.trim() === label && el.parentElement && el.parentElement.children.length === 2);
+      if (!headers.length) { if (attemptsLeft > 0) setTimeout(() => _tryExpandSphereInProfileView(sphereId, attemptsLeft - 1), 300); return; }
+      // Le header attendu est le <span> portant le nom ; on remonte à son conteneur cliquable
+      const span = headers.find(h => h.tagName === 'SPAN') || headers[0];
+      const hdr = span.closest('div');
+      if (hdr) { hdr.click(); hdr.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    }
+
+    const handleProfile = (afterOpen) => {
+      if (!profileSegment) { if (afterOpen) afterOpen(); return; }
+      setTimeout(async () => {
+        const profile = await _resolveProfileSegment(profileSegment);
+        if (!profile) {
+          toast('Profil "' + profileSegment + '" introuvable dans le registre', 'error');
+          if (afterOpen) afterOpen();
+          return;
+        }
+        if (window.YM && window.YM.openProfilePanel) window.YM.openProfilePanel(profile);
+        if (sphereSegment) {
+          setTimeout(() => _tryExpandSphereInProfileView(sphereSegment), 400);
+        }
+        if (afterOpen) afterOpen();
+      }, 1400);
+    };
+
     const parts = location.pathname.replace(/^\//, '').split('/').filter(Boolean);
     const _GH_RAW = window._YM_GH_RAW || 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/src/';
     const THEMES_FILES_URL = _GH_RAW.replace('/src/', '/') + 'themes-files.json';
 
-    let themeSegment  = null;
-    let sphereSegment = null;
+    let themeSegment   = null;
+    let sphereSegment  = null;
+    let profileSegment = null;
 
     parts.forEach(function(seg) {
       const tm = seg.match(/^([\w-]+)\.theme$/i);
       if (tm) themeSegment = tm[1];
       const sm = seg.match(/^([\w-]+)\.sphere(\.js)?$/i);
       if (sm) sphereSegment = sm[1] + '.sphere.js';
+      const pm = seg.match(/^([\w-]+)\.profile$/i);
+      if (pm) profileSegment = pm[1];
     });
 
+    // Un profil demandé en même temps qu'une sphère "consomme" la sphère
+    // pour l'ouvrir DANS la vue profil (uuid.profile/social.sphere) plutôt
+    // que d'ouvrir la sphère seule en plus. handleSphere() ne s'exécute
+    // donc que si aucun profil n'est demandé.
     const handleSphere = () => {
+      if (profileSegment) { handleProfile(); return; }
       if (!sphereSegment) return;
       const n = sphereSegment;
       setTimeout(async () => {
@@ -758,9 +833,11 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           const c2 = _GH_RAW + 'themes/' + themeSegment + '.html';
           try { const r = await fetch(c2 + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' }); if (r.ok) themeUrl = c2; } catch {}
         }
+        const _restSegments = [sphereSegment ? sphereSegment.replace('.sphere.js','.sphere') : null, profileSegment ? profileSegment + '.profile' : null].filter(Boolean);
+        const _restPath = _restSegments.length ? '/' + _restSegments.join('/') : '/';
         if (!themeUrl) {
           toast('Thème "' + themeSegment + '" introuvable', 'error');
-          history.replaceState(null, '', sphereSegment ? '/' + sphereSegment.replace('.sphere.js','.sphere') : '/');
+          history.replaceState(null, '', _restPath);
           handleSphere();
           return;
         }
@@ -768,11 +845,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         if (themeUrl !== cur) {
           localStorage.setItem('ym_theme_url', themeUrl);
           localStorage.removeItem('ym_theme_cache');
-          if (sphereSegment) {
-            history.replaceState(null, '', '/' + sphereSegment.replace('.sphere.js','.sphere'));
-          } else {
-            history.replaceState(null, '', '/');
-          }
+          history.replaceState(null, '', _restPath);
           location.reload();
         } else {
           handleSphere();
@@ -785,8 +858,15 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
   }
 
   setTimeout(function(){
-    var _hasThemeSegment = location.pathname.split('/').some(function(s){ return /\.theme$/i.test(s); });
-    if(_hasThemeSegment) checkURLRoute();
+    // FIX: cette garde ne testait auparavant QUE la présence d'un segment
+    // "*.theme" dans l'URL — un segment "*.sphere" (ou "*.sphere.js") tout seul
+    // ne déclenchait donc jamais checkURLRoute(), et le routing automatique
+    // vers une sphère ne fonctionnait pour aucune URL de la forme
+    // "/social.sphere" sans thème associé. On teste maintenant les deux formes.
+    var _hasRouteSegment = location.pathname.split('/').some(function(s){
+      return /\.theme$/i.test(s) || /\.sphere(\.js)?$/i.test(s) || /\.profile$/i.test(s);
+    });
+    if(_hasRouteSegment) checkURLRoute();
   }, 100);
 
   function togglePanel(id, onOpen) {
@@ -1323,12 +1403,10 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
       _getRelaySockets: _oldP2P?._getRelaySockets,
     };
 
-    // ── Heartbeat toutes les 5s — toujours rapide ──────────────────────────
-    // Raison : peer qui charge après = détecté en max 5s au lieu de 25s
-    // Coût : ~144KB/h par peer (events éphémères non stockés) — négligeable
+    // ── Heartbeat toutes les 25s ────────────────────────────────────────────
     const _dtHB = setInterval(() => {
       if (!document.hidden) dtPublish({ _ym: 1, t: 'hi', from: _pubkey });
-    }, 5000);
+    }, 25000);
 
     // ── Nettoyage des peers fantômes (>90s sans heartbeat) ─────────────────
     const _dtClean = setInterval(() => {
@@ -1370,28 +1448,10 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
     if (!window._ymRTCPatched) {
       window._ymRTCPatched = true;
       const _OrigRTC = window.RTCPeerConnection;
+      // Exposé pour les tests console : new window._YM_ORIG_RTC({iceServers:[...]})
+      window._YM_ORIG_RTC = _OrigRTC;
       let _pcCount = 0;
       let _pcActive = 0; // connexions réellement ouvertes (pas skipped)
-
-      // ── Test TURN depuis la console (Edge bloque new window._OrigRTC) ──────
-      // Usage : window.YM_TEST_TURN([{urls:'turn:freeturn.net:3479',username:'free',credential:'free'}],'freeturn')
-      //   .then(r => console.log((r.relays.length?'✅':'❌')+' '+r.label+': relay='+r.relays.length+(r.TIMEOUT?' TIMEOUT':'')))
-      window.YM_TEST_TURN = async function(servers, label) {
-        const pc = new _OrigRTC({ iceServers: Array.isArray(servers) ? servers : [servers] });
-        pc.createDataChannel('t');
-        await pc.setLocalDescription(await pc.createOffer());
-        return new Promise(function(resolve) {
-          var relays = [], srflx = [];
-          pc.onicecandidate = function(e) {
-            if (!e.candidate) { pc.close(); resolve({ label: label||'test', relays: relays, srflx: srflx }); return; }
-            if (e.candidate.type === 'relay') relays.push(e.candidate.address);
-            if (e.candidate.type === 'srflx') srflx.push(e.candidate.address);
-          };
-          setTimeout(function() { pc.close(); resolve({ label: label||'test', relays: relays, srflx: srflx, TIMEOUT: true }); }, 8000);
-        });
-      };
-      // Test rapide multi-TURN : Promise.all([window.YM_TEST_TURN([{urls:'turn:freeturn.net:3479',username:'free',credential:'free'}],'UDP'),window.YM_TEST_TURN([{urls:'turns:freeturn.net:5349',username:'free',credential:'free'}],'TLS')]).then(r=>r.forEach(x=>console.log((x.relays.length?'✅':'❌')+' '+x.label+': relay='+x.relays.length+(x.TIMEOUT?' TIMEOUT':''))))
-
       window.RTCPeerConnection = function(config) {
         const id = ++_pcCount;
         const iceUrls = (config?.iceServers || []).map(s => Array.isArray(s.urls) ? s.urls[0] : s.urls);
@@ -1420,7 +1480,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         pc.addEventListener('iceconnectionstatechange', () => {
           L('P2P', `[RTC #${id}] iceConnectionState → ${pc.iceConnectionState}`);
           if (pc.iceConnectionState === 'failed') {
-            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relay=${_relayCount} (${_relayCount===0?'TURN bloqué':'TURN présent mais impossible'})`);
+            L('P2P', `[RTC #${id}] ❌ ICE FAILED — relay=${_relayCount} (${_relayCount===0?'TURN bloqué':'TURN présent mais connexion impossible'})`);
             _onClose();
           }
           if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
@@ -1429,19 +1489,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
         });
         pc.addEventListener('icegatheringstatechange', () => {
           if (pc.iceGatheringState === 'complete') {
-            L('P2P', `[RTC #${id}] gathering COMPLETE — relay:${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY':'✓'}`);
-            // Si pas de candidat relay : TURN bloqué sur ce réseau
-            // Après 3 connexions confirmées sans relay → activer NDT sans attendre 45s
-            if (_relayCount === 0) {
-              window._ymNoTurnCount = (window._ymNoTurnCount || 0) + 1;
-              L('P2P', `[RTC #${id}] TURN absent (${window._ymNoTurnCount} connexions confirmées sans relay)`);
-              if (window._ymNoTurnCount >= 3 && !window._ymNostrDT && _joinCount === 0) {
-                L('P2P', `[Fallback] ⚡ 3 connexions sans TURN → NDT immédiat (pas besoin d'attendre 45s)`);
-                clearTimeout(_dtFallbackTimer);
-                _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
-                  .catch(e => L('P2P', `[NostrDT] early trigger FAILED: ${e.message}`));
-              }
-            }
+            L('P2P', `[RTC #${id}] gathering COMPLETE — relay:${_relayCount} ${_relayCount===0?'⚠️ AUCUN RELAY — TURN ne répond pas':'✓'}`);
           }
         });
         pc.addEventListener('icecandidate', e => {
@@ -1450,7 +1498,7 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
               _relayCount++;
               L('P2P', `[RTC #${id}] ✅ RELAY #${_relayCount} — ${e.candidate.address} (TURN ok!)`);
             } else if (e.candidate.type === 'srflx') {
-              L('P2P', `[RTC #${id}] srflx — ${e.candidate.address}`);
+              L('P2P', `[RTC #${id}] srflx — IP: ${e.candidate.address}`);
             }
           } else {
             L('P2P', `[RTC #${id}] gathering complete — relay:${_relayCount}`);
@@ -1460,7 +1508,11 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
       };
       window.RTCPeerConnection.prototype = _OrigRTC.prototype;
       Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
-      L('P2P', `RTCPeerConnection monkey-patched ✓ | window.YM_TEST_TURN() dispo pour tests TURN`);
+      L('P2P', `RTCPeerConnection monkey-patched ✓ (window._YM_ORIG_RTC = original pour tests console)`);
+      // Copier le prototype pour que instanceof RTCPeerConnection continue de fonctionner
+      window.RTCPeerConnection.prototype = _OrigRTC.prototype;
+      Object.defineProperty(window.RTCPeerConnection, 'name', { value: 'RTCPeerConnection' });
+      L('P2P', `RTCPeerConnection monkey-patched ✓`);
     }
 
     // Silencer les erreurs WebSocket dans la console (mais pas dans nos logs)
@@ -1716,31 +1768,25 @@ window.YM_FORCE_NOSTR_DT = true; // NDT démarre en 1s — WebRTC mobile bloqué
           if (_diagCount >= 12) clearInterval(_diagInterval);
         }, 10000);
 
-        // ── Fallback Nostr Direct Transport ──────────────────────────────────
-        // Se déclenche après 45s sans peer WebRTC, ou immédiatement si forcé
-        // Force immédiat : window.YM_FORCE_NOSTR_DT = true puis recharger
-        const _dtDelay = window.YM_FORCE_NOSTR_DT ? 1000 : 45000;
-        L('P2P', `[Fallback] NostrDT se déclenchera dans ${_dtDelay/1000}s si aucun peer WebRTC`);
+        // ── Fallback Nostr Direct Transport (si WebRTC/TURN bloqué) ──────────
+        // Se déclenche après 60s sans aucun peer join
+        // Utilise les WebSockets Nostr déjà ouverts pour envoyer les données directement
+        // sans WebRTC — traverse tout NAT/firewall autorisant wss://
         const _dtFallbackTimer = setTimeout(() => {
           if (_joinCount === 0 && !window._ymNostrDT) {
-            L('P2P', `[Fallback] ⚡ Activation Nostr Direct Transport (${_dtDelay/1000}s sans peer WebRTC)`);
+            L('P2P', `[Fallback] 60s sans peer join — activation Nostr Direct Transport`);
             _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS)
               .catch(e => L('P2P', `[NostrDT] FAILED: ${e.message}`));
-          } else {
-            L('P2P', `[Fallback] Annulé — joins:${_joinCount} _ymNostrDT:${!!window._ymNostrDT}`);
           }
-        }, _dtDelay);
-        // Annuler si un vrai peer WebRTC rejoint (pas _self_)
-        function _cancelDTOnRealJoin(e) {
-          if (e.detail?.peerId && e.detail.peerId !== '_self_') {
+        }, 60000);
+        // Annuler le fallback si un peer WebRTC arrive avant
+        window.addEventListener('ym:peer-join', function _cancelDT(e) {
+          if (e.detail?.peerId !== '_self_') {
             clearTimeout(_dtFallbackTimer);
-            window.removeEventListener('ym:peer-join', _cancelDTOnRealJoin);
-            L('P2P', `[Fallback] ✓ Peer WebRTC reçu (${e.detail.peerId.slice(0,8)}…) — NostrDT annulé`);
+            window.removeEventListener('ym:peer-join', _cancelDT);
+            L('P2P', `[Fallback] Peer WebRTC reçu — Nostr Direct Transport annulé`);
           }
-        }
-        window.addEventListener('ym:peer-join', _cancelDTOnRealJoin);
-        // Exposer pour forcer manuellement depuis la console :
-        window.YM_START_NOSTR_DT = () => _startNostrDirectTransport(YM_APPID, YM_ROOM, YM_RELAYS);
+        });
 
         return; // SUCCESS — sortir du for loop
 
