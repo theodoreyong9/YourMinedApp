@@ -472,7 +472,8 @@ function renderContactsTab(container){
       var fav=isFav(c.uuid);
       var isNear=!!(window.YM_Social&&window.YM_Social._nearUsers&&window.YM_Social._nearUsers.has(c.uuid));
       var isReciproc=!!(window.YM_Social&&window.YM_Social.isReciprocal&&window.YM_Social.isReciprocal(c.uuid));
-      var canCall=isNear&&isReciproc;
+      var hasCall=!!(window.YM_sphereRegistry&&window.YM_sphereRegistry.has('call.sphere.js'));
+      var canCall=isNear&&isReciproc&&hasCall;
       var hasMsg=!!(window.YM_sphereRegistry&&window.YM_sphereRegistry.has('messenger.sphere.js'));
       var card=document.createElement('div');card.className='ym-card';card.style.cssText='cursor:pointer;margin-bottom:8px';
       var avImg='<img src="'+prof.avatar+'" style="width:40px;height:40px;border-radius:50%;object-fit:cover;flex-shrink:0">';
@@ -495,7 +496,7 @@ function renderContactsTab(container){
       var msgBtn=card.querySelector('[data-msg]');
       if(msgBtn){msgBtn.addEventListener('click',function(e){e.stopPropagation();if(window.YM_Messenger&&window.YM_Messenger.openConv)window.YM_Messenger.openConv(c.uuid);if(window.YM&&window.YM.openSpherePanel)window.YM.openSpherePanel('messenger.sphere.js');});}
       var callBtn=card.querySelector('[data-call]');
-      if(callBtn){callBtn.addEventListener('click',function(e){e.stopPropagation();if(window.YM_Social&&window.YM_Social.startVoiceCall)window.YM_Social.startVoiceCall(c.uuid);});}
+      if(callBtn){callBtn.addEventListener('click',function(e){e.stopPropagation();if(window.YM_Call&&window.YM_Call.startVoiceCall)window.YM_Call.startVoiceCall(c.uuid);});}
       card.addEventListener('click',function(e){
         if(e.target.closest('[data-contact-header]')&&!e.target.closest('[data-fav]')&&!e.target.closest('[data-del]')&&!e.target.closest('[data-msg]')&&!e.target.closest('[data-call]')){
           if(window.YM&&window.YM.openProfilePanel)window.YM.openProfilePanel(prof);
@@ -571,7 +572,16 @@ function showShare(){
 }
 
 function renderPeerProfile(container,profile){
-  container.innerHTML='';container.style.cssText='flex:1;overflow-y:auto;padding:16px';
+  container.innerHTML='';
+  // FIX: min-height:0 est indispensable ici — sans lui, un enfant flex avec
+  // overflow-y:auto ne peut pas se réduire sous la hauteur de son contenu
+  // (comportement par défaut min-height:auto de flexbox), donc le scroll
+  // interne casse dès que le contenu dépasse. C'est exactement ce qui se
+  // produisait dans les overlays Before/After de l'éditeur de profil sphere
+  // (eux-mêmes des conteneurs flex-column) : le bug devenait visible dès
+  // qu'on changeait l'ordre ou la visibilité des sphères, car la hauteur du
+  // contenu changeait et l'absence de contrainte devenait apparente.
+  container.style.cssText='flex:1;overflow-y:auto;padding:16px;min-height:0';
   var isContact=false;
   try{var contacts=JSON.parse(localStorage.getItem('ym_contacts_v1')||'[]');isContact=contacts.some(function(c){return c.uuid===profile.uuid;});}catch(e){}
   var isNear=!!(window.YM_Social&&window.YM_Social._nearUsers&&window.YM_Social._nearUsers.has(profile.uuid));
@@ -1192,14 +1202,14 @@ function _generateProfileSphere(cfg){
       '}',
       'if(_cErr){',
       '  _main.innerHTML="";',
-      '  if(window._renderProfileView){window._renderProfileView(p,_main);}',
+      '  if(window._renderProfileView){window._renderProfileView(_main,p);}',
       '  else{var _ed=document.createElement("div");_ed.style.padding="12px";',
       '    _ed.style.fontSize="11px";_ed.style.color="#e84040";',
       '    _ed.textContent="Error: "+_cErr.message;_main.appendChild(_ed);}',
       '}',
     ].join('\n');
   }else{
-    customBlock='if(window._renderProfileView){window._renderProfileView(p,_main);}';
+    customBlock='if(window._renderProfileView){window._renderProfileView(_main,p);}';
   }
 
   // Accordéons sphères — injectés après le contenu, flex-shrink:0
