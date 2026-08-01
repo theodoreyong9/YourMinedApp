@@ -1413,18 +1413,56 @@ Themes that declare custom `YM_NAV_CONFIG` get correct active states automatical
 ## URL Routing
 
 ```
-/                        → loads theme from localStorage
-/default.theme           → applies default theme
-/social.sphere           → activates social sphere and opens its panel
-/neural.theme/social.sphere → applies theme then opens sphere after reload
+/                              → loads theme from localStorage
+/default.theme                 → applies default theme
+/social.sphere                 → activates social sphere and opens its panel
+/neural.theme/social.sphere    → applies theme then opens sphere after reload
+/uuid-or-name.profile          → opens a published profile (peer's card view)
+/uuid-or-name.profile/social.sphere
+                                → opens the profile AND expands that sphere's
+                                  accordion inline, if visible (see caveat below)
+/neural.theme/uuid.profile/social.sphere
+                                → all three compose, in any order
 ```
+
+Route segments (`.theme`, `.sphere`, `.profile`) are detected independently
+by scanning every path segment — order does not matter. Any combination
+of the three triggers routing.
 
 **Resolution order for `/name.theme`:**
 1. Search `themes-files.json` by `filename` or `name`
 2. HEAD check `src/themes/name.theme.html`
 3. HEAD check `src/themes/name.html`
 
-Always call `history.replaceState(null, '', '/')` before `location.reload()` when applying a theme programmatically.
+**Resolution for `/segment.profile`:**
+1. If `segment` matches a UUID pattern (`8-4-4-4-12` hex), it is used
+   directly as the target UUID.
+2. Otherwise `segment` is treated as a **published name** and resolved
+   via the registry's `name.json` (`name → uuid`).
+3. The registry's `profile.json` is then queried for a full entry
+   (`name`, `bio`, `spheres`, `accent`, `profileSphere`, …) matching
+   that UUID, merged into the profile object passed to
+   `window.YM.openProfilePanel()`.
+4. If nothing is found in the registry, a minimal `{ uuid }` object is
+   still opened — `renderPeerProfile` (in `profile.js`) enriches it
+   further from local gossip/contacts data if the peer is known via P2P.
+5. If resolution fails entirely (unknown name, no registry match), a
+   toast error is shown and no panel opens.
+
+**Caveat — sphere expansion inside a routed profile:**
+Auto-expanding a sphere segment (`uuid.profile/social.sphere`) only
+works for spheres listed under **"Spheres in common"** in the peer
+profile view — i.e. spheres *you* have activated too, since those are
+the only ones rendered as clickable accordions
+(`_renderPeerAccordion`). Spheres under **"Other spheres"** are not
+accordions — they're a `↗ Find` link to the sphere list — so routing
+to a sphere the visitor hasn't activated will open the profile but
+will not expand anything for that sphere.
+
+Always call `history.replaceState(null, '', '/')` (or the equivalent
+path preserving other segments) before `location.reload()` when
+applying a theme programmatically, so a theme change doesn't discard
+a `.sphere` or `.profile` segment requested alongside it.
 
 ---
 ---
@@ -1510,9 +1548,12 @@ Score frozen at merge time. No editorial curation.
 ### Direct activation URLs
 
 ```
-/name.theme           → applies that theme
-/name.sphere          → activates that sphere
-/neural.theme/social.sphere  → composable
+/name.theme                    → applies that theme
+/name.sphere                   → activates that sphere
+/uuid-or-name.profile          → opens a published profile
+/neural.theme/social.sphere    → composable
+/uuid.profile/social.sphere    → composable — see URL Routing section
+                                  for the "Spheres in common" caveat
 ```
 
 ---
@@ -1657,8 +1698,24 @@ activate(ctx) {
 
 ### Rate limits
 
-- **10 P2P sends/second** — enforced by `app.js`
-- **Payload size** — keep under 4KB per message (Nostr relay limit)
+- **`ctx.send` (broadcast):** 10 messages / second, sliding window,
+  enforced per-sphere in `app.js`. Once the limit is hit, the call
+  silently returns `false` — sends are dropped, not queued.
+- **`ctx.send` / `window.YM_P2P.sendTo` (direct, targeted):** an
+  additional **3-second cooldown per target peer** applies on top of
+  the broadcast limit — rapid-fire `sendTo` calls to the same peer
+  within 3s of each other are silently dropped. This is separate from
+  the 10/s window and applies whether you go through `ctx.send(type,
+  data, peerId)` or `window.YM_P2P.sendTo(peerId, msg)` directly.
+- **Exemption:** `social:presence` messages always bypass both rate
+  limits — presence must never be starved by an unrelated sphere's
+  traffic.
+- **`ctx.toast`:** 3 toasts / 5 seconds per sphere.
+- **Payload size:** keep under 4KB per message (Nostr relay limit).
+
+If you need guaranteed delivery of frequent updates to the same peer,
+batch them client-side instead of calling `sendTo` more than once per
+3 seconds — there is no retry or queueing mechanism.
 
 ### Pluggable transport — `window.YM_TRANSPORT`
 
@@ -1713,18 +1770,20 @@ window.YM_TRANSPORT = (function() {
 })();
 ```
 
-
+### Default relay pool
 
 ```js
+// Default relay pool — used unless YM_RELAYS_OVERRIDE is set
 const YM_RELAYS = [
   'wss://nos.lol',
-  'wss://relay.primal.net',
-  'wss://relay.nostr.wirednet.jp',
-  'wss://nostr.oxtr.dev'
+  'wss://nostr.wine',
+  'wss://relay.snort.social',
+  'wss://nostr-pub.wellorder.net',
+  'wss://relay.nostr.bg',
 ];
 ```
 
-To use your own relay infrastructure, override `window.YM_RELAYS` before `app.js` initializes P2P:
+To use your own relay infrastructure, override `window.YM_RELAYS_OVERRIDE` before `app.js` initializes P2P:
 
 ```js
 // In your theme or index.html, before app.js boots:
@@ -1749,6 +1808,91 @@ Any Nostr-compatible relay works. Lightweight options:
 - [nostr-rs-relay](https://github.com/scsibug/nostr-rs-relay) — Rust
 
 **Add your relay to the default pool** (contributes to the public YourMine network): open a PR to add your `wss://` URL to `YM_RELAYS` in `app.js`.
+
+### STUN/TURN override — `window.YM_ICE_OVERRIDE`
+
+WebRTC needs STUN/TURN servers for NAT traversal. Override the default
+pool before `app.js` initializes P2P if the defaults are blocked on
+your network, or you run your own TURN server:
+
+```js
+window.YM_ICE_OVERRIDE = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'turn:my-turn.example.com:3478', username: 'user', credential: 'pass' },
+];
+```
+
+If unset, `app.js` falls back to a default pool of public STUN servers
+plus a couple of free public TURN servers. Public TURN servers are not
+reliable for production — running your own TURN server and setting
+`YM_ICE_OVERRIDE` is recommended for any theme that depends heavily on
+P2P (games, calls, live sharing).
+
+### Nostr Direct Transport — automatic WebRTC fallback
+
+If no WebRTC peer joins within **60 seconds** of `initP2P()` starting,
+`app.js` automatically switches `window.YM_P2P` to a pure WebSocket
+transport running directly over the Nostr relay pool — no WebRTC, no
+TURN, no ICE negotiation. This exists because some networks block
+WebRTC/TURN entirely (corporate firewalls, some mobile carriers),
+which otherwise leaves peers permanently unable to discover each
+other.
+
+This is fully transparent to spheres: `ctx.send` / `ctx.onReceive`
+keep working exactly the same, since only the underlying
+`window.YM_P2P.broadcast` / `.sendTo` implementation changes. Spheres
+never need to check which transport is active.
+
+Key characteristics:
+- Triggered once per session, only if zero `ym:peer-join` events (other
+  than the synthetic `_self_` one) have fired in the first 60 seconds.
+- Cancelled automatically if a real WebRTC peer joins before the
+  60s mark.
+- Uses ephemeral Nostr events (`kind: 20000`) tagged with a room
+  identifier derived from `YM_APPID` + `YM_ROOM` — not persisted by
+  relays.
+- Peer presence is maintained via a `hi`/`bye` heartbeat every 25s,
+  with peers expired after 90s of silence.
+- If `nostr-tools` fails to load (CDN blocked), it falls back further
+  to unsigned/randomly-signed events, which strict relays may reject
+  — lenient relays (like the defaults) still accept them.
+- A toast (`'P2P via Nostr Direct (WebRTC/TURN bloqué)'`) informs the
+  user when this fallback activates.
+
+This only applies to the default Trystero-based P2P layer. If
+`window.YM_TRANSPORT` is set (see Pluggable transport above), this
+fallback never triggers — a custom transport is responsible for its
+own connectivity strategy.
+
+### P2P connection watchdog — auto-recovery from stale peers
+
+WebRTC connections can silently go stale without firing a `peer-leave`
+event — an ICE connection can transition to `disconnected` without
+Trystero attempting an ICE restart, especially after network changes
+(WiFi/cellular handoff, VPN reconnect, laptop sleep/wake). When this
+happens, `window.YM_P2P` still exists and reports peers, but no data
+actually flows — discovery silently stops working until a manual page
+reload re-establishes the room from scratch.
+
+`app.js` runs a watchdog that detects this and self-heals without
+requiring a reload:
+
+- Tracks the timestamp of the last `ym:peer-join` or `ym:p2p-data`
+  event received.
+- Every 45 seconds, if more than 90 seconds have elapsed with zero
+  peer activity **while at least one peer was previously known**
+  (`window.YM_Social._nearUsers.size` was non-zero at some point),
+  the watchdog tears down the current transport and calls `initP2P()`
+  again — the same bootstrap used at page load.
+- This only applies to the default Trystero/NostrDT layer. If
+  `window.YM_TRANSPORT` is set, the watchdog does not intervene —
+  a custom transport owns its own reconnection strategy.
+- A `[Watchdog]` log line appears in `window.YM_LOGS` whenever a
+  restart is triggered, for debugging.
+
+This does not fully replace occasionally reloading in genuinely
+degraded network conditions, but it removes the need for a manual
+refresh in the common case of a silently-dropped WebRTC session.
 
 ---
 ## External Apps & Bridge API
