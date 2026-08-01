@@ -1441,6 +1441,49 @@ window.YM_FORCE_NOSTR_DT = true;
     L('P2P', `navigator.onLine: ${navigator.onLine}`);
     L('P2P', `YM_TRANSPORT override: ${!!window.YM_TRANSPORT}`);
 
+    // ── Watchdog: auto-recovery from silently stale WebRTC connections ────
+    // A WebRTC data channel can go dark without ever firing a peer-leave
+    // event — e.g. ICE transitions to "disconnected" after a network change
+    // (WiFi/cellular handoff, VPN reconnect, sleep/wake) without Trystero
+    // attempting an ICE restart. window.YM_P2P still exists and _nearUsers
+    // may still list the peer, but no data flows — this is what makes
+    // discovery "just stop working" until a manual refresh re-establishes
+    // the room from scratch. This watchdog detects the silence and
+    // self-heals by tearing down and re-running initP2P(), without
+    // requiring a page reload. Only applies to the default Trystero/NostrDT
+    // layer — a custom window.YM_TRANSPORT owns its own reconnection logic.
+    if (!window._ymP2PWatchdogInstalled) {
+      window._ymP2PWatchdogInstalled = true;
+      window._ymLastPeerActivity = Date.now();
+      window._ymEverHadPeers = false;
+      const _markActivity = () => { window._ymLastPeerActivity = Date.now(); };
+      window.addEventListener('ym:peer-join', e => {
+        if (e.detail?.peerId !== '_self_') { _markActivity(); window._ymEverHadPeers = true; }
+      });
+      window.addEventListener('ym:p2p-data', _markActivity);
+
+      const WATCHDOG_INTERVAL = 45000;
+      const STALE_THRESHOLD   = 90000;
+      setInterval(() => {
+        if (window.YM_TRANSPORT) return; // custom transport — not our job
+        if (!window._ymEverHadPeers) return; // never connected — nothing to recover
+        const silentFor = Date.now() - window._ymLastPeerActivity;
+        if (silentFor < STALE_THRESHOLD) return;
+        const nearCount = window.YM_Social?._nearUsers?.size ?? 0;
+        L('P2P', `[Watchdog] Silent for ${Math.round(silentFor / 1000)}s (near:${nearCount}) — restarting P2P layer`);
+        try {
+          if (window.YM_P2P?.room && typeof window.YM_P2P.room.leave === 'function') {
+            window.YM_P2P.room.leave();
+          }
+        } catch (e) { L('P2P', `[Watchdog] room.leave() failed: ${e.message}`); }
+        window.YM_P2P = undefined;
+        window._ymNostrDT = false; // allow NostrDT fallback to re-arm if needed
+        window._ymLastPeerActivity = Date.now(); // avoid immediate re-trigger loop
+        initP2P();
+      }, WATCHDOG_INTERVAL);
+      L('P2P', '[Watchdog] installed — checks every 45s, restarts after 90s of silence');
+    }
+
     // ── Monkey-patch RTCPeerConnection pour diagnostiquer ICE/NAT ────────────
     // Chaque PC créé par Trystero = une tentative de connexion avec un pair
     // Sans TURN : ICE reste en "checking" puis "failed" → pas de peer join
