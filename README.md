@@ -131,7 +131,6 @@ peerSection(container, ctx) {
 }
 
 
----
 ## Profile Hooks
 
 Spheres can inject UI into two places in the profile panel.
