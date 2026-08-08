@@ -129,7 +129,7 @@ peerSection(container, ctx) {
     }
   ]
 }
-
+```
 
 ## Profile Hooks
 
