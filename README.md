@@ -57,6 +57,52 @@ This makes YourMine the first participation protocol that is adaptable at interp
 
 
 ---
+## AI Code Generator
+
+Every sphere can be generated locally, on-device, with no external API key and no server round-trip.
+
+**Engine chain (auto-detected, first available wins):**
+1. Ollama (desktop, `localhost:11434`)
+2. Lemonade (desktop, `localhost:13305`)
+3. WebLLM (universal fallback) — runs entirely in-browser via WebGPU
+   - Mobile: `Qwen2.5-Coder-0.5B-Instruct`
+   - Desktop (8GB+ reported RAM): `Qwen2.5-Coder-7B-Instruct`
+
+**Prompting is spec-driven, not hand-written.** `ym-spec.json` is mined automatically from the real `*.sphere.js` files already in the registry — required methods, the `ctx` API surface, CSS variables, anti-patterns, and skeleton templates by intent (widget / p2p game / social overlay), each with an observed frequency across the mined corpus. `ai.js` compiles this into a compact system prompt per generation instead of relying on a static doc that drifts from the real code. If `ym-spec.json` can't be fetched, generation falls back to a built-in minimal system prompt so the feature never hard-fails.
+
+**Generation is sectioned, not one giant call.** A single long completion on a small on-device model is fragile — it stalls or gets killed mid-generation. Instead, each file is built section by section (`structure_and_state`, `p2p_handlers`, `render_panel`, `broadcast_data`, depending on detected intent), with drafts persisted to `localStorage` after every section so a lost tab or a dropped GPU context resumes instead of restarting from zero.
+
+**Post-generation validation.** Generated code is checked for the same structural rules real spheres must follow — IIFE wrapper present, `window.YM_S` key matches filename, `activate`/`deactivate`/`renderPanel` present, no markdown fences leaked into the output, balanced braces, a real emoji (not an invented image path) as `icon`.
+
+**Self-healing pipeline.** A GitHub Action (`scripts/mine-patterns.js`, scheduled weekly and on every `files.json`/`themes-files.json` push) re-mines `ym-spec.json` from whatever real spheres exist in the registry at that moment, and commits it automatically if changed. The more the ecosystem grows, the better the generator's own prompt gets — no manual doc maintenance required.
+
+```yaml
+# .github/workflows/regenerate-spec.yml
+on:
+  schedule:
+    - cron: '0 3 * * 1'        # every Monday, 03:00 UTC
+  push:
+    branches: [main]
+    paths: ['files.json', 'themes-files.json']
+  workflow_dispatch: {}
+
+jobs:
+  mine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - run: node scripts/mine-patterns.js --out ym-spec.json --threshold 0.4
+      - run: |
+          git config user.name "ym-spec-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git diff --quiet ym-spec.json || (git add ym-spec.json && git commit -m "chore: regenerate ym-spec.json [skip ci]" && git push)
+```
+
+**Iteration, not one-shot.** After a first generation, you can refine in plain language ("add a timer", "use cyan accent") — the model rewrites the full file, and history persists per filename so context isn't lost between refinements.
+
+---
 ## Runtime 
 
 ### Sphere activation flow
@@ -2315,6 +2361,7 @@ icon-splash-dark.png
     ├── mine.js
     ├── build.js
     ├── liste.js
+    ├── ai.js
     ├── profile.js
     └── themes/
         ├── index.json
