@@ -1,4 +1,4 @@
-This pproject is deprecated.
+This project is a UX prototype.
 
 See the current development here : https://github.com/theodoreyong9/AIWA
 
