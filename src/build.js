@@ -114,6 +114,16 @@ function _flowBack(buildContent, fn){
   return back;
 }
 
+// The "Apps" card: the sphere / theme publish form (code, name, Sign & Submit).
+function openPublishForm(buildContent){
+  buildContent.innerHTML='';
+  buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
+  const scrollArea=document.createElement('div');
+  scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
+  buildContent.appendChild(scrollArea);
+  renderBuildContent(scrollArea);
+}
+
 // ── FLOW PRINCIPAL — layout horizontal ───────────────────────
 function renderFlow(buildContent){
   buildContent.innerHTML='';
@@ -124,14 +134,7 @@ function renderFlow(buildContent){
       icon:'◈',
       label:'Apps',
       sub:'Publish a sphere or theme via PR',
-      action(){
-        buildContent.innerHTML='';
-        buildContent.style.cssText='flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0';
-        const scrollArea=document.createElement('div');
-        scrollArea.style.cssText='flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0';
-        buildContent.appendChild(scrollArea);
-        renderBuildContent(scrollArea);
-      }
+      action(){ openPublishForm(buildContent); }
     },
     {
       icon:'&#10022;',
@@ -913,6 +916,60 @@ window.addEventListener('ym:switch-mine-tab',e=>{
 })();
 
 window.YM_Build={render,renderPublishForm:(c,t)=>render(c,t),computeEligibility,getToken:()=>_userToken};
+
+// ── HAND-OFF FROM THE AIWA APP ────────────────────────────────
+// The Aiwa Android app (github.com/theodoreyong9/Aiwa_widget) has Claude write a sphere and
+// opens YourMine at  #aiwa=1;<name>;<code>  where <code> is the sphere's source, raw-deflated
+// then base64url-encoded. A URL fragment never leaves the browser: it is not sent to any server.
+// The Build → Apps form then opens with the name and the code filled in — and nothing else:
+// reading the code and pressing "Sign & Submit" stay yours.
+(function(){
+  const m=/^#aiwa=1;([A-Za-z0-9_.-]{1,60});([A-Za-z0-9_-]+)$/.exec(location.hash);
+  if(!m)return;
+  try{history.replaceState(history.state,'',location.pathname+location.search+'#');}catch(e){}
+  const name=m[1].replace(/\.sphere\.js$/,'');
+  const MAX_CHARS=1000000;
+
+  async function decode(b64url){
+    if(typeof DecompressionStream!=='function')throw new Error('this browser cannot unpack the sphere (DecompressionStream)');
+    const bin=atob(b64url.replace(/-/g,'+').replace(/_/g,'/'));
+    const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+    let text;
+    try{text=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();}
+    catch(e){throw new Error('the data is damaged');}
+    if(text.length>MAX_CHARS)throw new Error('the sphere is too big');
+    return text;
+  }
+  function setValue(el,value){el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));}
+
+  (async()=>{
+    let code;
+    try{code=await decode(m[2]);}
+    catch(e){toast('Aiwa sphere not opened: '+e.message,'error');return;}
+    let filled=false,stable=0,opened=false;
+    const started=Date.now();
+    const tick=setInterval(()=>{
+      // Bounded: the panel can be re-rendered under us (the wallet appearing does that).
+      if(Date.now()-started>25000||stable>=6){clearInterval(tick);return;}
+      const area=document.getElementById('pub-code-main');
+      if(area){
+        if(!filled||!area.value){
+          const nameInput=document.getElementById('pub-name-main');
+          if(nameInput&&!nameInput.value)setValue(nameInput,name);
+          setValue(area,code);
+          if(!filled)toast('Sphere received from Aiwa — read it, then Sign & Submit','success');
+          filled=true;
+        }
+        stable++;
+        return;
+      }
+      stable=0;
+      const content=document.getElementById('build-content');
+      if(content)openPublishForm(content);
+      else if(!opened&&window.YM&&window.YM.openPanel){opened=true;window.YM.openPanel('panel-build');}
+    },400);
+  })();
+})();
 
 // ── Update Score — single entry only ───────────────────────────
 async function _renderUpdateScore(container){

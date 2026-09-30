@@ -639,6 +639,16 @@ This is not a moderation system. It is the structural mechanism that makes the r
 
 Score is frozen at merge time. Ranking: `score / laps`. No editorial override.
 
+### Opening the publish form pre-filled (`#aiwa=…`)
+
+The [Aiwa](https://github.com/theodoreyong9/Aiwa_widget) Android app has Claude write a sphere and hands it to YourMine through the URL fragment:
+
+```
+https://yourmine-dapp.web.app/#aiwa=1;<name>;<code>
+```
+
+`<name>` is the file name (`radio.sphere.js`), `<code>` the sphere's source, raw-deflated (`deflate-raw`) then base64url-encoded without padding. A fragment is never sent to a server. YourMine opens **Build → Apps** with the name and the code filled in, and stops there: reading the code and pressing **Sign & Submit** stay yours. Anything that does not match this exact shape is ignored.
+
 The score itself comes from the mining formula — participation in the network (burns, time, patience rate) generates it. Score is therefore a function of genuine network engagement, not identity or reputation assigned externally.
 
 ---
