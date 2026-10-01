@@ -4,7 +4,7 @@ const path   = require('path');
 const crypto = require('crypto');
 const https  = require('https');
 const { verifySignature } = require('./solana-utils');
-const { checkScoreEligibilityAiwa, readBaselines, readEvidence } = require('./aiwa-utils');
+const { checkScoreEligibilityAiwa, readBaselines, readEvidence, readWitnessStore, ingestWitnesses, domainOfWallet } = require('./aiwa-utils');
 
 const MAX_EVENT_AGE_SEC = 3600;
 const MIN_TS_GAP_SEC    = 300;
@@ -51,6 +51,18 @@ async function getCodeSource(filename, codeUrl, prContentDir) {
     console.warn('  Local read failed:', e.message, '— falling back to HTTP');
     return fetchCodeFromFork(codeUrl);
   }
+}
+
+// What other wallets hold of this one (aiwa-witness.json on main): the history it shows must contain it.
+function witnessedFor(walletPubkey) {
+  try { return readWitnessStore('.')[domainOfWallet(walletPubkey)] || []; } catch (e) { return []; }
+}
+// The witnesses a submission brings about OTHER wallets: kept by merge.js if the submission is accepted.
+async function witnessesBrought(evidence, walletPubkey) {
+  if (!evidence) return [];
+  const { accepted, ignored } = await ingestWitnesses({ witnesses: evidence.witnesses, ownDomain: domainOfWallet(walletPubkey), baselines: readBaselines('.') });
+  if (accepted.length || ignored) console.log('Witnesses: ' + accepted.length + ' kept, ' + ignored + ' ignored');
+  return accepted;
 }
 
 async function main() {
@@ -147,11 +159,11 @@ async function main() {
     const scoreEvidence = readEvidence(prContentDir, scoreUpdateEvent.nonce);
     const scoreBaselines = readBaselines('.');
     if (targetFilename.endsWith('.sphere.js') || targetFilename.endsWith('.theme.html')) {
-      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: lastPub.score || 0, lastPubLaps: Math.max(1, lastPub.laps || 1), evidence: scoreEvidence, baselines: scoreBaselines });
+      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: lastPub.score || 0, lastPubLaps: Math.max(1, lastPub.laps || 1), evidence: scoreEvidence, baselines: scoreBaselines, witnessed: witnessedFor(walletPubkey) });
       if (!sc.eligible) { console.error('Score not eligible: ' + sc.reason); process.exit(1); }
     } else {
       // name/profile — zero friction, no score gate, just report current claimable as rank
-      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: 0, lastPubLaps: 1, evidence: scoreEvidence, baselines: scoreBaselines }).catch(() => null);
+      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: 0, lastPubLaps: 1, evidence: scoreEvidence, baselines: scoreBaselines, witnessed: witnessedFor(walletPubkey) }).catch(() => null);
       if (!sc || !sc.mining) sc = { score: scoreUpdateEvent.score || 0, currentLaps: scoreUpdateEvent.laps || 1, eligible: true, baseline: null };
       sc.eligible = true;
     }
@@ -159,6 +171,7 @@ async function main() {
     fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
       walletPubkey, ghActor,
       aiwaBaseline: sc.baseline || null,
+      aiwaWitnesses: sc.baseline ? await witnessesBrought(scoreEvidence, walletPubkey) : [],
       files: [{
         action: 'score_update_entry', wallet: walletPubkey,
         score: sc.score, laps: sc.currentLaps,
@@ -253,7 +266,7 @@ async function main() {
     const lastPub = walletPubs[0] || null;
     scoreCheck = await checkScoreEligibilityAiwa({
       walletPubkey, lastPubScore: lastPub ? (lastPub.score || 0) : 0, lastPubLaps: lastPub ? Math.max(1, lastPub.laps || 1) : 1,
-      evidence: readEvidence(prContentDir, newCodeFiles[0].nonce), baselines: readBaselines('.'),
+      evidence: readEvidence(prContentDir, newCodeFiles[0].nonce), baselines: readBaselines('.'), witnessed: witnessedFor(walletPubkey),
     });
     if (!scoreCheck.eligible) { console.error('Score not eligible: ' + scoreCheck.reason); process.exit(1); }
     console.log('Score eligible (claimable=' + scoreCheck.score.toFixed(4) + ')');
@@ -344,7 +357,8 @@ async function main() {
 
   if (!results.length) { console.error('No files validated'); process.exit(1); }
 
-  fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({ walletPubkey, ghActor, aiwaBaseline: scoreCheck.baseline || null, files: results }, null, 2));
+  const brought = scoreCheck.baseline ? await witnessesBrought(readEvidence(prContentDir, newCodeFiles[0].nonce), walletPubkey) : [];
+  fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({ walletPubkey, ghActor, aiwaBaseline: scoreCheck.baseline || null, aiwaWitnesses: brought, files: results }, null, 2));
   console.log('\nValidation passed — ' + results.length + ' file(s) ready');
 }
 

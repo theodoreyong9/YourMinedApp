@@ -782,18 +782,25 @@ The wallet in the **Mine** panel is an [Aiwa](https://github.com/theodoreyong9/A
 
 ### What a submission carries, and what the validator derives
 
-A new file's PR carries, next to `events/<nonce>.json` (the signed YourMine event, as before), `aiwa/<nonce>.json`: the wallet's own burn / progression / accrual / claim events since the epoch the registry already validated for it. `validate.js` (via `aiwa-utils.js`, which uses `aiwa-core`'s `assessMining`):
+A new file's PR carries, next to `events/<nonce>.json` (the signed YourMine event, as before), `aiwa/<nonce>.json`: the wallet's own burn / progression / accrual / claim events since the point the registry already validated for it (its chain head), and **witnesses** (below). `validate.js` (via `aiwa-utils.js`, which uses `aiwa-core`'s `assessMining`):
 
 1. checks each event's envelope (id, author, signature) — a tampered event is set aside;
 2. checks the progression proofs (an epoch counts only for the work it proves: **one hash can no longer pass for an epoch**) and the chain from the stored baseline;
 3. confirms the burns against Solana, as the validator;
-4. derives the mining state (`score`, `laps`) and applies the permission-score ratio as before.
+4. checks that the history shown contains what other wallets hold of this one (witnesses);
+5. derives the mining state (`score`, `laps`) and applies the permission-score ratio as before.
 
-`aiwa-state.json` on `main` keeps, per wallet, the state the validator derived (written by `merge.js`): the next submission only carries the events after it, and must chain from it. Cost for the validator: one signature per event and a few milliseconds per progression event.
+`aiwa-state.json` on `main` keeps, per wallet, the state the validator derived and its chain head (written by `merge.js`): the next submission only carries the events after it, and must continue from it. Cost for the validator: one signature per event and a few milliseconds per progression event.
 
-**Honest limits.** The registry only sees the history a wallet shows it: Aiwa's answer to a fork is its Mirror (observers), which this validator does not run — it checks that evidence continues the baseline it kept. The first submission of an old wallet carries its whole history (about 2 KB per epoch event). Epochs are worked only while the wallet is unlocked. Wallets and scores from before the switch are unchanged in the registry (scores are frozen at merge time), but a wallet's old `YRM` position is not carried over: it starts at epoch 0 on Aiwa. Not run here: the burn against a real Solana (Solana and the CDNs were stubbed in the browser test), and the GitHub Action itself.
+### One line, and witnesses: what a wallet cannot hide
 
-Run the tests with `npm test` (the validator: first submission, no evidence, someone else's evidence or burn, a cheap epoch, the ratio gate, continuing from a baseline, a tampered event).
+A wallet's mining events are **one signed chain**: each progression, burn commitment and claim names the one it follows, and the work of an epoch *starts from it* (Aiwa_core, README). So an action cannot be left out of a history — the epochs worked after it are bound to it and are refused without it — and proven work cannot be re-signed over another history for free: showing a history without a burn means redoing, from that burn on, all the work the other one holds.
+
+That is not yet "no second history": a wallet can still keep two (redoing the work) and show only the favourable one. What closes it is someone else holding the other: a wallet that received another wallet's events (a bundle, a transfer) sends, in its own submissions, the highest progression event of that wallet it holds — **signed by that wallet**, so it proves its history includes it and needs no trust in the witness. The registry keeps it (`aiwa-witness.json`, at most 32 per wallet) and, when that wallet submits, requires the history shown to contain every witnessed event beyond its baseline. A fork, a stretch of work cut short, or a hidden burn followed by more work are then refused.
+
+**Honest limits.** A witness only exists if someone received those events: a wallet that never exchanged anything with anyone has none, and the chain alone is what protects it (cost: redoing the work). A burn made *after* the last epoch the wallet shows, and never followed by a new epoch, can still be left out — a submission is a snapshot, not "the current state" (that needs a clock; anchoring the head on Solana would give one). A wallet whose history was lost (cleared browser data) cannot continue from its baseline, and one that really forked (the same key on two devices) is refused for good once its other history is witnessed. The first submission of an old wallet carries its whole history (about 2 KB per epoch event). Epochs are worked only while the wallet is unlocked. Wallets and scores from before the switch are unchanged in the registry (scores are frozen at merge time), but a wallet's old `YRM` position is not carried over: it starts at epoch 0 on Aiwa. Not run here: the burn against a real Solana (Solana and the CDNs were stubbed in the browser test), and the GitHub Action itself.
+
+Run the tests with `npm test` (the validator: first submission, no evidence, someone else's evidence or burn, a cheap epoch, the ratio gate, continuing from a baseline, a tampered event, a hidden action, a second history, a cut history, the witnesses kept and ignored).
 
 ## AIWA Project
 

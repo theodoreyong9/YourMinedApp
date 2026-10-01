@@ -11,7 +11,7 @@
   "dependencies": {
     "@solana/web3.js": "^1.91.0",
     "tweetnacl": "^1.0.3",
-    "aiwa-core": "github:theodoreyong9/Aiwa_core#24501b21b7cb72654886dbf52327371691b187e4"
+    "aiwa-core": "github:theodoreyong9/Aiwa_core#8aed275054b0eb2dec35f729f541dc836d9e2d0a"
   },
   "engines": {
     "node": ">=20"

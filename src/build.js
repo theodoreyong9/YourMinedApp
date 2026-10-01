@@ -686,15 +686,16 @@ function _step(body,title,badge,fn){
 }
 
 function slotsToHuman(epochs){if(!isFinite(epochs)||epochs>5e7)return'∞';const s=Math.round(epochs*30);/* one epoch ≈ 30 s of the wallet being open */if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'min';if(s<86400)return(s/3600).toFixed(1)+'h';return(s/86400).toFixed(1)+'d';}
-// Aiwa evidence for a submission: the wallet's own burn / progression / accrual / claim events since the epoch the registry
-// already validated for this wallet (aiwa-state.json on main), pushed to the fork next to the YourMine event. The validator
+// Aiwa evidence for a submission: the wallet's own burn / progression / accrual / claim events since the point the registry
+// already validated for this wallet (aiwa-state.json on main), pushed to the fork next to the YourMine event, plus the
+// witnesses (other wallets' events this one holds). The validator
 // derives the mining state from them — it does not take the score on the page's word.
 async function pushAiwaEvidence(token,username,nonce,pubkey){
   if(!window.YM_Mine_evidence)throw new Error('Aiwa wallet not ready');
-  let after=0;
-  try{const r=await fetch(RAW_BASE+'aiwa-state.json?t='+Date.now(),{cache:'no-store'});if(r.ok){const st=await r.json();after=(st&&st[pubkey]&&st[pubkey].epoch)||0;}}catch{}
-  const ev=await window.YM_Mine_evidence(after);
-  const body={version:1,wallet:pubkey,domain:ev.domain,afterEpoch:after,events:ev.events};
+  let after=0,head=null;
+  try{const r=await fetch(RAW_BASE+'aiwa-state.json?t='+Date.now(),{cache:'no-store'});if(r.ok){const st=await r.json();const b=st&&st[pubkey];after=(b&&b.epoch)||0;head=(b&&b.head)||null;}}catch{}
+  const ev=await window.YM_Mine_evidence(after,head);
+  const body={version:1,wallet:pubkey,domain:ev.domain,afterEpoch:after,events:ev.events,witnesses:ev.witnesses||[]};
   await ghPush(token,username,'aiwa/'+nonce+'.json',JSON.stringify(body),'aiwa evidence: '+nonce);
   return ev.events.length;
 }

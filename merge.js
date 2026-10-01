@@ -297,7 +297,7 @@ async function main() {
   const validationPath = '/tmp/validation_result.json';
   if (!fs.existsSync(validationPath)) { console.error('No validation result found.'); process.exit(1); }
 
-  const { walletPubkey, ghActor, files, aiwaBaseline } = JSON.parse(fs.readFileSync(validationPath, 'utf8'));
+  const { walletPubkey, ghActor, files, aiwaBaseline, aiwaWitnesses } = JSON.parse(fs.readFileSync(validationPath, 'utf8'));
   if (!files || !files.length) { console.log('No files to merge.'); process.exit(0); }
 
   console.log('Merging ' + files.length + ' file(s) from @' + ghActor);
@@ -334,6 +334,15 @@ async function main() {
     fs.writeFileSync('aiwa-state.json', JSON.stringify(baselines));
     extraFiles.push('aiwa-state.json');
     console.log('Aiwa baseline kept for', walletPubkey, '— epoch', aiwaBaseline.epoch);
+  }
+  // What this submission's wallet holds of OTHER wallets' histories (witnesses), kept for their next submissions; and
+  // what the registry has now validated is dropped (the baseline passed it, so it was shown).
+  if (aiwaBaseline || (aiwaWitnesses && aiwaWitnesses.length)) {
+    const { readBaselines, readWitnessStore, mergeWitnesses, WITNESS_FILE } = require('./aiwa-utils');
+    const store = mergeWitnesses(readWitnessStore('.'), aiwaWitnesses || [], readBaselines('.'));
+    fs.writeFileSync(WITNESS_FILE, JSON.stringify(store));
+    extraFiles.push(WITNESS_FILE);
+    console.log('Witnesses kept for', Object.keys(store).length, 'wallet(s)');
   }
 
   // ── Unpublish profile ──────────────────────────────────────
