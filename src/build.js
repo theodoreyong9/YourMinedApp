@@ -695,7 +695,7 @@ async function pushAiwaEvidence(token,username,nonce,pubkey){
   let after=0,head=null;
   try{const r=await fetch(RAW_BASE+'aiwa-state.json?t='+Date.now(),{cache:'no-store'});if(r.ok){const st=await r.json();const b=st&&st[pubkey];after=(b&&b.epoch)||0;head=(b&&b.head)||null;}}catch{}
   const ev=await window.YM_Mine_evidence(after,head);
-  const body={version:1,wallet:pubkey,domain:ev.domain,afterEpoch:after,events:ev.events,witnesses:ev.witnesses||[]};
+  const body={...ev,wallet:pubkey};
   await ghPush(token,username,'aiwa/'+nonce+'.json',JSON.stringify(body),'aiwa evidence: '+nonce);
   return ev.events.length;
 }

@@ -195,15 +195,12 @@ async function doClaim(){
   await _refreshMining();
   return c;
 }
-// The events a validator needs to derive the mining state without trusting this page: what follows the registry's own
-// baseline (its chain head `after`, else the epoch `afterEpoch`) — and the witnesses: the highest progression event of
-// other wallets this one holds (signed by them), which the registry keeps for their next submissions.
+// The evidence a validator takes (aiwa-lib's submissionEvidence): the events that follow the registry's own baseline (its
+// chain head `after`, else the epoch `afterEpoch`) and the witnesses — what this wallet holds of other wallets, which
+// the registry keeps for their next submissions.
 async function exportEvidence(afterEpoch,after){
   const w=await _startAiwa();
-  const events=await w.exportMiningEvents({afterEpoch:afterEpoch||0,after:after||null});
-  let witnesses=[];
-  try{witnesses=await w.witnesses({max:20});}catch(e){console.warn('[Mine] witnesses:',e&&e.message);}
-  return {domain:w.identity.id,events,witnesses};
+  return w.submissionEvidence({afterEpoch:afterEpoch||0,after:after||null});
 }
 window.YM_calcClaimable = calcClaimable;
 window.YM_Mine_ranking = ranking;

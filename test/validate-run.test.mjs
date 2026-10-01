@@ -178,7 +178,7 @@ test('validate.js: a history that holds what another wallet witnessed is validat
       if (ok) assert.equal(run.status, 0, name + ': ' + run.stdout + run.stderr);
       else {
         assert.equal(run.status, 1, name);
-        assert.match(run.stdout + run.stderr, /Another holder of this wallet's events/);
+        assert.match(run.stdout + run.stderr, /Another holder of this domain's events/);
       }
     } finally { server.closeAllConnections(); server.close(); rmSync(dir, { recursive: true, force: true }); }
   }

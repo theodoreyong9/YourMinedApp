@@ -10,7 +10,9 @@ import {
 const require = createRequire(import.meta.url);
 const { checkScoreEligibilityAiwa, domainOfWallet, ingestWitnesses, mergeWitnesses } = require('../aiwa-utils.js');
 
-// What the registry's validator does with a submission's Aiwa evidence. A small epoch so the tests are quick: the
+// What the registry's validator does with a submission's Aiwa evidence. The protocol part (verification, burns, baseline,
+// witnesses) is aiwa-core's assessSubmission and is tested there; this is YourMine's glue: the wallet keyed baselines, the
+// ratio gate, the Solana the validator asks. A small epoch so the tests are quick: the
 // deployment's own (100 000 squarings) is what validate.js uses.
 const EI = 100;
 const params = { alpha: 1.1, beta: 2.2, gamma: 3, C: Math.pow(33, 3), minQ: 1, epochIterations: EI };
@@ -73,7 +75,7 @@ const check = (w, evidence, extra = {}) => checkScoreEligibilityAiwa({ walletPub
 
 test('the domain of a Solana wallet is the hash of its key, as in Aiwa', async () => {
   const w = await wallet();
-  assert.equal(domainOfWallet(w.address), w.domain);
+  assert.equal(await domainOfWallet(w.address), w.domain);
 });
 
 test('a first submission: the figure comes out of the events, with the burn confirmed by the validator', async () => {
@@ -103,18 +105,6 @@ test('no evidence, evidence for another wallet, or a burn Solana does not know: 
   assert.equal(notMine.eligible, false);
 });
 
-test('age cannot be had for less work: an epoch of fewer iterations is not counted', async () => {
-  const w = await wallet();
-  const h = new Wallet(w);
-  await h.burn('sig1'); await h.work(2); await h.commit({ b: 1 });
-  await h.work(1);
-  const cheapWork = await computeSuccinctEpochs(progressionSeed(w.domain, h.output, h.chainHead), EI); // one epoch of work...
-  const signed = await buildSignedProgressionEvent({ domain: w.domain, epoch: h.epoch + 500, vdfIterations: EI, vdfOutput: cheapWork.vdfOutput, previous: h.chainHead }, w.seed, w.pub);
-  await h.append('progression', { ...signed, vdfProof: cheapWork.vdfProof }); // ...announced as 500
-  const r = await check(w, h.evidence(), { connection: solana({ sig1: { payer: w.address, lamports: 2e9 } }) });
-  assert.equal(r.mining.epoch, 3, 'the age is what the work proves');
-});
-
 test('the ratio gate: laps weigh against the score, as before', async () => {
   const w = await wallet();
   const h = new Wallet(w);
@@ -142,24 +132,14 @@ test('a second submission continues from what the validator kept: only the new e
   assert.equal(second.mining.claimable, whole.mining.claimable, 'the same figure as replaying everything');
 
   const stale = await check(w, h.evidence({ afterEpoch: 3, events: h.events.slice(-1) }), { connection, baselines });
-  assert.match(stale.reason, /continues from epoch 3; this validator holds epoch 5/);
+  assert.match(stale.reason, /continues from epoch 3; this reader holds epoch 5/);
   const nobase = await check(w, h.evidence({ afterEpoch: 5, events: h.events.slice(-1) }), { connection, baselines: {} });
   assert.match(nobase.reason, /holds epoch none/);
 });
 
-test('a tampered event is set aside: the rest still counts, and the forged part does not', async () => {
-  const w = await wallet();
-  const h = new Wallet(w);
-  await h.burn('sig1'); await h.work(2); await h.commit({ b: 1 }); await h.work(5);
-  const events = [...h.events];
-  events[events.length - 1] = { ...events[events.length - 1], payload: { ...events[events.length - 1].payload, epoch: 999 } };
-  const r = await check(w, { ...h.evidence(), events }, { connection: solana({ sig1: { payer: w.address, lamports: 2e9 } }) });
-  assert.equal(r.mining.epoch, 2, 'the forged last epoch is not counted');
-});
+// --- Witnesses: what others hold of a wallet's events must be in the history it shows (the logic is aiwa-core's) -----
 
-// --- Witnesses: what others hold of a wallet's events must be in the history it shows ---------------------------------
-
-// a wallet whose history has a hidden action: [burn, work 2, commit big, work 2, commit small (T 0.4), work 2]
+// a wallet whose history has a late action: [burn, work 2, commit big, work 2, commit small (T 0.4), work 2]
 async function history(w) {
   const h = new Wallet(w);
   await h.burn('sig1'); await h.work(2); await h.commit({ b: 1 }); await h.work(2);
@@ -179,48 +159,13 @@ test('witnesses: a history that contains what another holder has is accepted', a
   assert.equal(withWitness.eligible, true, withWitness.reason);
 });
 
-test('witnesses: an action left out is caught — the work after it does not stand without it, and the witness is missing', async () => {
+test('witnesses: a history that leaves out a witnessed event is refused, with the reason', async () => {
   const w = await wallet();
   const { h, small, last } = await history(w);
   const shown = h.events.filter((e) => e.id !== small.id);
-  const alone = await check(w, h.evidence({ events: shown }), { connection: burns(w) });
-  assert.equal(alone.mining.epoch, 4, 'without the witness the history still stops at the action: the two last epochs are bound to it');
   const caught = await checkScoreEligibilityAiwa({ walletPubkey: w.address, evidence: h.evidence({ events: shown }), params, connection: burns(w), witnessed: [{ id: last.id, epoch: last.payload.epoch }] });
   assert.equal(caught.eligible, false);
-  assert.match(caught.reason, /Another holder of this wallet's events/);
-});
-
-test('witnesses: a second history of the same key, valid on its own, is refused once someone holds the first', async () => {
-  const w = await wallet();
-  const { last } = await history(w);
-  // the other history: the same key, the same steps, built again — a different line from the first commit on
-  const fork = new Wallet(w);
-  await fork.burn('sig1'); await fork.work(2); await fork.commit({ b: 1 }); await fork.work(4);
-  const own = await check(w, fork.evidence(), { connection: burns(w) });
-  assert.equal(own.eligible, true, 'valid by itself: nothing in it contradicts itself');
-  const caught = await checkScoreEligibilityAiwa({ walletPubkey: w.address, evidence: fork.evidence(), params, connection: burns(w), witnessed: [{ id: last.id, epoch: last.payload.epoch }] });
-  assert.equal(caught.eligible, false);
-  assert.match(caught.reason, /does not contain it/);
-});
-
-test('witnesses: a history cut short before the witnessed epoch is refused; one that goes further, or a witness the baseline already passed, is not', async () => {
-  const w = await wallet();
-  const { h, last } = await history(w);
-  const witnessed = [{ id: last.id, epoch: last.payload.epoch }];
-  const prefix = h.events.slice(0, -1);   // everything but the last stretch of work
-  const cut = await checkScoreEligibilityAiwa({ walletPubkey: w.address, evidence: h.evidence({ events: prefix }), params, connection: burns(w), witnessed });
-  assert.equal(cut.eligible, false);
-
-  // a witness at an epoch the validator already holds a baseline beyond: nothing to ask for
-  const first = await check(w, h.evidence(), { connection: burns(w) });
-  const baselines = { [w.address]: first.baseline };
-  await h.work(3);
-  const next = await checkScoreEligibilityAiwa({
-    walletPubkey: w.address, evidence: h.evidence({ afterEpoch: first.baseline.epoch, events: h.events.slice(-1) }),
-    params, connection: burns(w), baselines, witnessed,
-  });
-  assert.equal(next.eligible, true, next.reason);
-  assert.equal(next.baseline.head, h.chainHead, 'the baseline keeps the chain head the wallet continues from');
+  assert.match(caught.reason, /Another holder of this domain's events/);
 });
 
 test('ingestWitnesses keeps a real progression event of another wallet, and ignores everything else', async () => {
@@ -242,10 +187,10 @@ test('ingestWitnesses keeps a real progression event of another wallet, and igno
 test('mergeWitnesses: keeps the furthest along per domain, bounded, and drops what the registry has since validated', async () => {
   const d = 'd'.repeat(64);
   let store = {};
-  store = mergeWitnesses(store, Array.from({ length: 40 }, (_, i) => ({ domain: d, id: 'id' + i, epoch: i + 1 })));
+  store = await mergeWitnesses(store, Array.from({ length: 40 }, (_, i) => ({ domain: d, id: 'id' + i, epoch: i + 1 })));
   assert.equal(store[d].length, 32);
   assert.equal(store[d][0].epoch, 40, 'the furthest along first');
   assert.equal(store[d].at(-1).epoch, 9, 'the oldest ones are what goes');
-  store = mergeWitnesses(store, [], { somewallet: { domain: d, epoch: 40 } });
+  store = await mergeWitnesses(store, [], { somewallet: { domain: d, epoch: 40 } });
   assert.deepEqual(store, {}, 'once the registry validated epoch 40 for that domain, nothing is left to ask for');
 });

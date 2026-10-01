@@ -54,13 +54,13 @@ async function getCodeSource(filename, codeUrl, prContentDir) {
 }
 
 // What other wallets hold of this one (aiwa-witness.json on main): the history it shows must contain it.
-function witnessedFor(walletPubkey) {
-  try { return readWitnessStore('.')[domainOfWallet(walletPubkey)] || []; } catch (e) { return []; }
+async function witnessedFor(walletPubkey) {
+  try { return readWitnessStore('.')[await domainOfWallet(walletPubkey)] || []; } catch (e) { return []; }
 }
 // The witnesses a submission brings about OTHER wallets: kept by merge.js if the submission is accepted.
 async function witnessesBrought(evidence, walletPubkey) {
   if (!evidence) return [];
-  const { accepted, ignored } = await ingestWitnesses({ witnesses: evidence.witnesses, ownDomain: domainOfWallet(walletPubkey), baselines: readBaselines('.') });
+  const { accepted, ignored } = await ingestWitnesses({ witnesses: evidence.witnesses, ownDomain: await domainOfWallet(walletPubkey), baselines: readBaselines('.') });
   if (accepted.length || ignored) console.log('Witnesses: ' + accepted.length + ' kept, ' + ignored + ' ignored');
   return accepted;
 }
@@ -159,11 +159,11 @@ async function main() {
     const scoreEvidence = readEvidence(prContentDir, scoreUpdateEvent.nonce);
     const scoreBaselines = readBaselines('.');
     if (targetFilename.endsWith('.sphere.js') || targetFilename.endsWith('.theme.html')) {
-      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: lastPub.score || 0, lastPubLaps: Math.max(1, lastPub.laps || 1), evidence: scoreEvidence, baselines: scoreBaselines, witnessed: witnessedFor(walletPubkey) });
+      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: lastPub.score || 0, lastPubLaps: Math.max(1, lastPub.laps || 1), evidence: scoreEvidence, baselines: scoreBaselines, witnessed: await witnessedFor(walletPubkey) });
       if (!sc.eligible) { console.error('Score not eligible: ' + sc.reason); process.exit(1); }
     } else {
       // name/profile — zero friction, no score gate, just report current claimable as rank
-      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: 0, lastPubLaps: 1, evidence: scoreEvidence, baselines: scoreBaselines, witnessed: witnessedFor(walletPubkey) }).catch(() => null);
+      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: 0, lastPubLaps: 1, evidence: scoreEvidence, baselines: scoreBaselines, witnessed: await witnessedFor(walletPubkey) }).catch(() => null);
       if (!sc || !sc.mining) sc = { score: scoreUpdateEvent.score || 0, currentLaps: scoreUpdateEvent.laps || 1, eligible: true, baseline: null };
       sc.eligible = true;
     }
@@ -266,7 +266,7 @@ async function main() {
     const lastPub = walletPubs[0] || null;
     scoreCheck = await checkScoreEligibilityAiwa({
       walletPubkey, lastPubScore: lastPub ? (lastPub.score || 0) : 0, lastPubLaps: lastPub ? Math.max(1, lastPub.laps || 1) : 1,
-      evidence: readEvidence(prContentDir, newCodeFiles[0].nonce), baselines: readBaselines('.'), witnessed: witnessedFor(walletPubkey),
+      evidence: readEvidence(prContentDir, newCodeFiles[0].nonce), baselines: readBaselines('.'), witnessed: await witnessedFor(walletPubkey),
     });
     if (!scoreCheck.eligible) { console.error('Score not eligible: ' + scoreCheck.reason); process.exit(1); }
     console.log('Score eligible (claimable=' + scoreCheck.score.toFixed(4) + ')');

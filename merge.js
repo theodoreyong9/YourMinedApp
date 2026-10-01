@@ -339,7 +339,7 @@ async function main() {
   // what the registry has now validated is dropped (the baseline passed it, so it was shown).
   if (aiwaBaseline || (aiwaWitnesses && aiwaWitnesses.length)) {
     const { readBaselines, readWitnessStore, mergeWitnesses, WITNESS_FILE } = require('./aiwa-utils');
-    const store = mergeWitnesses(readWitnessStore('.'), aiwaWitnesses || [], readBaselines('.'));
+    const store = await mergeWitnesses(readWitnessStore('.'), aiwaWitnesses || [], readBaselines('.'));
     fs.writeFileSync(WITNESS_FILE, JSON.stringify(store));
     extraFiles.push(WITNESS_FILE);
     console.log('Witnesses kept for', Object.keys(store).length, 'wallet(s)');
