@@ -1,5 +1,5 @@
 /* jshint esversion:11, -W033 */
-// mine.js — YourMine Wallet & Proof of Sacrifice
+// mine.js — YourMine Wallet & Proof of Will, on AIWA (the mining, the token and the ranking figure are Aiwa's)
 (function(){
 'use strict';
 
@@ -17,15 +17,16 @@ if(typeof window.Buffer==='undefined'){
   };
 }
 
-const PID     = '6ue88JtUXzKN5yrFkauU85EHpg4aSsM9QfarvHBQS7TZ';
-const CREATOR = '7Cjt3kRF6FvQQ2XkfxcdsaU9hAZsz6odXWVaLUUhRLZ6';
-const TOKEN_PGM  = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-const ASSOC_PGM  = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
 const DEVNET     = 'https://api.devnet.solana.com';
 const DEVNET2    = 'https://rpc.ankr.com/solana_devnet';
 const STORE_KEY  = 'ym_wallet_v1';
 const MIN_BURN   = 0.0001;
-const YRM_DECIMALS = 1e18;
+const MAX_T      = 40;   // %, the most of a burn that can be paid for a better curve (aiwa-core: MAX_PATIENCE_RATE)
+// The Aiwa wallet, as one file (built and published by github.com/theodoreyong9/Aiwa_project).
+const AIWA_BUNDLE_URL = 'https://theodoreyong9.github.io/Aiwa_project/aiwa.bundle.js';
+// The deployment's parameters: the formula's (alpha, beta, gamma, C, minQ — the same as YourMine's own Proof of Will)
+// and the work of one epoch (100 000 modular squarings, proven: an epoch cannot be had for less).
+const AIWA_PARAMS = {alpha:1.1,beta:2.2,gamma:3,C:Math.pow(33,3),minQ:1,epochIterations:100000};
 const NAME_JSON_URL = 'https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/name.json';
 
 const FAUCETS = [
@@ -33,9 +34,11 @@ const FAUCETS = [
   {label:'QuickNode', url:'https://faucet.quicknode.com/solana/devnet'},
 ];
 
-let _state = {sol:0,ym:0,lastBurnAmount:0,lastActionSlot:0,taxRate:20,totalBurned:0,currentSlot:0,programInitialized:false};
+// _state keeps the names build.js reads; the values are Aiwa's: currentSlot = the wallet's age (epochs),
+// lastActionSlot = the epoch of its last action, lastBurnAmount = the capital that mines (lamports), taxRate = T (%).
+let _state = {sol:0,ym:0,lastBurnAmount:0,lastActionSlot:0,taxRate:0,totalBurned:0,currentSlot:0,mining:null,ready:false};
 let _wallet = {locked:true,keypair:null,pubkey:null,connection:null};
-let _pdas = {};
+let _aiwaMod=null,_aiwa=null,_aiwaStarting=null;
 let _cycleTimer=null,_claimTimer=null;
 let _nameCache=null;
 
@@ -96,16 +99,9 @@ async function _loadQR(){if(window.QRCode)return;await new Promise(r=>{const s=d
 async function _loadNacl(){if(window.nacl)return;await new Promise((r,j)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s);});}
 
 async function getConn(){if(_wallet.connection)return _wallet.connection;const sol=window.solanaWeb3;for(const ep of[DEVNET,DEVNET2]){try{const c=new sol.Connection(ep,'confirmed');await Promise.race([c.getLatestBlockhash(),new Promise((_,r)=>setTimeout(()=>r(),4000))]);_wallet.connection=c;return c}catch{}}  _wallet.connection=new sol.Connection(DEVNET,'confirmed');return _wallet.connection;}
-async function computePDAs(pk){const sol=window.solanaWeb3,pg=new sol.PublicKey(PID),e=new TextEncoder();const[g]=await sol.PublicKey.findProgramAddress([e.encode('global_state')],pg);const[ym]=await sol.PublicKey.findProgramAddress([e.encode('yrm_mint')],pg);const[sv]=await sol.PublicKey.findProgramAddress([e.encode('sol_vault')],pg);const[ua]=await sol.PublicKey.findProgramAddress([e.encode('user_account'),pk.toBytes()],pg);const[ut]=await sol.PublicKey.findProgramAddress([pk.toBuffer(),new sol.PublicKey(TOKEN_PGM).toBuffer(),ym.toBuffer()],new sol.PublicKey(ASSOC_PGM));_pdas={globalState:g,yrmMint:ym,solVault:sv,userAccount:ua,userToken:ut};}
 
-function serBurn(lam,tax){const b=new ArrayBuffer(17),v=new DataView(b);[203,142,66,81,199,170,67,130].forEach((x,i)=>new Uint8Array(b)[i]=x);v.setBigUint64(8,BigInt(lam),true);v.setUint8(16,Math.round(tax));return new Uint8Array(b)}
-function serClaim(){return new Uint8Array([62,198,214,193,213,159,108,210])}
-function serInit(){return new Uint8Array([175,175,109,31,13,152,155,237])}
 
 async function buildSend(tx){const conn=await getConn(),kp=_wallet.keypair;if(!kp)throw Error('Wallet locked');const{blockhash}=await conn.getLatestBlockhash('confirmed');tx.recentBlockhash=blockhash;tx.feePayer=kp.publicKey;tx.sign(kp);const sig=await conn.sendRawTransaction(tx.serialize());await conn.confirmTransaction(sig,'confirmed');return sig;}
-async function ensureInit(){if(_state.programInitialized)return;if(!_pdas.globalState)throw Error('PDAs not initialized');const conn=await getConn(),sol=window.solanaWeb3;const info=await conn.getAccountInfo(_pdas.globalState);if(info){_state.programInitialized=true;return}const tx=new sol.Transaction();tx.add(new sol.TransactionInstruction({keys:[{pubkey:_pdas.globalState,isSigner:false,isWritable:true},{pubkey:_pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:_wallet.keypair.publicKey,isSigner:true,isWritable:true},{pubkey:new sol.PublicKey(TOKEN_PGM),isSigner:false,isWritable:false},{pubkey:sol.SystemProgram.programId,isSigner:false,isWritable:false}],programId:new sol.PublicKey(PID),data:serInit()}));await buildSend(tx);_state.programInitialized=true;}
-async function doBurn(amt,tax){const sol=window.solanaWeb3,lam=Math.floor(amt*sol.LAMPORTS_PER_SOL);if(!_pdas.globalState)await computePDAs(_wallet.keypair.publicKey);await ensureInit();const tx=new sol.Transaction();tx.add(new sol.TransactionInstruction({keys:[{pubkey:_pdas.globalState,isSigner:false,isWritable:true},{pubkey:_pdas.userAccount,isSigner:false,isWritable:true},{pubkey:_pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:_pdas.userToken,isSigner:false,isWritable:true},{pubkey:_pdas.solVault,isSigner:false,isWritable:true},{pubkey:new sol.PublicKey(CREATOR),isSigner:false,isWritable:true},{pubkey:_wallet.keypair.publicKey,isSigner:true,isWritable:true},{pubkey:new sol.PublicKey(TOKEN_PGM),isSigner:false,isWritable:false},{pubkey:new sol.PublicKey(ASSOC_PGM),isSigner:false,isWritable:false},{pubkey:sol.SystemProgram.programId,isSigner:false,isWritable:false}],programId:new sol.PublicKey(PID),data:serBurn(lam,tax)}));return buildSend(tx);}
-async function doClaim(){if(!_pdas.globalState)await computePDAs(_wallet.keypair.publicKey);const sol=window.solanaWeb3,tx=new sol.Transaction();tx.add(new sol.TransactionInstruction({keys:[{pubkey:_pdas.globalState,isSigner:false,isWritable:true},{pubkey:_pdas.userAccount,isSigner:false,isWritable:true},{pubkey:_pdas.yrmMint,isSigner:false,isWritable:true},{pubkey:_pdas.userToken,isSigner:false,isWritable:true},{pubkey:_wallet.keypair.publicKey,isSigner:false,isWritable:false},{pubkey:new sol.PublicKey(TOKEN_PGM),isSigner:false,isWritable:false}],programId:new sol.PublicKey(PID),data:serClaim()}));return buildSend(tx);}
 async function doSend(to,amt){const sol=window.solanaWeb3,tx=new sol.Transaction().add(sol.SystemProgram.transfer({fromPubkey:_wallet.keypair.publicKey,toPubkey:new sol.PublicKey(to),lamports:Math.floor(amt*sol.LAMPORTS_PER_SOL)}));return buildSend(tx);}
 
 async function signMessage(message){
@@ -123,36 +119,98 @@ window.YM_Mine_sign = async function(message){
 };
 window.YM_Mine_pubkey = ()=>_wallet.pubkey;
 
+// ── AIWA ENGINE ────────────────────────────────────────────────────────────
+// One Aiwa wallet per unlocked key: the same Ed25519 key (a BIP39 phrase gives the same address here and in Aiwa),
+// its own log in IndexedDB, a progress loop that works the epochs, and the burns it confirms against Solana.
+async function _loadAiwa(){if(!_aiwaMod)_aiwaMod=await import(AIWA_BUNDLE_URL);return _aiwaMod;}
+async function _startAiwa(){
+  if(_aiwa)return _aiwa;
+  if(_aiwaStarting)return _aiwaStarting;
+  _aiwaStarting=(async()=>{
+    const A=await _loadAiwa();
+    if(_wallet.locked||!_wallet.keypair)throw Error('Wallet locked');
+    const w=new A.AIWA({rewardParams:AIWA_PARAMS,logDomain:'yourmine',dbName:'yourmine-aiwa-'+_wallet.pubkey.slice(0,12)});
+    await w.connect({secretKeyBytes:_wallet.keypair.secretKey});
+    try{w.connection=await getConn();}catch{}
+    w.startProgressLoop({onError:e=>console.warn('[Mine] progress:',e&&e.message)});
+    w.startAutoCheckpoint({onError:e=>console.warn('[Mine] checkpoint:',e&&e.message)});
+    _aiwa=w;_state.ready=true;
+    return w;
+  })();
+  try{return await _aiwaStarting;}finally{_aiwaStarting=null;}
+}
+async function _stopAiwa(){
+  const w=_aiwa;_aiwa=null;_state.ready=false;_state.mining=null;
+  _state.ym=0;_state.lastBurnAmount=0;_state.lastActionSlot=0;_state.currentSlot=0;_state.taxRate=0;
+  if(w){try{await w.disconnect();}catch{}}
+}
+// The mining state of the wallet (capital, T, epoch of the last action, age, claimable) copied into _state.
+async function _refreshMining(){
+  if(!_aiwa)return;
+  try{
+    const m=await _aiwa.mining();
+    _state.mining=m;
+    _state.lastBurnAmount=m?m.capital*1e9:0;_state.lastActionSlot=m?m.lastActionEpoch:0;_state.currentSlot=m?m.epoch:0;_state.taxRate=m?Math.round(m.T*100):0;
+    _state.ym=Number(await _aiwa.spendableBalance());
+  }catch(e){console.warn('[Mine] aiwa:',e.message);}
+}
+
 async function refreshBalances(){
   if(!_wallet.pubkey)return;
   const sol=window.solanaWeb3,conn=await getConn(),pk=new sol.PublicKey(_wallet.pubkey);
   try{_state.sol=await conn.getBalance(pk)/sol.LAMPORTS_PER_SOL}catch{}
-  try{const info=await conn.getAccountInfo(_pdas.userToken);if(info&&info.data&&info.data.length>=72){const v=new DataView(info.data.buffer,info.data.byteOffset);const raw=v.getBigUint64(64,true);_state.ym=Number(raw)/YRM_DECIMALS;}}catch(e){console.warn('[Mine] YRM:',e.message);}
-  try{_state.currentSlot=await conn.getSlot()}catch{}
-  try{const info=await conn.getAccountInfo(_pdas.userAccount);if(info&&info.data&&info.data.length>=65){const v=new DataView(info.data.buffer,info.data.byteOffset);let o=40;_state.taxRate=v.getUint8(o);o+=1;_state.lastActionSlot=Number(v.getBigUint64(o,true));o+=8;_state.totalBurned=Number(v.getBigUint64(o,true));o+=8;_state.lastBurnAmount=Number(v.getBigUint64(o,true));}}catch{}
-  try{_state.programInitialized=!!(await conn.getAccountInfo(_pdas.globalState))}catch{}
+  await _refreshMining();
   if(_wallet.pubkey&&window.YM&&window.YM.saveProfile){window.YM.saveProfile({pubkey:_wallet.pubkey});}
   _updateFigureBtn();_updateBalanceEls();
 }
 
+// The claimable, estimated in the page from the cached mining state with aiwa-core's own reward() — the formula the
+// reducers use, so it equals the wallet's claimable (checked). Epochs advance as the progress loop works them.
 function calcClaimable(){
-  const{lastBurnAmount:lb,lastActionSlot:las,currentSlot:cs,taxRate:tr}=_state;
-  if(!lb||!las||!cs||cs<=las||cs-las<30)return 0;
-  const S=lb/1e9,tau=Math.min(tr,40)/100,dSlot=Math.max(1,cs-las),dGen=Math.max(1,cs-111111111);
-  const num=Math.pow(dSlot,1.1)*S,inner=Math.pow(dGen,2.2*(1-tau))+Math.pow(33,3);
-  if(inner<=1)return 0;
-  const den=Math.pow(Math.log(inner),3);
-  if(den<=0||!isFinite(den)||!isFinite(num))return 0;
-  const r=num/den;return(r<0||!isFinite(r)||r>1e12)?0:r;
+  const m=_state.mining;
+  if(!m||!_aiwaMod)return 0;
+  try{return _aiwaMod.reward(m.capital,Math.max(0,m.epoch-m.lastActionEpoch),m.epoch,m.T,AIWA_PARAMS)||0;}catch{return 0;}
+}
+// What the same wallet would earn at a given capital, T, time since the last action and age (the simulator).
+function rewardAt(capital,sinceLast,age,T){
+  if(!_aiwaMod)return 0;
+  try{return _aiwaMod.reward(capital,sinceLast,age,T,AIWA_PARAMS)||0;}catch{return 0;}
+}
+// The ranking figure a submission is judged by: the claimable now, and the laps (epochs since the last action, >= 1).
+function ranking(){
+  const m=_state.mining;
+  return m?{score:calcClaimable(),laps:Math.max(1,m.epoch-m.lastActionEpoch),epoch:m.epoch}:{score:0,laps:1,epoch:0};
+}
+async function doBurn(amt,tax){
+  const w=await _startAiwa();
+  const sig=await w.burn(Math.floor(amt*1e9),await getConn(),{T:tax/100});
+  await _refreshMining();
+  return sig;
+}
+async function doClaim(){
+  const w=await _startAiwa();
+  const c=await w.claimable();
+  if(!(Number(c)>0))throw Error('Nothing to claim');
+  await w.claim(c);
+  await _refreshMining();
+  return c;
+}
+// The events a validator needs to derive the mining state without trusting this page: since `afterEpoch`.
+async function exportEvidence(afterEpoch){
+  const w=await _startAiwa();
+  return {domain:w.identity.id,events:await w.exportMiningEvents({afterEpoch:afterEpoch||0})};
 }
 window.YM_calcClaimable = calcClaimable;
+window.YM_Mine_ranking = ranking;
+window.YM_Mine_evidence = exportEvidence;
 Object.defineProperty(window,'_mineState',{get:()=>_state,configurable:true});
 
 function _updateFigureBtn(){const c=calcClaimable();const label=document.getElementById('fig-label');if(label)label.textContent=c>0?c.toFixed(2):'0';}
-function _updateBalanceEls(){const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('mine-sol',_state.sol.toFixed(6));set('mine-yrm',_state.ym.toFixed(4));set('mine-slot',_state.currentSlot||'—');set('mine-cval',calcClaimable().toFixed(6));}
+function _updateBalanceEls(){const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('mine-sol',_state.sol.toFixed(6));set('mine-yrm',_state.ym.toFixed(4));set('mine-slot',_state.ready?_state.currentSlot:'…');set('mine-cval',calcClaimable().toFixed(6));const mi=document.getElementById('mine-mining');if(mi)mi.textContent=_miningLine();}
+function _miningLine(){const m=_state.mining;return m?('capital '+m.capital+' SOL · T '+Math.round(m.T*100)+'% · '+m.sinceLastAction+' epochs since your last action'):(_state.ready?'No burn yet':'Starting Aiwa…');}
 
-async function unlockWallet(pw){const secret=await loadEnc(pw);const kp=await kpFromSecret(secret);_wallet={locked:false,keypair:kp,pubkey:kp.publicKey.toString(),connection:null};await computePDAs(kp.publicKey);await refreshBalances();window.dispatchEvent(new CustomEvent('ym:wallet-unlocked'));return kp;}
-function lockWallet(){if(_wallet.keypair&&_wallet.keypair.secretKey)_wallet.keypair.secretKey.fill(0);_wallet={locked:true,keypair:null,pubkey:null,connection:null};_pdas={};clearInterval(_cycleTimer);clearInterval(_claimTimer);_updateFigureBtn();window.dispatchEvent(new CustomEvent('ym:wallet-locked'));}
+async function unlockWallet(pw){const secret=await loadEnc(pw);const kp=await kpFromSecret(secret);_wallet={locked:false,keypair:kp,pubkey:kp.publicKey.toString(),connection:null};await refreshBalances();window.dispatchEvent(new CustomEvent('ym:wallet-unlocked'));_startAiwa().then(()=>refreshBalances()).catch(e=>console.warn('[Mine] aiwa:',e&&e.message));return kp;}
+function lockWallet(){_stopAiwa();if(_wallet.keypair&&_wallet.keypair.secretKey)_wallet.keypair.secretKey.fill(0);_wallet={locked:true,keypair:null,pubkey:null,connection:null};clearInterval(_cycleTimer);clearInterval(_claimTimer);_updateFigureBtn();window.dispatchEvent(new CustomEvent('ym:wallet-locked'));}
 async function createWallet(phrase,pw){const sol=window.solanaWeb3;let secret,kp;if(phrase&&phrase.trim()){const w=phrase.trim().replace(/\s+/g,' ').toLowerCase().split(' ');if(w.length!==12&&w.length!==24)throw Error('Need 12 or 24 words');secret='phrase:'+w.join(' ');kp=await kpFromSecret(secret);}else{kp=sol.Keypair.generate();secret='privkey:'+B58.encode(kp.secretKey);}await saveEnc(secret,pw,kp);return kp;}
 async function importWallet(raw,pw){const sol=window.solanaWeb3;let kp;if(raw.startsWith('[')){kp=sol.Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw)));}else{let bytes;try{bytes=B58.decode(raw)}catch{bytes=/^[0-9a-f]+$/i.test(raw)?Uint8Array.from(raw.match(/.{2}/g).map(b=>parseInt(b,16))):new Uint8Array(JSON.parse(raw))}kp=bytes.length===64?sol.Keypair.fromSecretKey(bytes):sol.Keypair.fromSeed(bytes);}const secret='privkey:'+B58.encode(kp.secretKey);await saveEnc(secret,pw,kp);return kp;}
 
@@ -179,14 +237,14 @@ function showProofOfWill(){
     '</div>'+
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:12px">I. Mining — the patience formula</div>'+
     '<div style="font-size:10px;color:rgba(240,240,248,.4);margin-bottom:6px">Standard form:</div>'+
-    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:13px;color:rgba(34,211,238,.8);margin-bottom:8px;line-height:2">       S · t<sup style="font-size:9px">α</sup><br>─────────────────────────<br>[ln(A<sup style="font-size:9px">β</sup>(1−T) + C)]<sup style="font-size:9px">γ</sup></div>'+
+    '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:13px;color:rgba(34,211,238,.8);margin-bottom:8px;line-height:2">       S · t<sup style="font-size:9px">α</sup><br>─────────────────────────<br>[ln(A<sup style="font-size:9px">β(1−T)</sup> + C)]<sup style="font-size:9px">γ</sup></div>'+
     '<div style="font-size:10px;color:rgba(240,240,248,.4);margin-bottom:6px">Computationally safe form (avoids overflow):</div>'+
     '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:11px;color:rgba(34,211,238,.7);margin-bottom:14px;line-height:2">              S · t<sup style="font-size:9px">α</sup><br>──────────────────────────────────────────<br>[β(1−T)·ln(A) + ln(1 + C / A<sup style="font-size:9px">β(1−T)</sup>)]<sup style="font-size:9px">γ</sup></div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px">'+
-      _powVar('S','Amount of the last burn (lamports)')+
-      _powVar('t','Solana slots elapsed since last action')+
-      _powVar('T','Patience rate — chosen by user · capped at 40%')+
-      _powVar('A','Protocol age — slots since block 111 111 111')+
+      _powVar('S','Capital of your last burn: burned × (1 − T)')+
+      _powVar('t','Epochs of real sequential work since your last action')+
+      _powVar('T','Patience rate — chosen at the burn · capped at 40% · paid out of the burn')+
+      _powVar('A','Your own age — your total epochs of proven work')+
       _powVar('C = 33³ = 35 937','Stabilisation constant')+
       _powVar('α = 1.1','Temporal growth exponent')+
       _powVar('β = 2.2','Patience / age interaction')+
@@ -199,9 +257,9 @@ function showProofOfWill(){
     '<div style="font-size:9px;color:rgba(255,69,96,.6);font-family:monospace;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px">Anti-Sybil by construction</div>'+
     '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">'+
       _powItem('t starts at zero','For every new wallet. A fresh wallet has small t — small numerator — regardless of how many wallets you control.','#f0a830')+
-      _powItem('S must be burned for real','On every wallet. A Sybil with 100 wallets must burn 100× more tokens. No free multiplication.','#ff4560')+
-      _powItem('T must be maintained over time','Patience cannot be simulated by wallets created at the last moment. The declaration is worthless without elapsed time.','#a78bfa')+
-      _powItem('A is global','Protocol age is the same for everyone. It cannot be gamed per wallet.','rgba(240,240,248,.5)')+
+      _powItem('S must be burned for real','On every wallet, confirmed on Solana by whoever reads it. A Sybil with 100 wallets must burn 100× more. Only your last burn mines: a small burn after a big one lowers it.','#ff4560')+
+      _powItem('T is paid for','A larger T makes the curve more generous and destroys that share of your burn without counting it. Patience cannot be simulated by wallets created at the last moment.','#a78bfa')+
+      _powItem('A is yours, and proven','Your age is your own epochs: each one is a fixed amount of sequential work with a proof anyone checks in milliseconds. It cannot be had for less work.','rgba(240,240,248,.5)')+
     '</div>'+
     '<div style="font-size:12px;color:rgba(240,240,248,.5);line-height:1.7;margin-bottom:24px">The cost of a Sybil attack scales <strong style="color:#ff4560">linearly</strong> with the number of fake identities. <strong style="color:rgba(255,255,255,.7)">Time is the non-duplicable resource.</strong></div>'+
     '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent);margin-bottom:20px"></div>'+
@@ -355,14 +413,14 @@ function renderUnlocked(body){
   '</div>'+
   '<div '+S('display:grid;grid-template-columns:1fr 1fr;gap:5px')+'>'+
     _tile('SOL','mine-sol',_state.sol.toFixed(4),'#60a5fa')+
-    _tile('YRM','mine-yrm',_state.ym.toFixed(2),'var(--accent,#f0a830)')+
+    _tile('AIWA','mine-yrm',_state.ym.toFixed(2),'var(--accent,#f0a830)')+
   '</div>'+
   '<div '+S('background:linear-gradient(135deg,rgba(34,211,238,.08),rgba(34,211,238,.04));border:1px solid rgba(34,211,238,.22);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px')+'>'+
     '<div '+S('display:flex;align-items:baseline;justify-content:space-between')+'>'+
       '<span '+S('font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(34,211,238,.6);font-family:var(--font-m)')+'">Claimable</span>'+
       '<div '+S('display:flex;align-items:baseline;gap:5px')+'>'+
         '<span id="mine-cval" '+S('font-size:22px;font-weight:700;color:#22d3ee;font-family:var(--font-m);letter-spacing:-1px')+'">'+c.toFixed(4)+'</span>'+
-        '<span '+S('font-size:11px;color:rgba(34,211,238,.5);font-family:var(--font-m)')+'">YRM</span>'+
+        '<span '+S('font-size:11px;color:rgba(34,211,238,.5);font-family:var(--font-m)')+'">AIWA</span>'+
       '</div>'+
     '</div>'+
     '<button class="ym-btn ym-btn-accent" id="mine-claim-btn" '+S('width:100%;font-size:13px;font-weight:700;padding:10px;background:linear-gradient(135deg,#22d3ee,#0ea5e9);box-shadow:0 4px 20px rgba(34,211,238,.3);border:none')+'">⚡ Claim</button>'+
@@ -370,14 +428,15 @@ function renderUnlocked(body){
   '<div '+S('background:rgba(255,255,255,.02);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px')+'>'+
     '<div '+S('display:flex;align-items:center;justify-content:space-between')+'>'+
       '<span '+S('font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(240,168,48,.55);font-family:var(--font-m)')+'">Burn</span>'+
-      '<span '+S('font-size:9px;color:var(--text3);font-family:var(--font-m)')+'">Last: '+((_state.lastBurnAmount/1e9)||0).toFixed(3)+' SOL · τ '+_state.taxRate+'%</span>'+
+      '<span id="mine-mining" '+S('font-size:9px;color:var(--text3);font-family:var(--font-m);text-align:right')+'">'+_miningLine()+'</span>'+
     '</div>'+
     '<div '+S('display:flex;gap:6px;align-items:center')+'>'+
       '<input class="ym-input" id="mine-bamt" type="number" min="'+MIN_BURN+'" step="0.001" placeholder="Amount SOL" '+S('flex:1;font-size:12px')+'"/>'+
-      '<span class="ym-stat-value" id="mine-rlbl" '+S('font-size:12px;color:var(--accent,#f0a830);min-width:30px;text-align:right;font-family:var(--font-m)')+'">20%</span>'+
+      '<span class="ym-stat-value" id="mine-rlbl" '+S('font-size:12px;color:var(--accent,#f0a830);min-width:30px;text-align:right;font-family:var(--font-m)')+'">T 0%</span>'+
     '</div>'+
-    '<input class="ym-slider" id="mine-rslider" type="range" min="0" max="40" step="1" value="20" '+S('width:100%')+'"/>'+
-    '<div '+S('display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:-4px')+'"><span>instant</span><span>Fee: <span id="mine-fee">—</span> SOL</span><span>patient</span></div>'+
+    '<input class="ym-slider" id="mine-rslider" type="range" min="0" max="'+MAX_T+'" step="1" value="0" '+S('width:100%')+'"/>'+
+    '<div '+S('display:flex;justify-content:space-between;font-size:9px;color:var(--text3);margin-top:-4px')+'"><span>T 0%</span><span>Counts: <span id="mine-fee">—</span></span><span>T '+MAX_T+'%</span></div>'+
+    '<div '+S('font-size:9px;color:var(--text3);line-height:1.5')+'">T is paid out of the burn: that share is destroyed without counting. A burn replaces your position and pays what the last one accrued.</div>'+
     '<button class="ym-btn ym-btn-accent" id="mine-burn-btn" '+S('width:100%;font-size:13px;font-weight:700;padding:10px;box-shadow:0 4px 20px rgba(240,168,48,.28)')+'">🔥 Burn</button>'+
     '<div id="mine-txmsg" class="ym-notice" '+S('display:none')+'"></div>'+
   '</div>'+
@@ -400,7 +459,7 @@ function renderUnlocked(body){
       FAUCETS.map(f=>'<a href="'+f.url+'" target="_blank" rel="noopener" '+S('font-size:10px;color:var(--cyan);text-decoration:none;opacity:.65')+'">↗ '+f.label+'</a>').join('')+
     '</div>'+
     '<div '+S('display:flex;gap:4px;flex-basis:100%')+'>'+
-      _badge('Slot','mine-slot',_state.currentSlot||'—')+
+      _badge('Epoch','mine-slot',_state.ready?_state.currentSlot:'…')+
     '</div>'+
   '</div>';
 
@@ -411,7 +470,7 @@ function renderUnlocked(body){
 
   const $=id=>body.querySelector('#'+id);
   _updateFee(body);
-  if($('mine-rslider'))$('mine-rslider').addEventListener('input',()=>{if($('mine-rlbl'))$('mine-rlbl').textContent=$('mine-rslider').value+'%';_updateFee(body);});
+  if($('mine-rslider'))$('mine-rslider').addEventListener('input',()=>{if($('mine-rlbl'))$('mine-rlbl').textContent='T '+$('mine-rslider').value+'%';_updateFee(body);});
   if($('mine-bamt'))$('mine-bamt').addEventListener('input',()=>_updateFee(body));
 
   // Name resolution on input
@@ -445,18 +504,18 @@ function renderUnlocked(body){
 
   if($('mine-burn-btn'))$('mine-burn-btn').addEventListener('click',async()=>{
     const amtEl=$('mine-bamt'),rslEl=$('mine-rslider');
-    const amt=parseFloat(amtEl?amtEl.value:0),rate=parseInt(rslEl?rslEl.value:20);
+    const amt=parseFloat(amtEl?amtEl.value:0),rate=parseInt(rslEl?rslEl.value:0);
     if(!amt||amt<MIN_BURN)return showTx(body,'Min '+MIN_BURN+' SOL',true);
     if(amt>_state.sol)return showTx(body,'Insufficient SOL',true);
     const btn=$('mine-burn-btn');btn.disabled=true;btn.textContent='⏳';
-    try{const sig=await doBurn(amt,rate);showTx(body,'✓ '+sig.slice(0,10)+'…');setTimeout(refreshBalances,2000);}
+    try{const sig=await doBurn(amt,rate);showTx(body,'✓ Burned and committed — '+sig.slice(0,10)+'…');setTimeout(refreshBalances,2000);}
     catch(e){showTx(body,e.message,true);}
     finally{if(btn){btn.disabled=false;btn.textContent='🔥';}}
   });
   if($('mine-claim-btn'))$('mine-claim-btn').addEventListener('click',async()=>{
     if(calcClaimable()<=0)return showTx(body,'Nothing to claim',true);
     const btn=$('mine-claim-btn');btn.disabled=true;btn.textContent='⏳';
-    try{const sig=await doClaim();showTx(body,'✓ '+sig.slice(0,10)+'…');setTimeout(refreshBalances,2000);}
+    try{const got=await doClaim();showTx(body,'✓ Claimed '+got+' AIWA');setTimeout(refreshBalances,2000);}
     catch(e){showTx(body,e.message,true);}
     finally{if(btn){btn.disabled=false;btn.textContent='⚡';}}
   });
@@ -483,12 +542,12 @@ function renderUnlocked(body){
 
 function _tile(label,id,val,color){return '<div style="background:rgba(255,255,255,.03);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:var(--r-sm,8px);padding:8px 10px;min-width:0"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">'+label+'</div><div id="'+id+'" style="font-family:var(--font-m);font-size:13px;font-weight:600;color:'+color+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+val+'</div></div>';}
 function _badge(label,id,val){return '<div style="background:rgba(255,255,255,.03);border:1px solid var(--border,rgba(255,255,255,.08));border-radius:var(--r-sm,8px);padding:4px 8px;white-space:nowrap"><span style="color:var(--text3);font-size:9px;text-transform:uppercase;margin-right:4px">'+label+'</span><span '+(id?'id="'+id+'"':'')+' style="font-size:10px;color:var(--text2)">'+val+'</span></div>';}
-function _updateFee(body){const el=body.querySelector('#mine-fee');if(el){const amtEl=body.querySelector('#mine-bamt');const a=parseFloat(amtEl?amtEl.value:0);el.textContent=isNaN(a)?'—':(a*0.001).toFixed(6)+' SOL';}}
+function _updateFee(body){const el=body.querySelector('#mine-fee');if(el){const amtEl=body.querySelector('#mine-bamt'),rEl=body.querySelector('#mine-rslider');const a=parseFloat(amtEl?amtEl.value:0),T=parseInt(rEl?rEl.value:0)/100;el.textContent=isNaN(a)?'—':(Math.floor(a*1e9*(1-T))/1e9)+' SOL';}}
 function _startCycles(body){clearInterval(_cycleTimer);clearInterval(_claimTimer);_cycleTimer=setInterval(refreshBalances,15000);_claimTimer=setInterval(()=>{const c=calcClaimable();const el=document.getElementById('mine-cval');if(el)el.textContent=c.toFixed(6);_updateFigureBtn();},2000);}
 function showErr(body,msg){const e=body.querySelector('#mine-err');if(e){e.textContent=msg;e.style.display='flex';}}
 function showTx(body,msg,err){err=err||false;const e=document.getElementById('mine-txmsg');if(!e)return;e.textContent=msg;e.className='ym-notice '+(err?'error':'success');e.style.display='flex';setTimeout(()=>{e.style.display='none';},5000);}
 
-window.YM_Mine = { render, refreshBalances, calcClaimable, signMessage, resolveName };
+window.YM_Mine = { render, refreshBalances, calcClaimable, rewardAt, ranking, exportEvidence, signMessage, resolveName };
 _loadSolana().catch(()=>{});
 _loadNacl().catch(()=>{});
 })();

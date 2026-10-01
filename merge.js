@@ -297,7 +297,7 @@ async function main() {
   const validationPath = '/tmp/validation_result.json';
   if (!fs.existsSync(validationPath)) { console.error('No validation result found.'); process.exit(1); }
 
-  const { walletPubkey, ghActor, files } = JSON.parse(fs.readFileSync(validationPath, 'utf8'));
+  const { walletPubkey, ghActor, files, aiwaBaseline } = JSON.parse(fs.readFileSync(validationPath, 'utf8'));
   if (!files || !files.length) { console.log('No files to merge.'); process.exit(0); }
 
   console.log('Merging ' + files.length + ' file(s) from @' + ghActor);
@@ -322,6 +322,18 @@ async function main() {
         console.log('Copied event', evFile);
       }
     }
+  }
+
+  // What the validator derived for this wallet (its mining state at the epoch it validated): the base the wallet's next
+  // submission continues from, so that only the new events are folded. Written next to the registries it came with.
+  const extraFiles = [];
+  if (aiwaBaseline) {
+    let baselines = {};
+    try { baselines = JSON.parse(fs.readFileSync('aiwa-state.json', 'utf8')) || {}; } catch (e) {}
+    baselines[walletPubkey] = { ...aiwaBaseline, validatedAt: Math.floor(Date.now() / 1000) };
+    fs.writeFileSync('aiwa-state.json', JSON.stringify(baselines));
+    extraFiles.push('aiwa-state.json');
+    console.log('Aiwa baseline kept for', walletPubkey, '— epoch', aiwaBaseline.epoch);
   }
 
   // ── Unpublish profile ──────────────────────────────────────
@@ -371,7 +383,7 @@ async function main() {
         console.warn('No matching entry found for score update:', targetFilename);
       }
     } catch(e) { console.error('Could not update ' + reg + ':', e.message); process.exit(1); }
-    gitCommitAndPush('bot: score_update @' + ghActor + ' — ' + targetFilename, [reg]);
+    gitCommitAndPush('bot: score_update @' + ghActor + ' — ' + targetFilename, [reg, ...extraFiles]);
     return;
   }
 
@@ -382,7 +394,7 @@ async function main() {
   await updateNameRegistry(files, ghActor, walletPubkey);
   await updateProfileRegistry(files, ghActor, walletPubkey);
 
-  const filesToAdd = ['files.json', 'themes-files.json', 'events/'];
+  const filesToAdd = ['files.json', 'themes-files.json', 'events/', ...extraFiles];
   if(files.some(f=>f.filename&&f.filename.endsWith('.profile.js'))) filesToAdd.push('*.profile.js');
   if(files.some(f=>f.filename==='name.json')) filesToAdd.push('name.json');
   if(files.some(f=>f.filename==='profile.json')) filesToAdd.push('profile.json');

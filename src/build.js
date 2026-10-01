@@ -685,7 +685,19 @@ function _step(body,title,badge,fn){
   fn(card);body.appendChild(card);
 }
 
-function slotsToHuman(slots){if(!isFinite(slots)||slots>5e7)return'∞';const s=Math.round(slots*.4);if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'min';if(s<86400)return(s/3600).toFixed(1)+'h';return(s/86400).toFixed(1)+'d';}
+function slotsToHuman(epochs){if(!isFinite(epochs)||epochs>5e7)return'∞';const s=Math.round(epochs*30);/* one epoch ≈ 30 s of the wallet being open */if(s<60)return s+'s';if(s<3600)return Math.round(s/60)+'min';if(s<86400)return(s/3600).toFixed(1)+'h';return(s/86400).toFixed(1)+'d';}
+// Aiwa evidence for a submission: the wallet's own burn / progression / accrual / claim events since the epoch the registry
+// already validated for this wallet (aiwa-state.json on main), pushed to the fork next to the YourMine event. The validator
+// derives the mining state from them — it does not take the score on the page's word.
+async function pushAiwaEvidence(token,username,nonce,pubkey){
+  if(!window.YM_Mine_evidence)throw new Error('Aiwa wallet not ready');
+  let after=0;
+  try{const r=await fetch(RAW_BASE+'aiwa-state.json?t='+Date.now(),{cache:'no-store'});if(r.ok){const st=await r.json();after=(st&&st[pubkey]&&st[pubkey].epoch)||0;}}catch{}
+  const ev=await window.YM_Mine_evidence(after);
+  const body={version:1,wallet:pubkey,domain:ev.domain,afterEpoch:after,events:ev.events};
+  await ghPush(token,username,'aiwa/'+nonce+'.json',JSON.stringify(body),'aiwa evidence: '+nonce);
+  return ev.events.length;
+}
 function fmtR(v){if(!v||isNaN(v))return'0';if(Math.abs(v)<.0001)return v.toExponential(2);return v.toPrecision(4);}
 
 function _showSimulatorOverlay(elig){
@@ -696,16 +708,16 @@ function _showSimulatorOverlay(elig){
   box.style.cssText='background:var(--glass-heavy);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:20px;width:min(340px,92vw);max-height:90vh;overflow-y:auto';
   box.innerHTML='<div style="font-family:var(--font-d);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:14px">Simulateur</div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">'+
-    '<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:8px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Claimable YRM</div><div style="font-size:18px;font-weight:700;color:var(--gold)">'+elig.claimable.toFixed(4)+'</div></div>'+
+    '<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:8px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Claimable AIWA</div><div style="font-size:18px;font-weight:700;color:var(--gold)">'+elig.claimable.toFixed(4)+'</div></div>'+
     '<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:8px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;margin-bottom:2px">Ratio actuel</div><div style="font-size:14px;font-weight:700;color:var(--cyan)">'+fmtR(elig.curRatioNum)+'/'+fmtR(elig.curRatioDen)+'</div></div>'+
     '</div>'+
     (elig.lastPub?'<div style="font-size:10px;color:var(--text3);margin-bottom:8px">Dernier pub : <span style="color:var(--text2)">'+fmtR((elig.lastPub.score||0)+1)+'/'+fmtR(Math.max(1,elig.lastPub.laps||1)+1)+'</span> — check : <span style="color:'+(elig.ratioCheck<=1?'var(--green)':'var(--red)')+'">'+fmtR(elig.ratioCheck)+'</span> (≤1)</div>':'')+
     '<div style="border-top:1px solid rgba(255,255,255,.08);margin:10px 0 12px"></div>'+
-    '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Burn additionnel</div>'+
+    '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Nouveau burn (remplace la position)</div>'+
     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><input id="simov-burn" type="range" min="0" max="2" step="0.01" value="0" style="flex:1;accent-color:var(--gold)"><span id="simov-burn-val" style="font-size:11px;color:var(--gold);min-width:52px;text-align:right;font-family:var(--font-m)">0 SOL</span></div>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'+
     '<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:10px;text-align:center"><div style="font-size:9px;color:var(--text3);margin-bottom:4px">Temps attente</div><div id="simov-wait" style="font-size:20px;font-weight:700;color:var(--cyan)">—</div></div>'+
-    '<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:10px;text-align:center"><div style="font-size:9px;color:var(--text3);margin-bottom:4px">Slots</div><div id="simov-slots" style="font-size:20px;font-weight:700;color:var(--text2)">—</div></div>'+
+    '<div style="background:rgba(255,255,255,.04);border-radius:8px;padding:10px;text-align:center"><div style="font-size:9px;color:var(--text3);margin-bottom:4px">Époques</div><div id="simov-slots" style="font-size:20px;font-weight:700;color:var(--text2)">—</div></div>'+
     '</div>'+
     '<button id="simov-close" class="ym-btn ym-btn-ghost" style="width:100%;font-size:12px">Fermer</button>';
   ov.appendChild(box);document.body.appendChild(ov);
@@ -713,21 +725,20 @@ function _showSimulatorOverlay(elig){
     const extra=parseFloat(box.querySelector('#simov-burn').value)||0;
     box.querySelector('#simov-burn-val').textContent=extra.toFixed(2)+' SOL';
     if(!elig.lastPub){box.querySelector('#simov-wait').textContent='Libre';box.querySelector('#simov-slots').textContent='0';return;}
-    const state=window._mineState||{};
-    const S=((state.lastBurnAmount||0)+(extra*1e9))/1e9;
-    if(S<=0){box.querySelector('#simov-wait').textContent='∞';return;}
-    const tau=Math.min(state.taxRate||20,40)/100;
-    const baseSlot=Math.max(1,state.currentSlot||111111112);
-    const needed=elig.lastRatio;
-    let t=elig.curLaps,slots=Infinity;
-    for(let i=0;i<2000;i++){
-      // Recompute dGen at THIS future point in time — A advances as t advances
-      const futureSlot=baseSlot+(t-elig.curLaps);
-      const dGen=Math.max(1,futureSlot-111111111);
-      const inner=Math.pow(dGen,2.2*(1-tau))+Math.pow(33,3);
-      const den=inner>1?Math.pow(Math.log(inner),3):1;
-      if((S*Math.pow(t,1.1)/den+1)/(t+1)>=needed){slots=Math.max(0,t-elig.curLaps);break;}
-      t+=500;
+    const m=(window._mineState||{}).mining;
+    const T=m?m.T:0;
+    // A new burn REPLACES the position (the previous one is paid first): its capital is burned × (1 − T) and t restarts
+    // at 0. Without one, the same position keeps maturing from where it is.
+    const capital=extra>0?extra*(1-T):(m?m.capital:0);
+    if(!(capital>0)){box.querySelector('#simov-wait').textContent='∞';box.querySelector('#simov-slots').textContent='∞';return;}
+    const age=m?m.epoch:0,t0=extra>0?0:elig.curLaps,needed=elig.lastRatio;
+    const reward=(window.YM_Mine&&window.YM_Mine.rewardAt)?window.YM_Mine.rewardAt:()=>0;
+    let t=Math.max(1,t0),slots=Infinity;
+    for(let i=0;i<4000;i++){
+      // the age advances as t does: A grows by one for every epoch worked
+      const score=reward(capital,t,age+(t-t0),T);
+      if((score+1)/(t+1)>=needed){slots=Math.max(0,t-t0);break;}
+      t=Math.ceil(t*1.02)+1;
     }
     const wEl=box.querySelector('#simov-wait');
     wEl.textContent=slotsToHuman(slots);
@@ -790,6 +801,7 @@ async function submitUnified(body,codeAreaEl,nameTypeStep,pubType,mode){
       }
       const ev={...evPayload,wallet:pubkey||username,signature:sigB64};
       await ghPush(token,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'event: '+nonce);
+      if(!existing&&pubkey){st('Preuves Aiwa…');await pushAiwaEvidence(token,username,nonce,pubkey);}
       await new Promise(r=>setTimeout(r,2000));
       st('PR…');const pr=await openPR(token,username);
       const fileUrl='https://github.com/'+username+'/'+GH_REPO+'/blob/main/'+filename;
@@ -1054,6 +1066,7 @@ async function _renderUpdateScore(container){
     try{
       status.textContent='Fork…';await ensureFork(tok,username);
       status.textContent='Push…';await ghPush(tok,username,'events/'+nonce+'.json',JSON.stringify(ev,null,2),'score_update: '+targetFilename);
+      status.textContent='Preuves Aiwa…';await pushAiwaEvidence(tok,username,nonce,pubkey);
       await new Promise(r=>setTimeout(r,1500));
       status.textContent='PR…';const pr=await openPR(tok,username);
       status.style.color='var(--gold)';

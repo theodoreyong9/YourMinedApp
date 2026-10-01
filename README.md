@@ -27,7 +27,7 @@ Any monetary system on earth (Dollars, Bitcoin, whatever...) cannot work across 
 
 Proof of Will is geographically independent by design. Mining happens where you are, with who you are. Your will does not travel — it acts locally. No global synchronisation required other than time itself.
 
-**This is a prototype.** The mining formula and permission score described in this repo demonstrate the concept inside YourMine, but the real interplanetary protocol — designed to actually run consensus across planets — is being developed separately at **[AIWA_chain](https://github.com/theodoreyong9/AIWA_chain)**.
+**Mining, the token and the ranking figure are [Aiwa](https://github.com/theodoreyong9/Aiwa_project)'s** — the protocol this concept was prototyped for. YourMine's own Solana program (a `YRM` token minted at the burn, a creator tax) is no longer used: see *Mining, on Aiwa* below.
 
 ---
 
@@ -637,7 +637,7 @@ This is not a moderation system. It is the structural mechanism that makes the r
 - **New sphere:** your current score ratio must improve on your last publication. The more you've contributed, the more credibility you carry.
 - **Updating an existing sphere:** ownership check only, no score required.
 
-Score is frozen at merge time. Ranking: `score / laps`. No editorial override.
+Score is frozen at merge time. Ranking: `score / laps`. No editorial override. `score` is the claimable and `laps` the epochs since your last action, **both derived from your own Aiwa events** (below).
 
 ### Opening the publish form pre-filled (`#aiwa=…`)
 
@@ -649,7 +649,7 @@ https://yourmine-dapp.web.app/#aiwa=1;<name>;<code>
 
 `<name>` is the file name (`radio.sphere.js`), `<code>` the sphere's source, raw-deflated (`deflate-raw`) then base64url-encoded without padding. A fragment is never sent to a server. YourMine opens **Build → Apps** with the name and the code filled in, and stops there: reading the code and pressing **Sign & Submit** stay yours. Anything that does not match this exact shape is ignored.
 
-The score itself comes from the mining formula — participation in the network (burns, time, patience rate) generates it. Score is therefore a function of genuine network engagement, not identity or reputation assigned externally.
+The score itself comes from the mining formula — participation (burns, proven time, patience rate) generates it. Score is therefore a function of genuine engagement, not identity or reputation assigned by anyone: it is derived by the validator from events the wallet signed, never taken on the page's word.
 
 ---
 
@@ -770,11 +770,36 @@ Works on Vercel, Netlify, GitHub Pages, Cloudflare Pages, or any CDN.
 
 ---
 
+## Mining, on Aiwa
+
+The wallet in the **Mine** panel is an [Aiwa](https://github.com/theodoreyong9/Aiwa_project) wallet on the same key (a BIP39 phrase gives the same address as before): `src/mine.js` loads `aiwa.bundle.js` (one file, built and published by Aiwa_project) and runs `AIWA` from it, with its own log in IndexedDB.
+
+- **"Last action" mining.** What mines is your **last burn**: a new burn replaces the position and **pays what the previous one accrued** (it becomes a spendable AIWA claim). A small burn after a big one lowers it.
+- **T is chosen at the burn** (0 to 40 %, the slider) and **paid out of the burn**: that share is destroyed without counting, so what counts as capital is `burned × (1 − T)`. The page shows it before you burn. There is no creator tax any more: no recipient, nothing to send to a fixed address.
+- **Time is epochs of proven work, not Solana slots.** One epoch is 100 000 modular squarings and a proof anyone checks in milliseconds; the wallet works about one every 30 s **while it is unlocked**. Your age `A` is your own epoch count, `t` the epochs since your last action. The formula is the one Proof of Will already states (`α 1.1, β 2.2, γ 3, C 33³`, `T` in the exponent): checked numerically against the old `calcClaimable`.
+- **The token is AIWA** (spendable after a claim). `YRM` and its Solana program (`src/programs/lib.rs`, kept as history) are not used by the wallet, the validator or the ranking.
+- **The burn goes to Solana's incinerator and is confirmed by whoever reads it**: the validator asks Solana itself for the finalized transaction; nothing in a submission can make a burn count.
+
+### What a submission carries, and what the validator derives
+
+A new file's PR carries, next to `events/<nonce>.json` (the signed YourMine event, as before), `aiwa/<nonce>.json`: the wallet's own burn / progression / accrual / claim events since the epoch the registry already validated for it. `validate.js` (via `aiwa-utils.js`, which uses `aiwa-core`'s `assessMining`):
+
+1. checks each event's envelope (id, author, signature) — a tampered event is set aside;
+2. checks the progression proofs (an epoch counts only for the work it proves: **one hash can no longer pass for an epoch**) and the chain from the stored baseline;
+3. confirms the burns against Solana, as the validator;
+4. derives the mining state (`score`, `laps`) and applies the permission-score ratio as before.
+
+`aiwa-state.json` on `main` keeps, per wallet, the state the validator derived (written by `merge.js`): the next submission only carries the events after it, and must chain from it. Cost for the validator: one signature per event and a few milliseconds per progression event.
+
+**Honest limits.** The registry only sees the history a wallet shows it: Aiwa's answer to a fork is its Mirror (observers), which this validator does not run — it checks that evidence continues the baseline it kept. The first submission of an old wallet carries its whole history (about 2 KB per epoch event). Epochs are worked only while the wallet is unlocked. Wallets and scores from before the switch are unchanged in the registry (scores are frozen at merge time), but a wallet's old `YRM` position is not carried over: it starts at epoch 0 on Aiwa. Not run here: the burn against a real Solana (Solana and the CDNs were stubbed in the browser test), and the GitHub Action itself.
+
+Run the tests with `npm test` (the validator: first submission, no evidence, someone else's evidence or burn, a cheap epoch, the ratio gate, continuing from a baseline, a tampered event).
+
 ## AIWA Project
 
-YourMine is the first application built on **AIWA** — the broader effort to build a real, geographically-independent consensus protocol for interplanetary participation, starting from the Proof of Will concept prototyped here.
+YourMine is the first application built on **AIWA** — a geographically-independent protocol for interplanetary participation, started from the Proof of Will concept prototyped here. Its mining, token and time now run on it.
 
-**Repo:** https://github.com/theodoreyong9/AIWA_chain
+**Repos:** [Aiwa_core](https://github.com/theodoreyong9/Aiwa_core) (the protocol), [Aiwa_lib](https://github.com/theodoreyong9/Aiwa_lib) (the wallet API), [Aiwa_project](https://github.com/theodoreyong9/Aiwa_project) (the wallet page and the yellow paper)
 
 ---
 

@@ -1,15 +1,17 @@
 {
   "name": "yourmine-spheres",
   "version": "1.0.0",
-  "description": "YourMine sphere registry — validated via Solana signature + YRM score",
+  "description": "YourMine sphere registry \u2014 validated via the author's Ed25519 signature and the Aiwa mining state derived from the author's own events",
   "private": true,
   "scripts": {
     "validate": "node scripts/validate.js",
-    "merge": "node scripts/merge.js"
+    "merge": "node scripts/merge.js",
+    "test": "node --test"
   },
   "dependencies": {
     "@solana/web3.js": "^1.91.0",
-    "tweetnacl": "^1.0.3"
+    "tweetnacl": "^1.0.3",
+    "aiwa-core": "github:theodoreyong9/Aiwa_core#24501b21b7cb72654886dbf52327371691b187e4"
   },
   "engines": {
     "node": ">=20"

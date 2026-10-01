@@ -3,7 +3,8 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const https  = require('https');
-const { verifySignature, checkScoreEligibility } = require('./solana-utils');
+const { verifySignature } = require('./solana-utils');
+const { checkScoreEligibilityAiwa, readBaselines, readEvidence } = require('./aiwa-utils');
 
 const MAX_EVENT_AGE_SEC = 3600;
 const MIN_TS_GAP_SEC    = 300;
@@ -143,17 +144,21 @@ async function main() {
     if (!lastPub) { console.error('No existing entry found for ' + targetFilename + ' owned by this wallet'); process.exit(1); }
 
     let sc = { score: 0, currentLaps: 1, eligible: true };
+    const scoreEvidence = readEvidence(prContentDir, scoreUpdateEvent.nonce);
+    const scoreBaselines = readBaselines('.');
     if (targetFilename.endsWith('.sphere.js') || targetFilename.endsWith('.theme.html')) {
-      sc = await checkScoreEligibility(walletPubkey, lastPub.score || 0, Math.max(1, lastPub.laps || 1));
+      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: lastPub.score || 0, lastPubLaps: Math.max(1, lastPub.laps || 1), evidence: scoreEvidence, baselines: scoreBaselines });
       if (!sc.eligible) { console.error('Score not eligible: ' + sc.reason); process.exit(1); }
     } else {
       // name/profile — zero friction, no score gate, just report current claimable as rank
-      sc = await checkScoreEligibility(walletPubkey, 0, 1).catch(() => ({ score: scoreUpdateEvent.score || 0, currentLaps: scoreUpdateEvent.laps || 1, eligible: true }));
+      sc = await checkScoreEligibilityAiwa({ walletPubkey, lastPubScore: 0, lastPubLaps: 1, evidence: scoreEvidence, baselines: scoreBaselines }).catch(() => null);
+      if (!sc || !sc.mining) sc = { score: scoreUpdateEvent.score || 0, currentLaps: scoreUpdateEvent.laps || 1, eligible: true, baseline: null };
       sc.eligible = true;
     }
     console.log('Score update eligible for ' + targetFilename + ' — score=' + sc.score.toFixed(4) + ' laps=' + sc.currentLaps);
     fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({
       walletPubkey, ghActor,
+      aiwaBaseline: sc.baseline || null,
       files: [{
         action: 'score_update_entry', wallet: walletPubkey,
         score: sc.score, laps: sc.currentLaps,
@@ -246,7 +251,10 @@ async function main() {
   if (newCodeFiles.length > 0) {
     const walletPubs = filesJsonMain.filter(f => f.ghAuthor === ghActor || f.author === walletPubkey).sort((a, b) => (b.merged_at || 0) - (a.merged_at || 0));
     const lastPub = walletPubs[0] || null;
-    scoreCheck = await checkScoreEligibility(walletPubkey, lastPub ? (lastPub.score || 0) : 0, lastPub ? Math.max(1, lastPub.laps || 1) : 1);
+    scoreCheck = await checkScoreEligibilityAiwa({
+      walletPubkey, lastPubScore: lastPub ? (lastPub.score || 0) : 0, lastPubLaps: lastPub ? Math.max(1, lastPub.laps || 1) : 1,
+      evidence: readEvidence(prContentDir, newCodeFiles[0].nonce), baselines: readBaselines('.'),
+    });
     if (!scoreCheck.eligible) { console.error('Score not eligible: ' + scoreCheck.reason); process.exit(1); }
     console.log('Score eligible (claimable=' + scoreCheck.score.toFixed(4) + ')');
   } else {
@@ -336,7 +344,7 @@ async function main() {
 
   if (!results.length) { console.error('No files validated'); process.exit(1); }
 
-  fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({ walletPubkey, ghActor, files: results }, null, 2));
+  fs.writeFileSync('/tmp/validation_result.json', JSON.stringify({ walletPubkey, ghActor, aiwaBaseline: scoreCheck.baseline || null, files: results }, null, 2));
   console.log('\nValidation passed — ' + results.length + ' file(s) ready');
 }
 

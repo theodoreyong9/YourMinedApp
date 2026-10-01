@@ -104,3 +104,5 @@ docs/_build/
 # Local configuration overrides
 config.local.js
 config.override.js
+# The mining state the validator derived for each wallet (aiwa-utils.js, merge.js)
+!aiwa-state.json
