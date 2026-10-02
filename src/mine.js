@@ -130,14 +130,30 @@ async function _startAiwa(){
     const A=await _loadAiwa();
     if(_wallet.locked||!_wallet.keypair)throw Error('Wallet locked');
     const w=new A.AIWA({rewardParams:AIWA_PARAMS,logDomain:'yourmine',dbName:'yourmine-aiwa-'+_wallet.pubkey.slice(0,12)});
-    await w.connect({secretKeyBytes:_wallet.keypair.secretKey});
+    await w.connect(_wallet.phrase?{mnemonic:_wallet.phrase}:{secretKeyBytes:_wallet.keypair.secretKey});
     try{w.connection=await getConn();}catch{}
     w.startProgressLoop({onError:e=>console.warn('[Mine] progress:',e&&e.message)});
     w.startAutoCheckpoint({onError:e=>console.warn('[Mine] checkpoint:',e&&e.message)});
     _aiwa=w;_state.ready=true;
+    _mountSafety();
     return w;
   })();
   try{return await _aiwaStarting;}finally{_aiwaStarting=null;}
+}
+// Recovery (phrase, backup, restore) is Aiwa's own panel, mounted where the wallet is shown; the registry — which keeps
+// what it derived from this wallet's submissions (aiwa-state.json) — is one source the wallet can be restored from.
+const REGISTRY_RAW='https://raw.githubusercontent.com/theodoreyong9/YourMinedApp/main/';
+const REGISTRY_SOURCE={label:'the YourMine registry',fetch:async()=>{
+  const r=await fetch(REGISTRY_RAW+'aiwa-state.json?t='+Date.now(),{cache:'no-store'});
+  if(!r.ok)return null;
+  const st=await r.json(),b=st&&_wallet.pubkey&&st[_wallet.pubkey];
+  return b&&b.state?{state:b.state}:null;
+}};
+function _mountSafety(){
+  const el=document.getElementById('mine-recovery-panel');
+  if(!el||!_aiwa||!_aiwaMod||!_aiwaMod.mountWalletSafety)return;
+  _aiwaMod.mountWalletSafety(el,_aiwa,{sources:[REGISTRY_SOURCE],onRestored:()=>refreshBalances()});
+  if(_phraseJustCreated){_phraseJustCreated=false;const first=el.querySelector('button');if(first)first.click();}   // a new wallet shows its words right away, once
 }
 async function _stopAiwa(){
   const w=_aiwa;_aiwa=null;_state.ready=false;_state.mining=null;
@@ -211,9 +227,10 @@ function _updateFigureBtn(){const c=calcClaimable();const label=document.getElem
 function _updateBalanceEls(){const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('mine-sol',_state.sol.toFixed(6));set('mine-yrm',_state.ym.toFixed(4));set('mine-slot',_state.ready?_state.currentSlot:'…');set('mine-cval',calcClaimable().toFixed(6));const mi=document.getElementById('mine-mining');if(mi)mi.textContent=_miningLine();}
 function _miningLine(){const m=_state.mining;return m?('capital '+m.capital+' SOL · T '+Math.round(m.T*100)+'% · '+m.sinceLastAction+' epochs since your last action'):(_state.ready?'No burn yet':'Starting Aiwa…');}
 
-async function unlockWallet(pw){const secret=await loadEnc(pw);const kp=await kpFromSecret(secret);_wallet={locked:false,keypair:kp,pubkey:kp.publicKey.toString(),connection:null};await refreshBalances();window.dispatchEvent(new CustomEvent('ym:wallet-unlocked'));_startAiwa().then(()=>refreshBalances()).catch(e=>console.warn('[Mine] aiwa:',e&&e.message));return kp;}
+async function unlockWallet(pw){const secret=await loadEnc(pw);const kp=await kpFromSecret(secret);_wallet={locked:false,keypair:kp,pubkey:kp.publicKey.toString(),connection:null,phrase:secret.startsWith('phrase:')?secret.slice(7):null};await refreshBalances();window.dispatchEvent(new CustomEvent('ym:wallet-unlocked'));_startAiwa().then(()=>refreshBalances()).catch(e=>console.warn('[Mine] aiwa:',e&&e.message));return kp;}
 function lockWallet(){_stopAiwa();if(_wallet.keypair&&_wallet.keypair.secretKey)_wallet.keypair.secretKey.fill(0);_wallet={locked:true,keypair:null,pubkey:null,connection:null};clearInterval(_cycleTimer);clearInterval(_claimTimer);_updateFigureBtn();window.dispatchEvent(new CustomEvent('ym:wallet-locked'));}
-async function createWallet(phrase,pw){const sol=window.solanaWeb3;let secret,kp;if(phrase&&phrase.trim()){const w=phrase.trim().replace(/\s+/g,' ').toLowerCase().split(' ');if(w.length!==12&&w.length!==24)throw Error('Need 12 or 24 words');secret='phrase:'+w.join(' ');kp=await kpFromSecret(secret);}else{kp=sol.Keypair.generate();secret='privkey:'+B58.encode(kp.secretKey);}await saveEnc(secret,pw,kp);return kp;}
+let _phraseJustCreated=false;
+async function createWallet(phrase,pw){const sol=window.solanaWeb3;let secret,kp;if(phrase&&phrase.trim()){const w=phrase.trim().replace(/\s+/g,' ').toLowerCase().split(' ');if(w.length!==12&&w.length!==24)throw Error('Need 12 or 24 words');secret='phrase:'+w.join(' ');kp=await kpFromSecret(secret);}else{let words;try{words=await(await _loadAiwa()).generateBip39Mnemonic(12);}catch(e){throw Error('Cannot make a recovery phrase: Aiwa could not be loaded (offline?). Try again online.');}secret='phrase:'+words;kp=await kpFromSecret(secret);_phraseJustCreated=true;}await saveEnc(secret,pw,kp);return kp;}
 async function importWallet(raw,pw){const sol=window.solanaWeb3;let kp;if(raw.startsWith('[')){kp=sol.Keypair.fromSecretKey(new Uint8Array(JSON.parse(raw)));}else{let bytes;try{bytes=B58.decode(raw)}catch{bytes=/^[0-9a-f]+$/i.test(raw)?Uint8Array.from(raw.match(/.{2}/g).map(b=>parseInt(b,16))):new Uint8Array(JSON.parse(raw))}kp=bytes.length===64?sol.Keypair.fromSecretKey(bytes):sol.Keypair.fromSeed(bytes);}const secret='privkey:'+B58.encode(kp.secretKey);await saveEnc(secret,pw,kp);return kp;}
 
 // ── PROOF OF WILL OVERLAY ──────────────────────────────────────
@@ -321,7 +338,7 @@ function renderLocked(body){
   if(!has){
     inner.innerHTML=
       '<div '+S('background:rgba(232,160,32,.07);border:1px solid rgba(232,160,32,.15);border-radius:var(--r-sm,8px);padding:10px 12px;font-size:11px;color:var(--text2);margin-bottom:16px;line-height:1.5')+'">'+
-        'BIP39 phrase (12/24 words) or leave empty to generate new.'+
+        'Leave the phrase empty to create a new wallet: 12 words are made for you and shown once — write them down, they are the only way back in. Or type your own BIP39 phrase (12/24 words).'+
       '</div>'+
       '<div '+S('position:relative;margin-bottom:8px')+'>'+
         '<input class="ym-input" id="mine-phrase" type="password" placeholder="Seed phrase (optional)" '+S('padding-right:36px')+'/>'+
@@ -456,6 +473,10 @@ function renderUnlocked(body){
       '<button class="ym-btn ym-btn-accent" id="mine-send-btn" '+S('font-size:11px;padding:6px')+'">Send ↗</button>'+
     '</div>'+
   '</div>'+
+  '<details id="mine-recovery" '+(_phraseJustCreated?'open ':'')+S('border:1px solid var(--border,rgba(255,255,255,.08));border-radius:12px;padding:10px 14px')+'>'+
+    '<summary '+S('font-size:11px;color:var(--text2);cursor:pointer;user-select:none')+'">Recovery — phrase, backup</summary>'+
+    '<div id="mine-recovery-panel" '+S('margin-top:8px;font-size:12px')+'">Starting Aiwa…</div>'+
+  '</details>'+
   '<div '+S('display:flex;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border,rgba(255,255,255,.06));align-items:center')+'>'+
     '<div '+S('display:flex;gap:4px;flex-wrap:wrap;flex:1')+'>'+
       FAUCETS.map(f=>'<a href="'+f.url+'" target="_blank" rel="noopener" '+S('font-size:10px;color:var(--cyan);text-decoration:none;opacity:.65')+'">↗ '+f.label+'</a>').join('')+
@@ -467,6 +488,7 @@ function renderUnlocked(body){
 
   wrap.appendChild(inner);
   body.appendChild(wrap);
+  _mountSafety();
 
   if(window.QRCode&&addr){const el=body.querySelector('#mine-qr');if(el){el.innerHTML='';new window.QRCode(el,{text:addr,width:72,height:72,correctLevel:window.QRCode.CorrectLevel.M});}}
 
