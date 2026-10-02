@@ -134,6 +134,8 @@ async function _startAiwa(){
     try{w.connection=await getConn();}catch{}
     w.startProgressLoop({onError:e=>console.warn('[Mine] progress:',e&&e.message)});
     w.startAutoCheckpoint({onError:e=>console.warn('[Mine] checkpoint:',e&&e.message)});
+    // the backup goes to the archive nodes added in Recovery (Archive nodes), whenever the wallet changed
+    if(A.loadArchiveNodes)w.startAutoArchive({nodes:()=>A.loadArchiveNodes(),onError:e=>console.warn('[Mine] archive:',e&&e.message)});
     _aiwa=w;_state.ready=true;
     _mountSafety();
     return w;

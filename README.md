@@ -786,6 +786,7 @@ The wallet is Aiwa's, so its recovery is Aiwa's too (aiwa-lib's `mountWalletSafe
 
 - **A backup file** (*Download backup*): the wallet's state signed by its own key — small however long the history. Log in with the phrase on the new device, *Restore from backup file*.
 - **The registry** (*Restore from the YourMine registry*): it keeps, per wallet, the state it derived at the last submission (`aiwa-state.json`), and the wallet adopts it. It brings back the mining up to that submission; what the registry never saw (value received from others, work since) is not in it.
+- **An archive node** (*Recovery → Archive nodes*): the address of an Aiwa archive node (aiwa-platform's `node/aiwa-node.js`, which anyone can run, on a phone under Termux if need be). The wallet keeps its backup there by itself, at most every 5 minutes and only when it changed; after a lost device, log in with the phrase and *Restore from the nodes*. The list is kept in this browser.
 - **Peers**, through Aiwa's replicator, as far as the wallet has peers connected (not wired in this app).
 
 A wallet that came from a **key** rather than a phrase — an older YourMine wallet, or a Solana wallet imported as a private key — has no phrase to show: the panel shows its **private key** instead, in the form Solana wallets export, and that key logs back in (*Import private key*, or any Solana wallet). The phrase of a wallet you imported from a Solana wallet is still the one that wallet gave you.
