@@ -788,7 +788,7 @@ The wallet is Aiwa's, so its recovery is Aiwa's too (aiwa-lib's `mountWalletSafe
 - **The registry** (*Restore from the YourMine registry*): it keeps, per wallet, the state it derived at the last submission (`aiwa-state.json`), and the wallet adopts it. It brings back the mining up to that submission; what the registry never saw (value received from others, work since) is not in it.
 - **Peers**, through Aiwa's replicator, as far as the wallet has peers connected (not wired in this app).
 
-Wallets created before this change were made from a random key, not a phrase: the panel says so, there is nothing to write down for them — create a new wallet (it has a phrase) and move the SOL.
+A wallet that came from a **key** rather than a phrase — an older YourMine wallet, or a Solana wallet imported as a private key — has no phrase to show: the panel shows its **private key** instead, in the form Solana wallets export, and that key logs back in (*Import private key*, or any Solana wallet). The phrase of a wallet you imported from a Solana wallet is still the one that wallet gave you.
 
 ### What a submission carries, and what the validator derives
 
